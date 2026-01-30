@@ -1,0 +1,4 @@
+== Build Desktop Apps with Ruby and Web Technologies
+
+Tokra is a port of Tauri to Ruby, enabling you to build desktop applications
+with web technologies backed by Ruby.

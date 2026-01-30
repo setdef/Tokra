@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# This Cargo.toml is here to let externals tools (IDEs, etc.) know that this is
+# a Rust project. Your extensions dependencies should be added to the Cargo.toml
+# in the ext/ directory.
+
+[workspace]
+members = ["./ext/tokra"]
+resolver = "2"
+
+# Strict linting: deny fails builds but allows targeted #[allow] for FFI constraints
+[workspace.lints.clippy]
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+all = { level = "deny", priority = -1 }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"

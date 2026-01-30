@@ -1,0 +1,15 @@
+/.bundle/
+/.yardoc/
+/_yardoc/
+/coverage/
+/pkg/
+/spec/reports/
+/tmp/
+
+# Rust/Cargo build artifacts
+/target/
+/ext/tokra/target/
+*.so
+*.bundle
+*.dll
+Cargo.lock
