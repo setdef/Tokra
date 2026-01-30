@@ -1,0 +1,88 @@
+<!--
+SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tokra</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; }
+
+    :root {
+      --text: oklch(25% 0.02 250);
+      --text-muted: oklch(50% 0.015 250);
+      --surface: oklch(98% 0.005 250);
+      --accent: oklch(55% 0.18 150);
+    }
+
+    html {
+      font-family: 'Instrument Sans', system-ui, sans-serif;
+      font-size: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+      line-height: 1.6;
+      color: var(--text);
+      background: var(--surface);
+    }
+
+    body {
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      padding: clamp(1.5rem, 4vw, 3rem);
+    }
+
+    main {
+      max-width: 32rem;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 1.6rem + 2vw, 3rem);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin-block-end: 1.5rem;
+    }
+
+    p {
+      color: var(--text-muted);
+    }
+
+    p + p {
+      margin-block-start: 0.75rem;
+    }
+
+    code {
+      font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+      font-size: 0.9em;
+      background: oklch(94% 0.01 250);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+    }
+
+    .status {
+      display: inline-block;
+      margin-block-start: 2rem;
+      padding: 0.5rem 1rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent);
+      background: oklch(95% 0.04 150);
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Hello from Tokra</h1>
+    <p>This page was served through the <code>tokra://</code> custom protocol, loaded directly from <code>index.html</code>.</p>
+    <p>Your Ruby app handles HTTP requests internally, just like Tauri does with <code>tauri://</code>.</p>
+    <span class="status">Protocol working</span>
+  </main>
+</body>
+</html>

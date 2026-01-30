@@ -16,5 +16,8 @@ pedantic = { level = "deny", priority = -1 }
 nursery = { level = "deny", priority = -1 }
 all = { level = "deny", priority = -1 }
 
+# Unsafe code is denied by default, but targeted exceptions are allowed with
+# #[allow(unsafe_code)] annotations. Each exception must be documented in
+# clippy_exceptions.rb with justification.
 [workspace.lints.rust]
-unsafe_code = "forbid"
+unsafe_code = "deny"

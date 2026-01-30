@@ -14,7 +14,10 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-magnus = { version = "0.8.2" }
+magnus = { git = "https://github.com/matsadler/magnus", branch = "main" }
+tao = "0.34.5"
+wry = "0.54.1"
+ctrlc = "3.4"
 
 [lints]
 workspace = true

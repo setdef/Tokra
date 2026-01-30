@@ -5,3 +5,4 @@
 ruby = "4.0.1"
 python = "3.12"
 pre-commit = "latest"
+rust = "1.93.0"

@@ -49,8 +49,6 @@ Gem::Specification.new do |spec|
   spec.add_dependency "rb_sys", "~> 0.9.91"
 
   # Development dependencies
-  spec.add_development_dependency "rake-compiler", "~> 1.2"
-  spec.add_development_dependency "rdoc", "~> 7.0"
 
   # For more information and examples about making a new gem, check out our
   # guide at: https://bundler.io/guides/creating_gem.html
