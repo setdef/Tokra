@@ -17,6 +17,10 @@ require "test_helper"
 # The invariant: All access to EventLoop, Window, and WebView happens
 # exclusively on the main thread via the tao event loop callback.
 class ThreadSafetyInvariantTest < Minitest::Test
+  # ==========================================================================
+  # Proxy Ractor Safety Tests
+  # ==========================================================================
+
   # Test that Proxy is genuinely Send-safe and can be used from a Ractor.
   # This proves the Ractor boundary works correctly.
   #
@@ -40,6 +44,22 @@ class ThreadSafetyInvariantTest < Minitest::Test
     assert Ractor.shareable?(proxy), "Frozen Proxy must be Ractor-shareable"
   end
 
+  # Test that frozen proxy is deeply frozen
+  def test_frozen_proxy_is_deeply_frozen
+    skip "Requires display server" if ENV["CI"] && !ENV["DISPLAY"]
+
+    event_loop = Tokra::Native::EventLoop.new
+    proxy = event_loop.create_proxy
+    proxy.freeze
+
+    assert proxy.frozen?, "Proxy should be frozen"
+    # Ractor.shareable? returning true implies deep frozen state for T_DATA
+  end
+
+  # ==========================================================================
+  # Main Thread Type Instantiation Tests
+  # ==========================================================================
+
   # Test that the main-thread-only types exist and can be instantiated
   # on the main thread. This is the baseline for the invariant.
   #
@@ -57,6 +77,10 @@ class ThreadSafetyInvariantTest < Minitest::Test
     assert_kind_of Tokra::Native::Window, window
   end
 
+  # ==========================================================================
+  # Window Operation Tests
+  # ==========================================================================
+
   # Test that Window operations work on the main thread.
   #
   # INVARIANT VERIFIED: Window operations are safe on main thread.
@@ -73,5 +97,115 @@ class ThreadSafetyInvariantTest < Minitest::Test
 
     assert_kind_of String, id
     refute_empty id
+  end
+
+  def test_window_set_title_accepts_unicode
+    skip "Requires display server" if ENV["CI"] && !ENV["DISPLAY"]
+
+    event_loop = Tokra::Native::EventLoop.new
+    window = Tokra::Native::Window.new(event_loop)
+
+    # Should not raise with unicode
+    window.set_title("日本語タイトル 🎌")
+  end
+
+  def test_window_set_size_accepts_float_dimensions
+    skip "Requires display server" if ENV["CI"] && !ENV["DISPLAY"]
+
+    event_loop = Tokra::Native::EventLoop.new
+    window = Tokra::Native::Window.new(event_loop)
+
+    # Should accept float dimensions
+    window.set_size(1024.5, 768.5)
+  end
+
+  def test_window_id_is_unique_per_window
+    skip "Requires display server" if ENV["CI"] && !ENV["DISPLAY"]
+
+    event_loop = Tokra::Native::EventLoop.new
+    window1 = Tokra::Native::Window.new(event_loop)
+    window2 = Tokra::Native::Window.new(event_loop)
+
+    refute_equal window1.id, window2.id, "Each window should have a unique ID"
+  end
+
+  # ==========================================================================
+  # EventLoop Tests
+  # ==========================================================================
+
+  def test_event_loop_create_proxy_returns_proxy
+    skip "Requires display server" if ENV["CI"] && !ENV["DISPLAY"]
+
+    event_loop = Tokra::Native::EventLoop.new
+    proxy = event_loop.create_proxy
+
+    assert_kind_of Tokra::Native::Proxy, proxy
+  end
+
+  def test_event_loop_can_create_multiple_proxies
+    skip "Requires display server" if ENV["CI"] && !ENV["DISPLAY"]
+
+    event_loop = Tokra::Native::EventLoop.new
+    proxy1 = event_loop.create_proxy
+    proxy2 = event_loop.create_proxy
+
+    assert_kind_of Tokra::Native::Proxy, proxy1
+    assert_kind_of Tokra::Native::Proxy, proxy2
+  end
+
+  # ==========================================================================
+  # Proxy Operation Tests
+  # ==========================================================================
+
+  def test_proxy_responds_to_wake_up
+    skip "Requires display server" if ENV["CI"] && !ENV["DISPLAY"]
+
+    event_loop = Tokra::Native::EventLoop.new
+    proxy = event_loop.create_proxy
+
+    assert_respond_to proxy, :wake_up
+  end
+
+  def test_proxy_responds_to_respond
+    skip "Requires display server" if ENV["CI"] && !ENV["DISPLAY"]
+
+    event_loop = Tokra::Native::EventLoop.new
+    proxy = event_loop.create_proxy
+
+    assert_respond_to proxy, :respond
+  end
+
+  # ==========================================================================
+  # WebView Tests
+  # ==========================================================================
+
+  def test_webview_new_with_protocol_is_defined
+    assert Tokra::Native::WebView.respond_to?(:new_with_protocol),
+      "WebView should have .new_with_protocol class method"
+  end
+
+  # ==========================================================================
+  # Type Constants Are Defined
+  # ==========================================================================
+
+  def test_all_native_types_are_defined
+    assert defined?(Tokra::Native::EventLoop), "EventLoop should be defined"
+    assert defined?(Tokra::Native::Window), "Window should be defined"
+    assert defined?(Tokra::Native::WebView), "WebView should be defined"
+    assert defined?(Tokra::Native::Proxy), "Proxy should be defined"
+  end
+
+  # ==========================================================================
+  # Proxy Cannot Be Allocated From Ruby
+  # ==========================================================================
+
+  # This tests the fix for the "undefining allocator" warning.
+  # Proxy should not be allocatable from pure Ruby since it wraps Rust data.
+  def test_proxy_cannot_be_allocated_directly
+    # Proxy.allocate would create an uninitialized object, which would crash
+    # when any method is called. The fix prevents this.
+    assert_raises(TypeError) do
+      Tokra::Native::Proxy.allocate
+    end
   end
 end

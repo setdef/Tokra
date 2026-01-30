@@ -122,10 +122,10 @@ namespace :lint do
     sh "bundle exec rake rdoc:coverage"
   end
 
-  task docs: %w[rdoc:coverage rubycritic reuse:lint]
+  task docs: %w[safe_rdoc_coverage rubycritic reuse:lint]
   task code: %w[rubocop rubycritic lint:rust]
   task licenses: %w[reuse:lint]
-  task all: %w[docs code licenses]
+  task all: %w[docs code licenses rbs]
 
   namespace :fix do
     desc "Auto-fix RuboCop offenses (most aggressive)"

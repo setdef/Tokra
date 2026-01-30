@@ -63,16 +63,14 @@ module Rack # :nodoc:
         #
         #   Rack::Handler::Tokra.run(MyApp.freeze.app)
         #
-        def run(app, **options)
-          opts = DEFAULT_OPTIONS.merge(options)
-
+        def run(app, title: "Tokra", width: 800.0, height: 600.0, invoke_handler: nil)
           # Create Tokra components
           event_loop = ::Tokra::Native::EventLoop.new
           proxy = event_loop.create_proxy
 
           window = ::Tokra::Native::Window.new(event_loop)
-          window.set_title(opts[:title])
-          window.set_size(opts[:width].to_f, opts[:height].to_f)
+          window.set_title(title)
+          window.set_size(width.to_f, height.to_f)
 
           # Create the handler
           handler = new(app, proxy)
@@ -88,7 +86,7 @@ module Rack # :nodoc:
                 handler.call(event)
               when ::Tokra::Native::IpcEvent
                 # If an invoke_handler is provided, call it with the message
-                opts[:invoke_handler]&.call(event.message)
+                invoke_handler&.call(event.message)
               end
             }
           )
@@ -144,7 +142,7 @@ module Rack # :nodoc:
           end
 
           # Send the response
-          header_pairs = headers.map { |k, v| [k.to_s, v.to_s] }
+          header_pairs = headers.map { |k, v| [k.to_s, v.to_s] } #: Array[[String, String]]
 
           body_str = String.new
           body.each { |chunk| body_str << chunk }
@@ -159,7 +157,7 @@ module Rack # :nodoc:
         env = {
           "REQUEST_METHOD" => method,
           "SCRIPT_NAME" => "",
-          "PATH_INFO" => uri.path.empty? ? "/" : uri.path,
+          "PATH_INFO" => (uri.path.nil? || uri.path.empty?) ? "/" : uri.path,
           "QUERY_STRING" => uri.query || "",
           "SERVER_NAME" => uri.host || "localhost",
           "SERVER_PORT" => (uri.port || 80).to_s,

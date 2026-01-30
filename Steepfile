@@ -12,4 +12,6 @@ target :lib do
   library "minitest"
   library "date"
   library "timeout"
+  library "uri"
+  library "stringio"
 end

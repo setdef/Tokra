@@ -3,5 +3,94 @@
 
 module Tokra
   VERSION: String
-  # See the writing guide of rbs: https://github.com/ruby/rbs#guides
+  class Error < StandardError
+  end
+
+  # Native extension classes (implemented in Rust via Magnus)
+  module Native
+    class EventLoop
+      def initialize: () -> void
+      def create_proxy: () -> Proxy
+      def run: (^(HttpRequestEvent | IpcEvent | WakeUpEvent | WindowCloseEvent | PageLoadEvent) -> void) -> void
+    end
+
+    class Window
+      def initialize: (EventLoop) -> void
+      def set_title: (String) -> void
+      def set_size: (Float, Float) -> void
+    end
+
+    class WebView
+      def self.new_with_protocol: (Window, Proxy) -> WebView
+      def initialize: (Window, String, ^(String) -> void, Proxy) -> void
+      def eval: (String) -> void
+    end
+
+    class Proxy
+      def respond: (Integer, Integer, Array[[String, String]], String) -> void
+      def send_http_response: (Integer, Integer, Hash[String, String], String) -> void
+    end
+
+    class HttpRequestEvent
+      def request_id: () -> Integer
+      def method: () -> String
+      def uri: () -> String
+      def body: () -> String
+    end
+
+    class IpcEvent
+      def message: () -> String
+    end
+
+    class WakeUpEvent
+    end
+
+    class WindowCloseEvent
+    end
+
+    class PageLoadEvent
+      def event: () -> String
+      def url: () -> String
+    end
+  end
+end
+
+# Rack types based on Rack 3.x spec
+module Rack
+  type env = Hash[String, (String | Integer | Array[Integer] | IO | bool | nil | StringIO)]
+  type headers = Hash[String, String]
+  type status = Integer
+
+  # Rack body - any object that responds to each yielding strings
+  # We use Object as base to get respond_to? and other Object methods
+  class Body < Object
+    def each: () { (String) -> void } -> void
+    def close: () -> void
+  end
+
+  type response = [status, headers, Body]
+
+  interface _App
+    def call: (env) -> response
+  end
+
+  module Handler
+    class Tokra
+      MAX_REDIRECTS: Integer
+      DEFAULT_OPTIONS: { title: String, width: Float, height: Float }
+
+      @app: Rack::_App
+      @proxy: ::Tokra::Native::Proxy
+
+      def self.run: (Rack::_App app, ?title: String, ?width: Float, ?height: Float, ?invoke_handler: (^(String) -> void)?) -> void
+
+      def initialize: (Rack::_App app, ::Tokra::Native::Proxy proxy) -> void
+      def call: (::Tokra::Native::HttpRequestEvent event) -> void
+
+      private
+
+      def build_env: (URI::Generic uri, String method, String body, ?String? cookies) -> Rack::env
+      def respond_with_error: (Integer request_id, Integer status, String message) -> void
+    end
+  end
 end
