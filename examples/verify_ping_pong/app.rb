@@ -126,7 +126,9 @@ Rack::Handler::Tokra.run(
   rack_app,
   title: "Tokra Ping-Pong",
   width: 500,
-  height: 600
+  height: 600,
+  # This acts like Tauri's invoke_handler, receiving IPC messages
+  invoke_handler: proc { |msg| LOGGER.info("Sent via IPC: #{msg}") }
 )
 
 LOGGER.info { "Event loop exited" }

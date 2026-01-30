@@ -83,7 +83,13 @@ module Rack # :nodoc:
           # Run the event loop, dispatching HTTP requests to the Rack app
           event_loop.run(
             lambda { |event|
-              handler.call(event) if event.is_a?(::Tokra::Native::HttpRequestEvent)
+              case event
+              when ::Tokra::Native::HttpRequestEvent
+                handler.call(event)
+              when ::Tokra::Native::IpcEvent
+                # If an invoke_handler is provided, call it with the message
+                opts[:invoke_handler]&.call(event.message)
+              end
             }
           )
         end
