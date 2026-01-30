@@ -35,6 +35,7 @@ module Tokra
       def request_id: () -> Integer
       def method: () -> String
       def uri: () -> String
+      def headers: () -> Array[[String, String]]
       def body: () -> String
     end
 
@@ -66,6 +67,10 @@ module Rack
   class Body < Object
     def each: () { (String) -> void } -> void
     def close: () -> void
+    # Optional: Array-style bodies
+    def to_ary: () -> Array[String]
+    # Optional: File path for sendfile optimization
+    def to_path: () -> String
   end
 
   type response = [status, headers, Body]
@@ -89,7 +94,7 @@ module Rack
 
       private
 
-      def build_env: (URI::Generic uri, String method, String body, ?String? cookies) -> Rack::env
+      def build_env: (URI::Generic uri, String method, String body, ?::Tokra::Native::HttpRequestEvent? event, ?String? cookies) -> Rack::env
       def respond_with_error: (Integer request_id, Integer status, String message) -> void
     end
   end

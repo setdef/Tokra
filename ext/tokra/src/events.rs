@@ -90,17 +90,25 @@ pub struct RbHttpRequestEvent {
     request_id: u64,
     method: String,
     uri: String,
+    headers: Vec<(String, String)>,
     body: String,
 }
 
 impl RbHttpRequestEvent {
     /// Create a new HTTP request event.
     #[must_use]
-    pub const fn new(request_id: u64, method: String, uri: String, body: String) -> Self {
+    pub const fn new(
+        request_id: u64,
+        method: String,
+        uri: String,
+        headers: Vec<(String, String)>,
+        body: String,
+    ) -> Self {
         Self {
             request_id,
             method,
             uri,
+            headers,
             body,
         }
     }
@@ -121,6 +129,13 @@ impl RbHttpRequestEvent {
     #[must_use]
     pub fn uri(&self) -> String {
         self.uri.clone()
+    }
+
+    /// Get the request headers as array of [name, value] pairs.
+    /// Magnus automatically converts Vec<(String, String)> to Ruby Array of Arrays.
+    #[must_use]
+    pub fn headers(&self) -> Vec<(String, String)> {
+        self.headers.clone()
     }
 
     /// Get the request body.
@@ -209,11 +224,12 @@ pub fn define_classes(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error>
     // HttpRequestEvent
     let http_request_event_class = native.define_class("HttpRequestEvent", ruby.class_object())?;
     http_request_event_class
-        .define_singleton_method("new", function!(RbHttpRequestEvent::new, 4))?;
+        .define_singleton_method("new", function!(RbHttpRequestEvent::new, 5))?;
     http_request_event_class
         .define_method("request_id", method!(RbHttpRequestEvent::request_id, 0))?;
     http_request_event_class.define_method("method", method!(RbHttpRequestEvent::method, 0))?;
     http_request_event_class.define_method("uri", method!(RbHttpRequestEvent::uri, 0))?;
+    http_request_event_class.define_method("headers", method!(RbHttpRequestEvent::headers, 0))?;
     http_request_event_class.define_method("body", method!(RbHttpRequestEvent::body, 0))?;
 
     // PageLoadEvent
@@ -296,29 +312,47 @@ mod tests {
 
     #[test]
     fn test_http_request_event_stores_all_fields() {
+        let headers = vec![
+            ("cookie".to_string(), "session=abc123".to_string()),
+            ("accept".to_string(), "text/html".to_string()),
+        ];
         let event = RbHttpRequestEvent::new(
             42,
             "POST".to_string(),
             "tokra://localhost/api".to_string(),
+            headers,
             r#"{"key":"value"}"#.to_string(),
         );
 
         assert_eq!(event.request_id(), 42);
         assert_eq!(event.method(), "POST");
         assert_eq!(event.uri(), "tokra://localhost/api");
+        assert_eq!(event.headers().len(), 2);
+        assert_eq!(event.headers()[0].0, "cookie");
         assert_eq!(event.body(), r#"{"key":"value"}"#);
     }
 
     #[test]
     fn test_http_request_event_request_id_zero() {
-        let event = RbHttpRequestEvent::new(0, "GET".to_string(), "/".to_string(), "".to_string());
+        let event = RbHttpRequestEvent::new(
+            0,
+            "GET".to_string(),
+            "/".to_string(),
+            vec![],
+            "".to_string(),
+        );
         assert_eq!(event.request_id(), 0);
     }
 
     #[test]
     fn test_http_request_event_request_id_max() {
-        let event =
-            RbHttpRequestEvent::new(u64::MAX, "GET".to_string(), "/".to_string(), "".to_string());
+        let event = RbHttpRequestEvent::new(
+            u64::MAX,
+            "GET".to_string(),
+            "/".to_string(),
+            vec![],
+            "".to_string(),
+        );
         assert_eq!(event.request_id(), u64::MAX);
     }
 
@@ -328,9 +362,11 @@ mod tests {
             1,
             "GET".to_string(),
             "/index.html".to_string(),
+            vec![],
             "".to_string(),
         );
         assert!(event.body().is_empty());
+        assert!(event.headers().is_empty());
     }
 
     // -------------------------------------------------------------------------

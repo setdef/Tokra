@@ -9,7 +9,7 @@ require "rdoc/task"
 RDoc::Task.new do |rdoc|
   rdoc.rdoc_dir = ENV["RDOC_OUTPUT"] || "tmp/rdoc"
   rdoc.rdoc_files.include("lib/**/*.rb", "ext/**/*.rb", "examples/**/*.rb", "README.rdoc")
-  rdoc.rdoc_files.exclude("**/*.rbs")
+  rdoc.rdoc_files.exclude("**/*.rbs", "examples/verify_rails_sqlite/**/*")
 end
 
 # Rust extension compilation

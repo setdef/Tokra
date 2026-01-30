@@ -1,0 +1,2 @@
+# Intentionally empty file to prevent RuboCop from loading Rails config.
+# This example app is excluded from the parent Tokra linting.

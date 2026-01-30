@@ -106,6 +106,23 @@ impl RbWebView {
                     // Extract request details
                     let method = request.method().to_string();
                     let uri = request.uri().to_string();
+
+                    // SPDX-SnippetBegin
+                    // SPDX-License-Identifier: Apache-2.0 OR MIT
+                    // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+                    // SPDX-SnippetComment: Header extraction pattern adapted from tauri/src/protocol/tauri.rs request.headers() iteration
+
+                    // Extract headers for CSRF/Cookie support (ADR 002 requirement)
+                    let headers: Vec<(String, String)> = request
+                        .headers()
+                        .iter()
+                        .map(|(name, value)| {
+                            (name.to_string(), value.to_str().unwrap_or("").to_string())
+                        })
+                        .collect();
+
+                    // SPDX-SnippetEnd
+
                     let body = String::from_utf8_lossy(request.body()).to_string();
 
                     // Store the responder for later (Ruby will call back with the response)
@@ -120,6 +137,7 @@ impl RbWebView {
                         request_id,
                         method,
                         uri,
+                        headers,
                         body,
                     });
                 },

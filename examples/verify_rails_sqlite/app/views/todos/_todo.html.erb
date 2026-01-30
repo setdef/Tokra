@@ -1,0 +1,18 @@
+<li class="todo-item" id="<%= dom_id todo %>" data-completed="<%= todo.completed? %>">
+  <%= form_with model: todo, class: "todo-toggle" do |f| %>
+    <%= f.check_box :completed,
+        class: "todo-checkbox",
+        onchange: "this.form.requestSubmit()",
+        "aria-label": todo.completed? ? "Mark incomplete" : "Mark complete" %>
+  <% end %>
+
+  <div class="todo-content">
+    <h3 class="todo-title">
+      <%= link_to todo.title, todo %>
+    </h3>
+  </div>
+
+  <div class="todo-actions">
+    <%= link_to "Edit", edit_todo_path(todo), class: "btn btn--ghost" %>
+  </div>
+</li>

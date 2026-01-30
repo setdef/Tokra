@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    tokra (0.0.1.pre.1)
+    tokra (0.0.1.pre.2)
       rb_sys (~> 0.9.91)
 
 GEM
@@ -392,7 +392,7 @@ CHECKSUMS
   thread_safe (0.3.6) sha256=9ed7072821b51c57e8d6b7011a8e282e25aeea3a4065eab326e43f66f063b05a
   tilt (2.7.0) sha256=0d5b9ba69f6a36490c64b0eee9f6e9aad517e20dcc848800a06eb116f08c6ab3
   tins (1.51.1) sha256=cc17bc37e62bd2dd2e8bc2a706b9cf419dfd4766407b84b341a67db947f8e44a
-  tokra (0.0.1.pre.1)
+  tokra (0.0.1.pre.2)
   tsort (0.2.0) sha256=9650a793f6859a43b6641671278f79cfead60ac714148aabe4e3f0060480089f
   tty-which (0.5.0) sha256=5824055f0d6744c97e7c4426544f01d519c40d1806ef2ef47d9854477993f466
   tzinfo (2.0.6) sha256=8daf828cc77bcf7d63b0e3bdb6caa47e2272dcfaf4fbfe46f8c3a9df087a829b

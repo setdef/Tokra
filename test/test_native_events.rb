@@ -103,6 +103,7 @@ class TestNativeEvents < Minitest::Test
       123,
       "POST",
       "tokra://localhost/api",
+      [["Content-Type", "application/json"]],
       '{"key":"value"}'
     )
 
@@ -110,25 +111,25 @@ class TestNativeEvents < Minitest::Test
   end
 
   def test_http_request_event_request_id_returns_integer
-    event = Tokra::Native::HttpRequestEvent.new(42, "GET", "tokra://localhost/", "")
+    event = Tokra::Native::HttpRequestEvent.new(42, "GET", "tokra://localhost/", [], "")
 
     assert_equal 42, event.request_id
   end
 
   def test_http_request_event_method_returns_http_verb
-    event = Tokra::Native::HttpRequestEvent.new(1, "DELETE", "tokra://localhost/resource", "")
+    event = Tokra::Native::HttpRequestEvent.new(1, "DELETE", "tokra://localhost/resource", [], "")
 
     assert_equal "DELETE", event.method
   end
 
   def test_http_request_event_uri_returns_full_uri
-    event = Tokra::Native::HttpRequestEvent.new(1, "GET", "tokra://localhost/path?query=1", "")
+    event = Tokra::Native::HttpRequestEvent.new(1, "GET", "tokra://localhost/path?query=1", [], "")
 
     assert_equal "tokra://localhost/path?query=1", event.uri
   end
 
   def test_http_request_event_body_returns_request_body
-    event = Tokra::Native::HttpRequestEvent.new(1, "POST", "tokra://localhost/", "form=data")
+    event = Tokra::Native::HttpRequestEvent.new(1, "POST", "tokra://localhost/", [], "form=data")
 
     assert_equal "form=data", event.body
   end
@@ -138,7 +139,7 @@ class TestNativeEvents < Minitest::Test
 
     # Rust extension enforces UTF-8 for string parameters
     assert_raises(EncodingError) do
-      Tokra::Native::HttpRequestEvent.new(1, "POST", "tokra://localhost/", binary)
+      Tokra::Native::HttpRequestEvent.new(1, "POST", "tokra://localhost/", [], binary)
     end
   end
 

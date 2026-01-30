@@ -1,0 +1,7 @@
+<% content_for :title, "Edit: #{@todo.title}" %>
+
+<header class="page-header">
+  <h1 class="page-title">Edit task</h1>
+</header>
+
+<%= render "form", todo: @todo %>

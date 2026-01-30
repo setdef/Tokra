@@ -132,9 +132,11 @@ impl RbEventLoop {
                         request_id,
                         method,
                         uri,
+                        headers,
                         body,
                     } => {
-                        let event_obj = RbHttpRequestEvent::new(request_id, method, uri, body);
+                        let event_obj =
+                            RbHttpRequestEvent::new(request_id, method, uri, headers, body);
                         let _ = callback.funcall::<_, _, Value>("call", (event_obj,));
                     }
                     UserEvent::HttpResponse {
@@ -147,7 +149,7 @@ impl RbEventLoop {
                         let responder = get_responders().lock().unwrap().remove(&request_id);
                         if let Some(responder) = responder {
                             let mut response_builder = http::Response::builder().status(status);
-                            for (name, value) in headers {
+                            for (name, value) in &headers {
                                 response_builder = response_builder.header(name, value);
                             }
                             let response =

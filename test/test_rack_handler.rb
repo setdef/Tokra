@@ -37,8 +37,12 @@ class TestRackHandler < Minitest::Test
 
   # Mock HttpRequestEvent for testing without native extension
   # Note: Using :http_method instead of :method to avoid shadowing Struct#method
-  MockHttpRequestEvent = Struct.new(:request_id, :uri, :http_method, :body, keyword_init: true) do
+  MockHttpRequestEvent = Struct.new(:request_id, :uri, :http_method, :body, :headers, keyword_init: true) do
     alias_method :method, :http_method
+
+    def initialize(request_id:, uri:, http_method:, body:, headers: [])
+      super
+    end
   end
 
   def setup
@@ -460,5 +464,191 @@ class TestRackHandler < Minitest::Test
 
   def test_max_redirects_is_10
     assert_equal 10, Rack::Handler::Tokra::MAX_REDIRECTS
+  end
+
+  # ==========================================================================
+  # Header Forwarding (ADR 002 / Plan 003)
+  #
+  # WKWebView custom protocols don't auto-persist cookies, so Tokra's Rust
+  # layer extracts headers from WKURLSchemeTask and forwards them to Ruby.
+  # Only the Cookie header is forwarded to avoid rendering issues from other
+  # headers (Accept-Encoding, etc.).
+  # ==========================================================================
+
+  def test_call_forwards_cookie_header_to_rack_env
+    received_cookie = nil
+    app = -> (env) {
+      received_cookie = env["HTTP_COOKIE"]
+      [200, {}, ["OK"]]
+    }
+
+    handler = Rack::Handler::Tokra.new(app, @proxy)
+    event = MockHttpRequestEvent.new(
+      request_id: 1,
+      uri: "tokra://localhost/",
+      http_method: "GET",
+      body: "",
+      headers: [["Cookie", "_session=abc123; csrf=xyz789"]]
+    )
+
+    handler.call(event)
+
+    assert_equal "_session=abc123; csrf=xyz789", received_cookie,
+      "Cookie header should be forwarded to HTTP_COOKIE"
+  end
+
+  def test_call_forwards_cookie_header_case_insensitively
+    received_cookie = nil
+    app = -> (env) {
+      received_cookie = env["HTTP_COOKIE"]
+      [200, {}, ["OK"]]
+    }
+
+    handler = Rack::Handler::Tokra.new(app, @proxy)
+
+    # Test lowercase (as sent by WKWebView)
+    event = MockHttpRequestEvent.new(
+      request_id: 1,
+      uri: "tokra://localhost/",
+      http_method: "GET",
+      body: "",
+      headers: [["cookie", "session=lowercase"]]
+    )
+    handler.call(event)
+
+    assert_equal "session=lowercase", received_cookie,
+      "Lowercase 'cookie' header should be forwarded"
+  end
+
+  def test_call_does_not_forward_non_cookie_headers
+    env_keys_with_http = nil
+    app = -> (env) {
+      # Collect all HTTP_* keys (excluding standard Rack ones)
+      env_keys_with_http = env.keys.select { |k| k.start_with?("HTTP_") }
+      [200, {}, ["OK"]]
+    }
+
+    handler = Rack::Handler::Tokra.new(app, @proxy)
+    event = MockHttpRequestEvent.new(
+      request_id: 1,
+      uri: "tokra://localhost/",
+      http_method: "GET",
+      body: "",
+      headers: [
+        ["Accept-Encoding", "gzip, deflate"],
+        ["User-Agent", "Mozilla/5.0"],
+        ["Accept", "text/html"],
+      ]
+    )
+
+    handler.call(event)
+
+    assert_empty env_keys_with_http,
+      "Non-Cookie headers should not be forwarded (Accept-Encoding caused render issues)"
+  end
+
+  def test_call_forwards_cookie_but_skips_other_headers
+    received_headers = {}
+    app = -> (env) {
+      received_headers = env.select { |k, _| k.start_with?("HTTP_") }
+      [200, {}, ["OK"]]
+    }
+
+    handler = Rack::Handler::Tokra.new(app, @proxy)
+    event = MockHttpRequestEvent.new(
+      request_id: 1,
+      uri: "tokra://localhost/",
+      http_method: "POST",
+      body: "",
+      headers: [
+        ["cookie", "session=forward_me"],
+        ["accept-encoding", "gzip"],
+        ["content-type", "application/json"],
+      ]
+    )
+
+    handler.call(event)
+
+    assert_equal 1, received_headers.size, "Only Cookie should be forwarded"
+    assert_equal "session=forward_me", received_headers["HTTP_COOKIE"]
+  end
+
+  def test_call_handles_empty_headers_gracefully
+    called = false
+    app = -> (env) {
+      called = true
+      # Verify no crash with empty headers
+      assert_nil env["HTTP_COOKIE"]
+      [200, {}, ["OK"]]
+    }
+
+    handler = Rack::Handler::Tokra.new(app, @proxy)
+    event = MockHttpRequestEvent.new(
+      request_id: 1,
+      uri: "tokra://localhost/",
+      http_method: "GET",
+      body: "",
+      headers: []
+    )
+
+    handler.call(event)
+
+    assert called, "Handler should complete with empty headers"
+  end
+
+  def test_call_cookie_header_survives_mutation_by_checking_exact_value
+    # This test specifically checks that the cookie VALUE is preserved exactly
+    # A mutation that strips characters or modifies the value would fail
+    received_cookie = nil
+    app = -> (env) {
+      received_cookie = env["HTTP_COOKIE"]
+      [200, {}, ["OK"]]
+    }
+
+    handler = Rack::Handler::Tokra.new(app, @proxy)
+    # Use a complex cookie with special characters
+    complex_cookie = "_verify=Base64%2BEncoded%3D%3D; path=/; httponly"
+    event = MockHttpRequestEvent.new(
+      request_id: 1,
+      uri: "tokra://localhost/",
+      http_method: "GET",
+      body: "",
+      headers: [["Cookie", complex_cookie]]
+    )
+
+    handler.call(event)
+
+    assert_equal complex_cookie, received_cookie,
+      "Cookie value must be preserved exactly (not truncated or modified)"
+  end
+
+  def test_call_redirect_cookies_override_event_cookies
+    # When a redirect sets a cookie, it should override the incoming Cookie header
+    # This ensures session updates during login/logout work correctly
+    cookies_received = []
+    app = -> (env) {
+      cookies_received << env["HTTP_COOKIE"]
+      if env["PATH_INFO"] == "/login"
+        [302, { "location" => "/dashboard", "set-cookie" => "session=new_session" }, [""]]
+      else
+        [200, {}, ["OK"]]
+      end
+    }
+
+    handler = Rack::Handler::Tokra.new(app, @proxy)
+    event = MockHttpRequestEvent.new(
+      request_id: 1,
+      uri: "tokra://localhost/login",
+      http_method: "POST",
+      body: "",
+      headers: [["Cookie", "session=old_session"]]
+    )
+
+    handler.call(event)
+
+    # First request should use the event's cookie
+    assert_equal "session=old_session", cookies_received[0]
+    # After redirect, the Set-Cookie from redirect should be used
+    assert_equal "session=new_session", cookies_received[1]
   end
 end

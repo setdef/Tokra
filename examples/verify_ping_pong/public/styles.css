@@ -12,8 +12,35 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   --border: oklch(88% 0.01 250);
   --accent: oklch(55% 0.18 150);
   --accent-bg: oklch(95% 0.04 150);
+  --accent-hover: oklch(50% 0.18 150);
   --warn: oklch(55% 0.16 30);
   --warn-bg: oklch(95% 0.04 30);
+  --input-bg: white;
+  --message-bg: oklch(96% 0.008 250);
+  --button-hover: oklch(96% 0.005 250);
+  --border-hover: oklch(80% 0.01 250);
+  --button-active: oklch(94% 0.008 250);
+  --pending-bg: oklch(96% 0.005 250);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: oklch(92% 0.01 250);
+    --text-muted: oklch(65% 0.015 250);
+    --surface: oklch(15% 0.02 250);
+    --border: oklch(32% 0.02 250);
+    --accent: oklch(70% 0.18 150);
+    --accent-bg: oklch(25% 0.06 150);
+    --accent-hover: oklch(65% 0.18 150);
+    --warn: oklch(70% 0.16 30);
+    --warn-bg: oklch(25% 0.06 30);
+    --input-bg: oklch(20% 0.02 250);
+    --message-bg: oklch(20% 0.02 250);
+    --button-hover: oklch(25% 0.02 250);
+    --border-hover: oklch(40% 0.02 250);
+    --button-active: oklch(28% 0.02 250);
+    --pending-bg: oklch(22% 0.02 250);
+  }
 }
 
 html {
@@ -46,7 +73,7 @@ h1 {
 /* Message from Ruby */
 .message-block {
   padding: 1rem 1.25rem;
-  background: oklch(96% 0.008 250);
+  background: var(--message-bg);
   border-left: 3px solid var(--border);
   margin-block-end: 2rem;
 }
@@ -82,7 +109,7 @@ input[type="text"] {
   font-family: inherit;
   font-size: 1rem;
   color: var(--text);
-  background: white;
+  background: var(--input-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   outline: none;
@@ -106,7 +133,7 @@ button {
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--text);
-  background: white;
+  background: var(--input-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   cursor: pointer;
@@ -114,12 +141,12 @@ button {
 }
 
 button:hover {
-  background: oklch(96% 0.005 250);
-  border-color: oklch(80% 0.01 250);
+  background: var(--button-hover);
+  border-color: var(--border-hover);
 }
 
 button:active {
-  background: oklch(94% 0.008 250);
+  background: var(--button-active);
 }
 
 button[data-primary] {
@@ -129,8 +156,8 @@ button[data-primary] {
 }
 
 button[data-primary]:hover {
-  background: oklch(50% 0.18 150);
-  border-color: oklch(50% 0.18 150);
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 /* Status feedback */
@@ -158,7 +185,7 @@ button[data-primary]:hover {
 
 .feedback[data-type="pending"] {
   color: var(--text-muted);
-  background: oklch(96% 0.005 250);
+  background: var(--pending-bg);
 }
 
 /* IPC status indicator */

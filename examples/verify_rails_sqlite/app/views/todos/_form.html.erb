@@ -1,0 +1,27 @@
+<%= form_with(model: todo, class: "form") do |form| %>
+  <% if todo.errors.any? %>
+    <div class="error-list">
+      <h2><%= pluralize(todo.errors.count, "issue") %> to fix:</h2>
+      <ul>
+        <% todo.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="field">
+    <%= form.label :title, "What needs to be done?" %>
+    <%= form.text_field :title, placeholder: "Enter your task…", autofocus: true %>
+  </div>
+
+  <div class="field field-checkbox">
+    <%= form.check_box :completed %>
+    <%= form.label :completed, "Already completed" %>
+  </div>
+
+  <div class="form-actions">
+    <%= form.submit class: "btn" %>
+    <%= link_to "Cancel", todos_path, class: "link link--muted" %>
+  </div>
+<% end %>

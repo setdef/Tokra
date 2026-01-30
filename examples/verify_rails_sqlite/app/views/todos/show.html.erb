@@ -1,0 +1,23 @@
+<% content_for :title, @todo.title %>
+
+<article class="detail">
+  <h1 class="detail-title"><%= @todo.title %></h1>
+  
+  <% if @todo.completed? %>
+    <span class="detail-status detail-status--complete">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M12.207 4.793a1 1 0 0 1 0 1.414l-5 5a1 1 0 0 1-1.414 0l-2.5-2.5a1 1 0 0 1 1.414-1.414L6.5 9.086l4.293-4.293a1 1 0 0 1 1.414 0z"/>
+      </svg>
+      Completed
+    </span>
+  <% else %>
+    <span class="detail-status detail-status--pending">Pending</span>
+  <% end %>
+
+  <nav class="detail-actions">
+    <%= link_to "Edit", edit_todo_path(@todo), class: "btn btn--ghost" %>
+    <%= button_to "Delete", @todo, method: :delete, class: "btn btn--ghost btn--danger",
+        data: { turbo_confirm: "Delete this task?" } %>
+    <%= link_to "Back to list", todos_path, class: "link link--muted" %>
+  </nav>
+</article>

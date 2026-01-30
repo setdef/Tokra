@@ -114,7 +114,7 @@ module Rack # :nodoc:
       # 4. Sends the final response back through the protocol
       def call(event)
         uri = URI.parse(event.uri)
-        env = build_env(uri, event.method, event.body)
+        env = build_env(uri, event.method, event.body, event)
 
         # Follow redirects internally (WKWebView doesn't follow for custom protocols)
         redirect_count = 0
@@ -137,15 +137,27 @@ module Rack # :nodoc:
 
             # Follow the redirect with GET (PRG pattern)
             new_uri = URI.parse(headers["location"])
-            env = build_env(new_uri, "GET", "", cookies)
+            env = build_env(new_uri, "GET", "", nil, cookies)
             next
           end
 
           # Send the response
           header_pairs = headers.map { |k, v| [k.to_s, v.to_s] } #: Array[[String, String]]
 
-          body_str = String.new
-          body.each { |chunk| body_str << chunk }
+          # Prefer to_ary over each - Rails RackBody#each triggers synchronization
+          # (sending!/sent!) that can cause rendering issues in single-threaded contexts.
+          # to_ary bypasses this and returns the raw body array directly.
+          body_str = if body.respond_to?(:to_ary)
+            body.to_ary.join
+          elsif body.respond_to?(:to_path)
+            # Rack::Files::Iterator provides to_path for sendfile optimization
+            # Read the file directly instead of iterating
+            File.read(body.to_path)
+          else
+            buf = String.new
+            body.each { |chunk| buf << chunk }
+            buf
+          end
           body.close if body.respond_to?(:close)
 
           @proxy.respond(event.request_id, status, header_pairs, body_str)
@@ -153,7 +165,7 @@ module Rack # :nodoc:
         end
       end
 
-      private def build_env(uri, method, body, cookies = nil)
+      private def build_env(uri, method, body, event = nil, cookies = nil)
         env = {
           "REQUEST_METHOD" => method,
           "SCRIPT_NAME" => "",
@@ -169,6 +181,13 @@ module Rack # :nodoc:
           "rack.multiprocess" => false,
           "rack.run_once" => false,
         }
+
+        # Forward only the Cookie header from WebView
+        # Other headers (Accept-Encoding, etc.) caused rendering issues in WKWebView
+        event&.headers&.each do |(name, value)|
+          env["HTTP_COOKIE"] = value if name.downcase == "cookie"
+        end
+
         env["HTTP_COOKIE"] = cookies if cookies
         env
       end

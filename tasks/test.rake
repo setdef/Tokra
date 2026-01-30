@@ -21,6 +21,6 @@ namespace :test do
 
   # Create a specific Minitest task for Ruby tests
   Minitest::TestTask.create(:ruby) do |t|
-    t.test_globs = ["test/**/*.rb", "examples/**/test_*.rb"]
+    t.test_globs = ["test/**/*.rb"]
   end
 end

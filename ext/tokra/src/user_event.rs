@@ -16,12 +16,13 @@ pub enum UserEvent {
     IpcMessage(String),
 
     /// HTTP request received from `WebView` (via custom protocol)
-    /// Contains: (`request_id`, method, uri, body)
+    /// Contains: (`request_id`, method, uri, headers, body)
     /// The `request_id` is used to correlate with the async response
     HttpRequest {
         request_id: u64,
         method: String,
         uri: String,
+        headers: Vec<(String, String)>,
         body: String,
     },
 
@@ -76,10 +77,15 @@ mod tests {
 
     #[test]
     fn test_user_event_http_request_stores_all_fields() {
+        let headers = vec![
+            ("cookie".to_string(), "session=abc123".to_string()),
+            ("content-type".to_string(), "application/json".to_string()),
+        ];
         let event = UserEvent::HttpRequest {
             request_id: 42,
             method: "POST".to_string(),
             uri: "tokra://localhost/api".to_string(),
+            headers: headers.clone(),
             body: r#"{"key":"value"}"#.to_string(),
         };
 
@@ -88,11 +94,15 @@ mod tests {
                 request_id,
                 method,
                 uri,
+                headers: h,
                 body,
             } => {
                 assert_eq!(request_id, 42);
                 assert_eq!(method, "POST");
                 assert_eq!(uri, "tokra://localhost/api");
+                assert_eq!(h.len(), 2);
+                assert_eq!(h[0].0, "cookie");
+                assert_eq!(h[0].1, "session=abc123");
                 assert_eq!(body, r#"{"key":"value"}"#);
             }
             _ => panic!("Expected HttpRequest variant"),
@@ -197,13 +207,19 @@ mod tests {
             request_id: 123,
             method: "GET".to_string(),
             uri: "tokra://test".to_string(),
+            headers: vec![("accept".to_string(), "text/html".to_string())],
             body: "".to_string(),
         };
         let cloned = original.clone();
 
         match cloned {
-            UserEvent::HttpRequest { request_id, .. } => {
+            UserEvent::HttpRequest {
+                request_id,
+                headers,
+                ..
+            } => {
                 assert_eq!(request_id, 123);
+                assert_eq!(headers.len(), 1);
             }
             _ => panic!("Clone should preserve variant"),
         }
@@ -230,6 +246,7 @@ mod tests {
             request_id: 0,
             method: "GET".to_string(),
             uri: "tokra://test".to_string(),
+            headers: vec![],
             body: "".to_string(),
         };
 
@@ -245,6 +262,7 @@ mod tests {
             request_id: u64::MAX,
             method: "GET".to_string(),
             uri: "tokra://test".to_string(),
+            headers: vec![],
             body: "".to_string(),
         };
 

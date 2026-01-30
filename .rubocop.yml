@@ -6,3 +6,8 @@ inherit_from:
 
 AllCops:
   TargetRubyVersion: "3.3"
+  Exclude:
+    # Rails example has its own .rubocop.yml
+    - "examples/verify_rails_sqlite/**/*"
+    # Build staging directory
+    - "tmp/**/*"

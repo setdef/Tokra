@@ -1,0 +1,22 @@
+<% content_for :title, "Tasks" %>
+
+<header class="page-header">
+  <h1 class="page-title">Tasks</h1>
+  <p class="page-subtitle">Your personal to-do list</p>
+</header>
+
+<% if @todos.any? %>
+  <ul class="todo-list">
+    <% @todos.each do |todo| %>
+      <%= render todo %>
+    <% end %>
+  </ul>
+<% else %>
+  <div class="empty-state">
+    <p>Nothing here yet. Add your first task to get started.</p>
+  </div>
+<% end %>
+
+<div class="mt-8">
+  <%= link_to "Add task", new_todo_path, class: "btn" %>
+</div>

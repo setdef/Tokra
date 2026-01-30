@@ -20,6 +20,19 @@ SPDX-License-Identifier: AGPL-3.0-or-later
       --text-muted: oklch(50% 0.015 250);
       --surface: oklch(98% 0.005 250);
       --accent: oklch(55% 0.18 150);
+      --code-bg: oklch(94% 0.01 250);
+      --status-bg: oklch(95% 0.04 150);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --text: oklch(92% 0.01 250);
+        --text-muted: oklch(65% 0.015 250);
+        --surface: oklch(15% 0.02 250);
+        --accent: oklch(70% 0.18 150);
+        --code-bg: oklch(22% 0.02 250);
+        --status-bg: oklch(25% 0.06 150);
+      }
     }
 
     html {
@@ -60,7 +73,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     code {
       font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
       font-size: 0.9em;
-      background: oklch(94% 0.01 250);
+      background: var(--code-bg);
       padding: 0.15em 0.4em;
       border-radius: 4px;
     }
@@ -72,7 +85,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
       font-size: 0.85rem;
       font-weight: 600;
       color: var(--accent);
-      background: oklch(95% 0.04 150);
+      background: var(--status-bg);
       border-radius: 6px;
     }
   </style>
