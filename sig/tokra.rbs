@@ -118,9 +118,15 @@ module Tokra
     @state_manager: StateManager?
 
     def initialize: (Hash[Symbol, String | Integer | Float] config, ?state_manager: StateManager?) -> void
-    def config: () -> Hash[Symbol, String | Integer | Float]
+    def app_handle: -> AppHandle
+    def config: -> Hash[Symbol, String | Integer | Float]
     def state: (Class klass) -> managed_state
     def try_state: (Class klass) -> managed_state?
+    def manage: (Object state) -> bool
+    def get_window: (String label) -> Native::Window?
+    def get_webview: (String label) -> Native::WebView?
+    def windows: -> Hash[String, Native::Window]
+    def webviews: -> Hash[String, Native::WebView]
     def exit: (?Integer code) -> void
   end
 

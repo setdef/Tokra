@@ -14,13 +14,21 @@ module Tokra
   # Handle to the running application, safe to pass between Ractors.
   #
   # Provides access to application state and control methods.
+  # Includes the Manager module for shared interface.
   class AppHandle
+    include Manager
+
     # Creates a new AppHandle with the given configuration.
     #
     # This is called internally by App and should not be called directly.
     def initialize(config, state_manager: nil)
       @config = config
       @state_manager = state_manager
+    end
+
+    # Returns self since this is already an app handle.
+    def app_handle
+      self
     end
 
     # Retrieves managed state by class.

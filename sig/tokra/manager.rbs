@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Shared interface for AppHandle, Window, and Webview.
+  module Manager
+    def app_handle: -> AppHandle
+    def config: -> Hash[Symbol, String | Integer | Float | bool]
+    def manage: (Object state) -> bool
+    def state: (Class klass) -> Object
+    def try_state: (Class klass) -> Object?
+    def get_window: (String label) -> Native::Window?
+    def get_webview: (String label) -> Native::WebView?
+    def windows: -> Hash[String, Native::Window]
+    def webviews: -> Hash[String, Native::WebView]
+  end
+end

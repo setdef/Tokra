@@ -7,53 +7,66 @@
 
 require "tokra"
 require "logger"
+require_relative "log/target"
 
 module Tokra
-  # Namespace for Tokra plugins.
-  #
-  # First-party plugins provide functionality like logging, clipboard access,
-  # notifications, and other desktop integrations.
   module Plugins
-    # Logging plugin for Tokra desktop applications.
+    # Namespace for the log plugin.
     #
-    # Wraps Ruby's Logger with desktop-friendly defaults and
-    # integrates with Tokra's plugin lifecycle.
-    #
-    # == Example
-    #
-    #   Tokra::Builder.new
-    #     .plugin(Tokra::Plugins::Log.new(level: :info, path: "app.log"))
-    #     .run
-    #
-    class Log < Tokra::Plugin
-      # Returns the unique plugin identifier.
-      def name
-        "log"
-      end
-
-      # Initializes the logging plugin.
+    # Use Tokra::Plugins::Log::Plugin as the plugin class.
+    module Log
+      # Logging plugin for Tokra desktop applications.
       #
-      # +app+::    the application handle
-      # +config+:: plugin configuration hash
+      # Wraps Ruby's Logger with desktop-friendly defaults and
+      # integrates with Tokra's plugin lifecycle.
       #
-      # Config options:
-      # - +:level+:: log level (+:debug+, +:info+, +:warn+, +:error+, +:fatal+)
-      # - +:path+:: log destination (String path or IO, defaults to +$stdout+)
-      def initialize(app, config = {})
-        raise NotImplementedError
-      end
-
-      # Logs a message at the specified level.
+      # == Example
       #
-      # +level+::   the log level symbol
-      # +message+:: the message string to log
-      def log(level, message)
-        raise NotImplementedError
-      end
+      #   Tokra::Builder.new
+      #     .plugin(Tokra::Plugins::Log::Plugin.new(app, level: :info))
+      #     .run
+      #
+      class Plugin < Tokra::Plugin
+        # Returns the unique plugin identifier.
+        def name
+          "log"
+        end
 
-      # Called on each run loop event.
-      def on_event(event)
-        raise NotImplementedError
+        # Initializes the logging plugin.
+        #
+        # +app+::    the application handle
+        # +config+:: plugin configuration hash
+        #
+        # Config options:
+        # - +:level+:: log level (+:debug+, +:info+, +:warn+, +:error+, +:fatal+)
+        # - +:targets+:: array of Target instances for log output
+        def initialize(app, config = {})
+          super
+          @loggers = build_loggers(config)
+        end
+
+        # Logs a debug message.
+        def debug(message) = log(:debug, message)
+
+        # Logs an info message.
+        def info(message) = log(:info, message)
+
+        # Logs a warning message.
+        def warn(message) = log(:warn, message)
+
+        # Logs an error message.
+        def error(message) = log(:error, message)
+
+        # Dispatches a log message at the specified level to all loggers.
+        private def log(level, message) # :nodoc:
+          @loggers.each { |logger| logger.__send__(level, message) }
+        end
+
+        # Builds Logger instances from the configured targets.
+        private def build_loggers(config) # :nodoc:
+          targets = config.fetch(:targets, [Target.new($stdout)])
+          targets.map { |target| target.to_logger(config) }
+        end
       end
     end
   end

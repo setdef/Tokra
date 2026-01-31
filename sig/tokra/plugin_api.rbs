@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Api exposed to plugins during initialization.
+  class PluginApi < Data
+    attr_reader app: AppHandle
+    attr_reader config: Hash[Symbol, String | Integer | Float | bool | Array[String] | Hash[Symbol, String]]
+    attr_reader name: String
+
+    def self.new: (app: AppHandle, config: Hash[Symbol, String | Integer | Float | bool | Array[String] | Hash[Symbol, String]], name: String) -> PluginApi
+  end
+end

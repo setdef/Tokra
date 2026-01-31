@@ -16,6 +16,8 @@ module Tokra
   # Created by calling Builder#build. Provides access to the application
   # handle and runs the event loop.
   class App
+    include Manager
+
     # The application handle, safe to pass between Ractors.
     attr_reader :handle
 

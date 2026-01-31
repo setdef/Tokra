@@ -7,17 +7,24 @@
 
 require "minitest/autorun"
 require "tokra-log"
+require "stringio"
 
-class TestLog < Minitest::Test
+# Tests for Log::Plugin.
+class TestLogPlugin < Minitest::Test
   def test_name_returns_log
-    skip "Plugin not yet implemented"
+    app = Object.new
+    plugin = Tokra::Plugins::Log::Plugin.new(app)
+    assert_equal "log", plugin.name
   end
 
-  def test_log_writes_message
-    skip "Plugin not yet implemented"
-  end
+  def test_info_logs_to_target
+    output = StringIO.new
+    app = Object.new
+    target = Tokra::Plugins::Log::Target.new(output)
+    plugin = Tokra::Plugins::Log::Plugin.new(app, targets: [target])
 
-  def test_on_event_logs_events
-    skip "Plugin not yet implemented"
+    plugin.info("test message")
+
+    assert_match(/test message/, output.string)
   end
 end

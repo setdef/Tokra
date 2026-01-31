@@ -21,6 +21,11 @@ SPDX-FileCopyrightText = "2026 Kerrick Long <me@kerricklong.com>"
 SPDX-License-Identifier = "CC0-1.0"
 
 [[annotations]]
+path = 'plugins/**/README.rdoc'
+SPDX-FileCopyrightText = "2026 Kerrick Long <me@kerricklong.com>"
+SPDX-License-Identifier = "CC-BY-SA-4.0"
+
+[[annotations]]
 path = 'TOKRA_VERSION'
 SPDX-FileCopyrightText = "2026 Kerrick Long <me@kerricklong.com>"
 SPDX-License-Identifier = "CC0-1.0"

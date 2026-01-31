@@ -2,17 +2,32 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 module Tokra
-  # Base class for Tokra plugins.
+  # Interface for plugin implementations.
   #
-  # Subclass and override lifecycle methods to create a plugin.
-  class Plugin
-    # Returns the unique plugin identifier.
+  # Plugins may implement this interface directly or inherit from Plugin.
+  interface _Plugin
     def name: () -> String
-
-    # Initializes the plugin with app handle and configuration.
     def initialize: (AppHandle app, ?Hash[Symbol, String | Integer | Float | bool] config) -> void
-
-    # Called on each run loop event.
+    def initialization_script: () -> String?
+    def on_window_created: (Native::Window window) -> void
+    def on_webview_created: (Native::WebView webview) -> void
+    def on_navigation: (Native::WebView webview, String url) -> bool
+    def on_page_load: (Native::WebView webview, PageLoadPayload payload) -> void
     def on_event: (run_event event) -> void
+    def extend_api: (Invoke invoke) -> bool
+  end
+
+  # Convenience base class implementing _Plugin with sensible defaults.
+  #
+  # Plugins may inherit from this or implement _Plugin directly.
+  class Plugin
+    include _Plugin
+
+    @app: AppHandle
+    @config: Hash[Symbol, String | Integer | Float | bool]
+
+    # Protected accessors for subclasses
+    def app: () -> AppHandle
+    def config: () -> Hash[Symbol, String | Integer | Float | bool]
   end
 end

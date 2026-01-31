@@ -7,7 +7,7 @@ PATH
 PATH
   remote: .
   specs:
-    tokra-log (0.1.0)
+    tokra-log (0.0.1.pre.1)
       logger
       tokra (~> 0.0)
 
@@ -44,7 +44,7 @@ CHECKSUMS
   rake-compiler-dock (1.11.0) sha256=eab51f2cd533eb35cea6b624a75281f047123e70a64c58b607471bb49428f8c2
   rb_sys (0.9.124) sha256=513476557b12eaf73764b3da9f8746024558fe8699bda785fb548c9aa3877ae7
   tokra (0.0.1.pre.2)
-  tokra-log (0.1.0)
+  tokra-log (0.0.1.pre.1)
 
 BUNDLED WITH
   4.0.4
