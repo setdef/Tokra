@@ -5,9 +5,11 @@ inherit_from:
   - ./vendor/goodcop/base.yml
 
 AllCops:
-  TargetRubyVersion: "3.3"
+  TargetRubyVersion: "4.0"
   Exclude:
     # Rails example has its own .rubocop.yml
     - "examples/verify_rails_sqlite/**/*"
     # Build staging directory
     - "tmp/**/*"
+    # Tauri submodule contains non-Ruby template files
+    - "vendor/tauri/**/*"

@@ -17,3 +17,6 @@
 *.bundle
 *.dll
 Cargo.lock
+
+# Generated files (regenerate with: rake sync:tauri)
+/lib/tokra/js/

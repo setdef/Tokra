@@ -40,6 +40,8 @@ Gem::Specification.new do |spec|
         f.start_with?(*%w[bin/ Gemfile .gitignore test/ .rubocop.yml])
     end
   end
+  # Add generated files that are .gitignore'd but needed at runtime
+  spec.files += Dir.glob("lib/tokra/js/*.erb")
   spec.bindir = "exe"
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]

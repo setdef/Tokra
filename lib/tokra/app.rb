@@ -37,7 +37,13 @@ module Tokra
     # +native:+ can be injected for testing with mock native components.
     def initialize(builder, native: Native) # :nodoc:
       @config = DEFAULT_CONFIG.dup
-      @handle = AppHandle.new(@config, state_manager: builder.__send__(:state_manager))
+      config = Config.new(
+        identifier: @config[:identifier]&.to_s,
+        product_name: @config[:product_name]&.to_s,
+        version: @config[:version]&.to_s
+      )
+      manager = AppManager.new(config:, webviews: {})
+      @handle = AppHandle.new(manager, state_manager: builder.__send__(:state_manager))
       @builder = builder
       # Store class references to avoid dynamic constant lookups
       @event_loop_class = native.const_get(:EventLoop)

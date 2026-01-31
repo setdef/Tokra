@@ -7,6 +7,7 @@ target :lib do
   signature "sig"
   check "lib"
 
+  library "json"
   library "pathname"
   library "fileutils"
   library "minitest"

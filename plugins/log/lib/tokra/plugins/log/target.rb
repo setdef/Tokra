@@ -6,7 +6,6 @@
 #++
 
 require "logger"
-require "pathname"
 require "fileutils"
 
 module Tokra

@@ -1,0 +1,3 @@
+[submodule "vendor/tauri"]
+	path = vendor/tauri
+	url = https://github.com/tauri-apps/tauri.git

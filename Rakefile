@@ -25,6 +25,8 @@ RbSys::ExtensionTask.new("tokra", GEMSPEC) do |ext|
   ext.lib_dir = "lib/tokra"
 end
 
+# Sync Tauri JS templates before compile/build
+task compile: "sync:tauri"
 task build: :compile
 
 # Plugin directories

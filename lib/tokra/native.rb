@@ -75,5 +75,42 @@ module Tokra
     #   - #payload -> String
     #
     # - WindowCloseEvent: Event fired when window close is requested
+
+    # Generates JavaScript code to emit an event to the WebView.
+    #
+    # Uses Tauri's emit_js_script format, extracted at build time from
+    # vendor/tauri/crates/tauri/src/event/mod.rs via `rake sync:tauri`.
+    #
+    # == Parameters
+    #
+    # +event+:: Event name (e.g., "log://log")
+    # +payload+:: JSON-encoded payload string
+    #
+    # == Returns
+    #
+    # JavaScript string to execute in WebView.
+    def self.emit_js_script(event, payload)
+      @emit_template ||= load_js_template("emit.js.erb")
+      format(@emit_template,
+        emit_fn: "__TAURI_EMIT__",
+        event:,
+        payload:,
+        ids: "[]")
+    end
+
+    # Loads a JS template from lib/tokra/js/.
+    def self.load_js_template(name)
+      dir = __dir__.to_s
+      path = File.join(dir, "js", name)
+      unless File.exist?(path)
+        # Check if we're in a development checkout vs installed gem
+        if File.exist?(File.join(dir, "..", "..", "Rakefile"))
+          raise LoadError, "JS template not found: #{path}. Run: bundle exec rake sync:tauri"
+        else
+          raise LoadError, "JS template missing from gem. Try reinstalling: gem install tokra"
+        end
+      end
+      File.read(path).lines.reject { |l| l.start_with?("//") }.join.strip
+    end
   end
 end

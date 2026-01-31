@@ -8,7 +8,6 @@
 require "minitest/autorun"
 require "tokra-log"
 require "tmpdir"
-require "pathname"
 
 # Tests for RotationStrategy (Tauri parity).
 class TestLogRotationStrategy < Minitest::Test

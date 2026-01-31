@@ -12,7 +12,11 @@ class TestPathResolver < Minitest::Test
   StubNative = Data.define(:home_dir, :data_local_dir)
 
   def setup
-    @config = { identifier: "com.example.testapp" }
+    @config = Tokra::Config.new(
+      identifier: "com.example.testapp",
+      product_name: nil,
+      version: nil
+    )
     @stub_native = StubNative.new(
       home_dir: "/Users/test",
       data_local_dir: "/home/test/.local/share"
@@ -60,8 +64,13 @@ class TestPathResolver < Minitest::Test
   end
 
   def test_app_handle_path_returns_resolver
-    config = { identifier: "com.example.testapp" }
-    handle = Tokra::AppHandle.new(config)
+    config = Tokra::Config.new(
+      identifier: "com.example.testapp",
+      product_name: nil,
+      version: nil
+    )
+    manager = Tokra::AppManager.new(config:, webviews: {})
+    handle = Tokra::AppHandle.new(manager)
 
     result = handle.path
 
@@ -121,7 +130,11 @@ class TestPathResolverIntegration < Minitest::Test
   def test_real_path_resolver_app_log_dir_on_macos
     skip "macOS-only integration test" unless RUBY_PLATFORM.include?("darwin")
 
-    config = { identifier: "app.tokra.test" }
+    config = Tokra::Config.new(
+      identifier: "app.tokra.test",
+      product_name: nil,
+      version: nil
+    )
     resolver = Tokra::Path::Resolver.new(config)
 
     result = resolver.app_log_dir
@@ -134,7 +147,11 @@ class TestPathResolverIntegration < Minitest::Test
   def test_real_path_resolver_app_log_dir_on_linux
     skip "Linux-only integration test" unless RUBY_PLATFORM.include?("linux")
 
-    config = { identifier: "app.tokra.test" }
+    config = Tokra::Config.new(
+      identifier: "app.tokra.test",
+      product_name: nil,
+      version: nil
+    )
     resolver = Tokra::Path::Resolver.new(config)
 
     result = resolver.app_log_dir

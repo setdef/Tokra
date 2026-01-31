@@ -7,12 +7,15 @@
 #++
 
 require_relative "tokra/version"
+require "json"
 require_relative "tokra/native"
 require_relative "tokra/native/events"
 require_relative "tokra/run_event"
 require_relative "tokra/window_event"
 require_relative "tokra/page_load_payload"
 require_relative "tokra/manager"
+require_relative "tokra/config"
+require_relative "tokra/app_manager"
 require_relative "tokra/app_handle"
 require_relative "tokra/app"
 require_relative "tokra/uri_scheme_context"

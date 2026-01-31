@@ -6,6 +6,7 @@ module Tokra
   class Error < StandardError
   end
 
+
   # Native extension classes (implemented in Rust via Magnus)
   module Native
     class EventLoop
@@ -55,6 +56,12 @@ module Tokra
       def started?: () -> bool
       def finished?: () -> bool
     end
+
+    # Generates JavaScript code to emit an event to the WebView.
+    def self.emit_js_script: (String event, String payload) -> String
+
+    # Loads a JS template from lib/tokra/js/.
+    def self.load_js_template: (String name) -> String
 
     # Drag drop event from native layer.
     # Data.define(:event, :paths, :x, :y)
@@ -116,24 +123,43 @@ module Tokra
     def try_get: (Class klass) -> managed_state?
   end
 
+  # Application configuration
+  class Config < Data
+    attr_reader identifier: String?
+    attr_reader product_name: String?
+    attr_reader version: String?
+
+    def self.new: (identifier: String?, product_name: String?, version: String?) -> Config
+  end
+
+  # Internal manager for application state
+  class AppManager < Data
+    attr_reader config: Config
+    attr_reader webviews: Hash[String, Native::WebView]
+
+    def self.new: (config: Config, webviews: Hash[String, Native::WebView]) -> AppManager
+  end
+
   # Handle to the running application, safe to pass between Ractors.
   class AppHandle
-    @config: Hash[Symbol, String | Integer | Float]
+    @manager: AppManager
     @state_manager: StateManager?
     @path: Path::Resolver?
 
-    def initialize: (Hash[Symbol, String | Integer | Float] config, ?state_manager: StateManager?) -> void
+    def initialize: (AppManager manager, ?state_manager: StateManager?) -> void
     def app_handle: -> AppHandle
-    def config: -> Hash[Symbol, String | Integer | Float]
+    def config: -> Config
+    def webviews: -> Hash[String, Native::WebView]
     def state: (Class klass) -> managed_state
     def try_state: (Class klass) -> managed_state?
     def manage: (Object state) -> bool
     def get_window: (String label) -> Native::Window?
     def get_webview: (String label) -> Native::WebView?
     def windows: -> Hash[String, Native::Window]
-    def webviews: -> Hash[String, Native::WebView]
+    def emit: (String event_name, ::_ToJson payload) -> void
     def exit: (?Integer code) -> void
     def path: -> Path::Resolver
+
   end
 
   # The built Tokra application.

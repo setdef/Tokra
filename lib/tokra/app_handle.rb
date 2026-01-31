@@ -18,11 +18,11 @@ module Tokra
   class AppHandle
     include Manager
 
-    # Creates a new AppHandle with the given configuration.
+    # Creates a new AppHandle with the given AppManager.
     #
     # This is called internally by App and should not be called directly.
-    def initialize(config, state_manager: nil)
-      @config = config
+    def initialize(manager, state_manager: nil) # :nodoc:
+      @manager = manager
       @state_manager = state_manager
     end
 
@@ -35,10 +35,10 @@ module Tokra
     #
     # Raises +KeyError+ if not found, +Error+ if no StateManager.
     def state(klass)
-      manager = @state_manager
-      raise Error, "No StateManager available" unless manager
+      mgr = @state_manager
+      raise Error, "No StateManager available" unless mgr
 
-      manager.get(klass)
+      mgr.get(klass)
     end
 
     # Retrieves managed state by class, or +nil+ if not found.
@@ -48,7 +48,12 @@ module Tokra
 
     # Returns the application configuration.
     def config
-      @config
+      @manager.config
+    end
+
+    # Returns all managed webviews.
+    def webviews
+      @manager.webviews
     end
 
     # Returns the path resolver for app directories.
@@ -56,7 +61,15 @@ module Tokra
     # Provides cross-platform access to app-specific directories like
     # log directories, config directories, etc.
     def path
-      @path ||= Path::Resolver.new(@config)
+      @path ||= Path::Resolver.new(config)
+    end
+
+    # Emits an event to all webviews.
+    #
+    # Mirrors Tauri's AppHandle#emit which broadcasts to all webviews.
+    def emit(event_name, payload)
+      js = Tokra::Native.emit_js_script(event_name, payload.to_json)
+      webviews.each_value { |wv| wv.eval(js) }
     end
 
     # Requests application exit with optional exit code.

@@ -18,7 +18,7 @@ module Tokra
       @native: _DirsProvider
 
       # Creates a new Resolver with the given configuration.
-      def initialize: (Hash[Symbol, String | Integer | Float] config, ?platform: String, ?native: _DirsProvider) -> void
+      def initialize: (Config config, ?platform: String, ?native: _DirsProvider) -> void
 
       # Returns the path to the suggested directory for your app's log files.
       def app_log_dir: () -> Pathname

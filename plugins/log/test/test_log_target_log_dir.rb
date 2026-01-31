@@ -8,7 +8,6 @@
 require "minitest/autorun"
 require "tokra-log"
 require "tmpdir"
-require "pathname"
 
 # Tests for LogDir target kind (Tauri parity).
 class TestLogTargetKindLogDir < Minitest::Test
