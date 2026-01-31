@@ -89,18 +89,20 @@ module Tokra
     end
 
     private def dispatch_http_request(event, proxy)
-      protocols = @builder.__send__(:uri_scheme_protocols)
-      return unless protocols
+      sync_protocols = @builder.__send__(:uri_scheme_protocols)
+      async_protocols = @builder.__send__(:async_uri_scheme_protocols)
 
-      # For now, use "tokra" scheme by default
-      handler = protocols["tokra"]
-      return unless handler
-
-      ctx = UriSchemeContext.new(app_handle: @handle, webview_label: "main")
-      response = handler.call(ctx, event)
-
-      header_pairs = response.headers.map { |k, v| [k.to_s, v.to_s] }
-      proxy.respond(event.request_id, response.status, header_pairs, response.body)
+      # Try sync protocol first (for backwards compatibility)
+      if sync_protocols && (handler = sync_protocols["tokra"])
+        ctx = UriSchemeContext.new(app_handle: @handle, webview_label: "main")
+        response = handler.call(ctx, event)
+        header_pairs = response.headers.map { |k, v| [k.to_s, v.to_s] }
+        proxy.respond(event.request_id, response.status, header_pairs, response.body)
+      elsif async_protocols && (handler = async_protocols["tokra"])
+        ctx = UriSchemeContext.new(app_handle: @handle, webview_label: "main")
+        responder = UriSchemeResponder.new(port: proxy, request_id: event.request_id)
+        handler.call(ctx, event, responder)
+      end
     end
 
     private def dispatch_ipc(event)

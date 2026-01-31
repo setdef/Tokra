@@ -25,6 +25,7 @@ module Tokra
     # Initializes a new Builder with empty collections.
     def initialize
       @uri_scheme_protocols = {}
+      @async_uri_scheme_protocols = {}
       @window_event_listeners = []
       @webview_event_listeners = []
       @state_manager = StateManager.new
@@ -42,8 +43,10 @@ module Tokra
     # Defines the JS message handler callback.
     #
     # Accepts a block that receives the invoke object containing command info.
+    # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
     # Returns +self+ for fluent chaining.
     def invoke_handler(&block)
+      require_shareable!(block, "invoke_handler")
       @invoke_handler_hook = block
       self
     end
@@ -51,17 +54,33 @@ module Tokra
     # Registers a URI scheme protocol available to all webviews.
     #
     # The block receives (ctx, request) and should return a response.
+    # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
     # Returns +self+ for fluent chaining.
     def register_uri_scheme_protocol(uri_scheme, &handler)
+      require_shareable!(handler, "register_uri_scheme_protocol")
       @uri_scheme_protocols[uri_scheme] = handler
+      self
+    end
+
+    # Registers an async URI scheme protocol available to all webviews.
+    #
+    # The block receives (ctx, request, responder) and must call
+    # +responder.respond(response)+ when complete.
+    # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
+    # Returns +self+ for fluent chaining.
+    def register_asynchronous_uri_scheme_protocol(uri_scheme, &handler)
+      require_shareable!(handler, "register_asynchronous_uri_scheme_protocol")
+      @async_uri_scheme_protocols[uri_scheme] = handler
       self
     end
 
     # Defines the setup hook.
     #
     # The block receives the App instance after build.
+    # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
     # Returns +self+ for fluent chaining.
     def setup(&block)
+      require_shareable!(block, "setup")
       @setup_hook = block
       self
     end
@@ -69,8 +88,10 @@ module Tokra
     # Defines the page load hook.
     #
     # The block receives (webview, payload).
+    # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
     # Returns +self+ for fluent chaining.
     def on_page_load(&block)
+      require_shareable!(block, "on_page_load")
       @on_page_load_hook = block
       self
     end
@@ -78,8 +99,10 @@ module Tokra
     # Registers a window event handler for all windows.
     #
     # The block receives (window, event).
+    # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
     # Returns +self+ for fluent chaining.
     def on_window_event(&block)
+      require_shareable!(block, "on_window_event")
       @window_event_listeners << block
       self
     end
@@ -87,8 +110,10 @@ module Tokra
     # Registers a webview event handler for all webviews.
     #
     # The block receives (webview, webview_event).
+    # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
     # Returns +self+ for fluent chaining.
     def on_webview_event(&block)
+      require_shareable!(block, "on_webview_event")
       @webview_event_listeners << block
       self
     end
@@ -116,11 +141,15 @@ module Tokra
     end
 
     # Consider these "friendly" -- public to Tokra, private to app devs.
-    private
-
     attr_reader :state_manager, :invoke_handler_hook, :uri_scheme_protocols,
-      :setup_hook, :on_page_load_hook, :window_event_listeners,
-      :webview_event_listeners
+      :async_uri_scheme_protocols, :setup_hook, :on_page_load_hook,
+      :window_event_listeners, :webview_event_listeners
+
+    private def require_shareable!(block, method_name)
+      return if Ractor.shareable?(block)
+
+      raise Error, "#{method_name} block must be Ractor-shareable (use Ractor.shareable_proc)"
+    end
   end
 end
 

@@ -79,6 +79,16 @@ module Tokra
     def self.new: (app_handle: AppHandle, webview_label: String) -> UriSchemeContext
   end
 
+  # Single-use responder for async URI scheme protocol handlers.
+  class UriSchemeResponder
+    @responded: bool
+    attr_reader port: Native::Proxy
+    attr_reader request_id: Integer
+
+    def initialize: (port: Native::Proxy, request_id: Integer) -> void
+    def respond: (Response response) -> void
+  end
+
   # Type alias for managed state values (type-erased storage)
   type managed_state = Object
 
@@ -275,6 +285,7 @@ module Tokra
     def manage: (managed_state state) -> self
     def invoke_handler: () { (Invoke) -> bool } -> self
     def register_uri_scheme_protocol: (String uri_scheme) { (UriSchemeContext, Native::HttpRequestEvent) -> Response } -> self
+    def register_asynchronous_uri_scheme_protocol: (String uri_scheme) { (UriSchemeContext, Native::HttpRequestEvent, UriSchemeResponder) -> void } -> self
     def setup: () { (App) -> void } -> self
     def on_page_load: () { (Native::WebView?, PageLoadPayload) -> void } -> self
     def on_window_event: () { (Native::Window, window_event) -> void } -> self
@@ -286,11 +297,14 @@ module Tokra
 
     attr_reader invoke_handler_hook: (^(Invoke) -> bool)?
     attr_reader uri_scheme_protocols: Hash[String, ^(UriSchemeContext, Native::HttpRequestEvent) -> Response]
+    attr_reader async_uri_scheme_protocols: Hash[String, ^(UriSchemeContext, Native::HttpRequestEvent, UriSchemeResponder) -> void]
     attr_reader setup_hook: (^(App) -> void)?
     attr_reader on_page_load_hook: (^(Native::WebView?, PageLoadPayload) -> void)?
     attr_reader window_event_listeners: Array[^(Native::Window, window_event) -> void]
     attr_reader webview_event_listeners: Array[^(Native::WebView?, webview_event) -> void]
     attr_reader state_manager: StateManager
+
+    private def require_shareable!: (Proc block, String method_name) -> void
   end
 end
 
