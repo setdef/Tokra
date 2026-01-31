@@ -1,0 +1,134 @@
+# frozen_string_literal: true
+
+#--
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#++
+
+# SPDX-SnippetBegin
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+# SPDX-SnippetComment: App structure adapted from tauri/crates/tauri/src/app.rs
+
+module Tokra
+  # The built Tokra application.
+  #
+  # Created by calling Builder#build. Provides access to the application
+  # handle and runs the event loop.
+  class App
+    # The application handle, safe to pass between Ractors.
+    attr_reader :handle
+
+    # The application configuration.
+    attr_reader :config
+
+    # Default window configuration when not specified.
+    DEFAULT_CONFIG = {
+      title: "Tokra",
+      width: 800.0,
+      height: 600.0,
+    }.freeze
+
+    # Creates a new App from a configured Builder.
+    #
+    # This is called by Builder#build and should not be called directly.
+    # +native:+ can be injected for testing with mock native components.
+    def initialize(builder, native: Native) # :nodoc:
+      @config = DEFAULT_CONFIG.dup
+      @handle = AppHandle.new(@config)
+      @builder = builder
+      # Store class references to avoid dynamic constant lookups
+      @event_loop_class = native.const_get(:EventLoop)
+      @window_class = native.const_get(:Window)
+      @webview_class = native.const_get(:WebView)
+    end
+
+    # Runs the application event loop.
+    #
+    # Creates the native window and webview, then runs the event loop.
+    # The block receives (handle, event) for each runtime event.
+    def run(&callback)
+      # Call setup hook before anything else
+      @builder.setup_hook&.call(self)
+
+      # Create native components via injected factory
+      event_loop = @event_loop_class.new
+      proxy = event_loop.create_proxy
+
+      window = @window_class.new(event_loop)
+      window.set_title(@config[:title].to_s)
+      window.set_size(@config[:width].to_f, @config[:height].to_f)
+
+      @webview_class.new_with_protocol(window, proxy)
+
+      # Emit Ready event
+      callback&.call(@handle, RunEvent::Ready.new)
+
+      # Run the event loop, dispatching events
+      event_loop.run(
+        lambda { |event|
+          dispatch_event(event, callback, window, proxy)
+        }
+      )
+
+      # Emit Exit after loop ends
+      callback&.call(@handle, RunEvent::Exit.new)
+    end
+
+    private def dispatch_event(event, callback, window, proxy)
+      # Use is_a? instead of case/when to support mock event injection in tests
+      if event.is_a?(Native::HttpRequestEvent)
+        dispatch_http_request(event, proxy)
+      elsif event.is_a?(Native::IpcEvent)
+        dispatch_ipc(event)
+      elsif event.is_a?(Native::PageLoadEvent)
+        dispatch_page_load(event)
+      elsif event.is_a?(Native::WindowCloseEvent)
+        dispatch_window_event(window, WindowEvent::CloseRequested.new, callback)
+      end
+    end
+
+    private def dispatch_http_request(event, proxy)
+      protocols = @builder.uri_scheme_protocols
+      return unless protocols
+
+      # For now, use "tokra" scheme by default
+      handler = protocols["tokra"]
+      return unless handler
+
+      ctx = UriSchemeContext.new(app_handle: @handle, webview_label: "main")
+      response = handler.call(ctx, event)
+
+      header_pairs = response.headers.map { |k, v| [k.to_s, v.to_s] }
+      proxy.respond(event.request_id, response.status, header_pairs, response.body)
+    end
+
+    private def dispatch_ipc(event)
+      handler = @builder.invoke_handler_hook
+      return unless handler
+
+      invoke = Invoke.new(command: "", payload: event.message, responder: nil)
+      handler.call(invoke)
+    end
+
+    private def dispatch_page_load(event)
+      hook = @builder.on_page_load_hook
+      return unless hook
+
+      payload = PageLoadPayload.new(url: event.url, started: event.started?)
+      hook.call(nil, payload) # webview object not yet wired
+    end
+
+    private def dispatch_window_event(window, event, callback)
+      # Notify window event listeners
+      @builder.window_event_listeners&.each do |listener|
+        listener.call(window, event)
+      end
+
+      # Also emit as RunEvent::WindowEvent
+      callback&.call(@handle, RunEvent::WindowEvent.new(label: "main", event:))
+    end
+  end
+end
+
+# SPDX-SnippetEnd

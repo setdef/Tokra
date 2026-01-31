@@ -7,6 +7,7 @@
 #++
 
 module Tokra
-  # TODO: Document me.
+  # Current gem version following semantic versioning, with
+  # pre-release syntax adapted for RubyGems
   VERSION = "0.0.1.pre.2"
 end

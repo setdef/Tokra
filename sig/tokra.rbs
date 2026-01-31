@@ -27,7 +27,7 @@ module Tokra
     end
 
     class Proxy
-      def respond: (Integer, Integer, Array[[String, String]], String) -> void
+      def respond: (Integer, Integer, Array[Array[String]], String) -> void
       def send_http_response: (Integer, Integer, Hash[String, String], String) -> void
     end
 
@@ -55,6 +55,181 @@ module Tokra
       def started?: () -> bool
       def finished?: () -> bool
     end
+  end
+
+  # HTTP response for URI scheme protocol handlers.
+  # Created via Data.define(:status, :headers, :body)
+  class Response < Data
+    attr_reader status: Integer
+    attr_reader headers: Hash[String, String]
+    attr_reader body: String
+
+    def self.new: (status: Integer, headers: Hash[String, String], body: String) -> Response
+    def self.ok: (String body, ?content_type: String) -> Response
+    def self.not_found: (?String message) -> Response
+    def self.error: (Integer status, String message) -> Response
+  end
+
+  # Context passed to URI scheme protocol handlers.
+  # Created via Data.define(:app_handle, :webview_label)
+  class UriSchemeContext < Data
+    attr_reader app_handle: AppHandle
+    attr_reader webview_label: String
+
+    def self.new: (app_handle: AppHandle, webview_label: String) -> UriSchemeContext
+  end
+
+  # Handle to the running application, safe to pass between Ractors.
+  class AppHandle
+    @config: Hash[Symbol, String | Integer | Float]
+
+    def initialize: (Hash[Symbol, String | Integer | Float] config) -> void
+    def config: () -> Hash[Symbol, String | Integer | Float]
+    def exit: (?Integer code) -> void
+  end
+
+  # The built Tokra application.
+  class App
+    DEFAULT_CONFIG: Hash[Symbol, String | Integer | Float]
+
+    @config: Hash[Symbol, String | Integer | Float]
+    @handle: AppHandle
+    @builder: Builder
+    @event_loop_class: singleton(Native::EventLoop)
+    @window_class: singleton(Native::Window)
+    @webview_class: singleton(Native::WebView)
+
+    attr_reader handle: AppHandle
+    attr_reader config: Hash[Symbol, String | Integer | Float]
+
+    def initialize: (Builder builder, ?native: Module) -> void
+    def run: () { (AppHandle, run_event) -> void } -> void
+         | () -> void
+
+    private
+
+    def dispatch_event: (native_event event, (^(AppHandle, run_event) -> void)? callback, Native::Window window, Native::Proxy proxy) -> void
+    def dispatch_http_request: (Native::HttpRequestEvent event, Native::Proxy proxy) -> void
+    def dispatch_ipc: (Native::IpcEvent event) -> void
+    def dispatch_page_load: (Native::PageLoadEvent event) -> void
+    def dispatch_window_event: (Native::Window window, window_event event, (^(AppHandle, run_event) -> void)? callback) -> void
+  end
+
+  # Invoke object for IPC commands.
+  class Invoke
+    @command: String
+    @payload: String
+    @responder: (^(bool, String) -> void)?
+    @responded: bool
+
+    attr_reader command: String
+    attr_reader payload: String
+
+    def initialize: (command: String, payload: String, responder: (^(bool, String) -> void)?) -> void
+    def resolve: (String value) -> void
+    def reject: (String error) -> void
+  end
+
+  # Window event types dispatched to on_window_event callbacks.
+  # Each is a Data.define class.
+  module WindowEvent
+    class CloseRequested < Data
+    end
+    class Destroyed < Data
+    end
+    class Focused < Data
+      attr_reader focused: bool
+    end
+    class Moved < Data
+      attr_reader x: Integer
+      attr_reader y: Integer
+    end
+    class Resized < Data
+      attr_reader width: Integer
+      attr_reader height: Integer
+    end
+    class ScaleFactorChanged < Data
+      attr_reader scale_factor: Float
+    end
+    class ThemeChanged < Data
+      attr_reader theme: String
+    end
+  end
+
+  # Page load payload passed to on_page_load callbacks.
+  # Created via Data.define(:url, :started)
+  class PageLoadPayload < Data
+    attr_reader url: String
+    attr_reader started: bool
+
+    def self.new: (url: String, started: bool) -> PageLoadPayload
+    def started?: () -> bool
+    def finished?: () -> bool
+  end
+
+  # Run event types dispatched during app.run.
+  # Each is a Data.define class.
+  module RunEvent
+    class Ready < Data
+      def self.new: () -> Ready
+    end
+    class Exit < Data
+      def self.new: () -> Exit
+    end
+    class ExitRequested < Data
+      attr_reader code: Integer?
+      def self.new: (?code: Integer?) -> ExitRequested
+    end
+    class WindowEvent < Data
+      attr_reader label: String
+      attr_reader event: Tokra::window_event
+      def self.new: (label: String, event: Tokra::window_event) -> WindowEvent
+    end
+    class WebviewEvent < Data
+      attr_reader label: String
+      attr_reader event: Object
+      def self.new: (label: String, event: Object) -> WebviewEvent
+    end
+    class Resumed < Data
+      def self.new: () -> Resumed
+    end
+    class MainEventsCleared < Data
+      def self.new: () -> MainEventsCleared
+    end
+  end
+
+  # Type alias for all native events dispatched by event loop
+  type native_event = Native::HttpRequestEvent | Native::IpcEvent | Native::PageLoadEvent | Native::WindowCloseEvent | Native::WakeUpEvent
+
+  # Type alias for window events
+  type window_event = WindowEvent::CloseRequested | WindowEvent::Destroyed | WindowEvent::Focused | WindowEvent::Moved | WindowEvent::Resized | WindowEvent::ScaleFactorChanged | WindowEvent::ThemeChanged
+
+  # Type alias for run events
+  type run_event = RunEvent::Ready | RunEvent::Exit | RunEvent::ExitRequested | RunEvent::WindowEvent | RunEvent::WebviewEvent | RunEvent::Resumed | RunEvent::MainEventsCleared
+
+  # Fluent Builder for configuring Tokra desktop applications.
+  class Builder
+    @invoke_handler: (^(Invoke) -> bool)?
+    @uri_scheme_protocols: Hash[String, ^(UriSchemeContext, Native::HttpRequestEvent) -> Response]
+    @setup: (^(App) -> void)?
+    @on_page_load: (^(Native::WebView?, PageLoadPayload) -> void)?
+    @window_event_listeners: Array[^(Native::Window, window_event) -> void]
+
+    attr_reader invoke_handler_hook: (^(Invoke) -> bool)?
+    attr_reader uri_scheme_protocols: Hash[String, ^(UriSchemeContext, Native::HttpRequestEvent) -> Response]
+    attr_reader setup_hook: (^(App) -> void)?
+    attr_reader on_page_load_hook: (^(Native::WebView?, PageLoadPayload) -> void)?
+    attr_reader window_event_listeners: Array[^(Native::Window, window_event) -> void]
+
+    def initialize: () -> void
+    def self.default: () -> Builder
+    def invoke_handler: () { (Invoke) -> bool } -> self
+    def register_uri_scheme_protocol: (String uri_scheme) { (UriSchemeContext, Native::HttpRequestEvent) -> Response } -> self
+    def setup: () { (App) -> void } -> self
+    def on_page_load: () { (Native::WebView?, PageLoadPayload) -> void } -> self
+    def on_window_event: () { (Native::Window, window_event) -> void } -> self
+    def build: (?native: Module) -> App
+    def run: (?native: Module) ?{ (AppHandle, run_event) -> void } -> void
   end
 end
 
