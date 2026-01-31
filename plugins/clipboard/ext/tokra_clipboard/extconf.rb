@@ -1,0 +1,11 @@
+# frozen_string_literal: true
+
+#--
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#++
+
+require "mkmf"
+require "rb_sys/mkmf"
+
+create_rust_makefile("tokra_clipboard/tokra_clipboard")

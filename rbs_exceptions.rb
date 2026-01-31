@@ -9,5 +9,6 @@
 # Each entry must explain WHY the exception is unavoidable.
 # Review carefully before adding new entries.
 
-# Currently no exceptions - all types should be explicit.
 # StateManager uses Object instead of untyped for type-erased storage.
+
+# Currently no exceptions - all types are expressed in RBS.

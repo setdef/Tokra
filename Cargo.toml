@@ -7,7 +7,7 @@
 # in the ext/ directory.
 
 [workspace]
-members = ["./ext/tokra"]
+members = ["./ext/tokra", "./plugins/clipboard/ext/tokra_clipboard"]
 resolver = "2"
 
 # Strict linting: deny fails builds but allows targeted #[allow] for FFI constraints

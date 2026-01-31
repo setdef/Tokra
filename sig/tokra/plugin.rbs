@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Base class for Tokra plugins.
+  #
+  # Subclass and override lifecycle methods to create a plugin.
+  class Plugin
+    # Returns the unique plugin identifier.
+    def name: () -> String
+
+    # Initializes the plugin with app handle and configuration.
+    def initialize: (AppHandle app, ?Hash[Symbol, String | Integer | Float | bool] config) -> void
+
+    # Called on each run loop event.
+    def on_event: (run_event event) -> void
+  end
+end

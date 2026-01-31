@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[package]
+name = "tokra_clipboard"
+version = "0.0.1-pre.1"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+magnus = { git = "https://github.com/matsadler/magnus", branch = "main" }
+arboard = "3.6"

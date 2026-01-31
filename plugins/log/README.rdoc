@@ -1,0 +1,17 @@
+= tokra-log
+
+Logging plugin for Tokra desktop applications.
+
+Wraps Ruby's Logger with desktop-friendly defaults and integrates with
+Tokra's plugin lifecycle.
+
+== Usage
+
+  Tokra::Builder.new
+    .plugin(Tokra::Plugins::Log.new(level: :info, path: "app.log"))
+    .run
+
+== Configuration Options
+
+- +:level+:: log level (+:debug+, +:info+, +:warn+, +:error+, +:fatal+)
+- +:path+:: log destination (String path or IO, defaults to +$stdout+)

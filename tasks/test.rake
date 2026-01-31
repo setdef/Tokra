@@ -10,8 +10,8 @@ require "minitest/test_task"
 # Clear the default test task created by Minitest::TestTask if it exists
 Rake::Task["test"].clear if Rake::Task.task_defined?("test")
 
-desc "Run all tests (Rust first, then Ruby)"
-task test: %w[test:rust test:ruby]
+desc "Run all tests (Rust first, then Ruby, then plugins)"
+task test: %w[test:rust test:ruby plugins:test]
 
 namespace :test do
   desc "Run Rust tests (requires compile)"

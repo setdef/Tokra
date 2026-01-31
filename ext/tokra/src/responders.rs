@@ -57,7 +57,12 @@ mod tests {
     fn test_next_request_id_increments() {
         let first = next_request_id();
         let second = next_request_id();
-        assert_eq!(second, first + 1);
+        // Use > instead of == first + 1 because other parallel tests
+        // may also call next_request_id() between our two calls
+        assert!(
+            second > first,
+            "second ({second}) should be greater than first ({first})"
+        );
     }
 
     #[test]
