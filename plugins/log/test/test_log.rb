@@ -9,7 +9,7 @@ require "minitest/autorun"
 require "tokra-log"
 require "stringio"
 
-# Tests for Log::Plugin.
+# Tests for Log::Plugin core functionality.
 class TestLogPlugin < Minitest::Test
   def test_name_returns_log
     app = Object.new
