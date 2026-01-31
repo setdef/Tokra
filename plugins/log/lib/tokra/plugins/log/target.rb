@@ -13,77 +13,131 @@ module Tokra
     module Log
       # Configures a log output destination.
       #
-      # Each Target wraps a destination (IO or Pathname) with optional
-      # rotation settings. Only Pathname destinations support rotation.
+      # Follows Tauri's fluent API pattern with mutable builder methods.
       #
       # == Examples
       #
-      #   # Console output (no rotation)
+      #   # Console output
       #   Target.new($stdout)
       #
-      #   # File with size-based rotation (3 files, 10MB each)
-      #   Target.new(destination: Pathname("logs/app.log"), shift_age: 3, shift_size: 10_485_760)
+      #   # File output
+      #   Target.new(Pathname("logs/app.log"))
       #
-      #   # File with time-based rotation (daily)
-      #   Target.new(destination: Pathname("logs/app.log"), shift_age: "daily")
-      #
-      # == Parameters
-      #
-      # +destination+::  +$stdout+, +$stderr+, or +Pathname+ for file output
-      # +shift_age+::    rotation count or +'daily'+/+'weekly'+/+'monthly'+
-      # +shift_size+::   max bytes before rotation (default: 1MB)
-      # +level+::        minimum log level for this target (default: +:debug+)
-      # +formatter+::    custom formatter proc (receives severity, time, progname, msg)
+      #   # With filter and formatter
+      #   Target.new($stdout)
+      #     .filter { |msg| !msg.include?("secret") }
+      #     .format { |sev, time, prog, msg| "[#{sev}] #{msg}\n" }
       #
       # == Errors
       #
-      # Raises +ArgumentError+ if rotation params passed with IO destination.
-      # Raises +Ractor::IsolationError+ if formatter is not Ractor-shareable.
+      # Raises +Ractor::IsolationError+ if filter/formatter is not Ractor-shareable.
       #
-      class Target < Data.define(:destination, :shift_age, :shift_size, :level, :formatter)
-        def initialize(destination:, shift_age: 0, shift_size: 1_048_576, level: :debug, formatter: nil)
-          super
-          validate_rotation_params!
-          validate_formatter_shareable!
+      # @see https://github.com/tauri-apps/plugins-workspace/blob/v2/plugins/log/src/lib.rs#L360-L393
+      #
+      class Target
+        attr_reader :kind
+
+        def initialize(kind)
+          @kind = kind
+          @filters = []
+          @formatter = nil
+        end
+
+        # Adds a filter to this target. Returns self for chaining.
+        #
+        # +callback+:: a Ractor-shareable proc that receives the message
+        #              and returns true to allow, false to block
+        #
+        def filter(callback = nil, &block)
+          new_filter = callback || block
+          validate_shareable!(new_filter, "filter")
+          @filters << new_filter
+          self
+        end
+
+        # Sets the formatter for this target. Returns self for chaining.
+        #
+        # +callback+:: a Ractor-shareable proc that receives (severity, time, progname, msg)
+        #              and returns the formatted string
+        #
+        def format(callback = nil, &block)
+          new_formatter = callback || block
+          validate_shareable!(new_formatter, "formatter")
+          @formatter = new_formatter
+          self
         end
 
         # Builds a TracingLogger instance for this target.
-        def to_logger(_config = {})
-          logger = case destination
-          when Pathname then TracingLogger.new(destination.to_s, shift_age, shift_size)
-          when IO, StringIO then TracingLogger.new(destination)
-          else raise ArgumentError, "Unknown destination type: #{destination.class}"
-          end
-          logger.level = level_to_int(level)
-          logger.formatter = formatter if formatter
-          logger
+        #
+        # +config+:: configuration hash from Builder (level, rotation settings, etc)
+        def to_logger(config = {})
+          logger = create_base_logger(config)
+          level = config.fetch(:level, :debug)
+          logger.level = level == :trace ? TRACE : level
+          logger.formatter = @formatter if @formatter
+          wrap_with_filters(logger)
         end
 
         private
 
-        def level_to_int(lvl)
-          case lvl
-          when :trace then TRACE
-          else lvl
+        def create_base_logger(config)
+          shift_age = config.fetch(:shift_age, 0)
+          shift_size = config.fetch(:shift_size, 1_048_576)
+
+          case kind
+          when Pathname then TracingLogger.new(kind.to_s, shift_age, shift_size)
+          when IO, StringIO then TracingLogger.new(kind)
+          else raise ArgumentError, "Unknown destination type: #{kind.class}"
           end
         end
 
-        def validate_rotation_params!
-          return if destination.is_a?(Pathname)
-          return if shift_age == 0 && shift_size == 1_048_576 # defaults
-
-          raise ArgumentError,
-            "shift_age and shift_size only apply to Pathname destinations"
+        def wrap_with_filters(logger)
+          @filters.reduce(logger) { |log, fltr| FilteringLogger.new(log, fltr) }
         end
 
-        def validate_formatter_shareable!
-          return unless formatter
-          return if Ractor.shareable?(formatter)
+        def validate_shareable!(proc, name)
+          return if proc.nil?
+          return if Ractor.shareable?(proc)
 
           raise Ractor::IsolationError,
-            "formatter must be Ractor-shareable (use Ractor.shareable_proc)"
+            "#{name} must be Ractor-shareable (use Ractor.shareable_proc)"
         end
       end
+
+      # Logger wrapper that applies a filter to messages.
+      class FilteringLogger
+        def initialize(logger, filter)
+          @logger = logger
+          @filter = filter
+        end
+
+        def add(severity, message = nil, progname = nil)
+          return unless @filter.call(message || progname)
+          @logger.add(severity, message, progname)
+        end
+
+        %i[trace debug info warn error fatal].each do |level|
+          define_method(level) do |message = nil, &block|
+            msg = message || block&.call
+            return unless @filter.call(msg)
+            @logger.__send__(level, msg)
+          end
+        end
+
+        def <<(msg)
+          return unless @filter.call(msg)
+          @logger << msg
+        end
+
+        def method_missing(method, *args, &block)
+          @logger.__send__(method, *args, &block)
+        end
+
+        def respond_to_missing?(method, include_private = false)
+          @logger.respond_to?(method, include_private)
+        end
+      end
+      private_constant :FilteringLogger
     end
   end
 end

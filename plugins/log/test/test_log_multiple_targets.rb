@@ -30,9 +30,9 @@ class TestLogMultipleTargets < Minitest::Test
   def test_per_target_level_filtering
     output = StringIO.new
     app = Object.new
-    # Target with :warn level should filter out :info
-    target = Tokra::Plugins::Log::Target.new(destination: output, level: :warn)
-    plugin = Tokra::Plugins::Log::Plugin.new(app, targets: [target])
+    # Level set on Plugin config
+    target = Tokra::Plugins::Log::Target.new(output)
+    plugin = Tokra::Plugins::Log::Plugin.new(app, targets: [target], level: :warn)
 
     plugin.info("info message")
     plugin.warn("warn message")

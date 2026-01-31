@@ -7,32 +7,67 @@
 
 require "minitest/autorun"
 require "tokra-log"
+require "stringio"
 
-# Tests for Log::Target configuration class.
+# Tests for Log::Target fluent API.
 class TestLogTarget < Minitest::Test
-  def test_raises_argument_error_when_shift_age_passed_with_stdout
-    assert_raises(ArgumentError) do
-      Tokra::Plugins::Log::Target.new(destination: $stdout, shift_age: 3)
-    end
-  end
-
-  def test_raises_argument_error_when_shift_size_passed_with_stderr
-    assert_raises(ArgumentError) do
-      Tokra::Plugins::Log::Target.new(destination: $stderr, shift_size: 1024)
-    end
-  end
-
-  def test_accepts_rotation_params_with_pathname
-    target = Tokra::Plugins::Log::Target.new(
-      destination: Pathname("logs/app.log"),
-      shift_age: 3,
-      shift_size: 10_485_760
-    )
-    assert_instance_of Tokra::Plugins::Log::Target, target
-  end
-
-  def test_accepts_stdout_without_rotation_params
+  def test_accepts_stdout
     target = Tokra::Plugins::Log::Target.new($stdout)
     assert_instance_of Tokra::Plugins::Log::Target, target
+    assert_equal $stdout, target.kind
+  end
+
+  def test_accepts_pathname
+    target = Tokra::Plugins::Log::Target.new(Pathname("logs/app.log"))
+    assert_instance_of Tokra::Plugins::Log::Target, target
+  end
+
+  def test_filter_returns_self_for_chaining
+    target = Tokra::Plugins::Log::Target.new($stdout)
+    filter = Ractor.shareable_proc { |msg| !msg.include?("secret") }
+
+    result = target.filter(filter)
+
+    assert_same target, result
+  end
+
+  def test_format_returns_self_for_chaining
+    target = Tokra::Plugins::Log::Target.new($stdout)
+    formatter = Ractor.shareable_proc { |_sev, _time, _prog, msg| "#{msg}\n" }
+
+    result = target.format(formatter)
+
+    assert_same target, result
+  end
+
+  def test_rejects_non_shareable_filter
+    target = Tokra::Plugins::Log::Target.new($stdout)
+    non_shareable = proc { |msg| msg.include?("test") }
+
+    error = assert_raises(Ractor::IsolationError) do
+      target.filter(non_shareable)
+    end
+
+    assert_match(/filter/, error.message)
+  end
+
+  def test_rejects_non_shareable_formatter
+    target = Tokra::Plugins::Log::Target.new($stdout)
+    non_shareable = proc { |_sev, _time, _prog, msg| msg }
+
+    error = assert_raises(Ractor::IsolationError) do
+      target.format(non_shareable)
+    end
+
+    assert_match(/formatter/, error.message)
+  end
+
+  def test_accepts_shareable_formatter
+    output = StringIO.new
+    shareable = Ractor.shareable_proc { |_sev, _time, _prog, msg| "#{msg}\n" }
+
+    target = Tokra::Plugins::Log::Target.new(output).format(shareable)
+
+    assert_kind_of Tokra::Plugins::Log::Target, target
   end
 end

@@ -50,8 +50,8 @@ class TestLogLevels < Minitest::Test
 
   def test_trace_logs_message
     output = StringIO.new
-    target = Tokra::Plugins::Log::Target.new(destination: output, level: :trace)
-    plugin = Tokra::Plugins::Log::Plugin.new(@app, targets: [target])
+    target = Tokra::Plugins::Log::Target.new(output)
+    plugin = Tokra::Plugins::Log::Plugin.new(@app, targets: [target], level: :trace)
 
     plugin.trace("trace message")
 

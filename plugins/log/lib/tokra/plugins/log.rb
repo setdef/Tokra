@@ -41,8 +41,12 @@ module Tokra
         # Config options:
         # - +:level+:: log level (+:debug+, +:info+, +:warn+, +:error+, +:fatal+)
         # - +:targets+:: array of Target instances for log output
+        # - +:progname+:: program name for log entries
+        # - +:datetime_format+:: timestamp format string (strftime)
         def initialize(app, config = {})
           super
+          @progname = config[:progname]
+          @datetime_format = config[:datetime_format]
           @loggers = build_loggers(config)
         end
 
@@ -64,6 +68,29 @@ module Tokra
         # Logs a fatal message.
         def fatal(message) = log(:fatal, message)
 
+        # Logs a message using Logger's add API.
+        #
+        # +level+::    severity level (integer or symbol)
+        # +message+::  the log message
+        # +progname+:: optional program name override for this entry
+        def add(level, message = nil, progname = nil)
+          @loggers.each { |logger| logger.add(level, message, progname) }
+        end
+
+        # Writes a raw message without formatting.
+        def <<(message)
+          @loggers.each { |logger| logger << message }
+        end
+
+        # Temporarily adjusts log level for the duration of a block.
+        #
+        # +level+:: the level to use within the block
+        #
+        # See Logger#with_level (Ruby 3.3+).
+        def with_level(level)
+          @loggers.each { |logger| logger.with_level(level) { yield } }
+        end
+
         # Dispatches a log message at the specified level to all loggers.
         private def log(level, message) # :nodoc:
           if level.is_a?(Integer)
@@ -76,7 +103,12 @@ module Tokra
         # Builds Logger instances from the configured targets.
         private def build_loggers(config) # :nodoc:
           targets = config.fetch(:targets, [Target.new($stdout)])
-          targets.map { |target| target.to_logger(config) }
+          targets.map do |target|
+            logger = target.to_logger(config)
+            logger.progname = @progname if @progname
+            logger.datetime_format = @datetime_format if @datetime_format
+            logger
+          end
         end
       end
     end
