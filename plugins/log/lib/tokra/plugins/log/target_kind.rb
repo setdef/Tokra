@@ -38,6 +38,12 @@ module Tokra
             super
           end
         end
+
+        # Log to WebView console via AppHandle#emit.
+        #
+        # Emits "log://log" events with { message:, level: } payload.
+        # Frontend subscribes via attachConsole() to display logs.
+        Webview = Data.define
       end
     end
   end

@@ -90,6 +90,7 @@ module Tokra
           when Pathname then TracingLogger.new(kind.to_s, shift_age, shift_size)
           when IO, StringIO then TracingLogger.new(kind)
           when TargetKind::LogDir then create_log_dir_logger(config, shift_age, shift_size)
+          when TargetKind::Webview then create_webview_logger(config)
           else raise ArgumentError, "Unknown destination type: #{kind.class}"
           end
         end
@@ -102,6 +103,11 @@ module Tokra
           file_name = kind.file_name || config.fetch(:app_name, "app")
           log_path = log_dir.join("#{file_name}.log")
           TracingLogger.new(log_path.to_s, shift_age, shift_size)
+        end
+
+        private def create_webview_logger(config)
+          app_handle = config.fetch(:app_handle)
+          WebviewLogger.new(app_handle)
         end
 
         private def wrap_with_filters(logger)

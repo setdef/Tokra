@@ -8,6 +8,8 @@
 require "tokra"
 require "logger"
 require_relative "log/tracing_logger"
+require_relative "log/tauri_level"
+require_relative "log/webview_logger"
 require_relative "log/target"
 require_relative "log/target_kind"
 
