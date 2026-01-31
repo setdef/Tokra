@@ -7,6 +7,7 @@
 
 require "logger"
 require "pathname"
+require "fileutils"
 
 module Tokra
   module Plugins
@@ -35,8 +36,12 @@ module Tokra
       # @see https://github.com/tauri-apps/plugins-workspace/blob/v2/plugins/log/src/lib.rs#L360-L393
       #
       class Target
+        # The destination for log output.
         attr_reader :kind
 
+        # Creates a new Target with the given kind.
+        #
+        # +kind+:: Pathname, IO, StringIO, or TargetKind::LogDir
         def initialize(kind)
           @kind = kind
           @filters = []
@@ -73,29 +78,38 @@ module Tokra
         def to_logger(config = {})
           logger = create_base_logger(config)
           level = config.fetch(:level, :debug)
-          logger.level = level == :trace ? TRACE : level
+          logger.level = (level == :trace) ? TRACE : level
           logger.formatter = @formatter if @formatter
           wrap_with_filters(logger)
         end
 
-        private
-
-        def create_base_logger(config)
+        private def create_base_logger(config)
           shift_age = config.fetch(:shift_age, 0)
           shift_size = config.fetch(:shift_size, 1_048_576)
 
           case kind
           when Pathname then TracingLogger.new(kind.to_s, shift_age, shift_size)
           when IO, StringIO then TracingLogger.new(kind)
+          when TargetKind::LogDir then create_log_dir_logger(config, shift_age, shift_size)
           else raise ArgumentError, "Unknown destination type: #{kind.class}"
           end
         end
 
-        def wrap_with_filters(logger)
+        private def create_log_dir_logger(config, shift_age, shift_size)
+          path_resolver = config.fetch(:path_resolver)
+          log_dir = path_resolver.app_log_dir
+          FileUtils.mkdir_p(log_dir)
+
+          file_name = kind.file_name || config.fetch(:app_name, "app")
+          log_path = log_dir.join("#{file_name}.log")
+          TracingLogger.new(log_path.to_s, shift_age, shift_size)
+        end
+
+        private def wrap_with_filters(logger)
           @filters.reduce(logger) { |log, fltr| FilteringLogger.new(log, fltr) }
         end
 
-        def validate_shareable!(proc, name)
+        private def validate_shareable!(proc, name)
           return if proc.nil?
           return if Ractor.shareable?(proc)
 
@@ -106,11 +120,16 @@ module Tokra
 
       # Logger wrapper that applies a filter to messages.
       class FilteringLogger
+        # Creates a new FilteringLogger.
+        #
+        # +logger+:: the underlying logger to delegate to
+        # +filter+:: a callable that returns true to allow the message
         def initialize(logger, filter)
           @logger = logger
           @filter = filter
         end
 
+        # Adds a log entry if it passes the filter.
         def add(severity, message = nil, progname = nil)
           return unless @filter.call(message || progname)
           @logger.add(severity, message, progname)
@@ -124,15 +143,18 @@ module Tokra
           end
         end
 
+        # Writes raw message if it passes the filter.
         def <<(msg)
           return unless @filter.call(msg)
           @logger << msg
         end
 
-        def method_missing(method, *args, &block)
-          @logger.__send__(method, *args, &block)
+        # Delegates unknown methods to the underlying logger.
+        def method_missing(method, *, &)
+          @logger.__send__(method, *, &)
         end
 
+        # Returns true if the logger responds to the method.
         def respond_to_missing?(method, include_private = false)
           @logger.respond_to?(method, include_private)
         end

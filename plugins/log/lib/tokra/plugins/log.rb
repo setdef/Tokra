@@ -9,6 +9,7 @@ require "tokra"
 require "logger"
 require_relative "log/tracing_logger"
 require_relative "log/target"
+require_relative "log/target_kind"
 
 module Tokra
   module Plugins

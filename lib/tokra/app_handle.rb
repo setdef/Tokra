@@ -51,6 +51,14 @@ module Tokra
       @config
     end
 
+    # Returns the path resolver for app directories.
+    #
+    # Provides cross-platform access to app-specific directories like
+    # log directories, config directories, etc.
+    def path
+      @path ||= Path::Resolver.new(@config)
+    end
+
     # Requests application exit with optional exit code.
     #
     # Currently calls Kernel.exit directly.

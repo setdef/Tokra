@@ -44,6 +44,7 @@
 // SPDX-SnippetEnd
 
 mod event_loop;
+mod path;
 mod proxy;
 mod responders;
 mod user_event;
@@ -96,6 +97,9 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     window::define_class(ruby, native)?;
     webview::define_class(ruby, native)?;
     proxy::define_class(ruby, native)?;
+
+    // Path resolution functions (thin wrapper around dirs crate)
+    path::define_functions(ruby, native)?;
 
     // Note: Event classes (IpcEvent, WakeUpEvent, etc.) are now defined in Ruby
     // using Data.define in lib/tokra/native/events.rb

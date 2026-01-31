@@ -65,6 +65,10 @@ module Tokra
       def y: () -> Integer
       def self.new: (String, Array[String], Integer, Integer) -> DragDropEvent
     end
+
+    # Path resolution functions from dirs crate.
+    def self.home_dir: () -> String
+    def self.data_local_dir: () -> String
   end
 
   # HTTP response for URI scheme protocol handlers.
@@ -116,6 +120,7 @@ module Tokra
   class AppHandle
     @config: Hash[Symbol, String | Integer | Float]
     @state_manager: StateManager?
+    @path: Path::Resolver?
 
     def initialize: (Hash[Symbol, String | Integer | Float] config, ?state_manager: StateManager?) -> void
     def app_handle: -> AppHandle
@@ -128,6 +133,7 @@ module Tokra
     def windows: -> Hash[String, Native::Window]
     def webviews: -> Hash[String, Native::WebView]
     def exit: (?Integer code) -> void
+    def path: -> Path::Resolver
   end
 
   # The built Tokra application.

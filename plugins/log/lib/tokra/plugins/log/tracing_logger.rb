@@ -30,8 +30,8 @@ module Tokra
       #
       class TracingLogger < ::Logger
         # Logs a trace message (lowest priority).
-        def trace(progname = nil, &block)
-          add(TRACE, nil, progname, &block)
+        def trace(progname = nil, &)
+          add(TRACE, nil, progname, &)
         end
 
         # Returns true if TRACE messages would be logged.
@@ -44,10 +44,7 @@ module Tokra
           self.level = TRACE
         end
 
-        private
-
-        # Converts severity to label, with TRACE support.
-        def format_severity(severity)
+        private def format_severity(severity)
           return "TRACE" if severity == TRACE
           super
         end

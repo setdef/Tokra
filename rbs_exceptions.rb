@@ -11,4 +11,4 @@
 
 # StateManager uses Object instead of untyped for type-erased storage.
 
-# Currently no exceptions - all types are expressed in RBS.
+# Currently no exceptions - all types are expressed in RBS using interfaces.

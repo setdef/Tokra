@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Path resolution utilities for cross-platform directory access.
+  module Path
+    # Interface for directory provider (Tokra::Native or test stubs).
+    interface _DirsProvider
+      def home_dir: () -> String
+      def data_local_dir: () -> String
+    end
+
+    # Resolves application-specific paths in a cross-platform manner.
+    class Resolver
+      @identifier: String
+      @platform: String
+      @native: _DirsProvider
+
+      # Creates a new Resolver with the given configuration.
+      def initialize: (Hash[Symbol, String | Integer | Float] config, ?platform: String, ?native: _DirsProvider) -> void
+
+      # Returns the path to the suggested directory for your app's log files.
+      def app_log_dir: () -> Pathname
+
+      private
+
+      def macos?: () -> bool
+    end
+  end
+end
+
