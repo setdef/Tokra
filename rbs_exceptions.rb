@@ -10,3 +10,4 @@
 # Review carefully before adding new entries.
 
 # Currently no exceptions - all types should be explicit.
+# StateManager uses Object instead of untyped for type-erased storage.

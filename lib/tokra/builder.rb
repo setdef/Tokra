@@ -26,10 +26,18 @@ module Tokra
     def initialize
       @uri_scheme_protocols = {}
       @window_event_listeners = []
+      @webview_event_listeners = []
+      @state_manager = StateManager.new
     end
 
-    # Returns the invoke handler for App to call.
-    attr_reader :invoke_handler_hook
+    # Registers managed state accessible via AppHandle.
+    #
+    # State is keyed by class. One instance per class.
+    # Returns +self+ for fluent chaining.
+    def manage(state)
+      @state_manager.set(state)
+      self
+    end
 
     # Defines the JS message handler callback.
     #
@@ -39,9 +47,6 @@ module Tokra
       @invoke_handler_hook = block
       self
     end
-
-    # Returns the registered URI scheme protocols.
-    attr_reader :uri_scheme_protocols
 
     # Registers a URI scheme protocol available to all webviews.
     #
@@ -56,20 +61,10 @@ module Tokra
     #
     # The block receives the App instance after build.
     # Returns +self+ for fluent chaining.
-    # Returns the setup hook for App to call.
-    attr_reader :setup_hook
-
-    # Defines the setup hook.
-    #
-    # The block receives the App instance after build.
-    # Returns +self+ for fluent chaining.
     def setup(&block)
       @setup_hook = block
       self
     end
-
-    # Returns the page load hook for App to call.
-    attr_reader :on_page_load_hook
 
     # Defines the page load hook.
     #
@@ -80,15 +75,21 @@ module Tokra
       self
     end
 
-    # Returns the list of window event listeners.
-    attr_reader :window_event_listeners
-
     # Registers a window event handler for all windows.
     #
     # The block receives (window, event).
     # Returns +self+ for fluent chaining.
     def on_window_event(&block)
       @window_event_listeners << block
+      self
+    end
+
+    # Registers a webview event handler for all webviews.
+    #
+    # The block receives (webview, webview_event).
+    # Returns +self+ for fluent chaining.
+    def on_webview_event(&block)
+      @webview_event_listeners << block
       self
     end
 
@@ -113,6 +114,13 @@ module Tokra
         app.run
       end
     end
+
+    # Consider these "friendly" -- public to Tokra, private to app devs.
+    private
+
+    attr_reader :state_manager, :invoke_handler_hook, :uri_scheme_protocols,
+      :setup_hook, :on_page_load_hook, :window_event_listeners,
+      :webview_event_listeners
   end
 end
 

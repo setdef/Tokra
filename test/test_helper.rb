@@ -10,3 +10,4 @@ $LOAD_PATH.unshift File.expand_path("../lib", __dir__)
 require "tokra"
 
 require "minitest/autorun"
+require "minitest/mock"

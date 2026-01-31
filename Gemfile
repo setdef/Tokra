@@ -16,6 +16,7 @@ gem "rake", "~> 13.0"
 gem "rake-compiler"
 
 gem "minitest", "~> 6.0"
+gem "minitest-mock"
 
 gem "rubocop", "~> 1.21"
 gem "rubycritic", "~> 4.11"

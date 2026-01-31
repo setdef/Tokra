@@ -18,8 +18,24 @@ module Tokra
     # Creates a new AppHandle with the given configuration.
     #
     # This is called internally by App and should not be called directly.
-    def initialize(config)
+    def initialize(config, state_manager: nil)
       @config = config
+      @state_manager = state_manager
+    end
+
+    # Retrieves managed state by class.
+    #
+    # Raises +KeyError+ if not found, +Error+ if no StateManager.
+    def state(klass)
+      manager = @state_manager
+      raise Error, "No StateManager available" unless manager
+
+      manager.get(klass)
+    end
+
+    # Retrieves managed state by class, or +nil+ if not found.
+    def try_state(klass)
+      @state_manager&.try_get(klass)
     end
 
     # Returns the application configuration.

@@ -35,7 +35,7 @@ module Tokra
     # +native:+ can be injected for testing with mock native components.
     def initialize(builder, native: Native) # :nodoc:
       @config = DEFAULT_CONFIG.dup
-      @handle = AppHandle.new(@config)
+      @handle = AppHandle.new(@config, state_manager: builder.__send__(:state_manager))
       @builder = builder
       # Store class references to avoid dynamic constant lookups
       @event_loop_class = native.const_get(:EventLoop)
@@ -49,7 +49,7 @@ module Tokra
     # The block receives (handle, event) for each runtime event.
     def run(&callback)
       # Call setup hook before anything else
-      @builder.setup_hook&.call(self)
+      @builder.__send__(:setup_hook)&.call(self)
 
       # Create native components via injected factory
       event_loop = @event_loop_class.new
@@ -89,7 +89,7 @@ module Tokra
     end
 
     private def dispatch_http_request(event, proxy)
-      protocols = @builder.uri_scheme_protocols
+      protocols = @builder.__send__(:uri_scheme_protocols)
       return unless protocols
 
       # For now, use "tokra" scheme by default
@@ -104,7 +104,7 @@ module Tokra
     end
 
     private def dispatch_ipc(event)
-      handler = @builder.invoke_handler_hook
+      handler = @builder.__send__(:invoke_handler_hook)
       return unless handler
 
       invoke = Invoke.new(command: "", payload: event.message, responder: nil)
@@ -112,7 +112,7 @@ module Tokra
     end
 
     private def dispatch_page_load(event)
-      hook = @builder.on_page_load_hook
+      hook = @builder.__send__(:on_page_load_hook)
       return unless hook
 
       payload = PageLoadPayload.new(url: event.url, started: event.started?)
@@ -121,7 +121,7 @@ module Tokra
 
     private def dispatch_window_event(window, event, callback)
       # Notify window event listeners
-      @builder.window_event_listeners&.each do |listener|
+      @builder.__send__(:window_event_listeners)&.each do |listener|
         listener.call(window, event)
       end
 

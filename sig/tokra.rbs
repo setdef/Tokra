@@ -79,12 +79,28 @@ module Tokra
     def self.new: (app_handle: AppHandle, webview_label: String) -> UriSchemeContext
   end
 
+  # Type alias for managed state values (type-erased storage)
+  type managed_state = Object
+
+  # Manages application state by type.
+  class StateManager
+    @map: Hash[Class, managed_state]
+
+    def initialize: () -> void
+    def set: (managed_state state) -> bool
+    def get: (Class klass) -> managed_state
+    def try_get: (Class klass) -> managed_state?
+  end
+
   # Handle to the running application, safe to pass between Ractors.
   class AppHandle
     @config: Hash[Symbol, String | Integer | Float]
+    @state_manager: StateManager?
 
-    def initialize: (Hash[Symbol, String | Integer | Float] config) -> void
+    def initialize: (Hash[Symbol, String | Integer | Float] config, ?state_manager: StateManager?) -> void
     def config: () -> Hash[Symbol, String | Integer | Float]
+    def state: (Class klass) -> managed_state
+    def try_state: (Class klass) -> managed_state?
     def exit: (?Integer code) -> void
   end
 
@@ -156,6 +172,40 @@ module Tokra
     end
   end
 
+  # A position in physical (pixel) coordinates.
+  class PhysicalPosition < Data
+    attr_reader x: Float
+    attr_reader y: Float
+    def self.new: (x: Float, y: Float) -> PhysicalPosition
+  end
+
+  # Drag and drop event types.
+  module DragDropEvent
+    class Enter < Data
+      attr_reader paths: Array[Pathname]
+      attr_reader position: PhysicalPosition
+    end
+    class Over < Data
+      attr_reader position: PhysicalPosition
+    end
+    class Drop < Data
+      attr_reader paths: Array[Pathname]
+      attr_reader position: PhysicalPosition
+    end
+    class Leave < Data
+    end
+  end
+
+  # Type alias for drag drop events
+  type drag_drop_event = DragDropEvent::Enter | DragDropEvent::Over | DragDropEvent::Drop | DragDropEvent::Leave
+
+  # Webview event types.
+  module WebviewEvent
+    class DragDrop < Data
+      attr_reader event: drag_drop_event
+    end
+  end
+
   # Page load payload passed to on_page_load callbacks.
   # Created via Data.define(:url, :started)
   class PageLoadPayload < Data
@@ -204,6 +254,9 @@ module Tokra
   # Type alias for window events
   type window_event = WindowEvent::CloseRequested | WindowEvent::Destroyed | WindowEvent::Focused | WindowEvent::Moved | WindowEvent::Resized | WindowEvent::ScaleFactorChanged | WindowEvent::ThemeChanged
 
+  # Type alias for webview events
+  type webview_event = WebviewEvent::DragDrop
+
   # Type alias for run events
   type run_event = RunEvent::Ready | RunEvent::Exit | RunEvent::ExitRequested | RunEvent::WindowEvent | RunEvent::WebviewEvent | RunEvent::Resumed | RunEvent::MainEventsCleared
 
@@ -214,22 +267,30 @@ module Tokra
     @setup: (^(App) -> void)?
     @on_page_load: (^(Native::WebView?, PageLoadPayload) -> void)?
     @window_event_listeners: Array[^(Native::Window, window_event) -> void]
+    @webview_event_listeners: Array[^(Native::WebView?, webview_event) -> void]
+    @state_manager: StateManager
+
+    def initialize: () -> void
+    def self.default: () -> Builder
+    def manage: (managed_state state) -> self
+    def invoke_handler: () { (Invoke) -> bool } -> self
+    def register_uri_scheme_protocol: (String uri_scheme) { (UriSchemeContext, Native::HttpRequestEvent) -> Response } -> self
+    def setup: () { (App) -> void } -> self
+    def on_page_load: () { (Native::WebView?, PageLoadPayload) -> void } -> self
+    def on_window_event: () { (Native::Window, window_event) -> void } -> self
+    def on_webview_event: () { (Native::WebView?, webview_event) -> void } -> self
+    def build: (?native: Module) -> App
+    def run: (?native: Module) ?{ (AppHandle, run_event) -> void } -> void
+
+    private
 
     attr_reader invoke_handler_hook: (^(Invoke) -> bool)?
     attr_reader uri_scheme_protocols: Hash[String, ^(UriSchemeContext, Native::HttpRequestEvent) -> Response]
     attr_reader setup_hook: (^(App) -> void)?
     attr_reader on_page_load_hook: (^(Native::WebView?, PageLoadPayload) -> void)?
     attr_reader window_event_listeners: Array[^(Native::Window, window_event) -> void]
-
-    def initialize: () -> void
-    def self.default: () -> Builder
-    def invoke_handler: () { (Invoke) -> bool } -> self
-    def register_uri_scheme_protocol: (String uri_scheme) { (UriSchemeContext, Native::HttpRequestEvent) -> Response } -> self
-    def setup: () { (App) -> void } -> self
-    def on_page_load: () { (Native::WebView?, PageLoadPayload) -> void } -> self
-    def on_window_event: () { (Native::Window, window_event) -> void } -> self
-    def build: (?native: Module) -> App
-    def run: (?native: Module) ?{ (AppHandle, run_event) -> void } -> void
+    attr_reader webview_event_listeners: Array[^(Native::WebView?, webview_event) -> void]
+    attr_reader state_manager: StateManager
   end
 end
 
