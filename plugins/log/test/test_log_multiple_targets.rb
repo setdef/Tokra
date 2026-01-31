@@ -28,6 +28,16 @@ class TestLogMultipleTargets < Minitest::Test
   end
 
   def test_per_target_level_filtering
-    skip "TODO: per-target level filtering not implemented"
+    output = StringIO.new
+    app = Object.new
+    # Target with :warn level should filter out :info
+    target = Tokra::Plugins::Log::Target.new(destination: output, level: :warn)
+    plugin = Tokra::Plugins::Log::Plugin.new(app, targets: [target])
+
+    plugin.info("info message")
+    plugin.warn("warn message")
+
+    refute_match(/info message/, output.string)
+    assert_match(/warn message/, output.string)
   end
 end

@@ -7,6 +7,7 @@
 
 require "tokra"
 require "logger"
+require_relative "log/tracing_logger"
 require_relative "log/target"
 
 module Tokra
@@ -45,6 +46,9 @@ module Tokra
           @loggers = build_loggers(config)
         end
 
+        # Logs a trace message (lowest priority).
+        def trace(message) = log(TRACE, message)
+
         # Logs a debug message.
         def debug(message) = log(:debug, message)
 
@@ -57,9 +61,16 @@ module Tokra
         # Logs an error message.
         def error(message) = log(:error, message)
 
+        # Logs a fatal message.
+        def fatal(message) = log(:fatal, message)
+
         # Dispatches a log message at the specified level to all loggers.
         private def log(level, message) # :nodoc:
-          @loggers.each { |logger| logger.__send__(level, message) }
+          if level.is_a?(Integer)
+            @loggers.each { |logger| logger.add(level, message) }
+          else
+            @loggers.each { |logger| logger.__send__(level, message) }
+          end
         end
 
         # Builds Logger instances from the configured targets.

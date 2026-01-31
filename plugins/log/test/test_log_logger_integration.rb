@@ -12,7 +12,15 @@ require "stringio"
 # Tests for stdlib Logger integration.
 class TestLogLoggerIntegration < Minitest::Test
   def test_formatter_customizes_output_format
-    skip "TODO: formatter= not exposed"
+    output = StringIO.new
+    app = Object.new
+    custom_formatter = Ractor.shareable_proc { |_sev, _time, _prog, msg| "CUSTOM: #{msg}\n" }
+    target = Tokra::Plugins::Log::Target.new(destination: output, formatter: custom_formatter)
+    plugin = Tokra::Plugins::Log::Plugin.new(app, targets: [target])
+
+    plugin.info("test message")
+
+    assert_equal "CUSTOM: test message\n", output.string
   end
 
   def test_progname_appears_in_log_entries

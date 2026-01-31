@@ -43,10 +43,19 @@ class TestLogLevels < Minitest::Test
   end
 
   def test_fatal_logs_message
-    skip "TODO: fatal level not implemented"
+    @plugin.fatal("fatal message")
+    assert_match(/FATAL/, @output.string)
+    assert_match(/fatal message/, @output.string)
   end
 
-  def test_trace_maps_to_debug
-    skip "TODO: trace level not implemented"
+  def test_trace_logs_message
+    output = StringIO.new
+    target = Tokra::Plugins::Log::Target.new(destination: output, level: :trace)
+    plugin = Tokra::Plugins::Log::Plugin.new(@app, targets: [target])
+
+    plugin.trace("trace message")
+
+    assert_match(/TRACE/, output.string)
+    assert_match(/trace message/, output.string)
   end
 end

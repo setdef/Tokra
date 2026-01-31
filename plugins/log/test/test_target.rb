@@ -12,19 +12,19 @@ require "tokra-log"
 class TestLogTarget < Minitest::Test
   def test_raises_argument_error_when_shift_age_passed_with_stdout
     assert_raises(ArgumentError) do
-      Tokra::Plugins::Log::Target.new($stdout, shift_age: 3)
+      Tokra::Plugins::Log::Target.new(destination: $stdout, shift_age: 3)
     end
   end
 
   def test_raises_argument_error_when_shift_size_passed_with_stderr
     assert_raises(ArgumentError) do
-      Tokra::Plugins::Log::Target.new($stderr, shift_size: 1024)
+      Tokra::Plugins::Log::Target.new(destination: $stderr, shift_size: 1024)
     end
   end
 
   def test_accepts_rotation_params_with_pathname
     target = Tokra::Plugins::Log::Target.new(
-      Pathname("logs/app.log"),
+      destination: Pathname("logs/app.log"),
       shift_age: 3,
       shift_size: 10_485_760
     )
