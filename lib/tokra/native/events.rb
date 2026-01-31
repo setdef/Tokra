@@ -69,5 +69,18 @@ module Tokra
         event == "finished"
       end
     end
+
+    # Drag-drop event from webview.
+    #
+    # Matches Tauri's +DragDropEvent+ enum with Enter, Over, Drop, Leave variants.
+    #
+    #   case event
+    #   when Tokra::Native::DragDropEvent
+    #     case event.event
+    #     when "enter" then handle_enter(event.paths, event.x, event.y)
+    #     when "drop"  then handle_drop(event.paths, event.x, event.y)
+    #     end
+    #   end
+    DragDropEvent = Data.define(:event, :paths, :x, :y)
   end
 end

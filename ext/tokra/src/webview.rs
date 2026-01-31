@@ -153,6 +153,55 @@ impl RbWebView {
                 });
             })
             // SPDX-SnippetEnd
+            // SPDX-SnippetBegin
+            // SPDX-License-Identifier: Apache-2.0 OR MIT
+            // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+            // SPDX-SnippetComment: Drag-drop handler pattern adapted from tauri-runtime-wry/lib.rs lines 4669-4703
+            .with_drag_drop_handler({
+                let proxy_for_drag_drop = proxy.inner().clone();
+                move |event| {
+                    use wry::DragDropEvent as WryDragDropEvent;
+
+                    let (event_name, paths, x, y) = match event {
+                        WryDragDropEvent::Enter {
+                            paths,
+                            position: (x, y),
+                        } => (
+                            "enter",
+                            paths
+                                .iter()
+                                .map(|p| p.to_string_lossy().to_string())
+                                .collect(),
+                            x,
+                            y,
+                        ),
+                        WryDragDropEvent::Over { position: (x, y) } => ("over", vec![], x, y),
+                        WryDragDropEvent::Drop {
+                            paths,
+                            position: (x, y),
+                        } => (
+                            "drop",
+                            paths
+                                .iter()
+                                .map(|p| p.to_string_lossy().to_string())
+                                .collect(),
+                            x,
+                            y,
+                        ),
+                        WryDragDropEvent::Leave => ("leave", vec![], 0, 0),
+                        _ => return true, // Handle future variants gracefully
+                    };
+
+                    let _ = proxy_for_drag_drop.send_event(UserEvent::DragDrop {
+                        event: event_name.to_string(),
+                        paths,
+                        x,
+                        y,
+                    });
+                    true // Block default OS behavior (like Tauri)
+                }
+            })
+            // SPDX-SnippetEnd
             .with_ipc_handler(move |msg| {
                 let _ = proxy_clone.send_event(UserEvent::IpcMessage(msg.body().clone()));
             })

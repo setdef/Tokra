@@ -55,6 +55,16 @@ module Tokra
       def started?: () -> bool
       def finished?: () -> bool
     end
+
+    # Drag drop event from native layer.
+    # Data.define(:event, :paths, :x, :y)
+    class DragDropEvent < Data
+      def event: () -> String
+      def paths: () -> Array[String]
+      def x: () -> Integer
+      def y: () -> Integer
+      def self.new: (String, Array[String], Integer, Integer) -> DragDropEvent
+    end
   end
 
   # HTTP response for URI scheme protocol handlers.
@@ -139,6 +149,7 @@ module Tokra
     def dispatch_ipc: (Native::IpcEvent event) -> void
     def dispatch_page_load: (Native::PageLoadEvent event) -> void
     def dispatch_window_event: (Native::Window window, window_event event, (^(AppHandle, run_event) -> void)? callback) -> void
+    def dispatch_webview_event: (Native::DragDropEvent native_event) -> void
   end
 
   # Invoke object for IPC commands.
@@ -184,9 +195,9 @@ module Tokra
 
   # A position in physical (pixel) coordinates.
   class PhysicalPosition < Data
-    attr_reader x: Float
-    attr_reader y: Float
-    def self.new: (x: Float, y: Float) -> PhysicalPosition
+    attr_reader x: Integer
+    attr_reader y: Integer
+    def self.new: (Integer, Integer) -> PhysicalPosition
   end
 
   # Drag and drop event types.
@@ -194,15 +205,19 @@ module Tokra
     class Enter < Data
       attr_reader paths: Array[Pathname]
       attr_reader position: PhysicalPosition
+      def self.new: (Array[Pathname], PhysicalPosition) -> Enter
     end
     class Over < Data
       attr_reader position: PhysicalPosition
+      def self.new: (PhysicalPosition) -> Over
     end
     class Drop < Data
       attr_reader paths: Array[Pathname]
       attr_reader position: PhysicalPosition
+      def self.new: (Array[Pathname], PhysicalPosition) -> Drop
     end
     class Leave < Data
+      def self.new: () -> Leave
     end
   end
 
@@ -213,6 +228,7 @@ module Tokra
   module WebviewEvent
     class DragDrop < Data
       attr_reader event: drag_drop_event
+      def self.new: (drag_drop_event) -> DragDrop
     end
   end
 

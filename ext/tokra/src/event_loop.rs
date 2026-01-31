@@ -161,6 +161,16 @@ impl RbEventLoop {
                             }
                         }
                     }
+                    UserEvent::DragDrop { event, paths, x, y } => {
+                        if let Ok(klass) = get_ruby_class("::Tokra::Native::DragDropEvent") {
+                            // Data.define(:event, :paths, :x, :y)
+                            if let Ok(event_obj) =
+                                klass.funcall::<_, _, Value>("new", (event, paths, x, y))
+                            {
+                                let _ = callback.funcall::<_, _, Value>("call", (event_obj,));
+                            }
+                        }
+                    }
                     UserEvent::WakeUp(payload) => {
                         if let Ok(klass) = get_ruby_class("::Tokra::Native::WakeUpEvent") {
                             // Data.define(:payload)

@@ -33,6 +33,20 @@ pub enum UserEvent {
         url: String,
     },
 
+    // SPDX-SnippetBegin
+    // SPDX-License-Identifier: Apache-2.0 OR MIT
+    // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    // SPDX-SnippetComment: DragDrop event structure adapted from tauri-runtime/window.rs DragDropEvent enum
+    /// Drag-drop event from webview
+    /// Matches Tauri's `DragDropEvent` variants: Enter, Over, Drop, Leave
+    DragDrop {
+        event: String, // "enter", "over", "drop", "leave"
+        paths: Vec<String>,
+        x: i32,
+        y: i32,
+    },
+
+    // SPDX-SnippetEnd
     /// Wake-up signal from a Ractor (via Proxy)
     WakeUp(String),
 

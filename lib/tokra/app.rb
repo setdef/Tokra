@@ -85,6 +85,8 @@ module Tokra
         dispatch_page_load(event)
       elsif event.is_a?(Native::WindowCloseEvent)
         dispatch_window_event(window, WindowEvent::CloseRequested.new, callback)
+      elsif event.is_a?(Native::DragDropEvent)
+        dispatch_webview_event(event)
       end
     end
 
@@ -129,6 +131,34 @@ module Tokra
 
       # Also emit as RunEvent::WindowEvent
       callback&.call(@handle, RunEvent::WindowEvent.new(label: "main", event:))
+    end
+
+    private def dispatch_webview_event(native_event)
+      listeners = @builder.__send__(:webview_event_listeners)
+      return unless listeners&.any?
+
+      # Convert Native::DragDropEvent to WebviewEvent::DragDrop
+      # Paths come from Rust as strings, convert to Pathname per Tauri's PathBuf semantics
+      drag_event = case native_event.event
+      when "enter"
+        paths = native_event.paths.map { |p| Pathname.new(p) }
+        DragDropEvent::Enter.new(paths, PhysicalPosition.new(native_event.x, native_event.y))
+      when "over"
+        DragDropEvent::Over.new(PhysicalPosition.new(native_event.x, native_event.y))
+      when "drop"
+        paths = native_event.paths.map { |p| Pathname.new(p) }
+        DragDropEvent::Drop.new(paths, PhysicalPosition.new(native_event.x, native_event.y))
+      when "leave"
+        DragDropEvent::Leave.new
+      else
+        return # Unknown event type, ignore
+      end
+
+      webview_event = WebviewEvent::DragDrop.new(drag_event)
+
+      listeners.each do |listener|
+        listener.call(nil, webview_event) # webview object not yet wired
+      end
     end
   end
 end
