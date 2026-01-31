@@ -15,13 +15,8 @@ use tao::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy},
 };
-use wry::http;
 
-use crate::events::{
-    RbHttpRequestEvent, RbIpcEvent, RbPageLoadEvent, RbWakeUpEvent, RbWindowCloseEvent,
-};
 use crate::proxy::RbProxy;
-use crate::responders::get_responders;
 use crate::runtime_error;
 use crate::user_event::UserEvent;
 
@@ -122,11 +117,23 @@ impl RbEventLoop {
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;
 
+            // Helper to get Ruby class by constant path
+            // Uses Ruby::get_with to safely get a Ruby handle from the callback value
+            let get_ruby_class = |path: &str| -> Result<magnus::RClass, Error> {
+                let ruby = Ruby::get_with(callback);
+                ruby.eval(path)
+                    .map_err(|e| Error::new(runtime_error(), format!("Failed to get {path}: {e}")))
+            };
+
             match event {
                 Event::UserEvent(user_event) => match user_event {
                     UserEvent::IpcMessage(msg) => {
-                        let event_obj = RbIpcEvent::new(msg);
-                        let _ = callback.funcall::<_, _, Value>("call", (event_obj,));
+                        if let Ok(klass) = get_ruby_class("::Tokra::Native::IpcEvent") {
+                            // Data.define(:message) - pass positional arg
+                            if let Ok(event_obj) = klass.funcall::<_, _, Value>("new", (msg,)) {
+                                let _ = callback.funcall::<_, _, Value>("call", (event_obj,));
+                            }
+                        }
                     }
                     UserEvent::HttpRequest {
                         request_id,
@@ -135,43 +142,32 @@ impl RbEventLoop {
                         headers,
                         body,
                     } => {
-                        let event_obj =
-                            RbHttpRequestEvent::new(request_id, method, uri, headers, body);
-                        let _ = callback.funcall::<_, _, Value>("call", (event_obj,));
-                    }
-                    UserEvent::HttpResponse {
-                        request_id,
-                        status,
-                        headers,
-                        body,
-                    } => {
-                        // Extract responder outside of if-let to avoid Drop-in-scrutinee
-                        let responder = get_responders().lock().unwrap().remove(&request_id);
-                        if let Some(responder) = responder {
-                            let mut response_builder = http::Response::builder().status(status);
-                            for (name, value) in &headers {
-                                response_builder = response_builder.header(name, value);
+                        if let Ok(klass) = get_ruby_class("::Tokra::Native::HttpRequestEvent") {
+                            // Data.define(:request_id, :method, :uri, :headers, :body)
+                            if let Ok(event_obj) = klass.funcall::<_, _, Value>(
+                                "new",
+                                (request_id, method, uri, headers, body),
+                            ) {
+                                let _ = callback.funcall::<_, _, Value>("call", (event_obj,));
                             }
-                            let response =
-                                response_builder
-                                    .body(body.into_bytes())
-                                    .unwrap_or_else(|_| {
-                                        http::Response::builder()
-                                            .status(500)
-                                            .body(b"Internal Error".to_vec())
-                                            .unwrap()
-                                    });
-                            responder.respond(response);
                         }
                     }
                     UserEvent::PageLoad { event, url } => {
-                        let event_obj = RbPageLoadEvent::new(event, url);
-                        let _ = callback.funcall::<_, _, Value>("call", (event_obj,));
+                        if let Ok(klass) = get_ruby_class("::Tokra::Native::PageLoadEvent") {
+                            // Data.define(:event, :url)
+                            if let Ok(event_obj) = klass.funcall::<_, _, Value>("new", (event, url))
+                            {
+                                let _ = callback.funcall::<_, _, Value>("call", (event_obj,));
+                            }
+                        }
                     }
                     UserEvent::WakeUp(payload) => {
-                        // Create a WakeUpEvent and call the Ruby callback
-                        let event_obj = RbWakeUpEvent::new(payload);
-                        let _ = callback.funcall::<_, _, Value>("call", (event_obj,));
+                        if let Ok(klass) = get_ruby_class("::Tokra::Native::WakeUpEvent") {
+                            // Data.define(:payload)
+                            if let Ok(event_obj) = klass.funcall::<_, _, Value>("new", (payload,)) {
+                                let _ = callback.funcall::<_, _, Value>("call", (event_obj,));
+                            }
+                        }
                     }
                     UserEvent::Exit => {
                         *control_flow = ControlFlow::Exit;
@@ -181,9 +177,12 @@ impl RbEventLoop {
                     event: WindowEvent::CloseRequested,
                     ..
                 } => {
-                    // Create a WindowCloseEvent and call the Ruby callback
-                    let event_obj = RbWindowCloseEvent::new();
-                    let _ = callback.funcall::<_, _, Value>("call", (event_obj,));
+                    // WindowCloseEvent has no fields
+                    if let Ok(klass) = get_ruby_class("::Tokra::Native::WindowCloseEvent") {
+                        if let Ok(event_obj) = klass.funcall::<_, _, Value>("new", ()) {
+                            let _ = callback.funcall::<_, _, Value>("call", (event_obj,));
+                        }
+                    }
                     *control_flow = ControlFlow::Exit;
                 }
                 _ => {}

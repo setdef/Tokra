@@ -8,6 +8,7 @@
 
 require_relative "tokra/version"
 require_relative "tokra/native"
+require_relative "tokra/native/events"
 require_relative "tokra/tokra"
 require_relative "tokra/rack/handler"
 

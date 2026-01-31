@@ -52,6 +52,8 @@ module Tokra
     class PageLoadEvent
       def event: () -> String
       def url: () -> String
+      def started?: () -> bool
+      def finished?: () -> bool
     end
   end
 end

@@ -64,9 +64,22 @@ impl RbProxy {
     /// The `request_id` must match a pending `HttpRequest` event.
     /// Headers should be an array of [name, value] pairs.
     ///
+    /// # Thread Safety
+    ///
+    /// This is called directly from Ruby (potentially from a Ractor worker thread)
+    /// and builds/sends the response immediately. This is safe because Wry's
+    /// `RequestAsyncResponder` is `Send` and designed for cross-thread use.
+    /// See: wry/src/lib.rs `unsafe impl Send for RequestAsyncResponder`
+    ///
     /// # Errors
     ///
-    /// Returns an error if the event loop has been closed.
+    /// Returns an error if the `request_id` is not found (already responded or invalid).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the responders mutex is poisoned (internal invariant violation).
+    #[allow(clippy::needless_pass_by_value)] // Magnus FFI requires owned values
+    #[allow(clippy::option_if_let_else)] // match is more readable here
     pub fn respond(
         &self,
         request_id: u64,
@@ -74,19 +87,29 @@ impl RbProxy {
         headers: Vec<(String, String)>,
         body: String,
     ) -> Result<(), Error> {
-        self.inner
-            .send_event(UserEvent::HttpResponse {
-                request_id,
-                status,
-                headers,
-                body,
-            })
-            .map_err(|_| {
-                Error::new(
-                    runtime_error(),
-                    "Failed to send HTTP response: event loop closed",
-                )
-            })
+        use crate::responders::get_responders;
+
+        let responder = get_responders().lock().unwrap().remove(&request_id);
+        match responder {
+            Some(responder) => {
+                let mut builder = wry::http::Response::builder().status(status);
+                for (name, value) in &headers {
+                    builder = builder.header(name, value);
+                }
+                let response = builder.body(body.into_bytes()).unwrap_or_else(|_| {
+                    wry::http::Response::builder()
+                        .status(500)
+                        .body(b"Internal Error".to_vec())
+                        .unwrap()
+                });
+                responder.respond(response);
+                Ok(())
+            }
+            None => Err(Error::new(
+                runtime_error(),
+                format!("No pending request with id {request_id}"),
+            )),
+        }
     }
 }
 

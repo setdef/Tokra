@@ -26,15 +26,6 @@ pub enum UserEvent {
         body: String,
     },
 
-    /// HTTP response from Ruby (for async protocol handling)
-    /// Contains: (`request_id`, status, headers, body)
-    HttpResponse {
-        request_id: u64,
-        status: u16,
-        headers: Vec<(String, String)>,
-        body: String,
-    },
-
     /// Page load event (Started or Finished)
     /// Matches Tauri's `on_page_load` API
     PageLoad {
@@ -106,38 +97,6 @@ mod tests {
                 assert_eq!(body, r#"{"key":"value"}"#);
             }
             _ => panic!("Expected HttpRequest variant"),
-        }
-    }
-
-    #[test]
-    fn test_user_event_http_response_stores_all_fields() {
-        let headers = vec![
-            ("content-type".to_string(), "text/html".to_string()),
-            ("x-custom".to_string(), "value".to_string()),
-        ];
-
-        let event = UserEvent::HttpResponse {
-            request_id: 99,
-            status: 200,
-            headers: headers.clone(),
-            body: "<h1>Hello</h1>".to_string(),
-        };
-
-        match event {
-            UserEvent::HttpResponse {
-                request_id,
-                status,
-                headers: h,
-                body,
-            } => {
-                assert_eq!(request_id, 99);
-                assert_eq!(status, 200);
-                assert_eq!(h.len(), 2);
-                assert_eq!(h[0].0, "content-type");
-                assert_eq!(h[0].1, "text/html");
-                assert_eq!(body, "<h1>Hello</h1>");
-            }
-            _ => panic!("Expected HttpResponse variant"),
         }
     }
 
@@ -269,36 +228,6 @@ mod tests {
         match event {
             UserEvent::HttpRequest { request_id, .. } => assert_eq!(request_id, u64::MAX),
             _ => panic!("Expected HttpRequest"),
-        }
-    }
-
-    #[test]
-    fn test_http_response_status_boundary_low() {
-        let event = UserEvent::HttpResponse {
-            request_id: 1,
-            status: 100,
-            headers: vec![],
-            body: "".to_string(),
-        };
-
-        match event {
-            UserEvent::HttpResponse { status, .. } => assert_eq!(status, 100),
-            _ => panic!("Expected HttpResponse"),
-        }
-    }
-
-    #[test]
-    fn test_http_response_status_boundary_high() {
-        let event = UserEvent::HttpResponse {
-            request_id: 1,
-            status: 599,
-            headers: vec![],
-            body: "".to_string(),
-        };
-
-        match event {
-            UserEvent::HttpResponse { status, .. } => assert_eq!(status, 599),
-            _ => panic!("Expected HttpResponse"),
         }
     }
 

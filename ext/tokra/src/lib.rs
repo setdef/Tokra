@@ -16,7 +16,6 @@
 //! - [`window`] - Window wrapper (`Tokra::Native::Window`)
 //! - [`webview`] - `WebView` wrapper with custom protocol (`Tokra::Native::WebView`)
 //! - [`proxy`] - Ractor-safe proxy for cross-thread communication (`Tokra::Native::Proxy`)
-//! - [`events`] - Ruby event classes passed to callbacks
 //! - [`responders`] - Async protocol responder storage
 //!
 //! # Thread Safety Model
@@ -45,7 +44,6 @@
 // SPDX-SnippetEnd
 
 mod event_loop;
-mod events;
 mod proxy;
 mod responders;
 mod user_event;
@@ -54,9 +52,6 @@ mod window;
 
 // Re-export for use by other modules
 pub use event_loop::RbEventLoop;
-pub use events::{
-    RbHttpRequestEvent, RbIpcEvent, RbPageLoadEvent, RbWakeUpEvent, RbWindowCloseEvent,
-};
 pub use proxy::RbProxy;
 pub use user_event::UserEvent;
 pub use webview::RbWebView;
@@ -101,7 +96,9 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     window::define_class(ruby, native)?;
     webview::define_class(ruby, native)?;
     proxy::define_class(ruby, native)?;
-    events::define_classes(ruby, native)?;
+
+    // Note: Event classes (IpcEvent, WakeUpEvent, etc.) are now defined in Ruby
+    // using Data.define in lib/tokra/native/events.rb
 
     Ok(())
 }

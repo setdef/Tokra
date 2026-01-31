@@ -134,13 +134,14 @@ class TestNativeEvents < Minitest::Test
     assert_equal "form=data", event.body
   end
 
-  def test_http_request_event_body_requires_utf8
+  def test_http_request_event_body_accepts_binary
     binary = "\x00\x01\x02\xFF".b
 
-    # Rust extension enforces UTF-8 for string parameters
-    assert_raises(EncodingError) do
-      Tokra::Native::HttpRequestEvent.new(1, "POST", "tokra://localhost/", [], binary)
-    end
+    # Ruby Data.define doesn't enforce UTF-8 (unlike the previous Rust extension)
+    event = Tokra::Native::HttpRequestEvent.new(1, "POST", "tokra://localhost/", [], binary)
+
+    assert_equal binary, event.body
+    assert_equal Encoding::ASCII_8BIT, event.body.encoding
   end
 
   # ==========================================================================

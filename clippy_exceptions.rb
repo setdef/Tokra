@@ -37,7 +37,7 @@ allow "ext/tokra/src/webview.rs", line: 172, reason: <<~END
   provides TryConvert for owned String types.
 END
 
-allow "ext/tokra/src/event_loop.rs", lines: [48, 49], reason: <<~END
+allow "ext/tokra/src/event_loop.rs", lines: [44, 45], reason: <<~END
   Tauri Pattern: unsafe impl Send for RbEventLoop
 
   RbEventLoop wraps tao::EventLoop which is bound to the main OS thread.
@@ -94,4 +94,19 @@ allow "ext/tokra/src/proxy.rs", line: 103, reason: <<~END
 
   VERIFIED BY: test/integration/thread_safety_invariant_test.rb:23-38
   Tests that frozen Proxy becomes Ractor-shareable.
+END
+
+allow "ext/tokra/src/proxy.rs", lines: [81, 82], reason: <<~END
+  Proxy#respond method clippy allows for FFI boundary and readability.
+
+  Line 81: #[allow(clippy::needless_pass_by_value)]
+  Magnus FFI requires owned types at the Ruby-Rust boundary. The `headers` and
+  `body` parameters are received from Ruby as owned values. Changing to references
+  would require an intermediate allocation anyway since TryConvert produces owned
+  Strings.
+
+  Line 82: #[allow(clippy::option_if_let_else)]
+  Using `match` is more readable than `map_or_else` when the branches have
+  significantly different complexity. The `Some` branch builds an HTTP response
+  while `None` returns a simple error.
 END
