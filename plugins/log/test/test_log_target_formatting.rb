@@ -5,9 +5,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
-require "minitest/autorun"
-require "tokra-log"
-require "stringio"
+require_relative "test_helper"
 
 # Tests for per-target custom formatting via fluent API.
 class TestLogTargetFormatting < Minitest::Test

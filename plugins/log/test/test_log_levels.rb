@@ -5,9 +5,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
-require "minitest/autorun"
-require "tokra-log"
-require "stringio"
+require_relative "test_helper"
 
 # Tests for all log levels (debug, info, warn, error, fatal).
 class TestLogLevels < Minitest::Test

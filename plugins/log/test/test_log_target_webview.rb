@@ -5,9 +5,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
-require "minitest/autorun"
-require "minitest/mock"
-require "tokra-log"
+require_relative "test_helper"
 
 # Tests for Webview target kind (Tauri parity).
 #

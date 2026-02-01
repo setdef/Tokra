@@ -5,8 +5,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
-require "minitest/autorun"
-require "tokra-log"
+require_relative "test_helper"
 
 # Tests for RotationStrategy Data classes (Tauri API parity).
 #
@@ -62,8 +61,6 @@ class TestRotationStrategy < Minitest::Test
   end
 
   def test_rotation_strategy_is_used_by_to_logger
-    require "minitest/mock"
-
     Dir.mktmpdir do |dir|
       log_path = Pathname(dir).join("app.log")
       target = Tokra::Plugins::Log::Target.new(log_path)
