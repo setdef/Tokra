@@ -45,6 +45,7 @@ module Tokra
           @kind = kind
           @filters = []
           @formatter = nil
+          @rotation_strategy = nil
         end
 
         # Adds a filter to this target. Returns self for chaining.
@@ -71,6 +72,15 @@ module Tokra
           self
         end
 
+        # Sets the rotation strategy for this target. Returns self for chaining.
+        #
+        # +strategy+:: RotationStrategy (KeepAll, KeepOne, KeepSome)
+        #
+        def rotation_strategy(strategy)
+          @rotation_strategy = strategy
+          self
+        end
+
         # Builds a TracingLogger instance for this target.
         #
         # +config+:: configuration hash from Builder (level, rotation settings, etc)
@@ -83,7 +93,7 @@ module Tokra
         end
 
         private def create_base_logger(config)
-          shift_age = config.fetch(:shift_age, 0)
+          shift_age = @rotation_strategy&.to_shift_age || config.fetch(:shift_age, 0)
           shift_size = config.fetch(:shift_size, 1_048_576)
 
           case kind
