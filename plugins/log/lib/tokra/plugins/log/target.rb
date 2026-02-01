@@ -46,6 +46,7 @@ module Tokra
           @filters = []
           @formatter = nil
           @rotation_strategy = nil
+          @timezone_strategy = nil
         end
 
         # Adds a filter to this target. Returns self for chaining.
@@ -81,6 +82,15 @@ module Tokra
           self
         end
 
+        # Sets the timezone strategy for this target. Returns self for chaining.
+        #
+        # +strategy+:: TimezoneStrategy (UseUtc, UseLocal)
+        #
+        def timezone_strategy(strategy)
+          @timezone_strategy = strategy
+          self
+        end
+
         # Builds a TracingLogger instance for this target.
         #
         # +config+:: configuration hash from Builder (level, rotation settings, etc)
@@ -88,7 +98,7 @@ module Tokra
           logger = create_base_logger(config)
           level = config.fetch(:level, :debug)
           logger.level = (level == :trace) ? TRACE : level
-          logger.formatter = @formatter if @formatter
+          logger.formatter = wrap_formatter_with_timezone(@formatter) if @formatter
           wrap_with_filters(logger)
         end
 
@@ -130,6 +140,17 @@ module Tokra
 
           raise Ractor::IsolationError,
             "#{name} must be Ractor-shareable (use Ractor.shareable_proc)"
+        end
+
+        # Wraps formatter to apply timezone conversion if strategy is set.
+        private def wrap_formatter_with_timezone(formatter)
+          return formatter unless @timezone_strategy
+
+          strategy = @timezone_strategy
+          -> (severity, time, progname, msg) do
+            converted_time = strategy.format_time(time)
+            formatter.call(severity, converted_time, progname, msg)
+          end
         end
       end
 
