@@ -12,16 +12,16 @@ require "stringio"
 # Tests for Log::Plugin core functionality.
 class TestLogPlugin < Minitest::Test
   def test_name_returns_log
-    app = Object.new
-    plugin = Tokra::Plugins::Log::Plugin.new(app)
+    plugin = Tokra::Plugins::Log::Builder.new.build
     assert_equal "log", plugin.name
   end
 
   def test_info_logs_to_target
     output = StringIO.new
-    app = Object.new
     target = Tokra::Plugins::Log::Target.new(output)
-    plugin = Tokra::Plugins::Log::Plugin.new(app, targets: [target])
+    plugin = Tokra::Plugins::Log::Builder.new
+      .targets([target])
+      .build
 
     plugin.info("test message")
 

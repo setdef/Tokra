@@ -34,7 +34,6 @@ module Tokra
     # Registers managed state accessible via AppHandle.
     #
     # State is keyed by class. One instance per class.
-    # Returns +self+ for fluent chaining.
     def manage(state)
       @state_manager.set(state)
       self
@@ -44,7 +43,6 @@ module Tokra
     #
     # Accepts a block that receives the invoke object containing command info.
     # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
-    # Returns +self+ for fluent chaining.
     def invoke_handler(&block)
       require_shareable!(block, "invoke_handler")
       @invoke_handler_hook = block
@@ -55,7 +53,6 @@ module Tokra
     #
     # The block receives (ctx, request) and should return a response.
     # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
-    # Returns +self+ for fluent chaining.
     def register_uri_scheme_protocol(uri_scheme, &handler)
       require_shareable!(handler, "register_uri_scheme_protocol")
       @uri_scheme_protocols[uri_scheme] = handler
@@ -67,7 +64,6 @@ module Tokra
     # The block receives (ctx, request, responder) and must call
     # +responder.respond(response)+ when complete.
     # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
-    # Returns +self+ for fluent chaining.
     def register_asynchronous_uri_scheme_protocol(uri_scheme, &handler)
       require_shareable!(handler, "register_asynchronous_uri_scheme_protocol")
       @async_uri_scheme_protocols[uri_scheme] = handler
@@ -78,7 +74,6 @@ module Tokra
     #
     # The block receives the App instance after build.
     # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
-    # Returns +self+ for fluent chaining.
     def setup(&block)
       require_shareable!(block, "setup")
       @setup_hook = block
@@ -89,7 +84,6 @@ module Tokra
     #
     # The block receives (webview, payload).
     # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
-    # Returns +self+ for fluent chaining.
     def on_page_load(&block)
       require_shareable!(block, "on_page_load")
       @on_page_load_hook = block
@@ -100,7 +94,6 @@ module Tokra
     #
     # The block receives (window, event).
     # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
-    # Returns +self+ for fluent chaining.
     def on_window_event(&block)
       require_shareable!(block, "on_window_event")
       @window_event_listeners << block
@@ -111,7 +104,6 @@ module Tokra
     #
     # The block receives (webview, webview_event).
     # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
-    # Returns +self+ for fluent chaining.
     def on_webview_event(&block)
       require_shareable!(block, "on_webview_event")
       @webview_event_listeners << block
@@ -141,7 +133,7 @@ module Tokra
     end
 
     # Consider these "friendly" -- public to Tokra, private to app devs.
-    attr_reader :state_manager, :invoke_handler_hook, :uri_scheme_protocols,
+    attr_reader :state_manager, :invoke_handler_hook, :uri_scheme_protocols, # :nodoc:
       :async_uri_scheme_protocols, :setup_hook, :on_page_load_hook,
       :window_event_listeners, :webview_event_listeners
 

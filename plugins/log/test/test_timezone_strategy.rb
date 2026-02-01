@@ -62,8 +62,9 @@ class TestTimezoneStrategy < Minitest::Test
     target = Tokra::Plugins::Log::Target.new(output)
       .timezone_strategy(TimezoneStrategy::UseUtc.new)
       .format(UTC_STATUS_FORMATTER)
+    builder = Tokra::Plugins::Log::Builder.new
 
-    target.to_logger.info("test")
+    target.to_logger(builder).info("test")
 
     assert_equal "utc:true\n", output.string
   end
@@ -73,8 +74,9 @@ class TestTimezoneStrategy < Minitest::Test
     target = Tokra::Plugins::Log::Target.new(output)
       .timezone_strategy(TimezoneStrategy::UseLocal.new)
       .format(UTC_STATUS_FORMATTER)
+    builder = Tokra::Plugins::Log::Builder.new
 
-    target.to_logger.info("test")
+    target.to_logger(builder).info("test")
 
     assert_equal "utc:false\n", output.string
   end

@@ -15,7 +15,7 @@ require "tokra-log"
 # with a clear explanation.
 class TestLevelFor < Minitest::Test
   def test_level_for_raises_not_implemented_error
-    plugin = Tokra::Plugins::Log::Plugin.new({})
+    plugin = Tokra::Plugins::Log::Builder.new.build
 
     error = assert_raises(NotImplementedError) do
       plugin.level_for("SomeModule", :warn)
@@ -25,7 +25,7 @@ class TestLevelFor < Minitest::Test
   end
 
   def test_level_for_error_suggests_filter_alternative
-    plugin = Tokra::Plugins::Log::Plugin.new({})
+    plugin = Tokra::Plugins::Log::Builder.new.build
 
     error = assert_raises(NotImplementedError) { plugin.level_for("Foo", :info) }
 

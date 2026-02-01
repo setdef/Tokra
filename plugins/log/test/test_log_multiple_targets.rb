@@ -14,12 +14,13 @@ class TestLogMultipleTargets < Minitest::Test
   def test_logs_to_all_targets
     output1 = StringIO.new
     output2 = StringIO.new
-    app = Object.new
     targets = [
       Tokra::Plugins::Log::Target.new(output1),
       Tokra::Plugins::Log::Target.new(output2),
     ]
-    plugin = Tokra::Plugins::Log::Plugin.new(app, targets:)
+    plugin = Tokra::Plugins::Log::Builder.new
+      .targets(targets)
+      .build
 
     plugin.info("broadcast")
 
@@ -29,10 +30,12 @@ class TestLogMultipleTargets < Minitest::Test
 
   def test_per_target_level_filtering
     output = StringIO.new
-    app = Object.new
-    # Level set on Plugin config
+    # Level set on Builder
     target = Tokra::Plugins::Log::Target.new(output)
-    plugin = Tokra::Plugins::Log::Plugin.new(app, targets: [target], level: :warn)
+    plugin = Tokra::Plugins::Log::Builder.new
+      .targets([target])
+      .level(:warn)
+      .build
 
     plugin.info("info message")
     plugin.warn("warn message")

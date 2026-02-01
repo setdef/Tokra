@@ -13,10 +13,11 @@ require "stringio"
 class TestLogTargetFormatting < Minitest::Test
   def test_target_format_customizes_output
     output = StringIO.new
-    app = Object.new
     formatter = Ractor.shareable_proc { |_sev, _time, _prog, msg| ">>> #{msg}\n" }
     target = Tokra::Plugins::Log::Target.new(output).format(formatter)
-    plugin = Tokra::Plugins::Log::Plugin.new(app, targets: [target])
+    plugin = Tokra::Plugins::Log::Builder.new
+      .targets([target])
+      .build
 
     plugin.info("formatted message")
 
@@ -25,13 +26,15 @@ class TestLogTargetFormatting < Minitest::Test
 
   def test_format_receives_severity_time_progname_msg
     output = StringIO.new
-    app = Object.new
     # Formatter that includes all args in output to verify they're passed correctly
     formatter = Ractor.shareable_proc do |sev, time, prog, msg|
       "[#{sev}] #{time.strftime('%Y')} #{prog}: #{msg}\n"
     end
     target = Tokra::Plugins::Log::Target.new(output).format(formatter)
-    plugin = Tokra::Plugins::Log::Plugin.new(app, targets: [target], progname: "MyApp")
+    plugin = Tokra::Plugins::Log::Builder.new
+      .targets([target])
+      .progname("MyApp")
+      .build
 
     plugin.info("test message")
 

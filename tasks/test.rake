@@ -19,8 +19,11 @@ namespace :test do
     sh "cargo test"
   end
 
-  # Create a specific Minitest task for Ruby tests
-  Minitest::TestTask.create(:ruby) do |t|
+  # Create a specific Minitest task for Ruby core tests
+  Minitest::TestTask.create(:core) do |t|
     t.test_globs = ["test/**/*.rb"]
   end
+
+  desc "Run all Ruby tests (core + plugins)"
+  task ruby: ["test:core", "plugins:test"]
 end

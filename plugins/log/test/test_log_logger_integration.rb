@@ -13,10 +13,11 @@ require "stringio"
 class TestLogLoggerIntegration < Minitest::Test
   def test_formatter_customizes_output_format
     output = StringIO.new
-    app = Object.new
     custom_formatter = Ractor.shareable_proc { |_sev, _time, _prog, msg| "CUSTOM: #{msg}\n" }
     target = Tokra::Plugins::Log::Target.new(output).format(custom_formatter)
-    plugin = Tokra::Plugins::Log::Plugin.new(app, targets: [target])
+    plugin = Tokra::Plugins::Log::Builder.new
+      .targets([target])
+      .build
 
     plugin.info("test message")
 
@@ -25,9 +26,11 @@ class TestLogLoggerIntegration < Minitest::Test
 
   def test_progname_appears_in_log_entries
     output = StringIO.new
-    app = Object.new
     target = Tokra::Plugins::Log::Target.new(output)
-    plugin = Tokra::Plugins::Log::Plugin.new(app, targets: [target], progname: "MyApp")
+    plugin = Tokra::Plugins::Log::Builder.new
+      .targets([target])
+      .progname("MyApp")
+      .build
 
     plugin.info("test message")
 
@@ -36,9 +39,11 @@ class TestLogLoggerIntegration < Minitest::Test
 
   def test_datetime_format_customizes_timestamp
     output = StringIO.new
-    app = Object.new
     target = Tokra::Plugins::Log::Target.new(output)
-    plugin = Tokra::Plugins::Log::Plugin.new(app, targets: [target], datetime_format: "%Y/%m/%d")
+    plugin = Tokra::Plugins::Log::Builder.new
+      .targets([target])
+      .datetime_format("%Y/%m/%d")
+      .build
 
     plugin.info("test message")
 
@@ -49,9 +54,10 @@ class TestLogLoggerIntegration < Minitest::Test
 
   def test_add_method_with_all_arguments
     output = StringIO.new
-    app = Object.new
     target = Tokra::Plugins::Log::Target.new(output)
-    plugin = Tokra::Plugins::Log::Plugin.new(app, targets: [target])
+    plugin = Tokra::Plugins::Log::Builder.new
+      .targets([target])
+      .build
 
     plugin.add(Logger::WARN, "warning message", "CustomProg")
 
@@ -62,9 +68,10 @@ class TestLogLoggerIntegration < Minitest::Test
 
   def test_shift_operator_writes_raw_message
     output = StringIO.new
-    app = Object.new
     target = Tokra::Plugins::Log::Target.new(output)
-    plugin = Tokra::Plugins::Log::Plugin.new(app, targets: [target])
+    plugin = Tokra::Plugins::Log::Builder.new
+      .targets([target])
+      .build
 
     plugin << "raw message"
 
@@ -74,9 +81,11 @@ class TestLogLoggerIntegration < Minitest::Test
 
   def test_with_level_temporarily_changes_level
     output = StringIO.new
-    app = Object.new
     target = Tokra::Plugins::Log::Target.new(output)
-    plugin = Tokra::Plugins::Log::Plugin.new(app, targets: [target], level: :warn)
+    plugin = Tokra::Plugins::Log::Builder.new
+      .targets([target])
+      .level(:warn)
+      .build
 
     # Debug should be filtered at :warn level
     plugin.debug("should not appear")

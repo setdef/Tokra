@@ -93,40 +93,40 @@ module Tokra
 
         # Builds a TracingLogger instance for this target.
         #
-        # +config+:: configuration hash from Builder (level, rotation settings, etc)
-        def to_logger(config = {})
-          logger = create_base_logger(config)
-          level = config.fetch(:level, :debug)
+        # +builder+:: Builder instance with configuration
+        def to_logger(builder)
+          logger = create_base_logger(builder)
+          level = builder.configured_level || :debug
           logger.level = (level == :trace) ? TRACE : level
           logger.formatter = wrap_formatter_with_timezone(@formatter) if @formatter
           wrap_with_filters(logger)
         end
 
-        private def create_base_logger(config)
-          shift_age = @rotation_strategy&.to_shift_age || config.fetch(:shift_age, 0)
-          shift_size = config.fetch(:shift_size, 1_048_576)
+        private def create_base_logger(builder)
+          shift_age = @rotation_strategy&.to_shift_age || 0
+          shift_size = builder.configured_max_file_size || 1_048_576
 
           case kind
           when Pathname then TracingLogger.new(kind.to_s, shift_age, shift_size)
           when IO, StringIO then TracingLogger.new(kind)
-          when TargetKind::LogDir then create_log_dir_logger(config, shift_age, shift_size)
-          when TargetKind::Webview then create_webview_logger(config)
+          when TargetKind::LogDir then create_log_dir_logger(builder, shift_age, shift_size)
+          when TargetKind::Webview then create_webview_logger(builder)
           else raise ArgumentError, "Unknown destination type: #{kind.class}"
           end
         end
 
-        private def create_log_dir_logger(config, shift_age, shift_size)
-          path_resolver = config.fetch(:path_resolver)
+        private def create_log_dir_logger(builder, shift_age, shift_size)
+          path_resolver = builder.configured_path_resolver
           log_dir = path_resolver.app_log_dir
           FileUtils.mkdir_p(log_dir)
 
-          file_name = kind.file_name || config.fetch(:app_name, "app")
+          file_name = kind.file_name || builder.configured_app_name || "app"
           log_path = log_dir.join("#{file_name}.log")
           TracingLogger.new(log_path.to_s, shift_age, shift_size)
         end
 
-        private def create_webview_logger(config)
-          app_handle = config.fetch(:app_handle)
+        private def create_webview_logger(builder)
+          app_handle = builder.configured_app_handle
           WebviewLogger.new(app_handle)
         end
 

@@ -24,8 +24,10 @@ class TestLogTargetKindWebview < Minitest::Test
   def test_to_logger_creates_webview_logger
     target = Tokra::Plugins::Log::Target.new(Tokra::Plugins::Log::TargetKind::Webview.new)
     stub_app_handle = Minitest::Mock.new
+    builder = Tokra::Plugins::Log::Builder.new
+      .app_handle(stub_app_handle)
 
-    logger = target.to_logger(app_handle: stub_app_handle)
+    logger = target.to_logger(builder)
 
     assert_kind_of Tokra::Plugins::Log::WebviewLogger, logger
   end

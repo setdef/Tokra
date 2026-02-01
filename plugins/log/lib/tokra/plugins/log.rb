@@ -14,6 +14,7 @@ require_relative "log/rotation_strategy"
 require_relative "log/timezone_strategy"
 require_relative "log/target"
 require_relative "log/target_kind"
+require_relative "log/builder"
 
 module Tokra
   module Plugins
@@ -38,21 +39,13 @@ module Tokra
           "log"
         end
 
-        # Initializes the logging plugin.
+        # Initializes the logging plugin from a Builder.
         #
-        # +app+::    the application handle
-        # +config+:: plugin configuration hash
-        #
-        # Config options:
-        # - +:level+:: log level (+:debug+, +:info+, +:warn+, +:error+, +:fatal+)
-        # - +:targets+:: array of Target instances for log output
-        # - +:progname+:: program name for log entries
-        # - +:datetime_format+:: timestamp format string (strftime)
-        def initialize(app, config = {})
-          super
-          @progname = config[:progname]
-          @datetime_format = config[:datetime_format]
-          @loggers = build_loggers(config)
+        # +builder+:: configured Builder instance
+        def initialize(builder)
+          @progname = builder.configured_progname
+          @datetime_format = builder.configured_datetime_format
+          @loggers = build_loggers(builder)
         end
 
         # :call-seq:
@@ -145,12 +138,17 @@ module Tokra
         end
 
         # Builds Logger instances from the configured targets.
-        private def build_loggers(config) # :nodoc:
-          targets = config.fetch(:targets, [Target.new($stdout)])
+        private def build_loggers(builder) # :nodoc:
+          targets = builder.configured_targets
+          targets = [Target.new($stdout)] if targets.empty?
+          global_formatter = builder.configured_formatter
+          global_filter = builder.configured_filter
           targets.map do |target|
-            logger = target.to_logger(config)
+            logger = target.to_logger(builder)
             logger.progname = @progname if @progname
             logger.datetime_format = @datetime_format if @datetime_format
+            logger.formatter = global_formatter if global_formatter && !logger.formatter
+            logger = FilteringLogger.new(logger, global_filter) if global_filter
             logger
           end
         end

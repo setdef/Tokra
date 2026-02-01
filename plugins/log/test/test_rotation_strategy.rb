@@ -68,6 +68,7 @@ class TestRotationStrategy < Minitest::Test
       log_path = Pathname(dir).join("app.log")
       target = Tokra::Plugins::Log::Target.new(log_path)
         .rotation_strategy(RotationStrategy::KeepSome.new(count: 5))
+      builder = Tokra::Plugins::Log::Builder.new
 
       # Spy: capture the shift_age passed to TracingLogger
       captured_shift_age = nil
@@ -76,7 +77,7 @@ class TestRotationStrategy < Minitest::Test
         captured_shift_age = shift_age
         original_new.call(path, shift_age, shift_size)
       }) do
-        target.to_logger
+        target.to_logger(builder)
       end
 
       assert_equal 5, captured_shift_age

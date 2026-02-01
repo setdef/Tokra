@@ -13,9 +13,10 @@ require "stringio"
 class TestLogLevels < Minitest::Test
   def setup
     @output = StringIO.new
-    @app = Object.new
     @target = Tokra::Plugins::Log::Target.new(@output)
-    @plugin = Tokra::Plugins::Log::Plugin.new(@app, targets: [@target])
+    @plugin = Tokra::Plugins::Log::Builder.new
+      .targets([@target])
+      .build
   end
 
   def test_debug_logs_message
@@ -51,7 +52,10 @@ class TestLogLevels < Minitest::Test
   def test_trace_logs_message
     output = StringIO.new
     target = Tokra::Plugins::Log::Target.new(output)
-    plugin = Tokra::Plugins::Log::Plugin.new(@app, targets: [target], level: :trace)
+    plugin = Tokra::Plugins::Log::Builder.new
+      .targets([target])
+      .level(:trace)
+      .build
 
     plugin.trace("trace message")
 

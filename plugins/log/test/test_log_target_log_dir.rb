@@ -8,35 +8,39 @@
 require "minitest/autorun"
 require "tokra-log"
 require "tmpdir"
+require "fileutils"
 
-# Tests for LogDir target kind (Tauri parity).
+# Tests for LogDir target kind.
 class TestLogTargetKindLogDir < Minitest::Test
-  def test_log_dir_target_kind_exists
-    target_kind = Tokra::Plugins::Log::TargetKind::LogDir.new
-
-    assert_kind_of Tokra::Plugins::Log::TargetKind::LogDir, target_kind
+  def make_stub_path_resolver(log_dir)
+    resolver = Object.new
+    resolver.define_singleton_method(:app_log_dir) { Pathname.new(log_dir) }
+    resolver
   end
 
-  def test_log_dir_accepts_file_name
-    target_kind = Tokra::Plugins::Log::TargetKind::LogDir.new(file_name: "custom")
+  def test_log_dir_with_file_name_is_data_class
+    log_dir = Tokra::Plugins::Log::TargetKind::LogDir.new(file_name: "test")
 
-    assert_equal "custom", target_kind.file_name
+    assert_kind_of Data, log_dir
+    assert_equal "test", log_dir.file_name
   end
 
-  def test_log_dir_file_name_defaults_to_nil
-    target_kind = Tokra::Plugins::Log::TargetKind::LogDir.new
+  def test_log_dir_defaults_file_name_to_nil
+    log_dir = Tokra::Plugins::Log::TargetKind::LogDir.new
 
-    assert_nil target_kind.file_name
+    assert_nil log_dir.file_name
   end
 
   def test_target_with_log_dir_creates_logger_in_temp_dir
     Dir.mktmpdir do |tmpdir|
       stub_path_resolver = make_stub_path_resolver(tmpdir)
+      builder = Tokra::Plugins::Log::Builder.new
+        .path_resolver(stub_path_resolver)
 
       kind = Tokra::Plugins::Log::TargetKind::LogDir.new(file_name: "test")
       target = Tokra::Plugins::Log::Target.new(kind)
 
-      logger = target.to_logger(path_resolver: stub_path_resolver)
+      logger = target.to_logger(builder)
       logger.info("test message")
 
       log_file = Pathname.new(tmpdir).join("test.log")
@@ -49,11 +53,13 @@ class TestLogTargetKindLogDir < Minitest::Test
     Dir.mktmpdir do |tmpdir|
       nested_dir = Pathname.new(tmpdir).join("nested", "logs")
       stub_path_resolver = make_stub_path_resolver(nested_dir)
+      builder = Tokra::Plugins::Log::Builder.new
+        .path_resolver(stub_path_resolver)
 
       kind = Tokra::Plugins::Log::TargetKind::LogDir.new(file_name: "app")
       target = Tokra::Plugins::Log::Target.new(kind)
 
-      target.to_logger(path_resolver: stub_path_resolver)
+      target.to_logger(builder)
 
       assert nested_dir.exist?, "Expected directory #{nested_dir} to be created"
     end
@@ -62,21 +68,18 @@ class TestLogTargetKindLogDir < Minitest::Test
   def test_target_with_log_dir_uses_app_name_as_default_file_name
     Dir.mktmpdir do |tmpdir|
       stub_path_resolver = make_stub_path_resolver(tmpdir)
+      builder = Tokra::Plugins::Log::Builder.new
+        .path_resolver(stub_path_resolver)
+        .app_name("myapp")
 
       kind = Tokra::Plugins::Log::TargetKind::LogDir.new
       target = Tokra::Plugins::Log::Target.new(kind)
 
-      logger = target.to_logger(path_resolver: stub_path_resolver, app_name: "myapp")
+      logger = target.to_logger(builder)
       logger.info("hello")
 
       log_file = Pathname.new(tmpdir).join("myapp.log")
       assert log_file.exist?, "Expected log file at #{log_file}"
     end
-  end
-
-  private def make_stub_path_resolver(dir)
-    stub = Object.new
-    stub.define_singleton_method(:app_log_dir) { Pathname.new(dir) }
-    stub
   end
 end
