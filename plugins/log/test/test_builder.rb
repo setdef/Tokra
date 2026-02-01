@@ -150,4 +150,13 @@ class TestBuilder < Minitest::Test
     assert_includes output.string, "more public info", "non-matching messages should be logged"
     refute_includes output.string, "SECRET", "matching messages should be rejected"
   end
+
+  def test_with_colors_raises_not_implemented_error
+    builder = Tokra::Plugins::Log::Builder.new
+
+    error = assert_raises(NotImplementedError) { builder.with_colors({}) }
+
+    assert_includes error.message, "Logger",
+      "error should explain Ruby's Logger is not color-aware"
+  end
 end

@@ -125,6 +125,40 @@ module Tokra
           self
         end
 
+        # :call-seq:
+        #   with_colors(colors) -> raises NotImplementedError
+        #
+        # Raises NotImplementedError.
+        #
+        # == Why This Is Not Implemented
+        #
+        # Tauri's +with_colors(ColoredLevelConfig)+ uses the +fern+ crate's
+        # +colors+ feature to apply ANSI escape sequences. Ruby's stdlib
+        # +Logger+ has no built-in color support.
+        #
+        # == Alternatives
+        #
+        # Use a custom formatter that applies ANSI codes:
+        #
+        #   COLORS = { "DEBUG" => "\e[36m", "INFO" => "\e[32m",
+        #              "WARN" => "\e[33m", "ERROR" => "\e[31m" }.freeze
+        #   RESET = "\e[0m"
+        #
+        #   builder.format(Ractor.make_shareable(
+        #     ->(sev, time, prog, msg) { "#{COLORS[sev]}[#{sev}]#{RESET} #{msg}\n" }
+        #   ))
+        #
+        # Or use gems like +rainbow+ or +pastel+ in a custom formatter.
+        #
+        # See: https://github.com/tauri-apps/plugins-workspace/blob/v2/plugins/log/src/lib.rs#L551-565
+        #
+        def with_colors(_colors)
+          raise NotImplementedError,
+            "with_colors is not implemented. Tauri uses fern's colors feature, but Ruby's " \
+              "Logger has no built-in color support. Use Builder#format with a custom " \
+              "formatter that applies ANSI escape codes."
+        end
+
         # Builds the configured log plugin.
         #
         # Returns a Plugin instance ready to be registered.
