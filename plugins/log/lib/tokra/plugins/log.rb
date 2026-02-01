@@ -55,6 +55,45 @@ module Tokra
           @loggers = build_loggers(config)
         end
 
+        # :call-seq:
+        #   level_for(mod, level) -> raises NotImplementedError
+        #
+        # Raises NotImplementedError.
+        #
+        # == Why This Is Not Implemented
+        #
+        # Tauri's +level_for(module, level)+ filters log messages by
+        # Rust module path (e.g., +hyper::client+). This works because
+        # Rust's +log+ crate provides compile-time module metadata via
+        # +log::Record::target()+, which defaults to the module path.
+        #
+        # Ruby has no equivalent metadata:
+        #
+        # - Ruby Logger's +progname+ is rarely set by libraries
+        # - ActiveRecord, ActiveJob, Rack accept progname in signatures
+        #   but don't pass identifying values (just API compatibility)
+        # - Sinatra, Grape, SQLite3-Ruby, Roda don't use progname at all
+        # - Hanami supports progname in templates (app-level, not self-ID)
+        # - There's no automatic module/class context in log calls
+        #
+        # == Alternatives
+        #
+        # Use Target's +filter+ callback for message-based filtering:
+        #
+        #   target.filter(->(msg) { !msg.include?("CACHE") })
+        #
+        # Or use per-library loggers:
+        #
+        #   ActiveRecord::Base.logger = quiet_logger
+        #
+        # See: https://github.com/tauri-apps/plugins-workspace/blob/d4613ff0029ea65f5c6895c3a6f8f5668dd1b55e/plugins/log/src/lib.rs#L488-491
+        #
+        def level_for(_module_name, _level)
+          raise NotImplementedError,
+            "level_for is not implemented. Tauri's level_for filters by Rust module path " \
+              "metadata that Ruby lacks. Use Target#filter callbacks for message-based filtering."
+        end
+
         # Logs a trace message (lowest priority).
         def trace(message) = log(TRACE, message)
 
