@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Internal manager for application state
+  class AppManager < Data
+    attr_reader config: Config
+    attr_reader webviews: Hash[String, Webview]
+    attr_reader windows: Hash[String, Window]
+
+    def self.new: (config: Config, webviews: Hash[String, Webview], windows: Hash[String, Window]) -> AppManager
+  end
+end

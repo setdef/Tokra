@@ -10,9 +10,13 @@ require "test_helper"
 
 # Tests for Tokra::Invoke type.
 class TestInvoke < Minitest::Test
+  private def stub_webview
+    Tokra::Webview.new(label: "test", native: Object.new, window: Object.new, app_handle: Object.new)
+  end
+
   def test_stores_command_and_payload
     payload = { "name" => "World" }
-    invoke = Tokra::Invoke.new(command: "greet", payload:, responder: nil)
+    invoke = Tokra::Invoke.new(command: "greet", payload:, responder: nil, webview: stub_webview)
 
     assert_equal "greet", invoke.command
     assert_equal({ "name" => "World" }, invoke.payload)
@@ -20,7 +24,7 @@ class TestInvoke < Minitest::Test
 
   def test_payload_uses_string_keys
     payload = { "text" => "Hello", "count" => 42 }
-    invoke = Tokra::Invoke.new(command: "cmd", payload:, responder: nil)
+    invoke = Tokra::Invoke.new(command: "cmd", payload:, responder: nil, webview: stub_webview)
 
     # String keys match serde_json::Value semantics
     assert_equal "Hello", invoke.payload["text"]
@@ -30,9 +34,8 @@ class TestInvoke < Minitest::Test
   def test_resolve_calls_responder_with_success
     calls = []
     responder = -> (success, value) { calls << [success, value] }
-    payload = {}
 
-    invoke = Tokra::Invoke.new(command: "cmd", payload:, responder:)
+    invoke = Tokra::Invoke.new(command: "cmd", payload: {}, responder:, webview: stub_webview)
     invoke.resolve("result")
 
     assert_equal [[true, "result"]], calls
@@ -41,9 +44,8 @@ class TestInvoke < Minitest::Test
   def test_reject_calls_responder_with_failure
     calls = []
     responder = -> (success, value) { calls << [success, value] }
-    payload = {}
 
-    invoke = Tokra::Invoke.new(command: "cmd", payload:, responder:)
+    invoke = Tokra::Invoke.new(command: "cmd", payload: {}, responder:, webview: stub_webview)
     invoke.reject("error message")
 
     assert_equal [[false, "error message"]], calls
@@ -52,9 +54,8 @@ class TestInvoke < Minitest::Test
   def test_only_responds_once
     calls = []
     responder = -> (success, value) { calls << [success, value] }
-    payload = {}
 
-    invoke = Tokra::Invoke.new(command: "cmd", payload:, responder:)
+    invoke = Tokra::Invoke.new(command: "cmd", payload: {}, responder:, webview: stub_webview)
     invoke.resolve("first")
     invoke.resolve("second")
     invoke.reject("third")
@@ -64,11 +65,17 @@ class TestInvoke < Minitest::Test
   end
 
   def test_without_responder_does_not_error
-    payload = {}
-    invoke = Tokra::Invoke.new(command: "cmd", payload:, responder: nil)
+    invoke = Tokra::Invoke.new(command: "cmd", payload: {}, responder: nil, webview: stub_webview)
 
     # Should not raise
     invoke.resolve("value")
     invoke.reject("error")
+  end
+
+  def test_webview_accessor_returns_webview
+    webview = stub_webview
+    invoke = Tokra::Invoke.new(command: "cmd", payload: {}, responder: nil, webview:)
+
+    assert_same webview, invoke.webview
   end
 end

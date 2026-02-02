@@ -1,0 +1,75 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Native extension classes (implemented in Rust via Magnus)
+  module Native
+    class EventLoop
+      def initialize: () -> void
+      def create_proxy: () -> Proxy
+      def run: (^(HttpRequestEvent | IpcEvent | WakeUpEvent | WindowCloseEvent | PageLoadEvent) -> void) -> void
+    end
+
+    class Window
+      def initialize: (EventLoop) -> void
+      def set_title: (String) -> void
+      def set_size: (Float, Float) -> void
+    end
+
+    class WebView
+      def self.new_with_protocol: (Window, Proxy) -> WebView
+      def initialize: (Window, String, ^(String) -> void, Proxy) -> void
+      def eval: (String) -> void
+    end
+
+    class Proxy
+      def respond: (Integer, Integer, Array[Array[String]], String) -> void
+      def send_http_response: (Integer, Integer, Hash[String, String], String) -> void
+    end
+
+    class HttpRequestEvent
+      def request_id: () -> Integer
+      def method: () -> String
+      def uri: () -> String
+      def headers: () -> Array[[String, String]]
+      def body: () -> String
+    end
+
+    class IpcEvent
+      def message: () -> String
+    end
+
+    class WakeUpEvent
+    end
+
+    class WindowCloseEvent
+    end
+
+    class PageLoadEvent
+      def event: () -> String
+      def url: () -> String
+      def started?: () -> bool
+      def finished?: () -> bool
+    end
+
+    # Generates JavaScript code to emit an event to the WebView.
+    def self.emit_js_script: (String event, String payload) -> String
+
+    # Loads a JS template from lib/tokra/js/.
+    def self.load_js_template: (String name) -> String
+
+    # Drag drop event from native layer.
+    # Data.define(:event, :paths, :x, :y)
+    class DragDropEvent < Data
+      def event: () -> String
+      def paths: () -> Array[String]
+      def x: () -> Integer
+      def y: () -> Integer
+      def self.new: (String, Array[String], Integer, Integer) -> DragDropEvent
+    end
+
+    # Path resolution functions from dirs crate.
+    def self.home_dir: () -> String
+    def self.data_local_dir: () -> String
+  end
+end

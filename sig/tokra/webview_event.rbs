@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Webview event types.
+  module WebviewEvent
+    class DragDrop < Data
+      attr_reader event: drag_drop_event
+      def self.new: (drag_drop_event) -> DragDrop
+    end
+  end
+
+  # Type alias for webview events
+  type webview_event = WebviewEvent::DragDrop
+end

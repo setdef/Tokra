@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Window wrapper holding native window reference and ResourceTable.
+  # Mirrors Tauri's Window<R> struct.
+  class Window
+    include Manager
+
+    @label: String
+    @native: Native::Window
+    @app_handle: AppHandle
+    @resources_table: ResourceTable
+
+    attr_reader label: String
+    attr_reader app_handle: AppHandle
+    attr_reader native: Native::Window
+
+    def initialize: (label: String, native: Native::Window, app_handle: AppHandle) -> void
+    def resources_table: () -> ResourceTable
+    def set_title: (String title) -> void
+    def set_size: (Float width, Float height) -> void
+  end
+end

@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Window event types dispatched to on_window_event callbacks.
+  # Each is a Data.define class.
+  module WindowEvent
+    class CloseRequested < Data
+    end
+    class Destroyed < Data
+    end
+    class Focused < Data
+      attr_reader focused: bool
+    end
+    class Moved < Data
+      attr_reader x: Integer
+      attr_reader y: Integer
+    end
+    class Resized < Data
+      attr_reader width: Integer
+      attr_reader height: Integer
+    end
+    class ScaleFactorChanged < Data
+      attr_reader scale_factor: Float
+    end
+    class ThemeChanged < Data
+      attr_reader theme: String
+    end
+  end
+
+  # Type alias for window events
+  type window_event = WindowEvent::CloseRequested | WindowEvent::Destroyed | WindowEvent::Focused | WindowEvent::Moved | WindowEvent::Resized | WindowEvent::ScaleFactorChanged | WindowEvent::ThemeChanged
+end

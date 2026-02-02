@@ -56,6 +56,33 @@ module Tokra
       @manager.webviews
     end
 
+    # Returns all managed windows.
+    def windows
+      @manager.windows
+    end
+
+    # Fetches a window by label.
+    #
+    # Returns nil if no window with that label exists.
+    def get_window(label)
+      @manager.windows[label]
+    end
+
+    # Fetches a webview by label.
+    #
+    # Returns nil if no webview with that label exists.
+    def get_webview(label)
+      @manager.webviews[label]
+    end
+
+    # Returns the app-level resources table.
+    #
+    # This is the final fallback in the hierarchy: webview → window → app.
+    # Created lazily on first access.
+    def resources_table
+      @resources_table ||= ResourceTable.new
+    end
+
     # Returns the path resolver for app directories.
     #
     # Provides cross-platform access to app-specific directories like

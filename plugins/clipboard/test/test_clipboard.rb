@@ -10,6 +10,10 @@ require "tokra-clipboard"
 
 # Tests for Tokra::Plugins::Clipboard::Plugin.
 class TestClipboard < Minitest::Test
+  private def stub_webview
+    Tokra::Webview.new(label: "test", native: Object.new, window: Object.new, app_handle: Object.new)
+  end
+
   # Plugin name must match Tauri's "clipboard-manager" per ADR-008
   def test_name_returns_clipboard_manager
     plugin = Tokra::Plugins::Clipboard::Plugin.new
@@ -55,7 +59,8 @@ class TestClipboard < Minitest::Test
     invoke = Tokra::Invoke.new(
       command: "plugin:clipboard-manager|read_text",
       payload: {},
-      responder:
+      responder:,
+      webview: stub_webview
     )
 
     result = plugin.extend_api(invoke)
@@ -72,7 +77,8 @@ class TestClipboard < Minitest::Test
     invoke = Tokra::Invoke.new(
       command: "plugin:clipboard-manager|write_text",
       payload: { "text" => "written_via_ipc" },
-      responder:
+      responder:,
+      webview: stub_webview
     )
 
     result = plugin.extend_api(invoke)
@@ -87,7 +93,8 @@ class TestClipboard < Minitest::Test
     invoke = Tokra::Invoke.new(
       command: "plugin:other-plugin|unknown",
       payload: {},
-      responder: nil
+      responder: nil,
+      webview: stub_webview
     )
 
     result = plugin.extend_api(invoke)

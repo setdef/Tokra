@@ -14,7 +14,7 @@ module Tokra
   # Internal manager for application state (minimal MVP subset of Tauri's AppManager).
   #
   # See tauri/src/manager/mod.rs AppManager
-  AppManager = Data.define(:config, :webviews)
+  AppManager = Data.define(:config, :webviews, :windows)
 end
 
 # SPDX-SnippetEnd

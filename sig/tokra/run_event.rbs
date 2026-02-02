@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Run event types dispatched during app.run.
+  # Each is a Data.define class.
+  module RunEvent
+    class Ready < Data
+      def self.new: () -> Ready
+    end
+    class Exit < Data
+      def self.new: () -> Exit
+    end
+    class ExitRequested < Data
+      attr_reader code: Integer?
+      def self.new: (?code: Integer?) -> ExitRequested
+    end
+    class WindowEvent < Data
+      attr_reader label: String
+      attr_reader event: Tokra::window_event
+      def self.new: (label: String, event: Tokra::window_event) -> WindowEvent
+    end
+    class WebviewEvent < Data
+      attr_reader label: String
+      attr_reader event: Object
+      def self.new: (label: String, event: Object) -> WebviewEvent
+    end
+    class Resumed < Data
+      def self.new: () -> Resumed
+    end
+    class MainEventsCleared < Data
+      def self.new: () -> MainEventsCleared
+    end
+  end
+
+  # Type alias for run events
+  type run_event = RunEvent::Ready | RunEvent::Exit | RunEvent::ExitRequested | RunEvent::WindowEvent | RunEvent::WebviewEvent | RunEvent::Resumed | RunEvent::MainEventsCleared
+end

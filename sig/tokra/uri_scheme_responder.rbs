@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Single-use responder for async URI scheme protocol handlers.
+  class UriSchemeResponder
+    @responded: bool
+    attr_reader port: Native::Proxy
+    attr_reader request_id: Integer
+
+    def initialize: (port: Native::Proxy, request_id: Integer) -> void
+    def respond: (Response response) -> void
+  end
+end

@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Type alias for managed state values (type-erased storage)
+  type managed_state = Object
+
+  # Manages application state by type.
+  class StateManager
+    @map: Hash[Class, managed_state]
+
+    def initialize: () -> void
+    def set: (managed_state state) -> bool
+    def get: (Class klass) -> managed_state
+    def try_get: (Class klass) -> managed_state?
+  end
+end

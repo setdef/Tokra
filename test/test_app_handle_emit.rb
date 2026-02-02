@@ -23,7 +23,7 @@ class TestAppHandleEmit < Minitest::Test
       product_name: "Test App",
       version: "1.0.0"
     )
-    manager = Tokra::AppManager.new(config:, webviews:)
+    manager = Tokra::AppManager.new(config:, webviews:, windows: {})
     handle = Tokra::AppHandle.new(manager)
 
     # Stub Native.emit_js_script to return JS containing event and payload

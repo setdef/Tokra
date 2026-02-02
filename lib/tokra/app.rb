@@ -42,7 +42,7 @@ module Tokra
         product_name: @config[:product_name]&.to_s,
         version: @config[:version]&.to_s
       )
-      manager = AppManager.new(config:, webviews: {})
+      manager = AppManager.new(config:, webviews: {}, windows: {})
       @handle = AppHandle.new(manager, state_manager: builder.__send__(:state_manager))
       @builder = builder
       # Store class references to avoid dynamic constant lookups
@@ -63,11 +63,20 @@ module Tokra
       event_loop = @event_loop_class.new
       proxy = event_loop.create_proxy
 
-      window = @window_class.new(event_loop)
-      window.set_title(@config[:title].to_s)
-      window.set_size(@config[:width].to_f, @config[:height].to_f)
+      native_window = @window_class.new(event_loop)
+      native_window.set_title(@config[:title].to_s)
+      native_window.set_size(@config[:width].to_f, @config[:height].to_f)
 
-      @webview_class.new_with_protocol(window, proxy)
+      # Wrap the native window and register in manager
+      window = Window.new(label: "main", native: native_window, app_handle: @handle)
+      @window = window
+      @handle.windows["main"] = window
+
+      # Create and wrap the webview, register in manager
+      native_webview = @webview_class.new_with_protocol(native_window, proxy)
+      webview = Webview.new(label: "main", native: native_webview, window:, app_handle: @handle)
+      @webview = webview
+      @handle.webviews["main"] = webview
 
       # Emit Ready event
       callback&.call(@handle, RunEvent::Ready.new)
@@ -75,7 +84,7 @@ module Tokra
       # Run the event loop, dispatching events
       event_loop.run(
         lambda { |event|
-          dispatch_event(event, callback, window, proxy)
+          dispatch_event(event, callback, native_window, proxy)
         }
       )
 
@@ -123,7 +132,8 @@ module Tokra
       invoke = Invoke.new(
         command: parsed["cmd"] || "",
         payload: parsed,
-        responder: nil
+        responder: nil,
+        webview: @webview # steep:ignore ArgumentTypeMismatch
       )
       handler.call(invoke)
     end

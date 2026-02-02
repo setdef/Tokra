@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Context passed to URI scheme protocol handlers.
+  # Created via Data.define(:app_handle, :webview_label)
+  class UriSchemeContext < Data
+    attr_reader app_handle: AppHandle
+    attr_reader webview_label: String
+
+    def self.new: (app_handle: AppHandle, webview_label: String) -> UriSchemeContext
+  end
+end

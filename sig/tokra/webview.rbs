@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Webview wrapper holding native webview reference and ResourceTable.
+  # Mirrors Tauri's Webview<R> struct.
+  class Webview
+    include Manager
+
+    @label: String
+    @native: Native::WebView
+    @window: Window
+    @app_handle: AppHandle
+    @resources_table: ResourceTable
+
+    attr_reader label: String
+    attr_reader app_handle: AppHandle
+    attr_reader native: Native::WebView
+
+    def initialize: (label: String, native: Native::WebView, window: Window, app_handle: AppHandle) -> void
+    def window: () -> Window
+    def resources_table: () -> ResourceTable
+    def evaluate: (String script) -> void
+    alias eval evaluate
+  end
+end

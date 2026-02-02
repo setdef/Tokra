@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # A position in physical (pixel) coordinates.
+  class PhysicalPosition < Data
+    attr_reader x: Integer
+    attr_reader y: Integer
+    def self.new: (Integer, Integer) -> PhysicalPosition
+  end
+end

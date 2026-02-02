@@ -87,5 +87,16 @@ module Tokra
     def webviews
       raise NotImplementedError, "#{self.class} must implement #webviews"
     end
+
+    # Returns the resources table for this manager.
+    #
+    # Each manager type has its own ResourceTable instance.
+    # Webview and Window tables are created at initialization;
+    # AppHandle creates its table lazily.
+    #
+    # @return [ResourceTable] the resource table
+    def resources_table
+      raise NotImplementedError, "#{self.class} must implement #resources_table"
+    end
   end
 end

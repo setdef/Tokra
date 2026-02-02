@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Rack
+  end
+end
+
+# Rack types based on Rack 3.x spec
+module Rack
+  type env = Hash[String, (String | Integer | Array[Integer] | IO | bool | nil | StringIO)]
+  type headers = Hash[String, String]
+  type status = Integer
+
+  # Rack body - any object that responds to each yielding strings
+  # We use Object as base to get respond_to? and other Object methods
+  class Body < Object
+    def each: () { (String) -> void } -> void
+    def close: () -> void
+    # Optional: Array-style bodies
+    def to_ary: () -> Array[String]
+    # Optional: File path for sendfile optimization
+    def to_path: () -> String
+  end
+
+  type response = [status, headers, Body]
+
+  interface _App
+    def call: (env) -> response
+  end
+
+  module Handler
+    class Tokra
+      MAX_REDIRECTS: Integer
+      DEFAULT_OPTIONS: { title: String, width: Float, height: Float }
+
+      @app: Rack::_App
+      @proxy: ::Tokra::Native::Proxy
+
+      def self.run: (Rack::_App app, ?title: String, ?width: Float, ?height: Float, ?invoke_handler: (^(String) -> void)?) -> void
+
+      def initialize: (Rack::_App app, ::Tokra::Native::Proxy proxy) -> void
+      def call: (::Tokra::Native::HttpRequestEvent event) -> void
+
+      private
+
+      def build_env: (URI::Generic uri, String method, String body, ?::Tokra::Native::HttpRequestEvent? event, ?String? cookies) -> Rack::env
+      def respond_with_error: (Integer request_id, Integer status, String message) -> void
+    end
+  end
+end

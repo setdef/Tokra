@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # The built Tokra application.
+  class App
+    DEFAULT_CONFIG: Hash[Symbol, String | Integer | Float]
+
+    @config: Hash[Symbol, String | Integer | Float]
+    @handle: AppHandle
+    @builder: Builder
+    @event_loop_class: singleton(Native::EventLoop)
+    @window_class: singleton(Native::Window)
+    @webview_class: singleton(Native::WebView)
+    @window: Window?
+    @webview: Webview?
+
+    attr_reader handle: AppHandle
+    attr_reader config: Hash[Symbol, String | Integer | Float]
+
+    def initialize: (Builder builder, ?native: Module) -> void
+    def run: () { (AppHandle, run_event) -> void } -> void
+         | () -> void
+
+    private
+
+    def dispatch_event: (native_event event, (^(AppHandle, run_event) -> void)? callback, Native::Window window, Native::Proxy proxy) -> void
+    def dispatch_http_request: (Native::HttpRequestEvent event, Native::Proxy proxy) -> void
+    def dispatch_ipc: (Native::IpcEvent event) -> void
+    def dispatch_page_load: (Native::PageLoadEvent event) -> void
+    def dispatch_window_event: (Native::Window window, window_event event, (^(AppHandle, run_event) -> void)? callback) -> void
+    def dispatch_webview_event: (Native::DragDropEvent native_event) -> void
+  end
+end

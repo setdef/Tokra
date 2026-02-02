@@ -17,7 +17,7 @@ class TestAppManager < Minitest::Test
     )
     webviews = {}
 
-    manager = Tokra::AppManager.new(config:, webviews:)
+    manager = Tokra::AppManager.new(config:, webviews:, windows: {})
 
     assert_equal config, manager.config
     assert_equal webviews, manager.webviews
@@ -30,7 +30,7 @@ class TestAppManager < Minitest::Test
       version: "1.0.0"
     )
 
-    manager = Tokra::AppManager.new(config:, webviews: {})
+    manager = Tokra::AppManager.new(config:, webviews: {}, windows: {})
 
     # Config itself is shareable but AppManager holds mutable webviews
     assert Ractor.shareable?(manager.config)

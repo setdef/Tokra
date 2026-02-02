@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Fluent Builder for configuring Tokra desktop applications.
+  class Builder
+    @invoke_handler: (^(Invoke) -> bool)?
+    @uri_scheme_protocols: Hash[String, ^(UriSchemeContext, Native::HttpRequestEvent) -> Response]
+    @setup: (^(App) -> void)?
+    @on_page_load: (^(Native::WebView?, PageLoadPayload) -> void)?
+    @window_event_listeners: Array[^(Native::Window, window_event) -> void]
+    @webview_event_listeners: Array[^(Native::WebView?, webview_event) -> void]
+    @state_manager: StateManager
+
+    def initialize: () -> void
+    def self.default: () -> Builder
+    def manage: (managed_state state) -> self
+    def invoke_handler: () { (Invoke) -> bool } -> self
+    def register_uri_scheme_protocol: (String uri_scheme) { (UriSchemeContext, Native::HttpRequestEvent) -> Response } -> self
+    def register_asynchronous_uri_scheme_protocol: (String uri_scheme) { (UriSchemeContext, Native::HttpRequestEvent, UriSchemeResponder) -> void } -> self
+    def setup: () { (App) -> void } -> self
+    def on_page_load: () { (Native::WebView?, PageLoadPayload) -> void } -> self
+    def on_window_event: () { (Native::Window, window_event) -> void } -> self
+    def on_webview_event: () { (Native::WebView?, webview_event) -> void } -> self
+    def build: (?native: Module) -> App
+    def run: (?native: Module) ?{ (AppHandle, run_event) -> void } -> void
+
+    private
+
+    attr_reader invoke_handler_hook: (^(Invoke) -> bool)?
+    attr_reader uri_scheme_protocols: Hash[String, ^(UriSchemeContext, Native::HttpRequestEvent) -> Response]
+    attr_reader async_uri_scheme_protocols: Hash[String, ^(UriSchemeContext, Native::HttpRequestEvent, UriSchemeResponder) -> void]
+    attr_reader setup_hook: (^(App) -> void)?
+    attr_reader on_page_load_hook: (^(Native::WebView?, PageLoadPayload) -> void)?
+    attr_reader window_event_listeners: Array[^(Native::Window, window_event) -> void]
+    attr_reader webview_event_listeners: Array[^(Native::WebView?, webview_event) -> void]
+    attr_reader state_manager: StateManager
+
+    private def require_shareable!: (Proc block, String method_name) -> void
+  end
+end

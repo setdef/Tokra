@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # HTTP response for URI scheme protocol handlers.
+  # Created via Data.define(:status, :headers, :body)
+  class Response < Data
+    attr_reader status: Integer
+    attr_reader headers: Hash[String, String]
+    attr_reader body: String
+
+    def self.new: (status: Integer, headers: Hash[String, String], body: String) -> Response
+    def self.ok: (String body, ?content_type: String) -> Response
+    def self.not_found: (?String message) -> Response
+    def self.error: (Integer status, String message) -> Response
+  end
+end

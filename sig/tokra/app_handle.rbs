@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Handle to the running application, safe to pass between Ractors.
+  class AppHandle
+    @manager: AppManager
+    @state_manager: StateManager?
+    @path: Path::Resolver?
+    @resources_table: ResourceTable?
+
+    def initialize: (AppManager manager, ?state_manager: StateManager?) -> void
+    def app_handle: -> AppHandle
+    def config: -> Config
+    def webviews: -> Hash[String, Webview]
+    def windows: -> Hash[String, Window]
+    def state: (Class klass) -> managed_state
+    def try_state: (Class klass) -> managed_state?
+    def manage: (Object state) -> bool
+    def get_window: (String label) -> Window?
+    def get_webview: (String label) -> Webview?
+    def resources_table: -> ResourceTable
+    def emit: (String event_name, ::_ToJson payload) -> void
+    def exit: (?Integer code) -> void
+    def path: -> Path::Resolver
+  end
+end

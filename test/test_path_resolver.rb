@@ -69,7 +69,7 @@ class TestPathResolver < Minitest::Test
       product_name: nil,
       version: nil
     )
-    manager = Tokra::AppManager.new(config:, webviews: {})
+    manager = Tokra::AppManager.new(config:, webviews: {}, windows: {})
     handle = Tokra::AppHandle.new(manager)
 
     result = handle.path

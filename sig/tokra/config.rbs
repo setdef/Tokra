@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Application configuration
+  class Config < Data
+    attr_reader identifier: String?
+    attr_reader product_name: String?
+    attr_reader version: String?
+
+    def self.new: (identifier: String?, product_name: String?, version: String?) -> Config
+  end
+end

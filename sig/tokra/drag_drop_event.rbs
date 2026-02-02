@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Drag and drop event types.
+  module DragDropEvent
+    class Enter < Data
+      attr_reader paths: Array[Pathname]
+      attr_reader position: PhysicalPosition
+      def self.new: (Array[Pathname], PhysicalPosition) -> Enter
+    end
+    class Over < Data
+      attr_reader position: PhysicalPosition
+      def self.new: (PhysicalPosition) -> Over
+    end
+    class Drop < Data
+      attr_reader paths: Array[Pathname]
+      attr_reader position: PhysicalPosition
+      def self.new: (Array[Pathname], PhysicalPosition) -> Drop
+    end
+    class Leave < Data
+      def self.new: () -> Leave
+    end
+  end
+
+  # Type alias for drag drop events
+  type drag_drop_event = DragDropEvent::Enter | DragDropEvent::Over | DragDropEvent::Drop | DragDropEvent::Leave
+end

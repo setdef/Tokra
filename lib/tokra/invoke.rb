@@ -30,13 +30,17 @@ module Tokra
     #
     attr_reader :payload
 
-    # Creates a new Invoke with command, payload, and responder callback.
+    # The webview that made this IPC call.
+    attr_reader :webview
+
+    # Creates a new Invoke with command, payload, webview, and responder callback.
     #
     # This is called internally when dispatching IPC messages.
-    def initialize(command:, payload:, responder:)
+    def initialize(command:, payload:, responder:, webview:)
       @command = command
       @payload = payload
       @responder = responder
+      @webview = webview
       @responded = false
     end
 

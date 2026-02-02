@@ -3,15 +3,17 @@
 
 module Tokra
   # Shared interface for AppHandle, Window, and Webview.
+  # Mirrors Tauri's Manager<R> trait.
   module Manager
     def app_handle: -> AppHandle
-    def config: -> Hash[Symbol, String | Integer | Float | bool]
+    def config: -> Config
     def manage: (Object state) -> bool
-    def state: (Class klass) -> Object
-    def try_state: (Class klass) -> Object?
-    def get_window: (String label) -> Native::Window?
-    def get_webview: (String label) -> Native::WebView?
-    def windows: -> Hash[String, Native::Window]
-    def webviews: -> Hash[String, Native::WebView]
+    def state: (Class klass) -> managed_state
+    def try_state: (Class klass) -> managed_state?
+    def get_window: (String label) -> Window?
+    def get_webview: (String label) -> Webview?
+    def windows: -> Hash[String, Window]
+    def webviews: -> Hash[String, Webview]
+    def resources_table: -> ResourceTable
   end
 end

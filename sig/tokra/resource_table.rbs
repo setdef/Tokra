@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Table for managing resources by integer ID.
+  # Ported from Deno's resource system via Tauri.
+  class ResourceTable
+    @index: Hash[Integer, Object]
+
+    def initialize: () -> void
+    def has?: (Integer rid) -> bool
+  end
+end
