@@ -3,6 +3,11 @@
 
 module Tokra
   VERSION: String
+
+  # Recursive type alias for JSON values.
+  # Matches serde_json::Value semantics from Tauri's IPC protocol.
+  type json_value = String | Integer | Float | bool | nil | Array[json_value] | Hash[String, json_value]
+
   class Error < StandardError
   end
 
@@ -193,16 +198,16 @@ module Tokra
   # Invoke object for IPC commands.
   class Invoke
     @command: String
-    @payload: String
-    @responder: (^(bool, String) -> void)?
+    @payload: Hash[String, json_value]
+    @responder: (^(bool, json_value) -> void)?
     @responded: bool
 
     attr_reader command: String
-    attr_reader payload: String
+    attr_reader payload: Hash[String, json_value]
 
-    def initialize: (command: String, payload: String, responder: (^(bool, String) -> void)?) -> void
-    def resolve: (String value) -> void
-    def reject: (String error) -> void
+    def initialize: (command: String, payload: Hash[String, json_value], responder: (^(bool, json_value) -> void)?) -> void
+    def resolve: (json_value value) -> void
+    def reject: (json_value error) -> void
   end
 
   # Window event types dispatched to on_window_event callbacks.

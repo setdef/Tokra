@@ -7,7 +7,9 @@
 
 module Tokra
   module Plugins
-    class Clipboard
+    # Clipboard is a module (not class) to allow VERSION in version.rb.
+    # The actual plugin is Clipboard::Plugin.
+    module Clipboard
       # Version of the tokra-clipboard gem.
       VERSION = "0.0.1.pre.1"
     end

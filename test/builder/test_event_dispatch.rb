@@ -56,11 +56,12 @@ class TestBuilderEventDispatch < Minitest::Test
     StubNative.clear_event
   end
 
-  def test_invoke_handler_receives_ipc_event
-    Thread.current[:test_payload] = nil
-    StubNative.inject_event(Tokra::Native::IpcEvent.new("test_payload"))
+  def test_invoke_handler_receives_parsed_payload
+    Thread.current[:test_invoke] = nil
+    json_message = '{"cmd":"plugin:test|greet","text":"Hello"}'
+    StubNative.inject_event(Tokra::Native::IpcEvent.new(json_message))
     handler = Ractor.shareable_proc { |invoke|
-      Thread.current[:test_payload] = invoke.payload
+      Thread.current[:test_invoke] = invoke
       true
     }
 
@@ -68,7 +69,34 @@ class TestBuilderEventDispatch < Minitest::Test
       .invoke_handler(&handler)
       .run(native: StubNative)
 
-    assert_equal "test_payload", Thread.current[:test_payload]
+    invoke = Thread.current[:test_invoke]
+    refute_nil invoke, "Handler should have received invoke"
+
+    # Payload should be pre-parsed Hash with String keys (matching serde_json::Value)
+    assert_kind_of Hash, invoke.payload, "Payload should be parsed JSON Hash"
+    assert_equal "Hello", invoke.payload["text"], "Payload should have String keys"
+  ensure
+    StubNative.clear_event
+  end
+
+  def test_invoke_handler_extracts_command_from_payload
+    Thread.current[:test_invoke] = nil
+    json_message = '{"cmd":"plugin:clipboard-manager|read_text"}'
+    StubNative.inject_event(Tokra::Native::IpcEvent.new(json_message))
+    handler = Ractor.shareable_proc { |invoke|
+      Thread.current[:test_invoke] = invoke
+      true
+    }
+
+    Tokra::Builder.default
+      .invoke_handler(&handler)
+      .run(native: StubNative)
+
+    invoke = Thread.current[:test_invoke]
+    refute_nil invoke, "Handler should have received invoke"
+
+    # Command should be extracted from parsed payload "cmd" field
+    assert_equal "plugin:clipboard-manager|read_text", invoke.command
   ensure
     StubNative.clear_event
   end

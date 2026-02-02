@@ -16,57 +16,141 @@ end
 
 module Tokra
   # Namespace for Tokra plugins.
-  #
-  # First-party plugins provide functionality like logging, clipboard access,
-  # notifications, and other desktop integrations.
   module Plugins
-    # Clipboard plugin for Tokra desktop applications.
+    # Namespace for the clipboard plugin.
     #
-    # Provides read/write access to the system clipboard using the arboard crate.
-    #
-    # == Example
-    #
-    #   Tokra::Builder.new
-    #     .plugin(Tokra::Plugins::Clipboard.new)
-    #     .run
-    #
-    class Clipboard < Tokra::Plugin
-      # Returns the unique plugin identifier.
-      def name
-        "clipboard"
-      end
+    # Use Tokra::Plugins::Clipboard::Plugin as the plugin class.
+    module Clipboard
+      # Base error for clipboard operations.
+      class Error < Tokra::Error; end
 
-      # Initializes the clipboard plugin.
+      # Raised when another application holds the clipboard lock.
       #
-      # +app+::    the application handle
-      # +config+:: plugin configuration hash
-      def initialize(app, config = {})
-        raise NotImplementedError
-      end
+      # Platform-specific behavior:
+      # - Windows: Raised after 5 retry attempts (5ms spacing)
+      # - X11: Raised when set_selection_owner() fails (rare)
+      # - macOS: Never raised (arboard uses pasteboard, no locking)
+      class ClipboardOccupiedError < Error; end
 
-      # Reads text from the clipboard.
+      # Raised when clipboard content is unavailable or incompatible.
+      class ClipboardUnavailableError < Error; end
+
+      # Manager extension mixin module providing clipboard() accessor.
       #
-      # Returns the clipboard text content, or +nil+ if empty.
-      def read_text
-        raise NotImplementedError
-      end
-
-      # Writes text to the clipboard.
+      # When included into Tokra::Manager, provides direct clipboard access:
       #
-      # +text+:: the text string to write
-      def write_text(text)
-        raise NotImplementedError
+      #   app_handle.clipboard.read_text
+      #   window.clipboard.write_text("Hello")
+      #
+      # This mirrors Tauri's ClipboardExt blanket implementation.
+      module ClipboardManagerExt
+        # Returns the clipboard instance from managed state.
+        def clipboard
+          state(TokraClipboard::Native::Clipboard)
+        end
       end
 
-      # Clears the clipboard contents.
-      def clear
-        raise NotImplementedError
-      end
+      # Clipboard plugin for Tokra desktop applications.
+      #
+      # Provides read/write access to the system clipboard using the arboard crate.
+      # Uses Rust Mutex for thread-safe, Ractor-shareable clipboard access per ADR-007.
+      #
+      # == JavaScript API (Tauri Compatibility)
+      #
+      # The following IPC commands are exposed for frontend use:
+      #
+      #   // Write text to clipboard
+      #   await invoke("plugin:clipboard-manager|write_text", { text: "Hello" });
+      #
+      #   // Read text from clipboard (returns string or null)
+      #   const text = await invoke("plugin:clipboard-manager|read_text");
+      #
+      #   // Clear clipboard
+      #   await invoke("plugin:clipboard-manager|clear");
+      #
+      # == Ruby API
+      #
+      #   Tokra::Builder.new
+      #     .plugin(Tokra::Plugins::Clipboard::Plugin.new)
+      #     .run
+      #
+      class Plugin < Tokra::Plugin
+        # Returns the unique plugin identifier.
+        #
+        # Uses "clipboard-manager" for 1:1 compatibility with Tauri's
+        # guest-js/index.ts command naming.
+        def name
+          "clipboard-manager"
+        end
 
-      # Called on each run loop event.
-      def on_event(event)
-        raise NotImplementedError
+        # Initializes the clipboard plugin.
+        #
+        # Creates Ractor-shareable native clipboard per ADR-007.
+        # The Rust Mutex enables interior mutability on the frozen object.
+        def initialize
+          @native = TokraClipboard::Native::Clipboard.new
+          Ractor.make_shareable(@native)
+        end
+
+        # Called when plugin is registered with the app.
+        #
+        # Stores native clipboard in managed state for ClipboardManagerExt access.
+        def on_register(app)
+          app.manage(@native)
+        end
+
+        # Reads text from the clipboard.
+        #
+        # Returns the clipboard text content, or +nil+ if empty.
+        def read_text
+          @native.read_text
+        end
+
+        # Writes text to the clipboard.
+        #
+        # +text+:: the text string to write
+        def write_text(text)
+          @native.write_text(text)
+        end
+
+        # Clears the clipboard contents.
+        def clear
+          @native.clear
+        end
+
+        # Handles IPC invoke commands from JavaScript frontend.
+        #
+        # Returns +true+ if this plugin handled the command, +false+ otherwise.
+        def extend_api(invoke)
+          case invoke.command
+          when "plugin:clipboard-manager|read_text"
+            invoke.resolve(read_text)
+            true
+          when "plugin:clipboard-manager|write_text"
+            write_text(invoke.payload["text"])
+            invoke.resolve(nil)
+            true
+          when "plugin:clipboard-manager|clear"
+            clear
+            invoke.resolve(nil)
+            true
+          else
+            false
+          end
+        end
+
+        # Called on each run loop event.
+        #
+        # Handles RunEvent::Exit to cleanup native clipboard resources.
+        def on_event(event)
+          return unless event.is_a?(Tokra::RunEvent::Exit)
+
+          @native.cleanup
+        end
       end
     end
   end
 end
+
+# Extend Manager when plugin file is loaded (matches Tauri pattern)
+Tokra::Manager.include(Tokra::Plugins::Clipboard::ClipboardManagerExt)

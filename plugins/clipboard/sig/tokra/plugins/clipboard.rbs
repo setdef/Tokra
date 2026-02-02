@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module TokraClipboard
+  module Native
+    class Clipboard
+      def self.new: () -> Clipboard
+      def read_text: () -> String?
+      def write_text: (String) -> void
+      def clear: () -> void
+      def cleanup: () -> void
+    end
+  end
+end
+
+module Tokra
+  module Plugins
+    module Clipboard
+      class Error < Tokra::Error
+      end
+
+      class ClipboardOccupiedError < Error
+      end
+
+      class ClipboardUnavailableError < Error
+      end
+
+      module ClipboardManagerExt
+        def clipboard: () -> TokraClipboard::Native::Clipboard
+      end
+
+      class Plugin < Tokra::Plugin
+        @native: TokraClipboard::Native::Clipboard
+
+        def name: () -> String
+        def initialize: () -> void
+        def on_register: (Tokra::_Manager) -> void
+        def read_text: () -> String?
+        def write_text: (String) -> void
+        def clear: () -> void
+        def extend_api: (Tokra::Invoke) -> bool
+        def on_event: (Tokra::RunEvent::base) -> void
+      end
+    end
+  end
+end

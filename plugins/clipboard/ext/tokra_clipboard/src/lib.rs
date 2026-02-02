@@ -9,6 +9,12 @@
 use magnus::{function, method, prelude::*, Error, Ruby};
 use std::sync::Mutex;
 
+// SPDX-SnippetBegin
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+// SPDX-SnippetComment: Mutex<Option<Clipboard>> pattern and cleanup() method adapted from
+// tauri-plugin-clipboard-manager/src/desktop.rs
+
 /// Clipboard wrapper with internal Mutex for thread-safe access.
 ///
 /// This struct wraps `arboard::Clipboard` in a `Mutex<Option<_>>` pattern
@@ -80,6 +86,8 @@ impl RbClipboard {
         guard.take(); // Drop the clipboard
     }
 }
+
+// SPDX-SnippetEnd
 
 impl magnus::DataTypeFunctions for RbClipboard {}
 

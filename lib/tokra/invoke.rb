@@ -19,7 +19,15 @@ module Tokra
     # The command name being invoked.
     attr_reader :command
 
-    # The JSON payload from the frontend.
+    # The parsed JSON payload from the frontend (Hash with String keys).
+    #
+    # The framework parses the JSON message at dispatch time, matching Tauri's
+    # +InvokeBody::Json(serde_json::Value)+ semantics. Access values via string
+    # keys:
+    #
+    #   invoke.payload["text"]  # => String
+    #   invoke.payload["count"] # => Integer
+    #
     attr_reader :payload
 
     # Creates a new Invoke with command, payload, and responder callback.

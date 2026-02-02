@@ -11,17 +11,28 @@ require "test_helper"
 # Tests for Tokra::Invoke type.
 class TestInvoke < Minitest::Test
   def test_stores_command_and_payload
-    invoke = Tokra::Invoke.new(command: "greet", payload: '{"name":"World"}', responder: nil)
+    payload = { "name" => "World" }
+    invoke = Tokra::Invoke.new(command: "greet", payload:, responder: nil)
 
     assert_equal "greet", invoke.command
-    assert_equal '{"name":"World"}', invoke.payload
+    assert_equal({ "name" => "World" }, invoke.payload)
+  end
+
+  def test_payload_uses_string_keys
+    payload = { "text" => "Hello", "count" => 42 }
+    invoke = Tokra::Invoke.new(command: "cmd", payload:, responder: nil)
+
+    # String keys match serde_json::Value semantics
+    assert_equal "Hello", invoke.payload["text"]
+    assert_equal 42, invoke.payload["count"]
   end
 
   def test_resolve_calls_responder_with_success
     calls = []
     responder = -> (success, value) { calls << [success, value] }
+    payload = {}
 
-    invoke = Tokra::Invoke.new(command: "cmd", payload: "", responder:)
+    invoke = Tokra::Invoke.new(command: "cmd", payload:, responder:)
     invoke.resolve("result")
 
     assert_equal [[true, "result"]], calls
@@ -30,8 +41,9 @@ class TestInvoke < Minitest::Test
   def test_reject_calls_responder_with_failure
     calls = []
     responder = -> (success, value) { calls << [success, value] }
+    payload = {}
 
-    invoke = Tokra::Invoke.new(command: "cmd", payload: "", responder:)
+    invoke = Tokra::Invoke.new(command: "cmd", payload:, responder:)
     invoke.reject("error message")
 
     assert_equal [[false, "error message"]], calls
@@ -40,8 +52,9 @@ class TestInvoke < Minitest::Test
   def test_only_responds_once
     calls = []
     responder = -> (success, value) { calls << [success, value] }
+    payload = {}
 
-    invoke = Tokra::Invoke.new(command: "cmd", payload: "", responder:)
+    invoke = Tokra::Invoke.new(command: "cmd", payload:, responder:)
     invoke.resolve("first")
     invoke.resolve("second")
     invoke.reject("third")
@@ -51,7 +64,8 @@ class TestInvoke < Minitest::Test
   end
 
   def test_without_responder_does_not_error
-    invoke = Tokra::Invoke.new(command: "cmd", payload: "", responder: nil)
+    payload = {}
+    invoke = Tokra::Invoke.new(command: "cmd", payload:, responder: nil)
 
     # Should not raise
     invoke.resolve("value")

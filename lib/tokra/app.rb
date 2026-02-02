@@ -119,7 +119,12 @@ module Tokra
       handler = @builder.__send__(:invoke_handler_hook)
       return unless handler
 
-      invoke = Invoke.new(command: "", payload: event.message, responder: nil)
+      parsed = JSON.parse(event.message)
+      invoke = Invoke.new(
+        command: parsed["cmd"] || "",
+        payload: parsed,
+        responder: nil
+      )
       handler.call(invoke)
     end
 
