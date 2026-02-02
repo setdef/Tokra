@@ -14,3 +14,4 @@ crate-type = ["cdylib"]
 [dependencies]
 magnus = { git = "https://github.com/matsadler/magnus", branch = "main" }
 arboard = "3.6"
+rb-sys = "0.9"

@@ -9,6 +9,7 @@
 /pkg/
 /spec/reports/
 /tmp/
+/plugins/*/tmp/
 
 # Rust/Cargo build artifacts
 /target/
