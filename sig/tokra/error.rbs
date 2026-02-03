@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Base error class for all Tokra errors.
+  class Error < StandardError
+    # Raised when a resource ID is not found in a ResourceTable.
+    class BadResourceId < Error
+      attr_reader rid: Integer
+
+      def initialize: (Integer rid) -> void
+    end
+  end
+end

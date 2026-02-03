@@ -4,10 +4,25 @@
 module Tokra
   # Table for managing resources by integer ID.
   # Ported from Deno's resource system via Tauri.
+  #
+  # All stored resources must satisfy the _Resource interface
+  # (i.e., respond to #name and #close).
   class ResourceTable
-    @index: Hash[Integer, Object]
+    @index: Hash[Integer, _Resource]
 
     def initialize: () -> void
     def has?: (Integer rid) -> bool
+    def add: (_Resource resource) -> Integer
+    def get: (Integer rid) -> _Resource
+    def take: (Integer rid) -> _Resource
+    def close: (Integer rid) -> nil
+    def replace: (Integer rid, _Resource resource) -> void
+    def clear: () -> void
+    def names: () -> Enumerator[[Integer, String], void]
+             | () { ([Integer, String]) -> void } -> void
+
+    private
+
+    def next_rid: () -> Integer
   end
 end

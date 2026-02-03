@@ -15,4 +15,5 @@ target :lib do
   library "timeout"
   library "uri"
   library "stringio"
+  library "securerandom"
 end

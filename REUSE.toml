@@ -34,3 +34,8 @@ SPDX-License-Identifier = "CC0-1.0"
 path = '.gitmodules'
 SPDX-FileCopyrightText = "2026 Kerrick Long <me@kerricklong.com>"
 SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = 'test/fixtures/**'
+SPDX-FileCopyrightText = "2026 Kerrick Long <me@kerricklong.com>"
+SPDX-License-Identifier = "CC0-1.0"

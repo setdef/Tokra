@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # An RGBA image in row-major order from top to bottom.
+  class Image
+    include Resource
+
+    attr_reader rgba: String
+    attr_reader width: Integer
+    attr_reader height: Integer
+
+    def initialize: (rgba: String, width: Integer, height: Integer) -> void
+                  | (String rgba, Integer width, Integer height) -> void
+
+    def name: () -> String
+  end
+end

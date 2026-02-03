@@ -8,6 +8,9 @@
 
 require_relative "tokra/version"
 require "json"
+require_relative "tokra/error"
+require_relative "tokra/resource"
+require_relative "tokra/image"
 require_relative "tokra/native"
 require_relative "tokra/native/events"
 require_relative "tokra/run_event"
@@ -38,9 +41,6 @@ require_relative "tokra/rack/handler"
 
 # Tokra is a port of Tauri to Ruby.
 module Tokra
-  # Base error class for all Tokra errors.
-  class Error < StandardError; end
-
   # Mix Manager into native classes for Tauri parity.
   # In Tauri, Manager is implemented for AppHandle, Window, Webview, and App.
   Native::Window.include(Manager)

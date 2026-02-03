@@ -14,7 +14,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - `Tokra::Webview` wrapper class with per-webview `ResourceTable`
 - `Tokra::Window` wrapper class with per-window `ResourceTable`
-- `Tokra::ResourceTable` placeholder for Phase 2.1 resource management
+- `Tokra::ResourceTable` with full lifecycle management:
+  - `add(resource)` returns unique integer ID
+  - `get(rid)` retrieves resource by ID
+  - `take(rid)` removes without calling close
+  - `close(rid)` removes and calls resource.close
+  - `replace(rid, resource)` updates existing slot
+  - `clear` removes all resources
+  - `names` enumerator for debugging
+- `Tokra::Resource` mixin module (mirrors Tauri's Resource trait)
+- `Tokra::Image` data class for RGBA images with ResourceTable integration
+- `Tokra::Error` base class with nested `BadResourceId` exception
 - `Invoke#webview` accessor returns calling webview (now required parameter)
 - `AppHandle#windows` returns all managed windows
 - `AppHandle#get_window(label)` fetches window by label

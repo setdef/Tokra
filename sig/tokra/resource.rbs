@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Interface for objects stored in ResourceTable.
+  interface _Resource
+    def name: () -> String
+    def close: () -> void
+  end
+
+  # Mixin for objects stored in ResourceTable.
+  module Resource : _Resource
+    def name: () -> String
+    def close: () -> nil
+  end
+end
