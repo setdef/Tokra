@@ -9,7 +9,7 @@ module Tokra
   # Base error class for all Tokra errors.
   #
   # Error subclasses are nested under this class to mirror Tauri's
-  # +tauri::Error+ enum structure.
+  # <tt>tauri::Error</tt> enum structure.
   #
   # Example:
   #   begin
@@ -19,9 +19,16 @@ module Tokra
   #   end
   #
   class Error < StandardError
+    # Raised when image bytes cannot be decoded.
+    #
+    # Mirrors <tt>tauri::Error::Image(ImageError)</tt>; the message keeps
+    # Tauri's "failed to process image" prefix.
+    class Image < Error
+    end
+
     # Raised when a resource ID is not found in a ResourceTable.
     #
-    # Mirrors +tauri::Error::BadResourceId(rid)+.
+    # Mirrors <tt>tauri::Error::BadResourceId(rid)</tt>.
     class BadResourceId < Error
       # The resource ID that was not found.
       attr_reader :rid
@@ -31,7 +38,7 @@ module Tokra
       # +rid+:: the resource ID that was not found
       def initialize(rid)
         @rid = rid
-        super("Resource ID #{rid} not found")
+        super("The resource id #{rid} is invalid.")
       end
     end
   end

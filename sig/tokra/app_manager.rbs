@@ -7,7 +7,8 @@ module Tokra
     attr_reader config: Config
     attr_reader webviews: Hash[String, Webview]
     attr_reader windows: Hash[String, Window]
+    attr_reader plugins: PluginStore
 
-    def self.new: (config: Config, webviews: Hash[String, Webview], windows: Hash[String, Window]) -> AppManager
+    def self.new: (config: Config, webviews: Hash[String, Webview], windows: Hash[String, Window], ?plugins: PluginStore) -> AppManager
   end
 end

@@ -17,7 +17,7 @@ module Tokra
   class Builder
     # Creates a new Builder with default configuration.
     #
-    # This mirrors Tauri's +Builder::default()+ which implements the Default trait.
+    # This mirrors Tauri's <tt>Builder::default()</tt> which implements the Default trait.
     def self.default
       new
     end
@@ -113,7 +113,7 @@ module Tokra
     # Builds the configured application.
     #
     # Returns an App instance ready to run.
-    # +native:+ can be injected for testing with mock native components.
+    # <tt>native:</tt> can be injected for testing with mock native components.
     def build(native: Native)
       App.new(self, native:)
     end
@@ -122,7 +122,7 @@ module Tokra
     #
     # This is a convenience for Builder#build followed by App#run.
     # Accepts an optional block for runtime events.
-    # +native:+ can be injected for testing with mock native components.
+    # <tt>native:</tt> can be injected for testing with mock native components.
     def run(native: Native, &callback)
       app = build(native:)
       if callback

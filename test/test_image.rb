@@ -9,6 +9,39 @@ require "test_helper"
 
 # Tests for Tokra::Image.
 class TestImage < Minitest::Test
+  def test_from_bytes_decodes_png
+    image = Tokra::Image.from_bytes(File.binread(fixture_path("2x2.png")))
+
+    assert_equal 2, image.width, "should decode PNG width"
+    assert_equal 2, image.height, "should decode PNG height"
+    assert_equal File.binread(fixture_path("2x2_rgba.bin")), image.rgba,
+      "decoded RGBA should match the known raw pixels"
+  end
+
+  def test_from_bytes_decodes_ico
+    image = Tokra::Image.from_bytes(File.binread(fixture_path("2x2.ico")))
+
+    assert_equal 2, image.width, "should decode ICO width"
+    assert_equal File.binread(fixture_path("2x2_rgba.bin")), image.rgba,
+      "decoded RGBA should match the known raw pixels"
+  end
+
+  def test_from_bytes_raises_error_image_for_undecodable_bytes
+    error = assert_raises(Tokra::Error::Image) { Tokra::Image.from_bytes("garbage") }
+    assert_match(/\Afailed to process image/, error.message,
+      "message should keep Tauri's failed-to-process-image prefix")
+  end
+
+  def test_from_path_decodes_file
+    image = Tokra::Image.from_path(fixture_path("2x2.png"))
+
+    assert_equal 2, image.height, "should decode the file at path"
+  end
+
+  def test_from_path_raises_for_missing_file
+    assert_raises(Errno::ENOENT) { Tokra::Image.from_path(fixture_path("missing.png")) }
+  end
+
   def test_stores_rgba_data
     rgba = "\xFF\x00\x00\xFF".b # 1x1 red pixel
     image = Tokra::Image.new(rgba:, width: 1, height: 1)
@@ -83,5 +116,10 @@ class TestImage < Minitest::Test
     ensure
       output_file.close!
     end
+  end
+
+  # Returns the absolute path of a fixture file.
+  private def fixture_path(name)
+    File.expand_path("fixtures/#{name}", __dir__)
   end
 end

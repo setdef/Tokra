@@ -23,8 +23,8 @@ module Tokra
       # Creates a new Resolver with the given configuration.
       #
       # +config+ must have an +identifier+ method (the bundle identifier).
-      # +platform:+ can be injected for testing (defaults to RUBY_PLATFORM).
-      # +native:+ can be injected for testing (defaults to Tokra::Native).
+      # <tt>platform:</tt> can be injected for testing (defaults to RUBY_PLATFORM).
+      # <tt>native:</tt> can be injected for testing (defaults to Tokra::Native).
       def initialize(config, platform: RUBY_PLATFORM, native: Native)
         @identifier = config.identifier
         @platform = platform

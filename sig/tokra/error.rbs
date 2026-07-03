@@ -4,6 +4,10 @@
 module Tokra
   # Base error class for all Tokra errors.
   class Error < StandardError
+    # Raised when image bytes cannot be decoded.
+    class Image < Error
+    end
+
     # Raised when a resource ID is not found in a ResourceTable.
     class BadResourceId < Error
       attr_reader rid: Integer

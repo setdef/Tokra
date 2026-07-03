@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Resources
+    interface _ResourcesTableHolder
+      def resources_table: () -> ResourceTable
+    end
+
+    class Plugin < Tokra::Plugin
+      def name: () -> String
+      def extend_api: (Invoke invoke) -> bool
+
+      private
+
+      def try_close: (_ResourcesTableHolder manager, Integer rid) -> Error::BadResourceId?
+    end
+  end
+end

@@ -26,6 +26,8 @@ module Tokra
       @state_manager = state_manager
     end
 
+    private attr_reader :manager
+
     # Returns self since this is already an app handle.
     def app_handle
       self
@@ -81,6 +83,34 @@ module Tokra
     # Created lazily on first access.
     def resources_table
       @resources_table ||= ResourceTable.new
+    end
+
+    # Adds a plugin to the application.
+    #
+    # The plugin's extend_api hook receives IPC commands invoked as
+    # <tt>plugin:NAME|command</tt>, where NAME is the plugin's name.
+    # Registering a plugin with an existing name replaces it.
+    #
+    # Returns +true+ if a same-named plugin was replaced, +false+ otherwise.
+    # Mirrors Tauri's AppHandle::plugin (app.rs).
+    #
+    # === Example
+    #
+    #   handle.plugin(MyPlugin.new(handle))
+    def plugin(plugin)
+      @manager.plugins.register(plugin)
+    end
+
+    # Removes the plugin with the given name from the application.
+    #
+    # Returns +true+ if a plugin was removed, +false+ otherwise.
+    # Mirrors Tauri's AppHandle::remove_plugin (app.rs).
+    #
+    # === Example
+    #
+    #   handle.remove_plugin("my-plugin")  #=> true
+    def remove_plugin(name)
+      @manager.plugins.unregister(name)
     end
 
     # Returns the path resolver for app directories.

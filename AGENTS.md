@@ -11,7 +11,11 @@ Project Name: tokra
 
 Description: A port of Tauri to Ruby, enabling you to build desktop applications with web technologies.
 
-Architecture: [@/oop] for te [@/rubyist].
+**Design Philosophy:** This is a 1:1 architectural port of Tauri. Design decisions follow this precedence:
+
+1. **Ruby the language** — What Ruby can and cannot express. Rust-specific constructs (ownership, lifetimes, module-path metadata) and Ruby-specific constraints (gem packaging, stdlib APIs) may require structural adaptation.
+2. **Tauri port fidelity** — Method names, class structure, error messages, and API shapes MUST match Tauri's Rust source. Refer to the Tauri source as the authoritative reference.
+3. **Ruby the culture** — Community idioms, conventions, and "the Ruby way." These yield when they conflict with port fidelity. Do NOT redesign APIs to be "more Ruby-like."
 
 ## Stability & Compatibility
 
@@ -42,6 +46,7 @@ Architecture: [@/oop] for te [@/rubyist].
 
 ### Ruby Standards
 
+- Class names, method names, and module structure should mirror Tauri's Rust source unless Ruby's language constraints require adaptation.
 - Use `Data.define` for all value objects. (Prefer `class Foo < Data.define()` over `Foo = Data.define() do`).
 - Use `class` for all entities.
 - Define types in `.rbs` files. Don't use `untyped` just because it's easy; be comprehensive and accurate.
@@ -117,10 +122,11 @@ The project follows a standard Gem layout with `examples/` added to show other r
 Before considering a task complete and returning control to the user, you **MUST** ensure:
 
 0. **Production Ready:** RBS types are complete and accurate (no `untyped`), errors are handled with good DX, documentation follows guidelines, high code quality (no "pre-existing debt" excuses).
-1.  **Default Rake Task Passes:** Run `bundle exec rake` (no args). Confirm it passes with ZERO errors **and ZERO warnings**.
+1.  **Tauri Parity:** Verify that new or changed API shapes (method names, class structure, error messages) match Tauri's Rust source.
+2.  **Default Rake Task Passes:** Run `bundle exec rake` (no args). Confirm it passes with ZERO errors **and ZERO warnings**.
   - You will save time if you run `bundle exec rake rubocop:autocorrect` first.
   - If you think the Rake is looking for deleted files, STOP EVERYTHING and tell the user.
-2.  **Documentation Updated:** If public APIs or observable behavior changed, update relevant RDoc, RBS, `doc/` files, and/or `README.md`.
-3.  **Changelog Updated:** If public APIs, observable behavior, or gemspec dependencies have changed, update [CHANGELOG.md](CHANGELOG.md)'s **Unreleased** section.
-4.  **Commit Message Suggested:** You **MUST** ensure the final message to the user includes a suggested commit message block. This is NOT optional.
+3.  **Documentation Updated:** If public APIs or observable behavior changed, update relevant RDoc, RBS, `doc/` files, and/or `README.md`.
+4.  **Changelog Updated:** If public APIs, observable behavior, or gemspec dependencies have changed, update [CHANGELOG.md](CHANGELOG.md)'s **Unreleased** section.
+5.  **Commit Message Suggested:** You **MUST** ensure the final message to the user includes a suggested commit message block. This is NOT optional.
   - You MUST also check `git log -n1` to see the current standard AI footer ("Generated  with" and "Co-Authored-By") and include it in your suggested message.

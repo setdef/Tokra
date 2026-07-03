@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class Image
+    class Plugin < Tokra::Plugin
+      def name: () -> String
+      def extend_api: (Invoke invoke) -> bool
+
+      private
+
+      def handle_new: (Invoke invoke) -> bool
+      def handle_rgba: (Invoke invoke) -> bool
+      def handle_size: (Invoke invoke) -> bool
+      def handle_from_bytes: (Invoke invoke) -> bool
+      def handle_from_path: (Invoke invoke) -> bool
+      def image_arg: (Invoke invoke) -> Image
+      def integer_arg: (Invoke invoke, String key) -> Integer
+      def array_arg: (Invoke invoke, String key) -> Array[json_value]
+      def string_arg: (Invoke invoke, String key) -> String
+    end
+  end
+end

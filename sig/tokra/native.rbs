@@ -71,5 +71,8 @@ module Tokra
     # Path resolution functions from dirs crate.
     def self.home_dir: () -> String
     def self.data_local_dir: () -> String
+
+    # Image decoding functions from image crate.
+    def self.image_from_bytes: (String bytes) -> [String, Integer, Integer]
   end
 end

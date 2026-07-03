@@ -35,7 +35,7 @@ module Tokra
     # The event loop will exit after dispatching this event.
     WindowCloseEvent = Data.define
 
-    # HTTP request from WebView via the +tokra://+ custom protocol.
+    # HTTP request from WebView via the <tt>tokra://</tt> custom protocol.
     #
     # Contains all request data including a +request_id+ for correlating
     # the async response via +proxy.respond()+.

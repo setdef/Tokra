@@ -34,7 +34,7 @@ module Tokra
     # Creates a new App from a configured Builder.
     #
     # This is called by Builder#build and should not be called directly.
-    # +native:+ can be injected for testing with mock native components.
+    # <tt>native:</tt> can be injected for testing with mock native components.
     def initialize(builder, native: Native) # :nodoc:
       @config = DEFAULT_CONFIG.dup
       config = Config.new(
@@ -42,9 +42,13 @@ module Tokra
         product_name: @config[:product_name]&.to_s,
         version: @config[:version]&.to_s
       )
-      manager = AppManager.new(config:, webviews: {}, windows: {})
-      @handle = AppHandle.new(manager, state_manager: builder.__send__(:state_manager))
+      @manager = AppManager.new(config:, webviews: {}, windows: {})
+      @handle = AppHandle.new(@manager, state_manager: builder.__send__(:state_manager))
       @builder = builder
+
+      # Register core plugins, mirroring Tauri app.rs (App::build)
+      @handle.plugin(Resources::Plugin.new(@handle))
+      @handle.plugin(Image::Plugin.new(@handle))
       # Store class references to avoid dynamic constant lookups
       @event_loop_class = native.const_get(:EventLoop)
       @window_class = native.const_get(:Window)
@@ -125,17 +129,38 @@ module Tokra
     end
 
     private def dispatch_ipc(event)
-      handler = @builder.__send__(:invoke_handler_hook)
-      return unless handler
-
       parsed = JSON.parse(event.message)
+      cmd = parsed["cmd"] || ""
+
+      if cmd.start_with?("plugin:")
+        dispatch_plugin_command(cmd, parsed)
+      else
+        invoke = Invoke.new(
+          command: cmd,
+          payload: parsed,
+          responder: nil,
+          webview: @webview # steep:ignore ArgumentTypeMismatch
+        )
+        handled = @builder.__send__(:invoke_handler_hook)&.call(invoke)
+        invoke.reject("Command #{cmd} not found") unless handled
+      end
+    end
+
+    # Routes a plugin:NAME|command invoke to the plugin store.
+    #
+    # The command is rewritten to the bare name before the plugin's
+    # extend_api hook sees it, exactly as Tauri does in webview/mod.rs.
+    # A missing | separator yields an empty command.
+    private def dispatch_plugin_command(cmd, parsed)
+      plugin_name, command = cmd.delete_prefix("plugin:").split("|", 2)
       invoke = Invoke.new(
-        command: parsed["cmd"] || "",
+        command: command || "",
         payload: parsed,
         responder: nil,
         webview: @webview # steep:ignore ArgumentTypeMismatch
       )
-      handler.call(invoke)
+      handled = @manager.plugins.extend_api(plugin_name || "", invoke)
+      invoke.reject("Command #{command} not found") unless handled
     end
 
     private def dispatch_page_load(event)

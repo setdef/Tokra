@@ -13,7 +13,7 @@
 module Tokra
   # A position in physical (pixel) coordinates.
   #
-  # Maps to Tauri's +dpi::PhysicalPosition<f64>+.
+  # Maps to Tauri's <tt>dpi::PhysicalPosition</tt> (dpi/mod.rs).
   class PhysicalPosition < Data.define(:x, :y)
   end
 end

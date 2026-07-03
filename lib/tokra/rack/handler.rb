@@ -14,7 +14,7 @@ module Rack # :nodoc:
     #
     # This allows any Rack application (Rails, Roda, Sinatra, etc.) to run inside
     # a Tokra desktop window without a TCP server. The WebView makes requests to
-    # +tokra://localhost/path+ and this handler translates them to Rack calls.
+    # <tt>tokra://localhost/path</tt> and this handler translates them to Rack calls.
     #
     # == Usage
     #
@@ -51,9 +51,9 @@ module Rack # :nodoc:
         #
         # +app+ is any Rack application (responds to #call).
         # +options+ may include:
-        # - +:title+ - Window title (default: "Tokra")
-        # - +:width+ - Window width in pixels (default: 800)
-        # - +:height+ - Window height in pixels (default: 600)
+        # - <tt>:title</tt> - Window title (default: "Tokra")
+        # - <tt>:width</tt> - Window width in pixels (default: 800)
+        # - <tt>:height</tt> - Window height in pixels (default: 600)
         #
         # == Example
         #
@@ -98,7 +98,7 @@ module Rack # :nodoc:
       # +app+ is any Rack application (responds to #call).
       # +proxy+ is the Tokra::Native::Proxy for responding to requests.
       #
-      # Note: For most use cases, prefer +Rack::Handler::Tokra.run(app)+
+      # Note: For most use cases, prefer <tt>Rack::Handler::Tokra.run(app)</tt>
       # which handles all setup automatically.
       def initialize(app, proxy)
         @app = app

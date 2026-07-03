@@ -6,6 +6,7 @@ module Tokra
   interface _Resource
     def name: () -> String
     def close: () -> void
+    def is_a?: (Module) -> bool
   end
 
   # Mixin for objects stored in ResourceTable.

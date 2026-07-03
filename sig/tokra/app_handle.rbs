@@ -20,8 +20,14 @@ module Tokra
     def get_window: (String label) -> Window?
     def get_webview: (String label) -> Webview?
     def resources_table: -> ResourceTable
+    def plugin: (_Plugin plugin) -> bool
+    def remove_plugin: (String name) -> bool
     def emit: (String event_name, ::_ToJson payload) -> void
     def exit: (?Integer code) -> void
     def path: -> Path::Resolver
+
+    private
+
+    def manager: () -> AppManager
   end
 end

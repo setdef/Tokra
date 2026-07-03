@@ -115,4 +115,67 @@ module Tokra
       nil
     end
   end
+
+  # SPDX-SnippetBegin
+  # SPDX-License-Identifier: Apache-2.0 OR MIT
+  # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+  # SPDX-SnippetComment: PluginStore adapted from tauri/crates/tauri/src/plugin.rs
+
+  # Routes IPC commands to registered plugins by name.
+  #
+  # A Tokra app hosts many plugins, each owning its own IPC commands.
+  # Dispatching every command to every plugin would be slow, and one
+  # plugin could shadow another's commands.
+  #
+  # This store keeps one plugin per name and routes each
+  # <tt>plugin:NAME|command</tt> invoke to exactly one extend_api hook.
+  # Mirrors Tauri's PluginStore (plugin.rs).
+  #
+  # === Example
+  #
+  #   store = Tokra::PluginStore.new
+  #   store.register(MyPlugin.new(handle))
+  #   store.extend_api("my-plugin", invoke)  #=> true when handled
+  #
+  class PluginStore
+    # Creates an empty store.
+    def initialize
+      @store = []
+    end
+
+    # Adds a plugin to the store, replacing any same-named plugin.
+    #
+    # Returns +true+ if an existing plugin was replaced, +false+ otherwise.
+    def register(plugin)
+      length_before = @store.length
+      @store.reject! { |p| p.name == plugin.name }
+      @store.push(plugin)
+      length_before != @store.length - 1
+    end
+
+    # Removes the plugin with the given name from the store.
+    #
+    # Returns +true+ if a plugin was removed, +false+ otherwise.
+    def unregister(name)
+      length_before = @store.length
+      @store.reject! { |p| p.name == name }
+      length_before != @store.length
+    end
+
+    # Routes an invoke to the named plugin's extend_api hook.
+    #
+    # Returns whether the invoke was handled. The invoke is not handled
+    # when the plugin exists *and* the command does not. When no plugin
+    # has the given name, the invoke is rejected and +true+ is returned,
+    # matching Tauri's PluginStore#extend_api.
+    def extend_api(name, invoke)
+      plugin = @store.find { |p| p.name == name }
+      return plugin.extend_api(invoke) if plugin
+
+      invoke.reject("plugin #{name} not found")
+      true
+    end
+  end
+
+  # SPDX-SnippetEnd
 end

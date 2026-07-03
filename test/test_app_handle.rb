@@ -15,6 +15,43 @@ class TestAppHandle < Minitest::Test
     Tokra::AppHandle.new(manager)
   end
 
+  # Named plugin recording extend_api calls.
+  class GreetPlugin < Tokra::Plugin
+    attr_reader :invokes
+
+    def initialize(app = nil, config = {})
+      super
+      @invokes = []
+    end
+
+    def name = "greet"
+
+    def extend_api(invoke)
+      @invokes << invoke
+      true
+    end
+  end
+
+  def test_plugin_registers_for_ipc_dispatch
+    handle = create_handle
+    plugin = GreetPlugin.new
+
+    replaced = handle.plugin(plugin)
+
+    refute replaced, "plugin should return false when nothing was replaced"
+    invoke = Tokra::Invoke.new(command: "hello", payload: {}, responder: nil, webview: nil)
+    assert handle.__send__(:manager).plugins.extend_api("greet", invoke)
+    assert_equal [invoke], plugin.invokes, "registered plugin should receive invokes"
+  end
+
+  def test_remove_plugin_unregisters
+    handle = create_handle
+    handle.plugin(GreetPlugin.new)
+
+    assert handle.remove_plugin("greet"), "remove_plugin should return true when removed"
+    refute handle.remove_plugin("greet"), "remove_plugin should return false when absent"
+  end
+
   def test_resources_table_returns_resource_table
     handle = create_handle
     assert_instance_of Tokra::ResourceTable, handle.resources_table

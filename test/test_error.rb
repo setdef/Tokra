@@ -14,9 +14,10 @@ class TestError < Minitest::Test
     assert_equal 42, error.rid, "BadResourceId should store the rid that was not found"
   end
 
-  def test_bad_resource_id_message_includes_rid
+  def test_bad_resource_id_message_matches_tauri
     error = Tokra::Error::BadResourceId.new(999)
-    assert_match(/999/, error.message, "Error message should include the rid")
+    assert_equal "The resource id 999 is invalid.", error.message,
+      "Error message must match tauri::Error::BadResourceId (error.rs)"
   end
 
   def test_bad_resource_id_is_tokra_error

@@ -17,6 +17,7 @@
 //! - [`webview`] - `WebView` wrapper with custom protocol (`Tokra::Native::WebView`)
 //! - [`proxy`] - Ractor-safe proxy for cross-thread communication (`Tokra::Native::Proxy`)
 //! - [`responders`] - Async protocol responder storage
+//! - [`image`] - PNG/ICO decoding (`Tokra::Native.image_from_bytes`)
 //!
 //! # Thread Safety Model
 //!
@@ -44,6 +45,7 @@
 // SPDX-SnippetEnd
 
 mod event_loop;
+mod image;
 mod path;
 mod proxy;
 mod responders;
@@ -100,6 +102,9 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
 
     // Path resolution functions (thin wrapper around dirs crate)
     path::define_functions(ruby, native)?;
+
+    // Image decoding functions (thin wrapper around image crate)
+    image::define_functions(ruby, native)?;
 
     // Note: Event classes (IpcEvent, WakeUpEvent, etc.) are now defined in Ruby
     // using Data.define in lib/tokra/native/events.rb

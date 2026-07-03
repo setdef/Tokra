@@ -13,6 +13,7 @@ module Tokra
     def initialize: (rgba: String, width: Integer, height: Integer) -> void
                   | (String rgba, Integer width, Integer height) -> void
 
-    def name: () -> String
+    def self.from_bytes: (String bytes) -> Image
+    def self.from_path: (String path) -> Image
   end
 end

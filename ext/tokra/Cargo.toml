@@ -14,11 +14,12 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-magnus = { git = "https://github.com/matsadler/magnus", branch = "main" }
+magnus = { git = "https://github.com/matsadler/magnus", branch = "main", features = ["bytes"] }
 tao = "0.34.5"
 wry = "0.54.1"
 ctrlc = "3.4"
 dirs = "6.0"
+image = { version = "0.25", default-features = false, features = ["ico", "png"] }
 
 [lints]
 workspace = true

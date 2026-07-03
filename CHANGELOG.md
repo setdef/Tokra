@@ -31,6 +31,22 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `AppHandle#get_webview(label)` fetches webview by label
 - `AppHandle#resources_table` returns app-level fallback table
 - `Manager#resources_table` abstract method for unified interface
+- `Tokra::PluginStore` routes `plugin:NAME|command` invokes to the named plugin
+- `AppHandle#plugin(plugin)` registers a plugin for IPC dispatch
+- `AppHandle#remove_plugin(name)` unregisters a plugin by name
+- Plugin `extend_api` receives the bare command name (prefix stripped)
+- Unhandled IPC commands are rejected with `Command <name> not found`
+- Core `resources` plugin, registered automatically:
+  - `plugin:resources|close` closes a resource (webview, then window, then app)
+- Core `image` plugin, registered automatically:
+  - `plugin:image|new` stores an RGBA image and resolves its resource ID
+  - `plugin:image|rgba` resolves the stored image's bytes
+  - `plugin:image|size` resolves the stored image's width and height
+  - `plugin:image|from_bytes` decodes PNG or ICO bytes into a stored image
+  - `plugin:image|from_path` decodes a PNG or ICO file into a stored image
+- `Tokra::Image.from_bytes` decodes PNG or ICO bytes to raw RGBA
+- `Tokra::Image.from_path` decodes a PNG or ICO file to raw RGBA
+- `Tokra::Error::Image` raised when image bytes cannot be decoded
 
 ### Changed
 

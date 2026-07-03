@@ -14,7 +14,15 @@ module Tokra
   # Internal manager for application state (minimal MVP subset of Tauri's AppManager).
   #
   # See tauri/src/manager/mod.rs AppManager
-  AppManager = Data.define(:config, :webviews, :windows)
+  class AppManager < Data.define(:config, :webviews, :windows, :plugins)
+    # Creates a new AppManager.
+    #
+    # +plugins+ defaults to an empty PluginStore, mirroring Tauri's
+    # AppManager which always owns its plugin store.
+    def self.new(config:, webviews:, windows:, plugins: PluginStore.new)
+      super
+    end
+  end
 end
 
 # SPDX-SnippetEnd

@@ -20,6 +20,11 @@ module Tokra
   # +name+:: returns the class name (for debugging)
   # +close+:: is a no-op (override for cleanup)
   #
+  # The resource protocol also relies on Object#is_a? for typed retrieval,
+  # mirroring the +Any+ bound on Tauri's Resource trait, which lets
+  # Tauri's ResourceTable downcast a stored resource to a concrete type
+  # like Image.
+  #
   # Example:
   #   class MyResource
   #     include Tokra::Resource

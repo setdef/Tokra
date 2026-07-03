@@ -14,9 +14,9 @@ module Tokra
   # An RGBA image in row-major order from top to bottom.
   #
   # Stores raw pixel data as bytes. Each pixel is 4 bytes (RGBA).
-  # Total bytes should equal +width * height * 4+.
+  # Total bytes should equal <tt>width * height * 4</tt>.
   #
-  # Mirrors Tauri's +Image<'a>+ struct. This class includes the Resource
+  # Mirrors Tauri's Image struct (image/mod.rs). This class includes the Resource
   # module for ResourceTable compatibility.
   #
   # Example:
@@ -26,6 +26,42 @@ module Tokra
   #
   class Image < Data.define(:rgba, :width, :height)
     include Resource
+
+    # Creates an Image by decoding PNG or ICO bytes.
+    #
+    # Icons and clipboard graphics usually arrive as encoded files, not
+    # raw pixels. Decoding them by hand means porting a PNG decoder.
+    #
+    # This method decodes natively, using the same image crate as Tauri,
+    # and returns an Image holding raw RGBA data. Only PNG and ICO are
+    # supported, matching Tauri's Image::from_bytes (image/mod.rs).
+    #
+    # Raises Error::Image when the bytes cannot be decoded.
+    #
+    # === Example
+    #
+    #   image = Tokra::Image.from_bytes(File.binread("icon.png"))
+    #   image.width  #=> 32
+    def self.from_bytes(bytes)
+      rgba, width, height = Native.image_from_bytes(bytes)
+      new(rgba:, width:, height:)
+    rescue RuntimeError => e
+      raise Error::Image, e.message
+    end
+
+    # Creates an Image by decoding the PNG or ICO file at +path+.
+    #
+    # Matches Tauri's Image::from_path (image/mod.rs).
+    #
+    # Raises Error::Image when the file cannot be decoded, or a
+    # SystemCallError when it cannot be read.
+    #
+    # === Example
+    #
+    #   image = Tokra::Image.from_path("assets/icon.ico")
+    def self.from_path(path)
+      from_bytes(File.binread(path))
+    end
   end
 end
 
