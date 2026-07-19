@@ -9,7 +9,19 @@ require "minitest/autorun"
 require "tokra-clipboard"
 
 # Tests for Tokra::Plugins::Clipboard::Plugin.
+#
+# The construction-error arm (arboard failing in Clipboard.new, e.g. on a
+# clipboard-less system) is not testable on a machine with a working
+# clipboard; it is verified by review against desktop.rs:11-19.
 class TestClipboard < Minitest::Test
+  # Same 16 bytes as core's test/fixtures/2x2_rgba.bin: red, green, blue, white.
+  RGBA_2X2 = "\xFF\x00\x00\xFF\x00\xFF\x00\xFF\x00\x00\xFF\xFF\xFF\xFF\xFF\xFF".b
+
+  # arboard's ContentNotAvailable message — also what Tauri's rejected
+  # promise carries, since Error::Clipboard(String) formats as "{0}".
+  EMPTY_CLIPBOARD_MESSAGE =
+    "The clipboard contents were not available in the requested format or the clipboard is empty."
+
   private def stub_webview
     Tokra::Webview.new(label: "test", native: Object.new, window: Object.new, app_handle: Object.new)
   end
@@ -37,8 +49,10 @@ class TestClipboard < Minitest::Test
     plugin = Tokra::Plugins::Clipboard::Plugin.new
     plugin.write_text("to_be_cleared")
     plugin.clear
-    # After clear, read_text returns nil
-    assert_nil plugin.read_text
+    # After clear, read_text raises arboard's message, matching Tauri's
+    # rejected promise (desktop.rs read_text propagates get_text errors)
+    error = assert_raises(RuntimeError) { plugin.read_text }
+    assert_equal EMPTY_CLIPBOARD_MESSAGE, error.message
   end
 
   def test_cleanup_prevents_further_use
@@ -46,6 +60,61 @@ class TestClipboard < Minitest::Test
     native = TokraClipboard::Native::Clipboard.new
     native.cleanup
     error = assert_raises(RuntimeError) { native.read_text }
+    assert_match(/cleaned up/i, error.message)
+  end
+
+  def test_write_and_read_image_roundtrip
+    native = TokraClipboard::Native::Clipboard.new
+    native.write_image(RGBA_2X2, 2, 2)
+
+    rgba, width, height = native.read_image
+
+    assert_equal 2, width
+    assert_equal 2, height
+    assert_equal RGBA_2X2, rgba
+  end
+
+  def test_read_image_raises_when_no_image
+    native = TokraClipboard::Native::Clipboard.new
+    native.clear
+    error = assert_raises(RuntimeError) { native.read_image }
+    assert_equal EMPTY_CLIPBOARD_MESSAGE, error.message
+  end
+
+  def test_write_image_with_wrong_byte_count_raises
+    native = TokraClipboard::Native::Clipboard.new
+    # The native layer raises arboard's ConversionFailure message; arboard
+    # 3.6.1's macOS backend would panic (aborting the VM) on the mismatch
+    error = assert_raises(RuntimeError) { native.write_image("\xFF".b, 2, 2) }
+    assert_match(/could not be converted/, error.message)
+  end
+
+  def test_write_html_sets_alt_text_as_plain_text
+    native = TokraClipboard::Native::Clipboard.new
+    native.write_html("<b>hi</b>", "hi")
+    # arboard writes alt_text as the plain-text flavor; reading it back
+    # verifies the write without a read-html API (arboard has none)
+    assert_equal "hi", native.read_text
+  end
+
+  def test_read_image_rejects_after_cleanup
+    native = TokraClipboard::Native::Clipboard.new
+    native.cleanup
+    error = assert_raises(RuntimeError) { native.read_image }
+    assert_match(/cleaned up/i, error.message)
+  end
+
+  def test_write_image_rejects_after_cleanup
+    native = TokraClipboard::Native::Clipboard.new
+    native.cleanup
+    error = assert_raises(RuntimeError) { native.write_image(RGBA_2X2, 2, 2) }
+    assert_match(/cleaned up/i, error.message)
+  end
+
+  def test_write_html_rejects_after_cleanup
+    native = TokraClipboard::Native::Clipboard.new
+    native.cleanup
+    error = assert_raises(RuntimeError) { native.write_html("<b>hi</b>", "hi") }
     assert_match(/cleaned up/i, error.message)
   end
 

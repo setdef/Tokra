@@ -5,8 +5,11 @@ module TokraClipboard
   module Native
     class Clipboard
       def self.new: () -> Clipboard
-      def read_text: () -> String?
+      def read_text: () -> String
       def write_text: (String) -> void
+      def read_image: () -> [String, Integer, Integer]
+      def write_image: (String rgba, Integer width, Integer height) -> void
+      def write_html: (String html, String? alt_text) -> void
       def clear: () -> void
       def cleanup: () -> void
     end
@@ -35,7 +38,7 @@ module Tokra
         def name: () -> String
         def initialize: () -> void
         def on_register: (Tokra::_Manager) -> void
-        def read_text: () -> String?
+        def read_text: () -> String
         def write_text: (String) -> void
         def clear: () -> void
         def extend_api: (Tokra::Invoke) -> bool

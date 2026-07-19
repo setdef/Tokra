@@ -62,7 +62,7 @@ module Tokra
       #   // Write text to clipboard
       #   await invoke("plugin:clipboard-manager|write_text", { text: "Hello" });
       #
-      #   // Read text from clipboard (returns string or null)
+      #   // Read text from clipboard (rejects when the clipboard is empty)
       #   const text = await invoke("plugin:clipboard-manager|read_text");
       #
       #   // Clear clipboard
@@ -101,7 +101,13 @@ module Tokra
 
         # Reads text from the clipboard.
         #
-        # Returns the clipboard text content, or +nil+ if empty.
+        # Returns the clipboard text content. An empty clipboard raises a
+        # RuntimeError carrying arboard's message, exactly as Tauri's
+        # <tt>read_text</tt> propagates the error to a rejected promise.
+        #
+        # *Warning*: Do not call this on the main thread on Linux — the
+        # underlying libraries may deadlock when reading data this app
+        # copied, for example text the user copied from the WebView.
         def read_text
           @native.read_text
         end

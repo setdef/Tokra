@@ -12,6 +12,9 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-magnus = { git = "https://github.com/matsadler/magnus", branch = "main" }
+magnus = { git = "https://github.com/matsadler/magnus", branch = "main", features = ["bytes"] }
 arboard = "3.6"
 rb-sys = "0.9"
+
+[lints]
+workspace = true
