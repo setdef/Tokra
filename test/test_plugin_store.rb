@@ -12,15 +12,16 @@ require "test_helper"
 # The store routes plugin:NAME|command invokes to the registered plugin
 # with that name, mirroring Tauri's PluginStore in plugin.rs.
 class TestPluginStore < Minitest::Test
-  # Minimal plugin recording extend_api calls.
+  # Minimal plugin recording extend_api and on_event calls.
   class RecordingPlugin < Tokra::Plugin
-    attr_reader :invokes
+    attr_reader :invokes, :events
 
     def initialize(app = nil, config = {}, name: "recording", handles: true)
       super(app, config)
       @plugin_name = name
       @handles = handles
       @invokes = []
+      @events = []
     end
 
     def name = @plugin_name
@@ -28,6 +29,10 @@ class TestPluginStore < Minitest::Test
     def extend_api(invoke)
       @invokes << invoke
       @handles
+    end
+
+    def on_event(app, event)
+      @events << [app, event]
     end
   end
 
@@ -108,6 +113,21 @@ class TestPluginStore < Minitest::Test
     assert handled, "extend_api should return true after rejecting an unknown plugin"
     assert_equal "plugin missing not found", rejected_message,
       "should reject with Tauri's plugin-not-found message"
+  end
+
+  def test_on_event_reaches_every_plugin
+    store = Tokra::PluginStore.new
+    first = RecordingPlugin.new(name: "first")
+    second = RecordingPlugin.new(name: "second")
+    store.register(first)
+    store.register(second)
+
+    app = Object.new
+    event = Tokra::RunEvent::Exit.new
+    store.on_event(app, event)
+
+    assert_equal [[app, event]], first.events, "first plugin should receive the app and event"
+    assert_equal [[app, event]], second.events, "second plugin should receive the app and event"
   end
 
   private def build_invoke(command, responder: nil)

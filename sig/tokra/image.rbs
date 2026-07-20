@@ -16,4 +16,17 @@ module Tokra
     def self.from_bytes: (String bytes) -> Image
     def self.from_path: (String path) -> Image
   end
+
+  class JsImage
+    @value: json_value
+
+    def initialize: (json_value value) -> void
+    def into_img: (ResourceTable resources_table) -> Image
+
+    private
+
+    def image_resource: (Integer rid, ResourceTable resources_table) -> Image
+    def rgba_image: (Hash[String, json_value] hash) -> Image
+    def pack_bytes: (Array[json_value] array) -> String
+  end
 end

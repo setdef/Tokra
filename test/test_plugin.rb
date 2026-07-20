@@ -15,7 +15,17 @@ require "test_helper"
 class TestPlugin < Minitest::Test
   def test_on_event_returns_nil_by_default
     plugin = Tokra::Plugin.allocate
-    assert_nil plugin.on_event(:some_event)
+    assert_nil plugin.on_event(:app, :some_event)
+  end
+
+  def test_window_created_returns_nil_by_default
+    plugin = Tokra::Plugin.allocate
+    assert_nil plugin.window_created(:window)
+  end
+
+  def test_webview_created_returns_nil_by_default
+    plugin = Tokra::Plugin.allocate
+    assert_nil plugin.webview_created(:webview)
   end
 
   def test_initialize_provides_app_and_config_to_subclasses

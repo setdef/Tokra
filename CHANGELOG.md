@@ -47,8 +47,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Tokra::Image.from_bytes` decodes PNG or ICO bytes to raw RGBA
 - `Tokra::Image.from_path` decodes a PNG or ICO file to raw RGBA
 - `Tokra::Error::Image` raised when image bytes cannot be decoded
+- `Tokra::JsImage#into_img` resolves a frontend image payload (resource ID,
+  byte array, file path, or RGBA hash) into a `Tokra::Image`
+- Registered plugins receive every `RunEvent` through `Plugin#on_event`,
+  before the run callback
 
 ### Changed
+
+- `Plugin#on_event` now receives the app handle: `on_event(app, event)` (breaking)
+- `Plugin#on_window_created` renamed to `Plugin#window_created` (breaking)
+- `Plugin#on_webview_created` renamed to `Plugin#webview_created` (breaking)
 
 ### Fixed
 

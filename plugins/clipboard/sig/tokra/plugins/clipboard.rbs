@@ -20,12 +20,8 @@ module Tokra
   module Plugins
     module Clipboard
       class Error < Tokra::Error
-      end
-
-      class ClipboardOccupiedError < Error
-      end
-
-      class ClipboardUnavailableError < Error
+        class Clipboard < Error
+        end
       end
 
       module ClipboardManagerExt
@@ -36,13 +32,23 @@ module Tokra
         @native: TokraClipboard::Native::Clipboard
 
         def name: () -> String
-        def initialize: () -> void
-        def on_register: (Tokra::_Manager) -> void
         def read_text: () -> String
         def write_text: (String) -> void
+        def read_image: () -> Tokra::Image
+        def write_image: (Tokra::Image) -> void
+        def write_html: (String html, ?String? alt_text) -> void
         def clear: () -> void
         def extend_api: (Tokra::Invoke) -> bool
-        def on_event: (Tokra::RunEvent::base) -> void
+        def on_event: (Tokra::AppHandle, Tokra::run_event) -> void
+
+        private
+
+        def handle_read_text: (Tokra::Invoke) -> bool
+        def handle_write_text: (Tokra::Invoke) -> bool
+        def handle_read_image: (Tokra::Invoke) -> bool
+        def handle_write_image: (Tokra::Invoke) -> bool
+        def handle_write_html: (Tokra::Invoke) -> bool
+        def handle_clear: (Tokra::Invoke) -> bool
       end
     end
   end

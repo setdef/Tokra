@@ -25,6 +25,7 @@ module Tokra
 
     private
 
+    def emit_run_event: (run_event event, (^(AppHandle, run_event) -> void)? callback) -> void
     def dispatch_event: (native_event event, (^(AppHandle, run_event) -> void)? callback, Native::Window window, Native::Proxy proxy) -> void
     def dispatch_http_request: (Native::HttpRequestEvent event, Native::Proxy proxy) -> void
     def dispatch_ipc: (Native::IpcEvent event) -> void

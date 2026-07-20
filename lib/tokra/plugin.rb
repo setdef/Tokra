@@ -24,7 +24,7 @@ module Tokra
   #       # Setup logic
   #     end
   #
-  #     def on_event(event)
+  #     def on_event(app, event)
   #       # Handle run loop events
   #     end
   #   end
@@ -52,11 +52,12 @@ module Tokra
     # The plugin configuration hash. Available to subclasses.
     attr_reader :config
 
-    # Called when an event is dispatched to the plugin.
+    # Called with the app handle for every run loop event.
     #
-    # Override in subclasses to handle events.
+    # Override in subclasses to handle events. Mirrors the Plugin trait's
+    # <tt>on_event(&mut self, app, event)</tt> (plugin.rs).
     # Returns +nil+ by default.
-    public def on_event(event)
+    public def on_event(app, event)
       nil
     end
 
@@ -93,17 +94,21 @@ module Tokra
 
     # Called when a window is created.
     #
-    # Override this to perform window-specific setup.
+    # Override this to perform window-specific setup. Named without an
+    # +on_+ prefix to mirror the Plugin trait's +window_created+
+    # (plugin.rs).
     # Returns +nil+ by default (no-op).
-    public def on_window_created(window)
+    public def window_created(window)
       nil
     end
 
     # Called when a webview is created.
     #
-    # Override this to perform webview-specific setup.
+    # Override this to perform webview-specific setup. Named without an
+    # +on_+ prefix to mirror the Plugin trait's +webview_created+
+    # (plugin.rs).
     # Returns +nil+ by default (no-op).
-    public def on_webview_created(webview)
+    public def webview_created(webview)
       nil
     end
 
@@ -174,6 +179,15 @@ module Tokra
 
       invoke.reject("plugin #{name} not found")
       true
+    end
+
+    # Dispatches a run event to every registered plugin.
+    #
+    # Plugins like the clipboard release native resources on
+    # RunEvent::Exit; without this fan-out those hooks never fire.
+    # Mirrors Tauri's PluginStore#on_event (plugin.rs).
+    def on_event(app, event)
+      @store.each { |plugin| plugin.on_event(app, event) }
     end
   end
 

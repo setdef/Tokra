@@ -83,7 +83,7 @@ module Tokra
       @handle.webviews["main"] = webview
 
       # Emit Ready event
-      callback&.call(@handle, RunEvent::Ready.new)
+      emit_run_event(RunEvent::Ready.new, callback)
 
       # Run the event loop, dispatching events
       event_loop.run(
@@ -93,7 +93,16 @@ module Tokra
       )
 
       # Emit Exit after loop ends
-      callback&.call(@handle, RunEvent::Exit.new)
+      emit_run_event(RunEvent::Exit.new, callback)
+    end
+
+    # Sends a run event to every registered plugin, then the user callback.
+    #
+    # Plugins hear events before the callback, matching Tauri's dispatch
+    # order in on_event_loop_event (app.rs).
+    private def emit_run_event(event, callback)
+      @manager.plugins.on_event(@handle, event)
+      callback&.call(@handle, event)
     end
 
     private def dispatch_event(event, callback, window, proxy)
@@ -178,7 +187,7 @@ module Tokra
       end
 
       # Also emit as RunEvent::WindowEvent
-      callback&.call(@handle, RunEvent::WindowEvent.new(label: "main", event:))
+      emit_run_event(RunEvent::WindowEvent.new(label: "main", event:), callback)
     end
 
     private def dispatch_webview_event(native_event)
