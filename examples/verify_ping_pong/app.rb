@@ -128,8 +128,12 @@ Rack::Handler::Tokra.run(
   title: "Tokra Ping-Pong",
   width: 500,
   height: 600,
-  # This acts like Tauri's invoke_handler, receiving IPC messages
-  invoke_handler: proc { |msg| LOGGER.info("Sent via IPC: #{msg}") }
+  # Tauri's invoke_handler: it receives an Invoke and resolves the
+  # frontend promise. Must be Ractor-shareable, so it captures nothing.
+  invoke_handler: Ractor.shareable_proc { |invoke|
+    invoke.resolve("PONG: #{invoke.payload['message']}")
+    true
+  }
 )
 
 LOGGER.info { "Event loop exited" }

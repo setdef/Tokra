@@ -29,6 +29,61 @@ module Tokra
       @window_event_listeners = []
       @webview_event_listeners = []
       @state_manager = StateManager.new
+      @rack_app = nil
+      @window_config = {}
+    end
+
+    # Sets the window title.
+    #
+    # Mirrors the <tt>.title(...)</tt> step in ADR 004's Builder API.
+    #
+    # === Example
+    #
+    #   Tokra::Builder.new.title("My App").run
+    def title(title)
+      @window_config[:title] = title
+      self
+    end
+
+    # Sets the window size in logical pixels.
+    #
+    # Mirrors the <tt>.size(width, height)</tt> step in ADR 004's Builder API.
+    #
+    # === Example
+    #
+    #   Tokra::Builder.new.size(1024, 768).run
+    def size(width, height)
+      @window_config[:width] = width.to_f
+      @window_config[:height] = height.to_f
+      self
+    end
+
+    # Sets the Rack application served over the <tt>tokra://</tt> protocol.
+    #
+    # A Tokra window has no TCP server. Instead of pointing the WebView at
+    # <tt>http://localhost:3000</tt>, the WebView loads <tt>tokra://localhost/</tt>
+    # and the framework calls your Rack app in-process for each request.
+    #
+    # Pass any Rack application (Rails, Roda, Sinatra) and the built App
+    # serves it, following redirects and forwarding cookies. Mirrors the
+    # <tt>.app(MyRackApp)</tt> context step in ADR 004; the request/response
+    # translation is handled by <tt>Rack::Handler::Tokra</tt>.
+    #
+    # === Example
+    #
+    #   Tokra::Builder.new
+    #     .app(MyRodaApp.freeze.app)
+    #     .title("My App")
+    #     .run
+    def app(rack_app)
+      # Defensive runtime check: the type contract says Rack app, but Ruby
+      # callers can pass anything, so we validate for a clear error.
+      unless rack_app.respond_to?(:call) # steep:ignore NoMethod
+        raise Error, "app must be a Rack application (respond to #call)"
+      end
+
+      @rack_app = rack_app
+      self
     end
 
     # Registers managed state accessible via AppHandle.
@@ -135,7 +190,7 @@ module Tokra
     # Consider these "friendly" -- public to Tokra, private to app devs.
     attr_reader :state_manager, :invoke_handler_hook, :uri_scheme_protocols, # :nodoc:
       :async_uri_scheme_protocols, :setup_hook, :on_page_load_hook,
-      :window_event_listeners, :webview_event_listeners
+      :window_event_listeners, :webview_event_listeners, :rack_app, :window_config
 
     private def require_shareable!(block, method_name)
       return if Ractor.shareable?(block)

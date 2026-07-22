@@ -51,12 +51,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   byte array, file path, or RGBA hash) into a `Tokra::Image`
 - Registered plugins receive every `RunEvent` through `Plugin#on_event`,
   before the run callback
+- Frontend `invoke` promises now resolve and reject: `App` evaluates Tauri's
+  `runCallback` in the WebView, so `@tauri-apps/api` works end to end
+- `Tokra::Ipc::FormatCallback` formats invoke responses as callback scripts
+- Injected `__TAURI_INTERNALS__` initialization scripts (vendored from Tauri
+  via `rake sync:tauri`), guarded by a per-app invoke key
+- `Tokra.generate_invoke_key` returns a Z85-encoded random invoke key
+- `Builder#app(rack_app)` serves a Rack application over the `tokra://` protocol
+- `Builder#title` and `Builder#size` configure the window
 
 ### Changed
 
 - `Plugin#on_event` now receives the app handle: `on_event(app, event)` (breaking)
 - `Plugin#on_window_created` renamed to `Plugin#window_created` (breaking)
 - `Plugin#on_webview_created` renamed to `Plugin#webview_created` (breaking)
+- `Tokra::Invoke` is now `Tokra::Ipc::Invoke` (breaking)
+- `Invoke#payload` is now the message's `payload` member, not the whole IPC
+  message (breaking)
+- `Rack::Handler::Tokra.run` now builds a `Tokra::Builder`, so Rack apps get
+  IPC responses and injected scripts; its `invoke_handler` receives an
+  `Ipc::Invoke` and must be Ractor-shareable (breaking)
 
 ### Fixed
 

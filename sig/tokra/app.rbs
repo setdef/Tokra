@@ -5,6 +5,9 @@ module Tokra
   # The built Tokra application.
   class App
     DEFAULT_CONFIG: Hash[Symbol, String | Integer | Float]
+    FETCH_CHANNEL_DATA_COMMAND: String
+    EMIT_FUNCTION_NAME: String
+    LISTENERS_OBJECT_NAME: String
 
     @config: Hash[Symbol, String | Integer | Float]
     @manager: AppManager
@@ -15,10 +18,12 @@ module Tokra
     @webview_class: singleton(Native::WebView)
     @window: Window?
     @webview: Webview?
+    @rack_handler: ::Rack::Handler::Tokra?
 
     attr_reader handle: AppHandle
     attr_reader config: Hash[Symbol, String | Integer | Float]
 
+    def invoke_key: () -> String
     def initialize: (Builder builder, ?native: Module) -> void
     def run: () { (AppHandle, run_event) -> void } -> void
          | () -> void
@@ -26,10 +31,18 @@ module Tokra
     private
 
     def emit_run_event: (run_event event, (^(AppHandle, run_event) -> void)? callback) -> void
+    def build_ipc_responder: (json_value callback, json_value error) -> (^(bool, json_value) -> void)?
+    def initialization_scripts: () -> Array[String]
+    def bootstrap_script: () -> String
+    def invoke_initialization_script: () -> String
+    def metadata_script: () -> String
+    def init_script: () -> String
+    def render_js_template: (String name, Hash[Symbol, String] values) -> String
+    def os_name: () -> String
     def dispatch_event: (native_event event, (^(AppHandle, run_event) -> void)? callback, Native::Window window, Native::Proxy proxy) -> void
     def dispatch_http_request: (Native::HttpRequestEvent event, Native::Proxy proxy) -> void
     def dispatch_ipc: (Native::IpcEvent event) -> void
-    def dispatch_plugin_command: (String cmd, Hash[String, json_value] parsed) -> void
+    def dispatch_plugin_command: (String cmd, Hash[String, json_value] payload, (^(bool, json_value) -> void)? responder) -> void
     def dispatch_page_load: (Native::PageLoadEvent event) -> void
     def dispatch_window_event: (Native::Window window, window_event event, (^(AppHandle, run_event) -> void)? callback) -> void
     def dispatch_webview_event: (Native::DragDropEvent native_event) -> void

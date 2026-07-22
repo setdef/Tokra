@@ -37,7 +37,7 @@ module Rack
       @app: Rack::_App
       @proxy: ::Tokra::Native::Proxy
 
-      def self.run: (Rack::_App app, ?title: String, ?width: Float, ?height: Float, ?invoke_handler: (^(String) -> void)?) -> void
+      def self.run: (Rack::_App app, ?title: String, ?width: Float, ?height: Float, ?invoke_handler: (^(::Tokra::Ipc::Invoke) -> bool)?) -> void
 
       def initialize: (Rack::_App app, ::Tokra::Native::Proxy proxy) -> void
       def call: (::Tokra::Native::HttpRequestEvent event) -> void

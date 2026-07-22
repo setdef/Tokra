@@ -56,7 +56,7 @@ LOGGER.info { "Window created: 600x400, title='Hello, Tokra!'" }
 
 # Create WebView - navigates to tokra://localhost/
 LOGGER.debug { "Creating WebView with tokra:// protocol" }
-Tokra::Native::WebView.new_with_protocol(window, proxy)
+Tokra::Native::WebView.new_with_protocol(window, proxy, [])
 LOGGER.info { "WebView created, navigating to tokra://localhost/" }
 
 LOGGER.info { "-" * 50 }

@@ -4,18 +4,23 @@
 module Tokra
   # Fluent Builder for configuring Tokra desktop applications.
   class Builder
-    @invoke_handler: (^(Invoke) -> bool)?
+    @invoke_handler: (^(Ipc::Invoke) -> bool)?
     @uri_scheme_protocols: Hash[String, ^(UriSchemeContext, Native::HttpRequestEvent) -> Response]
     @setup: (^(App) -> void)?
     @on_page_load: (^(Native::WebView?, PageLoadPayload) -> void)?
     @window_event_listeners: Array[^(Native::Window, window_event) -> void]
     @webview_event_listeners: Array[^(Native::WebView?, webview_event) -> void]
     @state_manager: StateManager
+    @rack_app: ::Rack::_App?
+    @window_config: Hash[Symbol, String | Float]
 
     def initialize: () -> void
     def self.default: () -> Builder
+    def app: (::Rack::_App rack_app) -> self
+    def title: (String title) -> self
+    def size: (Integer | Float width, Integer | Float height) -> self
     def manage: (managed_state state) -> self
-    def invoke_handler: () { (Invoke) -> bool } -> self
+    def invoke_handler: () { (Ipc::Invoke) -> bool } -> self
     def register_uri_scheme_protocol: (String uri_scheme) { (UriSchemeContext, Native::HttpRequestEvent) -> Response } -> self
     def register_asynchronous_uri_scheme_protocol: (String uri_scheme) { (UriSchemeContext, Native::HttpRequestEvent, UriSchemeResponder) -> void } -> self
     def setup: () { (App) -> void } -> self
@@ -27,7 +32,7 @@ module Tokra
 
     private
 
-    attr_reader invoke_handler_hook: (^(Invoke) -> bool)?
+    attr_reader invoke_handler_hook: (^(Ipc::Invoke) -> bool)?
     attr_reader uri_scheme_protocols: Hash[String, ^(UriSchemeContext, Native::HttpRequestEvent) -> Response]
     attr_reader async_uri_scheme_protocols: Hash[String, ^(UriSchemeContext, Native::HttpRequestEvent, UriSchemeResponder) -> void]
     attr_reader setup_hook: (^(App) -> void)?
@@ -35,6 +40,8 @@ module Tokra
     attr_reader window_event_listeners: Array[^(Native::Window, window_event) -> void]
     attr_reader webview_event_listeners: Array[^(Native::WebView?, webview_event) -> void]
     attr_reader state_manager: StateManager
+    attr_reader rack_app: ::Rack::_App?
+    attr_reader window_config: Hash[Symbol, String | Float]
 
     private def require_shareable!: (Proc block, String method_name) -> void
   end

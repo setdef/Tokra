@@ -64,32 +64,13 @@ module Rack # :nodoc:
         #   Rack::Handler::Tokra.run(MyApp.freeze.app)
         #
         def run(app, title: "Tokra", width: 800.0, height: 600.0, invoke_handler: nil)
-          # Create Tokra components
-          event_loop = ::Tokra::Native::EventLoop.new
-          proxy = event_loop.create_proxy
-
-          window = ::Tokra::Native::Window.new(event_loop)
-          window.set_title(title)
-          window.set_size(width.to_f, height.to_f)
-
-          # Create the handler
-          handler = new(app, proxy)
-
-          # Create WebView with tokra:// protocol
-          ::Tokra::Native::WebView.new_with_protocol(window, proxy)
-
-          # Run the event loop, dispatching HTTP requests to the Rack app
-          event_loop.run(
-            lambda { |event|
-              case event
-              when ::Tokra::Native::HttpRequestEvent
-                handler.call(event)
-              when ::Tokra::Native::IpcEvent
-                # If an invoke_handler is provided, call it with the message
-                invoke_handler&.call(event.message)
-              end
-            }
-          )
+          # Porcelain over plumbing (ADR 004): build a Tokra::Builder with
+          # this Rack app as the tokra:// content server and let App own the
+          # event loop, webview, script injection, and IPC dispatch. This
+          # keeps one unified path rather than a second bespoke loop.
+          builder = ::Tokra::Builder.new.app(app).title(title).size(width, height)
+          builder.invoke_handler(&invoke_handler) if invoke_handler
+          builder.run
         end
       end
 

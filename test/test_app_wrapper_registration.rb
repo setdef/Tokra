@@ -46,7 +46,7 @@ class TestAppWrapperRegistration < Minitest::Test
     end
 
     class WebView
-      def self.new_with_protocol(_window, _proxy); new; end
+      def self.new_with_protocol(_window, _proxy, _scripts); new; end
       def eval(_script); end
     end
 

@@ -17,7 +17,7 @@ module Tokra
     end
 
     class WebView
-      def self.new_with_protocol: (Window, Proxy) -> WebView
+      def self.new_with_protocol: (Window, Proxy, Array[String]) -> WebView
       def initialize: (Window, String, ^(String) -> void, Proxy) -> void
       def eval: (String) -> void
     end

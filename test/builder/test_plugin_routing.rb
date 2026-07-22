@@ -12,7 +12,9 @@ require_relative "../support/stub_native"
 #
 # Mirrors Tauri webview/mod.rs: commands prefixed with "plugin:" route to
 # the named plugin's extend_api hook with the bare command name; all other
-# commands go to the app's invoke_handler.
+# commands go to the app's invoke_handler. Messages carry the app's
+# invoke key (ipc/protocol.rs Message); arguments ride in the payload
+# member.
 class TestBuilderPluginRouting < Minitest::Test
   # Named plugin recording extend_api calls.
   class RecordingPlugin < Tokra::Plugin
@@ -32,13 +34,17 @@ class TestBuilderPluginRouting < Minitest::Test
     end
   end
 
-  def test_plugin_command_routes_with_bare_command
+  private def inject_ipc(app, message)
     StubNative.inject_event(Tokra::Native::IpcEvent.new(
-      '{"cmd":"plugin:recording|greet","text":"Hello"}'
+      JSON.generate(message.merge("__TAURI_INVOKE_KEY__" => app.invoke_key))
     ))
+  end
+
+  def test_plugin_command_routes_with_bare_command
     plugin = RecordingPlugin.new
     app = Tokra::Builder.default.build(native: StubNative)
     app.handle.plugin(plugin)
+    inject_ipc(app, "cmd" => "plugin:recording|greet", "payload" => { "text" => "Hello" })
 
     app.run
 
@@ -46,16 +52,16 @@ class TestBuilderPluginRouting < Minitest::Test
     invoke = plugin.invokes.first
     assert_equal "greet", invoke.command,
       "plugin should receive the bare command, not the plugin:-prefixed string"
-    assert_equal "Hello", invoke.payload["text"], "payload should pass through"
+    assert_equal "Hello", invoke.payload["text"], "payload member should pass through"
   ensure
     StubNative.clear_event
   end
 
   def test_plugin_command_without_separator_has_empty_command
-    StubNative.inject_event(Tokra::Native::IpcEvent.new('{"cmd":"plugin:recording"}'))
     plugin = RecordingPlugin.new
     app = Tokra::Builder.default.build(native: StubNative)
     app.handle.plugin(plugin)
+    inject_ipc(app, "cmd" => "plugin:recording")
 
     app.run
 
@@ -67,10 +73,10 @@ class TestBuilderPluginRouting < Minitest::Test
 
   def test_plugin_command_does_not_reach_invoke_handler
     Thread.current[:handler_called] = false
-    StubNative.inject_event(Tokra::Native::IpcEvent.new('{"cmd":"plugin:recording|greet"}'))
     handler = Ractor.shareable_proc { |_invoke| Thread.current[:handler_called] = true }
     app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
     app.handle.plugin(RecordingPlugin.new)
+    inject_ipc(app, "cmd" => "plugin:recording|greet")
 
     app.run
 
@@ -81,10 +87,10 @@ class TestBuilderPluginRouting < Minitest::Test
   end
 
   def test_unhandled_plugin_command_is_rejected
-    StubNative.inject_event(Tokra::Native::IpcEvent.new('{"cmd":"plugin:recording|nope"}'))
     plugin = RecordingPlugin.new(handles: false)
     app = Tokra::Builder.default.build(native: StubNative)
     app.handle.plugin(plugin)
+    inject_ipc(app, "cmd" => "plugin:recording|nope")
 
     app.run
 
@@ -97,13 +103,14 @@ class TestBuilderPluginRouting < Minitest::Test
 
   def test_unhandled_app_command_is_rejected
     Thread.current[:test_invoke] = nil
-    StubNative.inject_event(Tokra::Native::IpcEvent.new('{"cmd":"unknown"}'))
     handler = Ractor.shareable_proc { |invoke|
       Thread.current[:test_invoke] = invoke
       false
     }
+    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    inject_ipc(app, "cmd" => "unknown")
 
-    Tokra::Builder.default.invoke_handler(&handler).run(native: StubNative)
+    app.run
 
     invoke = Thread.current[:test_invoke]
     assert invoke.instance_variable_get(:@responded),
@@ -113,10 +120,10 @@ class TestBuilderPluginRouting < Minitest::Test
   end
 
   def test_core_image_plugin_is_registered_automatically
-    StubNative.inject_event(Tokra::Native::IpcEvent.new(
-      '{"cmd":"plugin:image|new","rgba":[255,0,0,255],"width":1,"height":1}'
-    ))
     app = Tokra::Builder.default.build(native: StubNative)
+    inject_ipc(app,
+      "cmd" => "plugin:image|new",
+      "payload" => { "rgba" => [255, 0, 0, 255], "width" => 1, "height" => 1 })
 
     app.run
 
@@ -130,9 +137,7 @@ class TestBuilderPluginRouting < Minitest::Test
   def test_core_resources_plugin_is_registered_automatically
     app = Tokra::Builder.default.build(native: StubNative)
     rid = app.handle.resources_table.add(Tokra::Image.new(rgba: "", width: 0, height: 0))
-    StubNative.inject_event(Tokra::Native::IpcEvent.new(
-      "{\"cmd\":\"plugin:resources|close\",\"rid\":#{rid}}"
-    ))
+    inject_ipc(app, "cmd" => "plugin:resources|close", "payload" => { "rid" => rid })
 
     app.run
 

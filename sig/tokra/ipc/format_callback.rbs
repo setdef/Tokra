@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Ipc
+    module FormatCallback
+      MIN_JSON_PARSE_LEN: Integer
+      MAX_JSON_STR_LEN: Integer
+
+      def self.format: (Integer callback_id, json_value value) -> String
+      def self.format_raw: (Integer callback_id, String json_string) -> String
+
+      def self.escape: (String json) -> String
+    end
+  end
+end

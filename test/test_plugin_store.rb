@@ -131,6 +131,6 @@ class TestPluginStore < Minitest::Test
   end
 
   private def build_invoke(command, responder: nil)
-    Tokra::Invoke.new(command:, payload: {}, responder:, webview: nil)
+    Tokra::Ipc::Invoke.new(command:, payload: {}, responder:, webview: nil)
   end
 end

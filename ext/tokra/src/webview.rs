@@ -83,6 +83,10 @@ impl RbWebView {
     ///
     /// This matches Tauri's pattern where apps load from `tauri://localhost/`.
     ///
+    /// `initialization_scripts` run in the page before any of its own
+    /// code, in order — Ruby assembles them (Tauri's `__TAURI_INTERNALS__`
+    /// bootstrap and IPC scripts); this layer just passes strings through.
+    ///
     /// # Errors
     ///
     /// Returns an error if `WebView` creation fails.
@@ -90,12 +94,21 @@ impl RbWebView {
     /// # Panics
     ///
     /// Panics if the responders mutex is poisoned (internal invariant violation).
-    pub fn new_with_protocol(window: &RbWindow, proxy: &RbProxy) -> Result<Self, Error> {
+    pub fn new_with_protocol(
+        window: &RbWindow,
+        proxy: &RbProxy,
+        initialization_scripts: Vec<String>,
+    ) -> Result<Self, Error> {
         let proxy_clone = proxy.inner().clone();
         let proxy_for_protocol = proxy.inner().clone();
         let proxy_for_page_load = proxy.inner().clone();
 
-        let webview = WebViewBuilder::new()
+        let mut builder = WebViewBuilder::new();
+        for script in initialization_scripts {
+            builder = builder.with_initialization_script(script);
+        }
+
+        let webview = builder
             .with_url("tokra://localhost/")
             .with_asynchronous_custom_protocol(
                 "tokra".into(),
@@ -236,7 +249,7 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
     webview_class.define_singleton_method("new", function!(RbWebView::new, 4))?;
     webview_class.define_singleton_method(
         "new_with_protocol",
-        function!(RbWebView::new_with_protocol, 2),
+        function!(RbWebView::new_with_protocol, 3),
     )?;
     webview_class.define_method("eval", method!(RbWebView::eval, 1))?;
     Ok(())

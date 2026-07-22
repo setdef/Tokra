@@ -18,14 +18,20 @@ module StubNative
 
   def self.clear_event
     Thread.current[:stub_native_event] = nil
+    Thread.current[:stub_native_responses] = nil
+  end
+
+  # Protocol responses recorded across the run, observable by tests
+  # (the proxy is created inside App#run, so the sink is module-level).
+  def self.responses
+    Thread.current[:stub_native_responses] ||= []
   end
 
   # Stub Proxy that records respond() calls
   class Proxy
-    attr_reader :responses
-
-    def initialize = @responses = []
-    def respond(id, status, headers, body) = @responses << [id, status, headers, body]
+    def respond(id, status, headers, body)
+      StubNative.responses << [id, status, headers, body]
+    end
   end
 
   # Stub Window
@@ -34,9 +40,18 @@ module StubNative
     def set_size(_, _) = nil
   end
 
-  # Stub WebView factory
+  # Stub WebView factory recording initialization scripts and evals
   class WebView
-    def self.new_with_protocol(_, _) = new
+    attr_reader :initialization_scripts, :evals
+
+    def self.new_with_protocol(_, _, scripts) = new(scripts)
+
+    def initialize(scripts = [])
+      @initialization_scripts = scripts
+      @evals = []
+    end
+
+    def eval(js) = @evals << js
   end
 
   # Stub EventLoop that delivers injected event to callback

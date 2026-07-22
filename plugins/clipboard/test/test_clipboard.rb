@@ -46,7 +46,7 @@ class TestClipboard < Minitest::Test
 
   private def build_invoke(command, payload = {}, webview: stub_webview)
     responses = []
-    invoke = Tokra::Invoke.new(
+    invoke = Tokra::Ipc::Invoke.new(
       command:,
       payload:,
       webview:,

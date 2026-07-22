@@ -16,4 +16,5 @@ target :lib do
   library "uri"
   library "stringio"
   library "securerandom"
+  library "erb"
 end

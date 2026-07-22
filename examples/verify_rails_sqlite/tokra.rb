@@ -34,8 +34,11 @@ Rack::Handler::Tokra.run(
   title: "Tokra Tasks",
   width: 900.0,
   height: 700.0,
-  invoke_handler: proc { |msg|
-    LOGGER.info { "IPC: #{msg}" }
+  # invoke_handler receives an Invoke and resolves the frontend promise.
+  # Must be Ractor-shareable, so it captures nothing.
+  invoke_handler: Ractor.shareable_proc { |invoke|
+    invoke.resolve("ack:#{invoke.command}")
+    true
   }
 )
 

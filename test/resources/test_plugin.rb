@@ -40,7 +40,7 @@ class TestResourcesPlugin < Minitest::Test
 
     # Build invoke for plugin:resources|close
     resolved_value = nil
-    invoke = Tokra::Invoke.new(
+    invoke = Tokra::Ipc::Invoke.new(
       command: "close",
       payload: { "rid" => rid },
       webview:,
@@ -65,7 +65,7 @@ class TestResourcesPlugin < Minitest::Test
     rid = webview.window.resources_table.add(resource)
 
     resolved = false
-    invoke = Tokra::Invoke.new(
+    invoke = Tokra::Ipc::Invoke.new(
       command: "close",
       payload: { "rid" => rid },
       webview:,
@@ -89,7 +89,7 @@ class TestResourcesPlugin < Minitest::Test
     rid = webview.app_handle.resources_table.add(resource)
 
     resolved = false
-    invoke = Tokra::Invoke.new(
+    invoke = Tokra::Ipc::Invoke.new(
       command: "close",
       payload: { "rid" => rid },
       webview:,
@@ -110,7 +110,7 @@ class TestResourcesPlugin < Minitest::Test
 
     # Use a rid that doesn't exist in any table
     rejected_message = nil
-    invoke = Tokra::Invoke.new(
+    invoke = Tokra::Ipc::Invoke.new(
       command: "close",
       payload: { "rid" => 999_999 },
       webview:,
@@ -129,7 +129,7 @@ class TestResourcesPlugin < Minitest::Test
     webview = build_webview_chain
 
     rejected_message = nil
-    invoke = Tokra::Invoke.new(
+    invoke = Tokra::Ipc::Invoke.new(
       command: "close",
       payload: { "rid" => "42" },
       webview:,
@@ -144,7 +144,7 @@ class TestResourcesPlugin < Minitest::Test
 
   def test_returns_false_for_other_commands
     plugin = Tokra::Resources::Plugin.new(nil, {})
-    invoke = Tokra::Invoke.new(
+    invoke = Tokra::Ipc::Invoke.new(
       command: "new",
       payload: {},
       webview: nil,

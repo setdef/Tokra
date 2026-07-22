@@ -14,12 +14,15 @@ module Tokra
   # Internal manager for application state (minimal MVP subset of Tauri's AppManager).
   #
   # See tauri/src/manager/mod.rs AppManager
-  class AppManager < Data.define(:config, :webviews, :windows, :plugins)
+  class AppManager < Data.define(:config, :webviews, :windows, :plugins, :invoke_key)
     # Creates a new AppManager.
     #
     # +plugins+ defaults to an empty PluginStore, mirroring Tauri's
-    # AppManager which always owns its plugin store.
-    def self.new(config:, webviews:, windows:, plugins: PluginStore.new)
+    # AppManager which always owns its plugin store. +invoke_key+
+    # defaults to a fresh per-app key (Tokra.generate_invoke_key),
+    # mirroring the invoke_key member Tauri's AppManager holds
+    # (manager/mod.rs).
+    def self.new(config:, webviews:, windows:, plugins: PluginStore.new, invoke_key: Tokra.generate_invoke_key)
       super
     end
   end

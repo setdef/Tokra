@@ -56,46 +56,50 @@ class TestBuilderEventDispatch < Minitest::Test
     StubNative.clear_event
   end
 
-  def test_invoke_handler_receives_parsed_payload
+  def test_invoke_handler_receives_payload_member
     Thread.current[:test_invoke] = nil
-    json_message = '{"cmd":"greet","text":"Hello"}'
-    StubNative.inject_event(Tokra::Native::IpcEvent.new(json_message))
     handler = Ractor.shareable_proc { |invoke|
       Thread.current[:test_invoke] = invoke
       true
     }
+    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    message = {
+      "cmd" => "greet",
+      "payload" => { "text" => "Hello" },
+      "__TAURI_INVOKE_KEY__" => app.invoke_key,
+    }
+    StubNative.inject_event(Tokra::Native::IpcEvent.new(JSON.generate(message)))
 
-    Tokra::Builder.default
-      .invoke_handler(&handler)
-      .run(native: StubNative)
+    app.run
 
     invoke = Thread.current[:test_invoke]
     refute_nil invoke, "Handler should have received invoke"
 
-    # Payload should be pre-parsed Hash with String keys (matching serde_json::Value)
+    # Payload is the message's payload member (ipc/protocol.rs Message),
+    # pre-parsed with String keys matching serde_json::Value
     assert_kind_of Hash, invoke.payload, "Payload should be parsed JSON Hash"
     assert_equal "Hello", invoke.payload["text"], "Payload should have String keys"
   ensure
     StubNative.clear_event
   end
 
-  def test_invoke_handler_extracts_command_from_payload
+  def test_invoke_handler_extracts_command_from_message
     Thread.current[:test_invoke] = nil
-    json_message = '{"cmd":"read_text"}'
-    StubNative.inject_event(Tokra::Native::IpcEvent.new(json_message))
     handler = Ractor.shareable_proc { |invoke|
       Thread.current[:test_invoke] = invoke
       true
     }
+    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    StubNative.inject_event(Tokra::Native::IpcEvent.new(JSON.generate(
+      { "cmd" => "read_text", "__TAURI_INVOKE_KEY__" => app.invoke_key }
+    )))
 
-    Tokra::Builder.default
-      .invoke_handler(&handler)
-      .run(native: StubNative)
+    app.run
 
     invoke = Thread.current[:test_invoke]
     refute_nil invoke, "Handler should have received invoke"
 
-    # Command should be extracted from parsed payload "cmd" field
+    # Command comes from the message's cmd member
     assert_equal "read_text", invoke.command
   ensure
     StubNative.clear_event

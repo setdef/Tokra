@@ -40,12 +40,18 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     feedback.setAttribute('data-visible', '');
   }
 
-  // IPC
-  document.getElementById('btn-ipc').addEventListener('click', () => {
+  // IPC — a real invoke() round-trip: the Ruby invoke_handler resolves
+  // the promise, and we render the value it sent back.
+  document.getElementById('btn-ipc').addEventListener('click', async () => {
     const value = responseInput.value;
-    if (window.ipc) {
-      window.ipc.postMessage(value);
-      showFeedback('Sent via IPC: ' + value, 'success');
+    const invoke = window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke;
+    if (invoke) {
+      try {
+        const reply = await invoke('ping', { message: value });
+        showFeedback('IPC round-trip: ' + reply, 'success');
+      } catch (err) {
+        showFeedback('IPC error: ' + err, 'error');
+      }
     } else {
       showFeedback('IPC not available', 'error');
     }
@@ -87,7 +93,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   });
 
   // IPC availability
-  if (!window.ipc) {
+  if (!(window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke)) {
     ipcStatus.textContent = 'IPC unavailable';
     ipcStatus.style.setProperty('--accent', 'var(--warn)');
   }

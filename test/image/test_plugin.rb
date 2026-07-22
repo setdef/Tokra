@@ -18,7 +18,7 @@ class TestImagePlugin < Minitest::Test
     webview = build_webview
 
     resolved_rid = nil
-    invoke = Tokra::Invoke.new(
+    invoke = Tokra::Ipc::Invoke.new(
       command: "new",
       payload: {
         "rgba" => [255, 0, 0, 255],
@@ -47,7 +47,7 @@ class TestImagePlugin < Minitest::Test
 
     # First, store an image via the new command
     rgba_input = [255, 0, 128, 255]
-    new_invoke = Tokra::Invoke.new(
+    new_invoke = Tokra::Ipc::Invoke.new(
       command: "new",
       payload: { "rgba" => rgba_input, "width" => 1, "height" => 1 },
       webview:,
@@ -58,7 +58,7 @@ class TestImagePlugin < Minitest::Test
 
     # Now retrieve the rgba bytes
     resolved_value = nil
-    rgba_invoke = Tokra::Invoke.new(
+    rgba_invoke = Tokra::Ipc::Invoke.new(
       command: "rgba",
       payload: { "rid" => rid },
       webview:,
@@ -77,7 +77,7 @@ class TestImagePlugin < Minitest::Test
     webview = build_webview
 
     # Store a 3x2 image
-    new_invoke = Tokra::Invoke.new(
+    new_invoke = Tokra::Ipc::Invoke.new(
       command: "new",
       payload: { "rgba" => [0] * (3 * 2 * 4), "width" => 3, "height" => 2 },
       webview:,
@@ -87,7 +87,7 @@ class TestImagePlugin < Minitest::Test
     rid = webview.resources_table.names.first[0]
 
     resolved_value = nil
-    size_invoke = Tokra::Invoke.new(
+    size_invoke = Tokra::Ipc::Invoke.new(
       command: "size",
       payload: { "rid" => rid },
       webview:,
@@ -105,7 +105,7 @@ class TestImagePlugin < Minitest::Test
     plugin = Tokra::Image::Plugin.new(nil, {})
 
     rejected_message = nil
-    invoke = Tokra::Invoke.new(
+    invoke = Tokra::Ipc::Invoke.new(
       command: "rgba",
       payload: { "rid" => 999 },
       webview: build_webview,
@@ -127,7 +127,7 @@ class TestImagePlugin < Minitest::Test
     rid = webview.resources_table.add(non_image)
 
     rejected_message = nil
-    invoke = Tokra::Invoke.new(
+    invoke = Tokra::Ipc::Invoke.new(
       command: "size",
       payload: { "rid" => rid },
       webview:,
@@ -165,7 +165,7 @@ class TestImagePlugin < Minitest::Test
     png_bytes = File.binread(fixture_path("2x2.png")).bytes
 
     resolved_rid = nil
-    invoke = Tokra::Invoke.new(
+    invoke = Tokra::Ipc::Invoke.new(
       command: "from_bytes",
       payload: { "bytes" => png_bytes },
       webview:,
@@ -184,7 +184,7 @@ class TestImagePlugin < Minitest::Test
     plugin = Tokra::Image::Plugin.new(nil, {})
 
     rejected_message = nil
-    invoke = Tokra::Invoke.new(
+    invoke = Tokra::Ipc::Invoke.new(
       command: "from_bytes",
       payload: { "bytes" => [1, 2, 3] },
       webview: build_webview,
@@ -203,7 +203,7 @@ class TestImagePlugin < Minitest::Test
     webview = build_webview
 
     resolved_rid = nil
-    invoke = Tokra::Invoke.new(
+    invoke = Tokra::Ipc::Invoke.new(
       command: "from_path",
       payload: { "path" => fixture_path("2x2.ico") },
       webview:,
@@ -221,7 +221,7 @@ class TestImagePlugin < Minitest::Test
     plugin = Tokra::Image::Plugin.new(nil, {})
 
     rejected = false
-    invoke = Tokra::Invoke.new(
+    invoke = Tokra::Ipc::Invoke.new(
       command: "from_path",
       payload: { "path" => fixture_path("missing.png") },
       webview: build_webview,
@@ -253,7 +253,7 @@ class TestImagePlugin < Minitest::Test
   private def assert_rejects_invalid_args(command, payload, expected_message)
     plugin = Tokra::Image::Plugin.new(nil, {})
     rejected_message = nil
-    invoke = Tokra::Invoke.new(
+    invoke = Tokra::Ipc::Invoke.new(
       command:,
       payload:,
       webview: build_webview,

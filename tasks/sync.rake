@@ -52,26 +52,66 @@ namespace :sync do
 
     puts "Generated #{emit_file}"
 
-    # Extract event_initialization_script
-    init_match = content.match(/fn event_initialization_script.*?format!\(\s*r#"([^#]+)"#/m)
-    if init_match
-      init_template = init_match[1]
-        .gsub("'{}'", "'%<emit_fn>s'")
-        .gsub("{}", "%<listeners_obj>s")
+    # Extract event_initialization_script (a plain format! string with
+    # named interpolations, not a raw string literal)
+    init_match = content.match(/fn event_initialization_script.*?format!\(\s*"([^"]+)"/m)
+    abort "Could not find event_initialization_script in #{tauri_event}" unless init_match
 
-      init_file = output_dir.join("event_init.js.erb")
-      init_file.write(<<~JS)
+    init_template = init_match[1]
+      .gsub("{{", "\x00").gsub("}}", "\x01")
+      .gsub("{function_name}", "<%= function_name %>")
+      .gsub("{listeners}", "<%= listeners %>")
+      .gsub("\x00", "{").gsub("\x01", "}")
+
+    init_file = output_dir.join("event_init.js.erb")
+    init_file.write(<<~JS)
+      // Auto-generated from Tauri source. Do not edit manually.
+      // Source: vendor/tauri/crates/tauri/src/event/mod.rs
+      // Regenerate with: rake sync:tauri
+      //
+      // SPDX-FileCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+      // SPDX-License-Identifier: Apache-2.0 OR MIT
+
+      #{init_template}
+    JS
+
+    puts "Generated #{init_file}"
+
+    # Vendor the webview initialization scripts verbatim, converting
+    # Tauri's serialize-to-javascript markers into ERB tags. Template
+    # values render as JS literals (JSON-encoded by the caller); raw
+    # values splice scripts. See plan 014 and ADR 009.
+    scripts_dir = Pathname("vendor/tauri/crates/tauri/scripts")
+    banner = lambda do |name|
+      <<~JS
         // Auto-generated from Tauri source. Do not edit manually.
-        // Source: vendor/tauri/crates/tauri/src/event/mod.rs
+        // Source: vendor/tauri/crates/tauri/scripts/#{name}
         // Regenerate with: rake sync:tauri
         //
         // SPDX-FileCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
         // SPDX-License-Identifier: Apache-2.0 OR MIT
-
-        #{init_template}
       JS
+    end
 
-      puts "Generated #{init_file}"
+    %w[init.js pattern.js ipc.js ipc-protocol.js core.js].each do |name|
+      source = scripts_dir.join(name)
+      abort "Missing Tauri script: #{source}" unless source.exist?
+
+      body = source.read
+        .gsub(/__TEMPLATE_(\w+)__/) { "<%= #{Regexp.last_match(1)} %>" }
+        .gsub(/__RAW_(\w+)__/) { "<%= #{Regexp.last_match(1)} %>" }
+      target = output_dir.join("#{name}.erb")
+      target.write("#{banner.call(name)}\n#{body}")
+      puts "Generated #{target}"
+    end
+
+    %w[process-ipc-message-fn.js].each do |name|
+      source = scripts_dir.join(name)
+      abort "Missing Tauri script: #{source}" unless source.exist?
+
+      target = output_dir.join(name)
+      target.write("#{banner.call(name)}\n#{source.read}")
+      puts "Generated #{target}"
     end
 
     puts "Done. Tauri JavaScript templates extracted."

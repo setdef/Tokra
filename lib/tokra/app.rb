@@ -24,6 +24,20 @@ module Tokra
     # The application configuration.
     attr_reader :config
 
+    # The per-app IPC invoke key verified on every message.
+    #
+    # The key is templated into the injected initialization scripts;
+    # frontend messages carrying a different key are logged and dropped.
+    # Tauri keeps this crate-private (manager/webview.rs); Ruby has no
+    # crate privacy, so it is public for the framework and tests.
+    #
+    # === Example
+    #
+    #   message = { "cmd" => "greet", "__TAURI_INVOKE_KEY__" => app.invoke_key }
+    def invoke_key
+      @manager.invoke_key
+    end
+
     # Default window configuration when not specified.
     DEFAULT_CONFIG = {
       title: "Tokra",
@@ -36,7 +50,7 @@ module Tokra
     # This is called by Builder#build and should not be called directly.
     # <tt>native:</tt> can be injected for testing with mock native components.
     def initialize(builder, native: Native) # :nodoc:
-      @config = DEFAULT_CONFIG.dup
+      @config = DEFAULT_CONFIG.merge(builder.__send__(:window_config))
       config = Config.new(
         identifier: @config[:identifier]&.to_s,
         product_name: @config[:product_name]&.to_s,
@@ -67,6 +81,12 @@ module Tokra
       event_loop = @event_loop_class.new
       proxy = event_loop.create_proxy
 
+      # If a Rack app was configured, build the adapter that serves it
+      # over tokra:// (ADR 004: Builder aggregates the app, App instantiates
+      # the Handler). The Rack app runs on the main Ractor for now.
+      rack_app = @builder.__send__(:rack_app)
+      @rack_handler = ::Rack::Handler::Tokra.new(rack_app, proxy) if rack_app
+
       native_window = @window_class.new(event_loop)
       native_window.set_title(@config[:title].to_s)
       native_window.set_size(@config[:width].to_f, @config[:height].to_f)
@@ -77,7 +97,7 @@ module Tokra
       @handle.windows["main"] = window
 
       # Create and wrap the webview, register in manager
-      native_webview = @webview_class.new_with_protocol(native_window, proxy)
+      native_webview = @webview_class.new_with_protocol(native_window, proxy, initialization_scripts)
       webview = Webview.new(label: "main", native: native_webview, window:, app_handle: @handle)
       @webview = webview
       @handle.webviews["main"] = webview
@@ -104,6 +124,116 @@ module Tokra
       @manager.plugins.on_event(@handle, event)
       callback&.call(@handle, event)
     end
+
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: Initialization script assembly adapted from
+    # tauri/crates/tauri/src/manager/webview.rs and app.rs
+
+    # The channel-data command name (ipc/channel.rs FETCH_CHANNEL_DATA_COMMAND).
+    FETCH_CHANNEL_DATA_COMMAND = "plugin:__TAURI_CHANNEL__|fetch"
+
+    # The window[...] function the emit script calls; the injected event
+    # script defines it. Tauri generates random names per app
+    # (listeners.rs); Tokra fixes them, matching Native.emit_js_script.
+    EMIT_FUNCTION_NAME = "__TAURI_EMIT__"
+
+    # The window[...] object holding event listeners by event name.
+    LISTENERS_OBJECT_NAME = "__TAURI_LISTENERS__"
+
+    # Assembles the webview initialization scripts in Tauri's injection
+    # order (manager/webview.rs:160-192): the __TAURI_INTERNALS__
+    # bootstrap, the invoke transport, webview metadata, and the init.js
+    # bundle (pattern, ipc router, core, events).
+    private def initialization_scripts
+      [
+        bootstrap_script,
+        invoke_initialization_script,
+        metadata_script,
+        init_script,
+      ]
+    end
+
+    # Defines window.isTauri and the bare __TAURI_INTERNALS__ object
+    # every later script extends (manager/webview.rs:160-175).
+    private def bootstrap_script
+      <<~JS
+        Object.defineProperty(window, 'isTauri', {
+          value: true,
+        });
+
+        if (!window.__TAURI_INTERNALS__) {
+          Object.defineProperty(window, '__TAURI_INTERNALS__', {
+            value: {
+              plugins: {}
+            }
+          })
+        }
+      JS
+    end
+
+    # The invoke transport (ipc-protocol.js): defines
+    # __TAURI_INTERNALS__.postMessage with the invoke key baked in
+    # (app.rs InvokeInitializationScript).
+    private def invoke_initialization_script
+      render_js_template("ipc-protocol.js.erb",
+        process_ipc_message_fn: Native.load_js_template("process-ipc-message-fn.js"),
+        os_name: JSON.generate(os_name),
+        fetch_channel_data_command: JSON.generate(FETCH_CHANNEL_DATA_COMMAND),
+        invoke_key: JSON.generate(@manager.invoke_key))
+    end
+
+    # Webview identity for the frontend API (manager/webview.rs:177-188).
+    private def metadata_script
+      <<~JS
+        Object.defineProperty(window.__TAURI_INTERNALS__, 'metadata', {
+          value: {
+            currentWindow: { label: "main" },
+            currentWebview: { label: "main" }
+          }
+        })
+      JS
+    end
+
+    # The init.js bundle (manager/webview.rs initialization_script):
+    # pattern, the __TAURI_INTERNALS__.ipc router, core.js, and the
+    # event-delivery script. freeze_prototype is config-gated off in
+    # Tauri's default and omitted here.
+    private def init_script
+      render_js_template("init.js.erb",
+        freeze_prototype: "",
+        pattern_script: render_js_template("pattern.js.erb",
+          pattern: JSON.generate({ pattern: "brownfield" })),
+        ipc_script: render_js_template("ipc.js.erb",
+          isolation_origin: JSON.generate("")),
+        core_script: render_js_template("core.js.erb",
+          os_name: JSON.generate(os_name),
+          protocol_scheme: JSON.generate("http")),
+        event_initialization_script: render_js_template("event_init.js.erb",
+          function_name: EMIT_FUNCTION_NAME,
+          listeners: LISTENERS_OBJECT_NAME))
+    end
+
+    # Renders a vendored Tauri script template. Values arrive as JS
+    # literals: JSON-encoded scalars for TEMPLATE markers, raw scripts
+    # for RAW markers.
+    private def render_js_template(name, values)
+      ERB.new(Native.load_js_template(name)).result_with_hash(values)
+    end
+
+    # The operating system name as Tauri's scripts expect it
+    # (std::env::consts::OS values).
+    private def os_name
+      case RUBY_PLATFORM
+      when /darwin/ then "macos"
+      when /linux/ then "linux"
+      when /mingw|mswin/ then "windows"
+      else "unknown"
+      end
+    end
+
+    # SPDX-SnippetEnd
 
     private def dispatch_event(event, callback, window, proxy)
       # Use is_a? instead of case/when to support mock event injection in tests
@@ -134,24 +264,67 @@ module Tokra
         ctx = UriSchemeContext.new(app_handle: @handle, webview_label: "main")
         responder = UriSchemeResponder.new(port: proxy, request_id: event.request_id)
         handler.call(ctx, event, responder)
+      elsif (rack_handler = @rack_handler)
+        # A configured Rack app is the tokra:// content server; the adapter
+        # translates the request and responds through the proxy itself.
+        rack_handler.call(event)
       end
     end
 
     private def dispatch_ipc(event)
       parsed = JSON.parse(event.message)
+      return warn("failed to parse IPC message: not a JSON object") unless parsed.is_a?(Hash)
+
+      received_key = parsed["__TAURI_INVOKE_KEY__"]
+      unless received_key == @manager.invoke_key
+        # Log and drop, exactly as Tauri does (webview/mod.rs on_message):
+        # a frame the app did not initialize gets no response at all
+        return warn(
+          "__TAURI_INVOKE_KEY__ expected #{@manager.invoke_key} but received #{received_key}"
+        )
+      end
+
       cmd = parsed["cmd"] || ""
+      raw_payload = parsed["payload"]
+      empty_payload = {} #: Hash[String, json_value]
+      payload = raw_payload.is_a?(Hash) ? raw_payload : empty_payload
+      responder = build_ipc_responder(parsed["callback"], parsed["error"])
 
       if cmd.start_with?("plugin:")
-        dispatch_plugin_command(cmd, parsed)
+        dispatch_plugin_command(cmd, payload, responder)
       else
-        invoke = Invoke.new(
+        invoke = Ipc::Invoke.new(
           command: cmd,
-          payload: parsed,
-          responder: nil,
+          payload:,
+          responder:,
           webview: @webview # steep:ignore ArgumentTypeMismatch
         )
         handled = @builder.__send__(:invoke_handler_hook)&.call(invoke)
         invoke.reject("Command #{cmd} not found") unless handled
+      end
+    rescue JSON::ParserError => e
+      warn("failed to parse IPC message: #{e.message}")
+    end
+
+    # Builds a responder that evaluates Tauri's callback script in the
+    # calling webview: success resolves the callback ID, failure the
+    # error ID. Mirrors responder_eval (ipc/protocol.rs). Messages
+    # without integer callback IDs — hand-rolled postMessage calls —
+    # get no responder: fire and forget.
+    #
+    # The responder runs synchronously on the Main Ractor and captures
+    # the webview, so it must never cross a Ractor boundary. The Worker
+    # Ractor phase (ADR 001) will swap this implementation for a proxy
+    # round-trip without touching handlers.
+    private def build_ipc_responder(callback, error)
+      return nil unless callback.is_a?(Integer) && error.is_a?(Integer)
+
+      webview = @webview
+      return nil unless webview
+
+      lambda do |success, value|
+        id = success ? callback : error
+        webview.eval(Ipc::FormatCallback.format(id, value))
       end
     end
 
@@ -160,12 +333,12 @@ module Tokra
     # The command is rewritten to the bare name before the plugin's
     # extend_api hook sees it, exactly as Tauri does in webview/mod.rs.
     # A missing | separator yields an empty command.
-    private def dispatch_plugin_command(cmd, parsed)
+    private def dispatch_plugin_command(cmd, payload, responder)
       plugin_name, command = cmd.delete_prefix("plugin:").split("|", 2)
-      invoke = Invoke.new(
+      invoke = Ipc::Invoke.new(
         command: command || "",
-        payload: parsed,
-        responder: nil,
+        payload:,
+        responder:,
         webview: @webview # steep:ignore ArgumentTypeMismatch
       )
       handled = @manager.plugins.extend_api(plugin_name || "", invoke)

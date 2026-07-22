@@ -7,7 +7,9 @@
 #++
 
 require_relative "tokra/version"
+require "erb"
 require "json"
+require "securerandom"
 require_relative "tokra/error"
 require_relative "tokra/resource"
 require_relative "tokra/image"
@@ -24,7 +26,9 @@ require_relative "tokra/app"
 require_relative "tokra/uri_scheme_context"
 require_relative "tokra/uri_scheme_responder"
 require_relative "tokra/response"
-require_relative "tokra/invoke"
+require_relative "tokra/z85"
+require_relative "tokra/ipc/invoke"
+require_relative "tokra/ipc/format_callback"
 require_relative "tokra/builder"
 require_relative "tokra/plugin"
 require_relative "tokra/plugin_api"
@@ -47,4 +51,13 @@ module Tokra
   # In Tauri, Manager is implemented for AppHandle, Window, Webview, and App.
   Native::Window.include(Manager)
   Native::WebView.include(Manager)
+
+  # Generates the per-app IPC invoke key: 16 random bytes, Z85-encoded.
+  #
+  # The key is templated into the injected initialization scripts and
+  # verified on every IPC message, so only frames the app initialized
+  # can invoke commands. Mirrors Tauri's generate_invoke_key (lib.rs).
+  def self.generate_invoke_key
+    Z85.encode(SecureRandom.random_bytes(16))
+  end
 end

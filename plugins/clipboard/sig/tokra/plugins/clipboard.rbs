@@ -38,17 +38,17 @@ module Tokra
         def write_image: (Tokra::Image) -> void
         def write_html: (String html, ?String? alt_text) -> void
         def clear: () -> void
-        def extend_api: (Tokra::Invoke) -> bool
+        def extend_api: (Tokra::Ipc::Invoke) -> bool
         def on_event: (Tokra::AppHandle, Tokra::run_event) -> void
 
         private
 
-        def handle_read_text: (Tokra::Invoke) -> bool
-        def handle_write_text: (Tokra::Invoke) -> bool
-        def handle_read_image: (Tokra::Invoke) -> bool
-        def handle_write_image: (Tokra::Invoke) -> bool
-        def handle_write_html: (Tokra::Invoke) -> bool
-        def handle_clear: (Tokra::Invoke) -> bool
+        def handle_read_text: (Tokra::Ipc::Invoke) -> bool
+        def handle_write_text: (Tokra::Ipc::Invoke) -> bool
+        def handle_read_image: (Tokra::Ipc::Invoke) -> bool
+        def handle_write_image: (Tokra::Ipc::Invoke) -> bool
+        def handle_write_html: (Tokra::Ipc::Invoke) -> bool
+        def handle_clear: (Tokra::Ipc::Invoke) -> bool
       end
     end
   end

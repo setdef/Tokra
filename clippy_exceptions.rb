@@ -29,7 +29,7 @@ allow "ext/tokra/src/webview.rs", line: 51, reason: <<~END
   cannot be safely borrowed across the FFI boundary.
 END
 
-allow "ext/tokra/src/webview.rs", line: 221, reason: <<~END
+allow "ext/tokra/src/webview.rs", line: 234, reason: <<~END
   Magnus FFI requires owned types at the Ruby-Rust boundary. RbWebView::eval
   receives JavaScript code from Ruby that must be converted to an owned String.
 

@@ -39,7 +39,7 @@ class TestAppHandle < Minitest::Test
     replaced = handle.plugin(plugin)
 
     refute replaced, "plugin should return false when nothing was replaced"
-    invoke = Tokra::Invoke.new(command: "hello", payload: {}, responder: nil, webview: nil)
+    invoke = Tokra::Ipc::Invoke.new(command: "hello", payload: {}, responder: nil, webview: nil)
     assert handle.__send__(:manager).plugins.extend_api("greet", invoke)
     assert_equal [invoke], plugin.invokes, "registered plugin should receive invokes"
   end

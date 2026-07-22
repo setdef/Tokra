@@ -14,6 +14,8 @@ module Tokra
   # Type alias for all native events dispatched by event loop
   type native_event = Native::HttpRequestEvent | Native::IpcEvent | Native::PageLoadEvent | Native::WindowCloseEvent | Native::WakeUpEvent
 
+  def self.generate_invoke_key: () -> String
+
   class Error < StandardError
   end
 end

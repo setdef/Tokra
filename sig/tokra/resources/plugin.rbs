@@ -9,7 +9,7 @@ module Tokra
 
     class Plugin < Tokra::Plugin
       def name: () -> String
-      def extend_api: (Invoke invoke) -> bool
+      def extend_api: (Ipc::Invoke invoke) -> bool
 
       private
 
