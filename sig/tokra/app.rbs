@@ -8,11 +8,16 @@ module Tokra
     FETCH_CHANNEL_DATA_COMMAND: String
     EMIT_FUNCTION_NAME: String
     LISTENERS_OBJECT_NAME: String
+    IPC_CORS_HEADERS: Array[[String, String]]
+
+    class IpcProtocolError < Error
+    end
 
     @config: Hash[Symbol, String | Integer | Float]
     @manager: AppManager
     @handle: AppHandle
     @builder: Builder
+    @with_global_tauri: bool
     @event_loop_class: singleton(Native::EventLoop)
     @window_class: singleton(Native::Window)
     @webview_class: singleton(Native::WebView)
@@ -33,6 +38,7 @@ module Tokra
     def emit_run_event: (run_event event, (^(AppHandle, run_event) -> void)? callback) -> void
     def build_ipc_responder: (json_value callback, json_value error) -> (^(bool, json_value) -> void)?
     def initialization_scripts: () -> Array[String]
+    def global_api_script: () -> String
     def bootstrap_script: () -> String
     def invoke_initialization_script: () -> String
     def metadata_script: () -> String
@@ -42,7 +48,19 @@ module Tokra
     def dispatch_event: (native_event event, (^(AppHandle, run_event) -> void)? callback, Native::Window window, Native::Proxy proxy) -> void
     def dispatch_http_request: (Native::HttpRequestEvent event, Native::Proxy proxy) -> void
     def dispatch_ipc: (Native::IpcEvent event) -> void
+    def route_invoke: (String cmd, Hash[String, json_value] payload, (^(bool, json_value) -> void)? responder) -> void
     def dispatch_plugin_command: (String cmd, Hash[String, json_value] payload, (^(bool, json_value) -> void)? responder) -> void
+    def dispatch_ipc_protocol: (Native::HttpRequestEvent event, Native::Proxy proxy) -> void
+    def dispatch_ipc_protocol_post: (Native::HttpRequestEvent event, Native::Proxy proxy) -> void
+    def parse_ipc_protocol_request: (Native::HttpRequestEvent event) -> [String, String, Hash[String, json_value]]
+    def decode_ipc_command: (String uri) -> String
+    def ipc_content_type: (Array[[String, String]] headers) -> String
+    def parse_ipc_payload: (String content_type, String body) -> Hash[String, json_value]
+    def validate_ipc_callback_id: (Array[[String, String]] headers, String header_name, String kind) -> void
+    def http_header: (Array[[String, String]] headers, String name) -> String?
+    def build_ipc_protocol_responder: (Native::Proxy proxy, Integer request_id) -> (^(bool, json_value) -> void)
+    def respond_ipc_error: (Native::Proxy proxy, Integer request_id, Integer status, String message) -> void
+    def ipc_protocol_request?: (String uri) -> bool
     def dispatch_page_load: (Native::PageLoadEvent event) -> void
     def dispatch_window_event: (Native::Window window, window_event event, (^(AppHandle, run_event) -> void)? callback) -> void
     def dispatch_webview_event: (Native::DragDropEvent native_event) -> void

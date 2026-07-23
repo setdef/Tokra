@@ -59,6 +59,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Tokra.generate_invoke_key` returns a Z85-encoded random invoke key
 - `Builder#app(rack_app)` serves a Rack application over the `tokra://` protocol
 - `Builder#title` and `Builder#size` configure the window
+- `ipc://` IPC transport (Tauri's desktop-default invoke channel), served as a
+  second custom protocol; `postMessage` is retained as the automatic fallback
+- `Builder#with_global_tauri` injects the vendored `@tauri-apps/api` bundle as
+  `window.__TAURI__`, so a page with no frontend bundler calls
+  `window.__TAURI__.core.invoke(...)` directly (mirrors Tauri's
+  `app.withGlobalTauri`); also available as
+  `Rack::Handler::Tokra.run(app, with_global_tauri: true)`
 
 ### Changed
 
@@ -73,6 +80,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `Ipc::Invoke` and must be Ractor-shareable (breaking)
 
 ### Fixed
+
+- The per-page-load `ipc://` fetch failure and "IPC custom protocol failed"
+  console warning: serving `ipc://` keeps the frontend on the custom protocol
+  instead of falling back to `postMessage`
 
 ### Removed
 

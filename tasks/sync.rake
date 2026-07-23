@@ -105,7 +105,11 @@ namespace :sync do
       puts "Generated #{target}"
     end
 
-    %w[process-ipc-message-fn.js].each do |name|
+    # Vendor plain scripts verbatim (no template markers). bundle.global.js
+    # is the prebuilt @tauri-apps/api IIFE that with_global_tauri injects as
+    # window.__TAURI__ (Plan 015 D6); the API package's own rollup build
+    # produces it, so we consume it and never hand-bundle Tauri's JavaScript.
+    %w[process-ipc-message-fn.js bundle.global.js].each do |name|
       source = scripts_dir.join(name)
       abort "Missing Tauri script: #{source}" unless source.exist?
 

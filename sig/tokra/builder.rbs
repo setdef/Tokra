@@ -13,12 +13,14 @@ module Tokra
     @state_manager: StateManager
     @rack_app: ::Rack::_App?
     @window_config: Hash[Symbol, String | Float]
+    @with_global_tauri: bool
 
     def initialize: () -> void
     def self.default: () -> Builder
     def app: (::Rack::_App rack_app) -> self
     def title: (String title) -> self
     def size: (Integer | Float width, Integer | Float height) -> self
+    def with_global_tauri: (?bool enabled) -> self
     def manage: (managed_state state) -> self
     def invoke_handler: () { (Ipc::Invoke) -> bool } -> self
     def register_uri_scheme_protocol: (String uri_scheme) { (UriSchemeContext, Native::HttpRequestEvent) -> Response } -> self
@@ -42,6 +44,7 @@ module Tokra
     attr_reader state_manager: StateManager
     attr_reader rack_app: ::Rack::_App?
     attr_reader window_config: Hash[Symbol, String | Float]
+    def with_global_tauri?: () -> bool
 
     private def require_shareable!: (Proc block, String method_name) -> void
   end

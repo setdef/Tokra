@@ -19,6 +19,7 @@ module StubNative
   def self.clear_event
     Thread.current[:stub_native_event] = nil
     Thread.current[:stub_native_responses] = nil
+    Thread.current[:stub_native_dropped] = nil
   end
 
   # Protocol responses recorded across the run, observable by tests
@@ -27,10 +28,20 @@ module StubNative
     Thread.current[:stub_native_responses] ||= []
   end
 
-  # Stub Proxy that records respond() calls
+  # Request ids dropped without a reply (ipc:// key mismatch path),
+  # observable by tests the same way as responses.
+  def self.dropped
+    Thread.current[:stub_native_dropped] ||= []
+  end
+
+  # Stub Proxy that records respond() and drop_response() calls
   class Proxy
     def respond(id, status, headers, body)
       StubNative.responses << [id, status, headers, body]
+    end
+
+    def drop_response(id)
+      StubNative.dropped << id
     end
   end
 

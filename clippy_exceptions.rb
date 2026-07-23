@@ -20,7 +20,7 @@ allow "ext/tokra/src/window.rs", line: 61, reason: <<~END
   the Ruby GC cycle.
 END
 
-allow "ext/tokra/src/webview.rs", line: 51, reason: <<~END
+allow "ext/tokra/src/webview.rs", line: 101, reason: <<~END
   Magnus FFI requires owned types at the Ruby-Rust boundary. RbWebView::new
   receives a URL from Ruby that must be converted to an owned Rust String.
 
@@ -29,7 +29,7 @@ allow "ext/tokra/src/webview.rs", line: 51, reason: <<~END
   cannot be safely borrowed across the FFI boundary.
 END
 
-allow "ext/tokra/src/webview.rs", line: 234, reason: <<~END
+allow "ext/tokra/src/webview.rs", line: 249, reason: <<~END
   Magnus FFI requires owned types at the Ruby-Rust boundary. RbWebView::eval
   receives JavaScript code from Ruby that must be converted to an owned String.
 
@@ -68,7 +68,7 @@ allow "ext/tokra/src/window.rs", line: 30, reason: <<~END
   ENFORCED BY: test/integration/thread_safety_invariant_test.rb
 END
 
-allow "ext/tokra/src/webview.rs", lines: [35, 36], reason: <<~END
+allow "ext/tokra/src/webview.rs", lines: [85, 86], reason: <<~END
   Tauri Pattern: unsafe impl Send for RbWebView
 
   RbWebView wraps wry::WebView which is bound to the main OS thread.

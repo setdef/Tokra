@@ -31,6 +31,7 @@ module Tokra
       @state_manager = StateManager.new
       @rack_app = nil
       @window_config = {}
+      @with_global_tauri = false
     end
 
     # Sets the window title.
@@ -83,6 +84,25 @@ module Tokra
       end
 
       @rack_app = rack_app
+      self
+    end
+
+    # Injects the @tauri-apps/api bundle as <tt>window.__TAURI__</tt>.
+    #
+    # A page with no frontend bundler cannot +import+ from
+    # <tt>@tauri-apps/api</tt>. Tauri solves this with <tt>withGlobalTauri</tt>,
+    # which injects the API's prebuilt IIFE as an initialization script, so the
+    # page calls <tt>window.__TAURI__.core.invoke(...)</tt> directly.
+    #
+    # Set this to expose the whole vendored API the same way. It mirrors
+    # <tt>app.withGlobalTauri</tt> in Tauri's configuration; Tokra gates it at
+    # runtime rather than through build-time codegen.
+    #
+    # === Example
+    #
+    #   Tokra::Builder.new.with_global_tauri.app(MyRodaApp.freeze.app).run
+    def with_global_tauri(enabled = true)
+      @with_global_tauri = enabled
       self
     end
 
@@ -191,6 +211,12 @@ module Tokra
     attr_reader :state_manager, :invoke_handler_hook, :uri_scheme_protocols, # :nodoc:
       :async_uri_scheme_protocols, :setup_hook, :on_page_load_hook,
       :window_event_listeners, :webview_event_listeners, :rack_app, :window_config
+
+    # Whether the @tauri-apps/api bundle should be injected (friendly reader;
+    # a predicate so it does not collide with the with_global_tauri setter).
+    def with_global_tauri? # :nodoc:
+      @with_global_tauri
+    end
 
     private def require_shareable!(block, method_name)
       return if Ractor.shareable?(block)

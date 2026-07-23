@@ -54,6 +54,8 @@ module Rack # :nodoc:
         # - <tt>:title</tt> - Window title (default: "Tokra")
         # - <tt>:width</tt> - Window width in pixels (default: 800)
         # - <tt>:height</tt> - Window height in pixels (default: 600)
+        # - <tt>:with_global_tauri</tt> - Inject <tt>@tauri-apps/api</tt> as
+        #   <tt>window.__TAURI__</tt> (default: false)
         #
         # == Example
         #
@@ -63,12 +65,15 @@ module Rack # :nodoc:
         #
         #   Rack::Handler::Tokra.run(MyApp.freeze.app)
         #
-        def run(app, title: "Tokra", width: 800.0, height: 600.0, invoke_handler: nil)
+        def run(app, title: "Tokra", width: 800.0, height: 600.0, invoke_handler: nil,
+          with_global_tauri: false
+        )
           # Porcelain over plumbing (ADR 004): build a Tokra::Builder with
           # this Rack app as the tokra:// content server and let App own the
           # event loop, webview, script injection, and IPC dispatch. This
           # keeps one unified path rather than a second bespoke loop.
           builder = ::Tokra::Builder.new.app(app).title(title).size(width, height)
+          builder.with_global_tauri if with_global_tauri
           builder.invoke_handler(&invoke_handler) if invoke_handler
           builder.run
         end

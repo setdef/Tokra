@@ -25,6 +25,7 @@ module Tokra
     class Proxy
       def respond: (Integer, Integer, Array[Array[String]], String) -> void
       def send_http_response: (Integer, Integer, Hash[String, String], String) -> void
+      def drop_response: (Integer) -> void
     end
 
     class HttpRequestEvent

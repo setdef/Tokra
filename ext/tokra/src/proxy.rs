@@ -111,6 +111,31 @@ impl RbProxy {
             )),
         }
     }
+
+    // SPDX-SnippetBegin
+    // SPDX-License-Identifier: Apache-2.0 OR MIT
+    // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    // SPDX-SnippetComment: Drop-without-reply behavior adapted from tauri/src/webview/mod.rs on_message key mismatch
+
+    /// Drop a pending async protocol responder without replying.
+    ///
+    /// On an `ipc://` invoke-key mismatch, Tauri drops the owned responder by
+    /// returning from `on_message`, which closes the response and makes the
+    /// client `fetch` reject (webview/mod.rs). Tokra's responder lives in a map
+    /// keyed by `request_id`, so the faithful equivalent is to remove and drop
+    /// it. Unlike `respond`, a missing `request_id` is not an error: the drop is
+    /// idempotent.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the responders mutex is poisoned (internal invariant violation).
+    pub fn drop_response(&self, request_id: u64) {
+        use crate::responders::get_responders;
+
+        get_responders().lock().unwrap().remove(&request_id);
+    }
+
+    // SPDX-SnippetEnd
 }
 
 // RbProxy is genuinely Send+Sync because EventLoopProxy<T> is Send+Sync
@@ -161,5 +186,6 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
     proxy_class.undef_default_alloc_func();
     proxy_class.define_method("wake_up", method!(RbProxy::wake_up, 1))?;
     proxy_class.define_method("respond", method!(RbProxy::respond, 4))?;
+    proxy_class.define_method("drop_response", method!(RbProxy::drop_response, 1))?;
     Ok(())
 }

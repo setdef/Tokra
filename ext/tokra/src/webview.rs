@@ -7,6 +7,7 @@
 //! which wraps `wry::WebView` and implements the tokra:// custom protocol.
 
 use magnus::{function, method, prelude::*, Error, Ruby, Value};
+use tao::event_loop::EventLoopProxy;
 use wry::{PageLoadEvent, WebView, WebViewBuilder};
 
 use crate::proxy::RbProxy;
@@ -14,6 +15,55 @@ use crate::responders::{get_responders, next_request_id};
 use crate::runtime_error;
 use crate::user_event::UserEvent;
 use crate::window::RbWindow;
+
+// SPDX-SnippetBegin
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+// SPDX-SnippetComment: Header extraction and request forwarding adapted from
+//                      tauri/src/protocol/tauri.rs and tauri/src/ipc/protocol.rs
+
+/// Forward one custom-protocol request to Ruby through the event loop.
+///
+/// Both the `tokra://` content protocol and the `ipc://` transport share this
+/// path: store the wry responder by a fresh `request_id`, then send a
+/// `UserEvent::HttpRequest` carrying the request. Ruby routes on the URI scheme
+/// and later replies (or drops) via the `Proxy` keyed by that `request_id`. wry
+/// registers each scheme independently, so both protocols reuse one handler.
+fn forward_request_to_ruby(
+    proxy: &EventLoopProxy<UserEvent>,
+    request: &wry::http::Request<Vec<u8>>,
+    responder: wry::RequestAsyncResponder,
+) {
+    let request_id = next_request_id();
+    let method = request.method().to_string();
+    let uri = request.uri().to_string();
+
+    // Headers carry cookies (ADR 002) and, on the ipc:// path, the Tauri-*
+    // invoke headers and Origin that Ruby parses per ipc/protocol.rs.
+    let headers: Vec<(String, String)> = request
+        .headers()
+        .iter()
+        .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
+        .collect();
+
+    let body = String::from_utf8_lossy(request.body()).to_string();
+
+    // Store the responder so Ruby can reply (or drop) it later by request_id.
+    get_responders()
+        .lock()
+        .unwrap()
+        .insert(request_id, responder);
+
+    let _ = proxy.send_event(UserEvent::HttpRequest {
+        request_id,
+        method,
+        uri,
+        headers,
+        body,
+    });
+}
+
+// SPDX-SnippetEnd
 
 /// Ruby wrapper for `wry::WebView`.
 #[magnus::wrap(class = "Tokra::Native::WebView", free_immediately, size)]
@@ -101,6 +151,7 @@ impl RbWebView {
     ) -> Result<Self, Error> {
         let proxy_clone = proxy.inner().clone();
         let proxy_for_protocol = proxy.inner().clone();
+        let proxy_for_ipc = proxy.inner().clone();
         let proxy_for_page_load = proxy.inner().clone();
 
         let mut builder = WebViewBuilder::new();
@@ -110,51 +161,15 @@ impl RbWebView {
 
         let webview = builder
             .with_url("tokra://localhost/")
-            .with_asynchronous_custom_protocol(
-                "tokra".into(),
-                move |_webview_id, request, responder| {
-                    // Generate unique request ID
-                    let request_id = next_request_id();
-
-                    // Extract request details
-                    let method = request.method().to_string();
-                    let uri = request.uri().to_string();
-
-                    // SPDX-SnippetBegin
-                    // SPDX-License-Identifier: Apache-2.0 OR MIT
-                    // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
-                    // SPDX-SnippetComment: Header extraction pattern adapted from tauri/src/protocol/tauri.rs request.headers() iteration
-
-                    // Extract headers for CSRF/Cookie support (ADR 002 requirement)
-                    let headers: Vec<(String, String)> = request
-                        .headers()
-                        .iter()
-                        .map(|(name, value)| {
-                            (name.to_string(), value.to_str().unwrap_or("").to_string())
-                        })
-                        .collect();
-
-                    // SPDX-SnippetEnd
-
-                    let body = String::from_utf8_lossy(request.body()).to_string();
-
-                    // Store the responder for later (Ruby will call back with the response)
-                    get_responders()
-                        .lock()
-                        .unwrap()
-                        .insert(request_id, responder);
-
-                    // Send HTTP request through the event loop to Ruby
-                    // Ruby will process and send back an HttpResponse event
-                    let _ = proxy_for_protocol.send_event(UserEvent::HttpRequest {
-                        request_id,
-                        method,
-                        uri,
-                        headers,
-                        body,
-                    });
-                },
-            )
+            // The tokra:// content protocol: Ruby serves HTML, assets, and Rack.
+            .with_asynchronous_custom_protocol("tokra".into(), move |_id, request, responder| {
+                forward_request_to_ruby(&proxy_for_protocol, &request, responder);
+            })
+            // The ipc:// transport: Tauri's desktop-default invoke channel. Same
+            // request shape, different scheme; Ruby dispatches on the URI scheme.
+            .with_asynchronous_custom_protocol("ipc".into(), move |_id, request, responder| {
+                forward_request_to_ruby(&proxy_for_ipc, &request, responder);
+            })
             .with_on_page_load_handler(move |event, url| {
                 let event_name = match event {
                     PageLoadEvent::Started => "started",

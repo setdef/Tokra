@@ -59,6 +59,7 @@ module Tokra
       @manager = AppManager.new(config:, webviews: {}, windows: {})
       @handle = AppHandle.new(@manager, state_manager: builder.__send__(:state_manager))
       @builder = builder
+      @with_global_tauri = builder.__send__(:with_global_tauri?)
 
       # Register core plugins, mirroring Tauri app.rs (App::build)
       @handle.plugin(Resources::Plugin.new(@handle))
@@ -146,13 +147,26 @@ module Tokra
     # order (manager/webview.rs:160-192): the __TAURI_INTERNALS__
     # bootstrap, the invoke transport, webview metadata, and the init.js
     # bundle (pattern, ipc router, core, events).
+    #
+    # When with_global_tauri is set, the vendored @tauri-apps/api bundle is
+    # appended last, after the core init scripts, exposing the whole API as
+    # window.__TAURI__ (manager/webview.rs:210-215). This is Tauri's own
+    # mechanism for running its API in a webview with no frontend bundler.
     private def initialization_scripts
-      [
+      scripts = [
         bootstrap_script,
         invoke_initialization_script,
         metadata_script,
         init_script,
       ]
+      scripts << global_api_script if @with_global_tauri
+      scripts
+    end
+
+    # The vendored @tauri-apps/api IIFE (bundle.global.js), synced from the
+    # submodule by rake sync:tauri. Injecting it defines window.__TAURI__.
+    private def global_api_script
+      Native.load_js_template("bundle.global.js")
     end
 
     # Defines window.isTauri and the bare __TAURI_INTERNALS__ object
@@ -251,6 +265,10 @@ module Tokra
     end
 
     private def dispatch_http_request(event, proxy)
+      # The ipc:// transport shares the HttpRequest event shape with the
+      # tokra:// content protocol; route on the URI scheme (Plan 015 D1/D3).
+      return dispatch_ipc_protocol(event, proxy) if ipc_protocol_request?(event.uri)
+
       sync_protocols = @builder.__send__(:uri_scheme_protocols)
       async_protocols = @builder.__send__(:async_uri_scheme_protocols)
 
@@ -290,6 +308,24 @@ module Tokra
       payload = raw_payload.is_a?(Hash) ? raw_payload : empty_payload
       responder = build_ipc_responder(parsed["callback"], parsed["error"])
 
+      route_invoke(cmd, payload, responder)
+    rescue JSON::ParserError => e
+      warn("failed to parse IPC message: #{e.message}")
+    end
+
+    # Routes a parsed invoke to its handler, shared by both transports.
+    #
+    # Tauri routes the postMessage and ipc:// transports through one
+    # method (webview/mod.rs on_message): plugin:-prefixed commands go to
+    # the plugin store, everything else to the app invoke_handler, and an
+    # unclaimed command rejects with <tt>Command NAME not found</tt>. Each
+    # transport supplies only what differs — how it read the key, parsed
+    # the payload, and what its responder does.
+    #
+    # Tauri's on_message also resolves ACL/capabilities here; Tokra has no
+    # capability system (TODO 001 #9), so neither transport is guarded. This
+    # phase keeps that status and does not widen the gap.
+    private def route_invoke(cmd, payload, responder)
       if cmd.start_with?("plugin:")
         dispatch_plugin_command(cmd, payload, responder)
       else
@@ -302,8 +338,6 @@ module Tokra
         handled = @builder.__send__(:invoke_handler_hook)&.call(invoke)
         invoke.reject("Command #{cmd} not found") unless handled
       end
-    rescue JSON::ParserError => e
-      warn("failed to parse IPC message: #{e.message}")
     end
 
     # Builds a responder that evaluates Tauri's callback script in the
@@ -344,6 +378,177 @@ module Tokra
       handled = @manager.plugins.extend_api(plugin_name || "", invoke)
       invoke.reject("Command #{command} not found") unless handled
     end
+
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: ipc:// transport adapted from tauri/src/ipc/protocol.rs
+    #                      and tauri/src/webview/mod.rs on_message
+
+    # Raised internally when an ipc:// request is malformed: a missing or
+    # non-numeric Tauri-Callback/Tauri-Error, a missing Tauri-Invoke-Key or
+    # Origin, unparseable JSON, or an unimplemented content type. It mirrors
+    # the Err(String) arm of parse_invoke_request (ipc/protocol.rs), surfaced
+    # to the client as 500 text/plain. It never escapes App.
+    class IpcProtocolError < Error # :nodoc:
+    end
+
+    # CORS headers stamped on every ipc:// reply, mirroring the shared
+    # respond closure in ipc/protocol.rs (48-57): the client reads the
+    # Tauri-Response header cross-origin, so it must be exposed.
+    IPC_CORS_HEADERS = [
+      ["Access-Control-Allow-Origin", "*"],
+      ["Access-Control-Expose-Headers", "Tauri-Response"],
+    ].freeze
+
+    # Serves the ipc:// custom protocol — Tauri's desktop-default invoke
+    # transport (ipc/protocol.rs get handler). POST carries an invoke;
+    # OPTIONS is the CORS preflight; any other method is 405.
+    private def dispatch_ipc_protocol(event, proxy)
+      case event.method
+      when "POST"
+        dispatch_ipc_protocol_post(event, proxy)
+      when "OPTIONS"
+        proxy.respond(event.request_id, 200,
+          [["Access-Control-Allow-Headers", "*"]] + IPC_CORS_HEADERS, "")
+      else
+        respond_ipc_error(proxy, event.request_id, 405, "only POST and OPTIONS are allowed")
+      end
+    end
+
+    # Handles a POST to ipc://: parse per Tauri, verify the invoke key, then
+    # route through the shared dispatcher with an HTTP responder.
+    #
+    # A malformed request replies 500 text/plain with the parse error
+    # (ipc/protocol.rs:143-151). A well-formed request with a mismatched key
+    # logs Tauri's exact message and drops the responder with no reply
+    # (webview/mod.rs:1730-1744) — dropping makes the client fetch reject and
+    # fall back to postMessage.
+    private def dispatch_ipc_protocol_post(event, proxy)
+      cmd, invoke_key, payload = parse_ipc_protocol_request(event)
+
+      unless invoke_key == @manager.invoke_key
+        proxy.drop_response(event.request_id)
+        return warn(
+          "__TAURI_INVOKE_KEY__ expected #{@manager.invoke_key} but received #{invoke_key}"
+        )
+      end
+
+      responder = build_ipc_protocol_responder(proxy, event.request_id)
+      route_invoke(cmd, payload, responder)
+    rescue IpcProtocolError => e
+      respond_ipc_error(proxy, event.request_id, 500, e.message)
+    end
+
+    # Parses an ipc:// POST into [cmd, invoke_key, payload], raising
+    # IpcProtocolError on any malformed part. The command is the
+    # percent-decoded URL path (ipc/protocol.rs:443-445); the Tauri-Callback
+    # and Tauri-Error headers must be present and numeric even though the
+    # client reads the ids from the response and Tokra only validates them
+    # here; Tauri-Invoke-Key and Origin must be present (483-520).
+    private def parse_ipc_protocol_request(event)
+      headers = event.headers
+      cmd = decode_ipc_command(event.uri)
+      content_type = ipc_content_type(headers)
+
+      invoke_key = http_header(headers, "Tauri-Invoke-Key")
+      raise IpcProtocolError, "missing Tauri-Invoke-Key header" unless invoke_key
+      raise IpcProtocolError, "missing Origin header" unless http_header(headers, "Origin")
+
+      validate_ipc_callback_id(headers, "Tauri-Callback", "callback")
+      validate_ipc_callback_id(headers, "Tauri-Error", "error")
+
+      [cmd, invoke_key, parse_ipc_payload(content_type, event.body)]
+    end
+
+    # The command name: the URL path with the leading slash removed and
+    # percent-decoded (ipc/protocol.rs:443-445). convertFileSrc encodes it
+    # with encodeURIComponent (core.js), so decode_uri_component reverses it.
+    private def decode_ipc_command(uri)
+      URI.decode_uri_component(URI.parse(uri).path.to_s.delete_prefix("/"))
+    end
+
+    # The request content type essence (parameters stripped), defaulting to
+    # application/octet-stream when absent, matching ipc/protocol.rs:452-458.
+    private def ipc_content_type(headers)
+      raw = http_header(headers, "Content-Type") || "application/octet-stream"
+      raw.split(";", 2).fetch(0).strip.downcase
+    end
+
+    # Parses the request body by content type: JSON (an empty body, or a
+    # non-object, becomes an empty object, matching dispatch_ipc); an empty
+    # octet-stream body is the payload-less invoke. Raw bodies and other
+    # content types are unimplemented (Plan 015 Out of Scope).
+    private def parse_ipc_payload(content_type, body)
+      empty = {} #: Hash[String, json_value]
+      case content_type
+      when "application/json"
+        return empty if body.empty?
+
+        parsed = JSON.parse(body)
+        parsed.is_a?(Hash) ? parsed : empty
+      when "application/octet-stream"
+        return empty if body.empty?
+
+        raise IpcProtocolError, "raw request bodies are not implemented"
+      else
+        raise IpcProtocolError, "content type #{content_type} is not implemented"
+      end
+    rescue JSON::ParserError => e
+      raise IpcProtocolError, e.message
+    end
+
+    # Validates that a numeric callback-id header is present and numeric,
+    # mirroring the CallbackFn parsing in ipc/protocol.rs:501-520.
+    private def validate_ipc_callback_id(headers, header_name, kind)
+      value = http_header(headers, header_name)
+      raise IpcProtocolError, "missing #{header_name} header" unless value
+
+      Integer(value, 10)
+    rescue ArgumentError
+      raise IpcProtocolError, "Tauri #{kind} header value must be a numeric string"
+    end
+
+    # A case-insensitive header lookup over the [name, value] pairs the
+    # native layer forwards. HTTP header names are case-insensitive, and wry
+    # may present them in any case.
+    private def http_header(headers, name)
+      target = name.downcase
+      pair = headers.find { |(key, _value)| key.downcase == target }
+      pair&.last
+    end
+
+    # Builds the ipc:// responder: it answers the HTTP request rather than
+    # evaluating runCallback, since the client reads the response and calls
+    # runCallback itself (ipc-protocol.js). Success and error both serialize
+    # as application/json, distinguished by the Tauri-Response header, and
+    # both reply 200 (ipc/protocol.rs:107-139).
+    private def build_ipc_protocol_responder(proxy, request_id)
+      lambda do |success, value|
+        proxy.respond(request_id, 200,
+          [
+            ["Tauri-Response", success ? "ok" : "error"],
+            ["Content-Type", "application/json"],
+          ] + IPC_CORS_HEADERS,
+          JSON.generate(value))
+      end
+    end
+
+    # Replies to an ipc:// request with a plain-text error and the CORS
+    # headers, used for the 500 malformed and 405 non-POST paths.
+    private def respond_ipc_error(proxy, request_id, status, message)
+      proxy.respond(request_id, status,
+        [["Content-Type", "text/plain"]] + IPC_CORS_HEADERS, message)
+    end
+
+    # True when a forwarded HTTP request is an ipc:// invoke: ipc://localhost/
+    # on macOS and Linux, http://ipc.localhost/ on Windows (core.js
+    # convertFileSrc).
+    private def ipc_protocol_request?(uri)
+      uri.start_with?("ipc://") || uri.start_with?("http://ipc.localhost/")
+    end
+
+    # SPDX-SnippetEnd
 
     private def dispatch_page_load(event)
       hook = @builder.__send__(:on_page_load_hook)

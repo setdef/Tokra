@@ -26,6 +26,11 @@ require "logger"
 # Logging Setup
 # =============================================================================
 
+# Flush immediately so a terminal shows the round-trip logs live rather
+# than only when the block buffer fills or the process exits.
+$stdout.sync = true
+$stderr.sync = true
+
 LOGGER = Logger.new($stdout)
 LOGGER.level = Logger::DEBUG
 LOGGER.progname = "PingPong"
@@ -128,9 +133,18 @@ Rack::Handler::Tokra.run(
   title: "Tokra Ping-Pong",
   width: 500,
   height: 600,
+  # Inject @tauri-apps/api as window.__TAURI__ so the page calls the real
+  # invoke() with no frontend bundler (Tauri's withGlobalTauri). The invoke
+  # rides the ipc:// custom-protocol transport; watch for the ABSENCE of the
+  # "IPC custom protocol failed" console warning to confirm it.
+  with_global_tauri: true,
   # Tauri's invoke_handler: it receives an Invoke and resolves the
   # frontend promise. Must be Ractor-shareable, so it captures nothing.
+  # It warns to stderr so a terminal shows the invoke actually arrived in
+  # Ruby (regardless of which transport carried it).
   invoke_handler: Ractor.shareable_proc { |invoke|
+    warn("[Tokra IPC] invoke received: cmd=#{invoke.command.inspect} " \
+      "payload=#{invoke.payload.inspect}")
     invoke.resolve("PONG: #{invoke.payload['message']}")
     true
   }
