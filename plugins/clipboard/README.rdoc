@@ -1,5 +1,7 @@
 = tokra-clipboard
 
+{rdoc-image:https://justin.searls.co/img/shovelware.svg}[https://justin.searls.co/shovelware/]
+
 Clipboard plugin for Tokra desktop applications.
 
 Provides read/write access to the system clipboard using the arboard crate,

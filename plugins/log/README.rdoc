@@ -1,5 +1,7 @@
 = tokra-log
 
+{rdoc-image:https://justin.searls.co/img/shovelware.svg}[https://justin.searls.co/shovelware/]
+
 Logging plugin for Tokra desktop applications.
 
 Wraps Ruby's Logger with desktop-friendly defaults and integrates with

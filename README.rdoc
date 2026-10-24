@@ -1,5 +1,7 @@
 == Build Desktop Apps with Ruby and Web Technologies
 
+{rdoc-image:https://justin.searls.co/img/shovelware.svg}[https://justin.searls.co/shovelware/]
+
 Tokra is a port of Tauri to Ruby, enabling you to build desktop applications
 with web technologies backed by Ruby.
 
