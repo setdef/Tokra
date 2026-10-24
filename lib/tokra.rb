@@ -48,11 +48,6 @@ require_relative "tokra/rack/handler"
 
 # Tokra is a port of Tauri to Ruby.
 module Tokra
-  # Mix Manager into native classes for Tauri parity.
-  # In Tauri, Manager is implemented for AppHandle, Window, Webview, and App.
-  Native::Window.include(Manager)
-  Native::WebView.include(Manager)
-
   # Generates the per-app IPC invoke key: 16 random bytes, Z85-encoded.
   #
   # The key is templated into the injected initialization scripts and

@@ -4,8 +4,16 @@
 inherit_from:
   - ./vendor/goodcop/base.yml
 
+# Merge Include with RuboCop's defaults rather than replace them, so the
+# hidden .agents directory (agent skill scripts) is linted too.
+inherit_mode:
+  merge:
+    - Include
+
 AllCops:
   TargetRubyVersion: "4.0"
+  Include:
+    - ".agents/**/*.rb"
   Exclude:
     # Rails example has its own .rubocop.yml
     - "examples/verify_rails_sqlite/**/*"
@@ -13,3 +21,14 @@ AllCops:
     - "tmp/**/*"
     # Tauri submodule contains non-Ruby template files
     - "vendor/tauri/**/*"
+# RDoc mis-parses endless methods: the methods after one lose their comments
+# and visibility (doc/contributors/documentation_style.md, section 5). Every
+# file RDoc reads uses def ... end.
+Style/EndlessMethod:
+  Enabled: true
+  EnforcedStyle: disallow
+  Include:
+    - "lib/**/*.rb"
+    - "plugins/*/lib/**/*.rb"
+    - "ext/**/*.rb"
+    - "examples/**/*.rb"

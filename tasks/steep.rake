@@ -16,7 +16,7 @@ namespace :steep do
   desc "Forbid 'untyped' in RBS files except approved exceptions"
   task :no_untyped do
     Lint.load(File.expand_path("../rbs_exceptions.rb", __dir__)).enforce!(
-      glob: "sig/**/*.rbs",
+      glob: "{sig,plugins/*/sig}/**/*.rbs",
       pattern: /\buntyped\b/,
       reject_pattern: /^\s*#/,
       violation_name: "'untyped' in RBS files"
@@ -24,10 +24,32 @@ namespace :steep do
   end
 end
 
+namespace :rbs do
+  # Steep checks only sig/ against lib/. Plugin signatures are read here, so
+  # a type name they get wrong fails the gate even before plugins get Steep
+  # targets of their own.
+  desc "Validate every RBS file, plugins included"
+  task :validate do
+    libraries = %w[logger pathname json uri erb securerandom stringio fileutils date timeout]
+    dirs = ["sig"] + Dir.glob("plugins/*/sig")
+    sh "bundle", "exec", "rbs", *libraries.flat_map { |name| ["-r", name] }, *dirs.flat_map { |dir| ["-I", dir] }, "validate"
+  end
+
+  desc "Check every signature has an implementation and every public method a signature"
+  task parity: %w[compile plugins:compile] do
+    plugins = Dir.glob("plugins/*").select { |dir| File.directory?(File.join(dir, "lib")) }.sort
+    sigs = ["sig"] + plugins.map { |dir| File.join(dir, "sig") }.select { |dir| Dir.exist?(dir) }
+    libs = ["lib"] + plugins.map { |dir| File.join(dir, "lib") }
+    args = sigs.flat_map { |dir| ["--sig", dir] } + libs.flat_map { |dir| ["--lib", dir] }
+    args += %w[--native Tokra::Native --native TokraClipboard::Native --allow rbs_exceptions.rb]
+    ruby File.expand_path("rbs_parity.rb", __dir__), *args
+  end
+end
+
 desc "Run Steep type checker (with no_untyped check)"
 task steep: %w[steep:check steep:no_untyped]
 
 namespace :lint do
-  desc "Run RBS linting (no unapproved untyped)"
-  task rbs: "steep:no_untyped"
+  desc "Run RBS linting (no unapproved untyped, signature and implementation parity)"
+  task rbs: %w[steep:no_untyped rbs:validate rbs:parity]
 end

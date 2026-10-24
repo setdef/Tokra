@@ -17,7 +17,8 @@
 *.so
 *.bundle
 *.dll
-Cargo.lock
+/plugins/*/target/
 
 # Generated files (regenerate with: rake sync:tauri)
 /lib/tokra/js/
+.DS_Store

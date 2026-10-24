@@ -168,19 +168,57 @@ module Tokra
 
         # Consider these "friendly" -- public to Log plugin, private to app devs.
         # Uses underscore-prefixed ivars to avoid conflict with fluent setters.
-        def configured_targets = @_targets                     # :nodoc:
-        def configured_level = @_level                         # :nodoc:
-        def configured_progname = @_progname                   # :nodoc:
-        def configured_datetime_format = @_datetime_format     # :nodoc:
-        def configured_rotation_strategy = @_rotation_strategy # :nodoc:
-        def configured_timezone_strategy = @_timezone_strategy # :nodoc:
-        def configured_max_file_size = @_max_file_size         # :nodoc:
-        def configured_skip_logger = @_skip_logger             # :nodoc:
-        def configured_path_resolver = @_path_resolver         # :nodoc:
-        def configured_app_handle = @_app_handle               # :nodoc:
-        def configured_app_name = @_app_name                   # :nodoc:
-        def configured_formatter = @_formatter                 # :nodoc:
-        def configured_filter = @_filter                       # :nodoc:
+        def configured_targets # :nodoc:
+          @_targets
+        end
+
+        def configured_level # :nodoc:
+          @_level
+        end
+
+        def configured_progname # :nodoc:
+          @_progname
+        end
+
+        def configured_datetime_format # :nodoc:
+          @_datetime_format
+        end
+
+        def configured_rotation_strategy # :nodoc:
+          @_rotation_strategy
+        end
+
+        def configured_timezone_strategy # :nodoc:
+          @_timezone_strategy
+        end
+
+        def configured_max_file_size # :nodoc:
+          @_max_file_size
+        end
+
+        def configured_skip_logger # :nodoc:
+          @_skip_logger
+        end
+
+        def configured_path_resolver # :nodoc:
+          @_path_resolver
+        end
+
+        def configured_app_handle # :nodoc:
+          @_app_handle
+        end
+
+        def configured_app_name # :nodoc:
+          @_app_name
+        end
+
+        def configured_formatter # :nodoc:
+          @_formatter
+        end
+
+        def configured_filter # :nodoc:
+          @_filter
+        end
       end
     end
   end

@@ -2,13 +2,15 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# This Cargo.toml is here to let externals tools (IDEs, etc.) know that this is
-# a Rust project. Your extensions dependencies should be added to the Cargo.toml
-# in the ext/ directory.
+# The tokra gem's Cargo workspace. It ships in the gem beside Cargo.lock, so
+# an installed gem compiles against exactly the dependency versions this
+# repository tests. Each plugin gem with a native crate is its own workspace
+# (plugins/*/Cargo.toml) with its own Cargo.lock, for the same reason.
 
 [workspace]
-members = ["./ext/tokra", "./plugins/clipboard/ext/tokra_clipboard"]
+members = ["ext/tokra"]
+exclude = ["plugins"]
 resolver = "2"
 
 # Lints live in each member crate (see ext/tokra/Cargo.toml), so a crate
-# packaged alone in its gem still compiles with them.
+# never depends on a workspace table for them.

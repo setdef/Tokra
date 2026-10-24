@@ -14,24 +14,33 @@ class TestBuilderRackApp < Minitest::Test
   # A minimal Rack app echoing the path it received.
   ECHO_APP = -> (env) { [200, { "content-type" => "text/plain" }, ["echo:#{env['PATH_INFO']}"]] }
 
+  def setup
+    StubNative.clear_event
+  end
+
+  def teardown
+    StubNative.clear_event
+  end
+
   def test_app_rejects_non_rack_objects
     error = assert_raises(Tokra::Error) { Tokra::Builder.new.app(Object.new) }
     assert_match(/respond to #call/, error.message)
   end
 
   def test_title_and_size_configure_the_window
-    app = Tokra::Builder.new.title("Configured").size(1024, 768).build(native: StubNative)
+    Tokra::Builder.new.title("Configured").size(1024, 768).build(native: StubNative).run
+    window = StubNative.windows.first
 
-    assert_equal "Configured", app.config[:title]
-    assert_in_delta 1024.0, app.config[:width]
-    assert_in_delta 768.0, app.config[:height]
+    assert_equal "Configured", window.title
+    assert_equal [1024.0, 768.0], window.size
   end
 
   def test_defaults_apply_when_window_unconfigured
-    app = Tokra::Builder.new.build(native: StubNative)
+    Tokra::Builder.new.build(native: StubNative).run
+    window = StubNative.windows.first
 
-    assert_equal "Tokra", app.config[:title]
-    assert_in_delta 800.0, app.config[:width]
+    assert_equal "Tokra", window.title
+    assert_in_delta 800.0, window.size.first
   end
 
   def test_rack_app_is_served_over_tokra_protocol

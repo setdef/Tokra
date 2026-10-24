@@ -24,7 +24,9 @@ module Tokra
         class KeepAll < Data.define
           ##
           # Returns Ruby Logger shift_age value.
-          def to_shift_age = "daily"
+          def to_shift_age
+            "daily"
+          end
         end
 
         # Keep only the current log file.
@@ -33,7 +35,9 @@ module Tokra
         class KeepOne < Data.define
           ##
           # Returns Ruby Logger shift_age value.
-          def to_shift_age = 1
+          def to_shift_age
+            1
+          end
         end
 
         # Keep N most recent log files.
@@ -42,7 +46,9 @@ module Tokra
         class KeepSome < Data.define(:count)
           ##
           # Returns Ruby Logger shift_age value.
-          def to_shift_age = count
+          def to_shift_age
+            count
+          end
         end
       end
     end

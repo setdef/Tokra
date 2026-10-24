@@ -23,7 +23,9 @@ module Tokra
         class UseUtc < Data.define
           ##
           # Formats the time in UTC.
-          def format_time(time) = time.utc
+          def format_time(time)
+            time.utc
+          end
         end
 
         # Use local timezone for timestamps (Ruby default).
@@ -32,7 +34,9 @@ module Tokra
         class UseLocal < Data.define
           ##
           # Returns time unchanged (already local).
-          def format_time(time) = time
+          def format_time(time)
+            time
+          end
         end
       end
     end

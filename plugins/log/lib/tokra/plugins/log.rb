@@ -88,22 +88,34 @@ module Tokra
         end
 
         # Logs a trace message (lowest priority).
-        def trace(message) = log(TRACE, message)
+        def trace(message)
+          log(TRACE, message)
+        end
 
         # Logs a debug message.
-        def debug(message) = log(:debug, message)
+        def debug(message)
+          log(:debug, message)
+        end
 
         # Logs an info message.
-        def info(message) = log(:info, message)
+        def info(message)
+          log(:info, message)
+        end
 
         # Logs a warning message.
-        def warn(message) = log(:warn, message)
+        def warn(message)
+          log(:warn, message)
+        end
 
         # Logs an error message.
-        def error(message) = log(:error, message)
+        def error(message)
+          log(:error, message)
+        end
 
         # Logs a fatal message.
-        def fatal(message) = log(:fatal, message)
+        def fatal(message)
+          log(:fatal, message)
+        end
 
         # Logs a message using Logger's add API.
         #

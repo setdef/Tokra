@@ -186,7 +186,7 @@ module Tokra
         end
 
         # Delegates unknown methods to the underlying logger.
-        def method_missing(method, *, &)
+        private def method_missing(method, *, &)
           @logger.__send__(method, *, &)
         end
 

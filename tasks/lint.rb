@@ -14,9 +14,19 @@ class Lint
     instance_eval(File.read(path))
   end
 
+  # Records an exception. Line-based lints key it by path:line; a lint
+  # over named things (lint: :rbs_parity) keys it by name alone.
   def allow(path, line: nil, lines: nil, lint: nil, reason:)
-    line_numbers = lines || [line]
-    line_numbers.each { |n| list << "#{path}:#{n}" }
+    if lint
+      named(lint) << path
+    else
+      (lines || [line]).each { |n| list << "#{path}:#{n}" }
+    end
+  end
+
+  # The exact keys allowed for a named lint.
+  def keys(lint:)
+    named(lint).dup
   end
 
   # Enforce no violations. Aborts with message if any found, otherwise prints success.
@@ -46,4 +56,8 @@ class Lint
   def include?(location) = list.any? { |ex| location.start_with?(ex) }
   def to_a = list
   def list = @list ||= []
+
+  private def named(lint)
+    (@named ||= Hash.new { |hash, name| hash[name] = [] })[lint]
+  end
 end

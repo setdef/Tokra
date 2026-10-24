@@ -31,26 +31,19 @@ Gem::Specification.new do |spec|
   spec.metadata["funding_uri"] = "https://opencollective.com/tauri"
   spec.metadata["rubygems_mfa_required"] = "true"
 
-  # Specify which files should be added to the gem when it is released.
-  # The `git ls-files -z` loads the files in the RubyGem that have been added into git.
-  gemspec = File.basename(__FILE__)
-  spec.files = IO.popen(%w[git ls-files -z], chdir: __dir__, err: IO::NULL) do |ls|
-    ls.readlines("\x0", chomp: true).reject do |f|
-      # The root Cargo.toml is a development workspace naming the clipboard
-      # plugin crate, which this gem does not ship; Cargo rejects a workspace
-      # with a missing member, so the gem carries only ext/tokra's manifest.
-      # plugins/ holds separate gems, and vendor/ the Tauri submodule and
-      # development configuration.
-      (f == gemspec) || (f == "Cargo.toml") ||
-        f.start_with?(*%w[bin/ Gemfile .gitignore test/ .rubocop.yml plugins/ vendor/])
-    end
+  # Ship what an installed app loads and what compiles the native extension:
+  # the Ruby library, its signatures, the crate, and the Cargo workspace and
+  # lockfile that pin the crate's dependencies (Plan 017). Listing paths keeps
+  # development files (plans, chats, tasks, tests, tool configuration) out
+  # without a deny list that every new file has to remember.
+  packaged = %w[lib sig ext/tokra Cargo.toml Cargo.lock README.rdoc CHANGELOG.md LICENSE LICENSES]
+  spec.files = IO.popen(["git", "ls-files", "-z", "--", *packaged], chdir: __dir__, err: IO::NULL) do |ls|
+    ls.readlines("\x0", chomp: true)
   end
   # Add the vendored Tauri scripts (rake sync:tauri), which are .gitignore'd
   # but loaded at runtime by Native.load_js_template. Glob relative to this
   # file so the list does not depend on the current directory.
   spec.files += Dir.glob("lib/tokra/js/*", base: __dir__)
-  spec.bindir = "exe"
-  spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
   spec.extensions = ["ext/tokra/extconf.rb"]
 

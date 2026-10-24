@@ -25,6 +25,7 @@ The authority is the pinned submodule `vendor/tauri` (`git submodule update --in
 - Root-cause every fix. If you cannot explain why a change fixed the symptom, it is not a fix.
 - Write tests first. A test must fail if the code it covers is deleted or mutated, and must exercise real collaborators, not stubs that hide missing behavior.
 - Design in the spirit of Kent Beck (small steps, Implementation Patterns), Freeman & Pryce (tests drive interfaces), Sandi Metz (duplication over the wrong abstraction), Rebecca Wirfs-Brock (responsibility-driven roles), Martin Fowler (refactor in behavior-preserving steps), and Matz (programmer happiness). Write prose in the style of `doc/contributors/documentation_style.md`.
+- Skills in `.agents/skills/` hold the detailed workflows: `port-tauri-feature` before porting, `audit-parity` before approving a diff, `commit-session` to finish a session. Mutation testing is not automated yet, so reviewers check by hand that each changed behavior has a test that fails when its code is reverted.
 
 ## Ruby, RBS, and docs
 
@@ -36,8 +37,9 @@ The authority is the pinned submodule `vendor/tauri` (`git submodule update --in
 ## Commands
 
 - Run Ruby with `bundle exec ruby`. Run tests with `bundle exec rake test`. Never `ruby -Ilib:test`.
-- `bundle exec rake` is the gate: tests, RuboCop, Steep, RDoc coverage, REUSE, Clippy, fmt. It must pass with zero errors and zero warnings. Run `bundle exec rake rubocop:autocorrect` first to save time.
+- `bundle exec rake` is the gate: tests, RuboCop, Steep, RBS parity, RDoc coverage, REUSE, Clippy, fmt, and a packaging check that loads each built gem outside the repository. It must pass with zero errors and zero warnings. Run `bundle exec rake rubocop:autocorrect` first to save time.
 - Approved exceptions live in `rbs_exceptions.rb` and `clippy_exceptions.rb`; adding one needs a justification that it is impossible otherwise.
+- Each native gem is its own Cargo workspace with a committed `Cargo.lock`, built with `--locked`. After changing a gemspec, `Cargo.toml`, or `extconf.rb`, and before any release, also run `bundle exec rake package:install`, which compiles every gem from its packaged sources.
 - Rake tasks use `git ls-files`: new or deleted files must be staged before they count.
 - Always `PAGER=cat` for git.
 

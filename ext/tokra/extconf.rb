@@ -9,4 +9,8 @@
 require "mkmf"
 require "rb_sys/mkmf"
 
-create_rust_makefile("tokra/tokra")
+# --locked: build against the Cargo.lock shipped with the gem, the versions
+# the repository tested, and fail rather than resolve newer ones.
+create_rust_makefile("tokra/tokra") do |r|
+  r.extra_cargo_args += ["--locked"]
+end

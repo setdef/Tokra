@@ -2,3 +2,18 @@
 
 Tokra is a port of Tauri to Ruby, enabling you to build desktop applications
 with web technologies backed by Ruby.
+
+=== Building the Native Extension
+
+Installing tokra compiles a Rust extension, so the machine that installs the
+gem needs Rust and Cargo:
+
+* Rust 1.88 or newer, the highest +rust-version+ among the locked
+  dependencies. The gem ships a version 4 Cargo.lock, which Cargo reads from
+  1.78 on. On macOS 27, use Rust 1.99 or newer: earlier toolchains strip the
+  extension in a way the new loader rejects.
+* The build runs <tt>cargo --locked</tt>, so it compiles exactly the
+  dependency versions this repository tested and fails rather than resolving
+  newer ones. To build against newer versions anyway, set
+  +RB_SYS_EXTRA_CARGO_ARGS+ (for example to an empty string); it replaces
+  <tt>--locked</tt>.

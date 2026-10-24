@@ -31,6 +31,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `AppHandle#get_webview(label)` fetches webview by label
 - `AppHandle#resources_table` returns app-level fallback table
 - `Manager#resources_table` abstract method for unified interface
+- `App`, `Window`, and `Webview` are full `Manager`s, as in Tauri: `manage`,
+  `state`, `try_state`, `config`, and the window and webview lookups reach the
+  app from whichever handle you hold
 - `Tokra::PluginStore` routes `plugin:NAME|command` invokes to the named plugin
 - `AppHandle#plugin(plugin)` registers a plugin for IPC dispatch
 - `AppHandle#remove_plugin(name)` unregisters a plugin by name
@@ -83,7 +86,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   serves Tauri's `clipboard-manager` commands (`read_text`, `write_text`,
   `read_image`, `write_image`, `write_html`, `clear`); every failure raises or
   rejects with `Error::Clipboard` or Tauri's argument error, and `read_text`
-  raises on an empty clipboard
+  raises on an empty clipboard; it ships its `Cargo.lock` and compiles with
+  `cargo --locked`
+- `tokra-log` gem: `Tokra::Plugins::Log::Builder` builds a logging plugin
+  with Tauri's log targets (standard output, files, the app log directory,
+  the webview), rotation and timezone strategies, and RBS signatures
 
 ### Changed
 
@@ -111,6 +118,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - An invoke handler that raises rejects the invoke with the exception message
   and logs it; the native event loop reports exceptions to stderr instead of
   discarding them, and `SystemExit` ends the loop with its status
+- `tokra` ships its `Cargo.lock` and compiles with `cargo --locked`, so an
+  install builds the dependency versions this repository tested; magnus is
+  pinned to a commit, not its main branch
 
 ### Fixed
 
@@ -122,5 +132,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   valid install name instead of an empty one
 
 ### Removed
+
+- The `tokra` gem no longer ships development files (plans, transcripts,
+  tasks, tests, tool configuration) or the empty `semantic-highlight`
+  executable
 
 [Unreleased]: https://git.sr.ht/~kerrick/tokra/refs/HEAD

@@ -1,24 +1,20 @@
 # SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-module Tokra
-  module Rack
-  end
-end
-
 module Rack
   type env = Hash[String, (String | Integer | Array[Integer] | IO | bool | nil | StringIO)]
   type headers = Hash[String, String]
   type status = Integer
 
-  class Body < Object
+  interface _Body
+    def respond_to?: (Symbol name) -> bool
     def each: () { (String) -> void } -> void
     def close: () -> void
     def to_ary: () -> Array[String]
     def to_path: () -> String
   end
 
-  type response = [status, headers, Body]
+  type response = [status, headers, _Body]
 
   interface _App
     def call: (env) -> response

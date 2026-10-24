@@ -6,25 +6,32 @@ module Tokra
   # Each is a Data.define class.
   module WindowEvent
     class CloseRequested < Data
+      def self.new: () -> CloseRequested
     end
     class Destroyed < Data
+      def self.new: () -> Destroyed
     end
     class Focused < Data
       attr_reader focused: bool
+      def self.new: (bool focused) -> Focused
     end
     class Moved < Data
       attr_reader x: Integer
       attr_reader y: Integer
+      def self.new: (Integer x, Integer y) -> Moved
     end
     class Resized < Data
       attr_reader width: Integer
       attr_reader height: Integer
+      def self.new: (Integer width, Integer height) -> Resized
     end
     class ScaleFactorChanged < Data
       attr_reader scale_factor: Float
+      def self.new: (Float scale_factor) -> ScaleFactorChanged
     end
     class ThemeChanged < Data
       attr_reader theme: String
+      def self.new: (String theme) -> ThemeChanged
     end
   end
 

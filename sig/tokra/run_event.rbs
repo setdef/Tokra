@@ -13,7 +13,7 @@ module Tokra
     end
     class ExitRequested < Data
       attr_reader code: Integer?
-      def self.new: (?code: Integer?) -> ExitRequested
+      def self.new: (code: Integer?) -> ExitRequested
     end
     class WindowEvent < Data
       attr_reader label: String

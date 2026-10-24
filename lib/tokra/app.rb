@@ -21,8 +21,26 @@ module Tokra
     # The application handle, safe to pass between Ractors.
     attr_reader :handle
 
-    # The application configuration.
-    attr_reader :config
+    # The application handle this App manages through, as Manager
+    # requires. App is a Manager like AppHandle, Window, and Webview
+    # (Tauri app.rs:683-701).
+    #
+    # === Example
+    #
+    #   app.app_handle.emit("ready", {})
+    def app_handle
+      @handle
+    end
+
+    # The app-level resources table, shared with AppHandle (Tauri
+    # app.rs:683-687).
+    #
+    # === Example
+    #
+    #   rid = app.resources_table.add(image)
+    def resources_table
+      @handle.resources_table
+    end
 
     # The per-app IPC invoke key verified on every message.
     #
@@ -53,11 +71,11 @@ module Tokra
     # This is called by Builder#build and should not be called directly.
     # <tt>native:</tt> can be injected for testing with mock native components.
     def initialize(builder, native: Native) # :nodoc:
-      @config = DEFAULT_CONFIG.merge(builder.__send__(:window_config))
+      @window_config = DEFAULT_CONFIG.merge(builder.__send__(:window_config))
       config = Config.new(
-        identifier: @config[:identifier]&.to_s,
-        product_name: @config[:product_name]&.to_s,
-        version: @config[:version]&.to_s
+        identifier: @window_config[:identifier]&.to_s,
+        product_name: @window_config[:product_name]&.to_s,
+        version: @window_config[:version]&.to_s
       )
       @manager = AppManager.new(config:, webviews: {}, windows: {})
       @handle = AppHandle.new(@manager, state_manager: builder.__send__(:state_manager))
@@ -104,8 +122,8 @@ module Tokra
       @rack_handler = ::Rack::Handler::Tokra.new(rack_app, proxy) if rack_app
 
       native_window = @window_class.new(event_loop)
-      native_window.set_title(@config[:title].to_s)
-      native_window.set_size(@config[:width].to_f, @config[:height].to_f)
+      native_window.set_title(@window_config[:title].to_s)
+      native_window.set_size(@window_config[:width].to_f, @window_config[:height].to_f)
 
       # Wrap the native window and register in manager
       window = Window.new(label: "main", native: native_window, app_handle: @handle)

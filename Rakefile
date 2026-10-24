@@ -45,6 +45,15 @@ namespace :plugins do
     end
   end
 
+  desc "Compile plugin native extensions"
+  task :compile do
+    PLUGINS.select { |plugin| Dir.exist?(File.join(plugin, "ext")) }.each do |plugin|
+      Bundler.with_unbundled_env do
+        sh "cd #{plugin} && bundle install --quiet && bundle exec rake compile"
+      end
+    end
+  end
+
   desc "Lint all plugins (RuboCop)"
   task :lint do
     # RuboCop runs from root and includes plugins via config
@@ -55,4 +64,4 @@ end
 # Import all tasks from the tasks/ directory
 Dir.glob("tasks/*.rake").each { |r| import r }
 
-task default: %w[compile lint:fix test lint steep lint:rust]
+task default: %w[compile lint:fix test lint steep lint:rust package:check]

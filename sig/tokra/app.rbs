@@ -3,6 +3,8 @@
 
 module Tokra
   class App
+    include Manager
+
     DEFAULT_CONFIG: Hash[Symbol, String | Integer | Float]
     FETCH_CHANNEL_DATA_COMMAND: String
     EMIT_FUNCTION_NAME: String
@@ -14,7 +16,7 @@ module Tokra
     class IpcProtocolError < Error
     end
 
-    @config: Hash[Symbol, String | Integer | Float]
+    @window_config: Hash[Symbol, String | Integer | Float]
     @manager: AppManager
     @handle: AppHandle
     @builder: Builder
@@ -27,9 +29,10 @@ module Tokra
     @rack_handler: ::Rack::Handler::Tokra?
 
     attr_reader handle: AppHandle
-    attr_reader config: Hash[Symbol, String | Integer | Float]
 
     def invoke_key: () -> String
+    def app_handle: () -> AppHandle
+    def resources_table: () -> ResourceTable
     def initialize: (Builder builder, ?native: Module) -> void
     def run: () { (AppHandle, run_event) -> void } -> void
          | () -> void

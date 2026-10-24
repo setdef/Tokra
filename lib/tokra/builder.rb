@@ -207,14 +207,15 @@ module Tokra
       end
     end
 
-    # Consider these "friendly" -- public to Tokra, private to app devs.
-    attr_reader :state_manager, :invoke_handler_hook, :uri_scheme_protocols, # :nodoc:
+    # Consider these "friendly": private, so app code does not call them, and
+    # read by App through __send__.
+    private attr_reader :state_manager, :invoke_handler_hook, :uri_scheme_protocols, # :nodoc:
       :async_uri_scheme_protocols, :setup_hook, :on_page_load_hook,
       :window_event_listeners, :webview_event_listeners, :rack_app, :window_config
 
     # Whether the @tauri-apps/api bundle should be injected (friendly reader;
     # a predicate so it does not collide with the with_global_tauri setter).
-    def with_global_tauri? # :nodoc:
+    private def with_global_tauri? # :nodoc:
       @with_global_tauri
     end
 

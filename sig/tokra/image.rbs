@@ -9,7 +9,8 @@ module Tokra
     attr_reader width: Integer
     attr_reader height: Integer
 
-    def initialize: (rgba: String, width: Integer, height: Integer) -> void
+    def self.new: (rgba: String, width: Integer, height: Integer) -> Image
+                | (String rgba, Integer width, Integer height) -> Image
                   | (String rgba, Integer width, Integer height) -> void
 
     def self.from_bytes: (String bytes) -> Image

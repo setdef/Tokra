@@ -1,0 +1,211 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Plugins
+    module Log
+      type level = Symbol | Integer
+      type formatter = ^(String severity, Time time, String? progname, String? message) -> String
+      type filter = ^(String? message) -> bool
+      type kind = IO | StringIO | Pathname | TargetKind::LogDir | TargetKind::Webview
+      type rotation = RotationStrategy::KeepAll | RotationStrategy::KeepOne | RotationStrategy::KeepSome
+      type timezone = TimezoneStrategy::UseUtc | TimezoneStrategy::UseLocal
+      type logger = TracingLogger | WebviewLogger | FilteringLogger
+
+      TRACE: Integer
+
+      class Plugin < Tokra::Plugin
+        @progname: String?
+        @datetime_format: String?
+        @loggers: Array[logger]
+
+        def name: () -> String
+        def initialize: (Builder builder) -> void
+        def level_for: (String module_name, level level) -> bot
+        def trace: (String message) -> void
+        def debug: (String message) -> void
+        def info: (String message) -> void
+        def warn: (String message) -> void
+        def error: (String message) -> void
+        def fatal: (String message) -> void
+        def add: (Integer level, ?String? message, ?String? progname) -> void
+        def <<: (String message) -> void
+        def with_level: (level level) { () -> void } -> void
+
+        private
+
+        def log: (level level, String message) -> void
+        def build_loggers: (Builder builder) -> Array[logger]
+      end
+
+      class Builder
+        @_targets: Array[Target]
+        @_level: level?
+        @_progname: String?
+        @_datetime_format: String?
+        @_rotation_strategy: rotation?
+        @_timezone_strategy: timezone?
+        @_max_file_size: Integer?
+        @_skip_logger: bool?
+        @_path_resolver: Tokra::Path::Resolver?
+        @_app_handle: Tokra::AppHandle?
+        @_app_name: String?
+        @_formatter: formatter?
+        @_filter: filter?
+
+        def initialize: () -> void
+        def targets: (Array[Target] targets) -> self
+        def target: (Target target) -> self
+        def level: (level level) -> self
+        def progname: (String name) -> self
+        def datetime_format: (String format) -> self
+        def rotation_strategy: (rotation strategy) -> self
+        def timezone_strategy: (timezone strategy) -> self
+        def max_file_size: (Integer size) -> self
+        def clear_targets: () -> self
+        def format: (formatter formatter) -> self
+        def filter: (filter callable) -> self
+        def path_resolver: (Tokra::Path::Resolver resolver) -> self
+        def app_handle: (Tokra::AppHandle handle) -> self
+        def app_name: (String name) -> self
+        def skip_logger: () -> self
+        def with_colors: (Hash[Symbol, Symbol] colors) -> bot
+        def build: () -> Plugin
+        def configured_targets: () -> Array[Target]
+        def configured_level: () -> level?
+        def configured_progname: () -> String?
+        def configured_datetime_format: () -> String?
+        def configured_rotation_strategy: () -> rotation?
+        def configured_timezone_strategy: () -> timezone?
+        def configured_max_file_size: () -> Integer?
+        def configured_skip_logger: () -> bool?
+        def configured_path_resolver: () -> Tokra::Path::Resolver?
+        def configured_app_handle: () -> Tokra::AppHandle?
+        def configured_app_name: () -> String?
+        def configured_formatter: () -> formatter?
+        def configured_filter: () -> filter?
+      end
+
+      class Target
+        @kind: kind
+        @filters: Array[filter]
+        @formatter: formatter?
+        @rotation_strategy: rotation?
+        @timezone_strategy: timezone?
+
+        attr_reader kind: kind
+
+        def initialize: (kind kind) -> void
+        def filter: (?filter? callback) ?{ (String? message) -> bool } -> self
+        def format: (?formatter? callback) ?{ (String severity, Time time, String? progname, String? message) -> String } -> self
+        def rotation_strategy: (rotation strategy) -> self
+        def timezone_strategy: (timezone strategy) -> self
+        def to_logger: (Builder builder) -> logger
+
+        private
+
+        def create_base_logger: (Builder builder) -> logger
+        def create_log_dir_logger: (Builder builder, Integer | String shift_age, Integer shift_size) -> TracingLogger
+        def create_webview_logger: (Builder builder) -> WebviewLogger
+        def wrap_with_filters: (logger logger) -> logger
+        def validate_shareable!: (Proc? proc, String name) -> void
+        def wrap_formatter_with_timezone: (formatter formatter) -> formatter
+      end
+
+      class FilteringLogger
+        @logger: logger
+        @filter: filter
+
+        def initialize: (logger logger, filter filter) -> void
+        def add: (Integer severity, ?String? message, ?String? progname) -> void
+        def trace: (?String? message) ?{ () -> String } -> void
+        def debug: (?String? message) ?{ () -> String } -> void
+        def info: (?String? message) ?{ () -> String } -> void
+        def warn: (?String? message) ?{ () -> String } -> void
+        def error: (?String? message) ?{ () -> String } -> void
+        def fatal: (?String? message) ?{ () -> String } -> void
+        def <<: (String msg) -> void
+
+        private
+
+        def method_missing: (Symbol method, *Object args) ?{ (*Object) -> Object } -> Object
+        def respond_to_missing?: (Symbol method, ?bool include_private) -> bool
+      end
+
+      class TracingLogger < ::Logger
+        def trace: (?String? progname) ?{ () -> String } -> bool
+        def trace?: () -> bool
+        def trace!: () -> Integer
+
+        private
+
+        def format_severity: (Integer severity) -> String
+      end
+
+      class WebviewLogger
+        TRACE: Integer
+
+        @app_handle: Tokra::AppHandle
+
+        attr_accessor level: Integer
+        attr_accessor formatter: formatter?
+
+        def initialize: (Tokra::AppHandle app_handle) -> void
+        def add: (Integer severity, ?String? message, ?String? progname) ?{ () -> String } -> true
+        def trace: (?String? message) ?{ () -> String } -> true
+        def debug: (?String? message) ?{ () -> String } -> true
+        def info: (?String? message) ?{ () -> String } -> true
+        def warn: (?String? message) ?{ () -> String } -> true
+        def error: (?String? message) ?{ () -> String } -> true
+        def fatal: (?String? message) ?{ () -> String } -> true
+      end
+
+      module TauriLevel
+        def self.from_ruby: (Integer severity) -> Integer
+        def self.to_ruby: (Integer level) -> Integer
+      end
+
+      module RotationStrategy
+        class KeepAll < Data
+          def self.new: () -> KeepAll
+          def to_shift_age: () -> String
+        end
+
+        class KeepOne < Data
+          def self.new: () -> KeepOne
+          def to_shift_age: () -> Integer
+        end
+
+        class KeepSome < Data
+          attr_reader count: Integer
+          def self.new: (Integer count) -> KeepSome
+                      | (count: Integer) -> KeepSome
+          def to_shift_age: () -> Integer
+        end
+      end
+
+      module TimezoneStrategy
+        class UseUtc < Data
+          def self.new: () -> UseUtc
+          def format_time: (Time time) -> Time
+        end
+
+        class UseLocal < Data
+          def self.new: () -> UseLocal
+          def format_time: (Time time) -> Time
+        end
+      end
+
+      module TargetKind
+        class LogDir < Data
+          attr_reader file_name: String?
+          def self.new: (?file_name: String?) -> LogDir
+        end
+
+        class Webview < Data
+          def self.new: () -> Webview
+        end
+      end
+    end
+  end
+end

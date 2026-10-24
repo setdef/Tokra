@@ -4,20 +4,21 @@
 module Tokra
   module Native
     class EventLoop
-      def initialize: () -> void
+      def self.new: () -> EventLoop
       def create_proxy: () -> Proxy
       def run: (^(native_event) -> void) -> void
     end
 
     class Window
-      def initialize: (EventLoop) -> void
+      def self.new: (EventLoop) -> Window
+      def id: () -> String
       def set_title: (String) -> void
       def set_size: (Float, Float) -> void
     end
 
     class WebView
       def self.new_with_protocol: (Window, Proxy, Array[String]) -> WebView
-      def initialize: (Window, String, ^(String) -> void, Proxy) -> void
+      def self.new: (Window, String, ^(String) -> void, Proxy) -> WebView
       def eval: (String) -> void
     end
 
@@ -27,12 +28,13 @@ module Tokra
       def drop_response: (Integer request_id) -> void
     end
 
-    class HttpRequestEvent
+    class HttpRequestEvent < Data
       def request_id: () -> Integer
       def method: () -> String
       def uri: () -> String
       def headers: () -> Array[[String, String]]
       def body: () -> String
+      def self.new: (Integer request_id, String method, String uri, Array[[String, String]] headers, String body) -> HttpRequestEvent
     end
 
     class IpcEvent < Data
@@ -42,17 +44,21 @@ module Tokra
                   | (message: String, url: String) -> IpcEvent
     end
 
-    class WakeUpEvent
+    class WakeUpEvent < Data
+      def payload: () -> String
+      def self.new: (String payload) -> WakeUpEvent
     end
 
-    class WindowCloseEvent
+    class WindowCloseEvent < Data
+      def self.new: () -> WindowCloseEvent
     end
 
     class LoopDestroyedEvent < Data
       def self.new: () -> LoopDestroyedEvent
     end
 
-    class PageLoadEvent
+    class PageLoadEvent < Data
+      def self.new: (String event, String url) -> PageLoadEvent
       def event: () -> String
       def url: () -> String
       def started?: () -> bool

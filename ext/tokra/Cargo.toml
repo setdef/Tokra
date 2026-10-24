@@ -14,7 +14,7 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-magnus = { git = "https://github.com/matsadler/magnus", branch = "main", features = ["bytes"] }
+magnus = { git = "https://github.com/matsadler/magnus", rev = "2370a35261db7476f59e165752791fd60fddc26b", features = ["bytes"] }
 tao = "0.34.5"
 wry = "0.54.1"
 ctrlc = "3.4"

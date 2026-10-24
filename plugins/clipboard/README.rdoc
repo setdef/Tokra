@@ -6,6 +6,14 @@ Provides read/write access to the system clipboard using the arboard crate,
 and serves the commands of Tauri's clipboard-manager plugin, so the frontend
 can use <tt>@tauri-apps/plugin-clipboard-manager</tt> unchanged.
 
+== Installation
+
+Installing the gem compiles a Rust extension with <tt>cargo --locked</tt>
+against the shipped +Cargo.lock+, which needs Rust 1.85 or newer (1.99 or
+newer on macOS 27). Set +RB_SYS_EXTRA_CARGO_ARGS+ to replace
+<tt>--locked</tt>, for example with an empty string to resolve newer
+dependency versions.
+
 == Usage
 
 Register the plugin on the app handle, for example in the setup hook. It

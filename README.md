@@ -26,6 +26,21 @@ If bundler is not being used to manage dependencies, install the gem by executin
 gem install UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
 ```
 
+### Building the native extension
+
+Installing `tokra` (and `tokra-clipboard`) compiles a Rust extension, so you
+need Rust and Cargo on the machine that installs the gem:
+
+- Rust 1.88 or newer, the highest `rust-version` among the locked
+  dependencies (the gem ships a version 4 `Cargo.lock`, which Cargo reads
+  from 1.78 on). On macOS 27, use Rust 1.99 or newer: earlier toolchains
+  strip the extension in a way the new loader rejects.
+- The build runs `cargo --locked`, so it compiles exactly the dependency
+  versions this repository tested and fails rather than resolving newer
+  ones. To build against newer versions anyway, set
+  `RB_SYS_EXTRA_CARGO_ARGS` (for example to an empty string); it replaces
+  `--locked`.
+
 ## Usage
 
 TODO: Write usage instructions here

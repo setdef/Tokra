@@ -25,12 +25,10 @@ Gem::Specification.new do |spec|
   spec.metadata["source_code_uri"] = "https://git.sr.ht/~kerrick/tokra/tree/trunk/item/plugins/log"
   spec.metadata["rubygems_mfa_required"] = "true"
 
-  gemspec = File.basename(__FILE__)
-  spec.files = IO.popen(%w[git ls-files -z], chdir: __dir__, err: IO::NULL) do |ls|
-    ls.readlines("\x0", chomp: true).reject do |f|
-      (f == gemspec) ||
-        f.start_with?(*%w[Gemfile .gitignore test/])
-    end
+  # Ship only what an installed app loads (Plan 017).
+  packaged = %w[lib sig README.rdoc]
+  spec.files = IO.popen(["git", "ls-files", "-z", "--", *packaged], chdir: __dir__, err: IO::NULL) do |ls|
+    ls.readlines("\x0", chomp: true)
   end
   spec.require_paths = ["lib"]
 

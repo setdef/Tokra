@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# The tokra-clipboard gem's Cargo workspace. It ships in the gem beside
+# Cargo.lock, so an installed gem compiles against exactly the dependency
+# versions this repository tests.
+
+[workspace]
+members = ["ext/tokra_clipboard"]
+resolver = "2"
