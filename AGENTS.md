@@ -5,128 +5,56 @@
 
 # AGENTS.md
 
-## Project Identity
+## Project
 
-Project Name: tokra
+Tokra is a 1:1 port of Tauri to Ruby (>= 4.0.1): desktop apps with a Ruby backend and a web frontend. Rust (rb_sys + magnus, in `ext/`) is a thin binding over tao and wry; Ruby owns all logic (ADR 001, 005). First-party plugins live in `plugins/`. Standalone crate bindings are moving to Ferro, a separate project of 1:1 crate-binding gems.
 
-Description: A port of Tauri to Ruby, enabling you to build desktop applications with web technologies.
+Pre-1.0, zero external users. Prefer good design over backward compatibility; record every breaking change in CHANGELOG.md.
 
-**Design Philosophy:** This is a 1:1 architectural port of Tauri. Design decisions follow this precedence:
+## Design precedence
 
-1. **Ruby the language** — What Ruby can and cannot express. Rust-specific constructs (ownership, lifetimes, module-path metadata) and Ruby-specific constraints (gem packaging, stdlib APIs) may require structural adaptation.
-2. **Tauri port fidelity** — Method names, class structure, error messages, and API shapes MUST match Tauri's Rust source. Refer to the Tauri source as the authoritative reference.
-3. **Ruby the culture** — Community idioms, conventions, and "the Ruby way." These yield when they conflict with port fidelity. Do NOT redesign APIs to be "more Ruby-like."
+1. **Ruby the language.** What Ruby can and cannot express. Rust constructs with no Ruby meaning (lifetimes, ownership, Cargo feature flags) are translated, not ported. A feature Tauri gates behind a Cargo feature is simply supported.
+2. **Tauri fidelity.** Names, class structure, error messages, wire formats, and behavior MUST match Tauri's Rust source. Do not invent "more Ruby-like" APIs.
+3. **Ruby culture.** Idioms yield to 1 and 2.
 
-## Stability & Compatibility
+The authority is the pinned submodule `vendor/tauri` (`git submodule update --init` if empty). For Rust dependencies (wry, tao, arboard, magnus, rb-sys), read the exact locked source Cargo already downloaded; `cargo metadata --format-version 1` gives each package's `manifest_path`. For anything else, such as Tauri's official plugins, use the upstream repository (https://github.com/tauri-apps/plugins-workspace) at the version being ported, and fetch it into an ignored scratch directory if you need it locally. Never guess at a reference's contents. Cite the file and lines you ported, and add an SPDX snippet (Apache-2.0 OR MIT) around any code or prose derived from it.
 
-- **Project Status:** Pre-1.0. 
-- **User Base:** Zero external users.
-- **Breaking Changes:** Backward compatibility is **NOT** a priority. Since there are no external users, you are encouraged to refactor APIs for better ergonomics and performance even if it breaks existing code.
-- **Requirement:** All breaking changes **MUST** be explicitly documented in the [CHANGELOG.md](CHANGELOG.md)'s **Unreleased** section to ensure transparency.
+## How to work
 
-## 1. Standards
+- Research before designing: read the Tauri source and the relevant ADR in `doc/contributors/adr/` first.
+- Root-cause every fix. If you cannot explain why a change fixed the symptom, it is not a fix.
+- Write tests first. A test must fail if the code it covers is deleted or mutated, and must exercise real collaborators, not stubs that hide missing behavior.
+- Design in the spirit of Kent Beck (small steps, Implementation Patterns), Freeman & Pryce (tests drive interfaces), Sandi Metz (duplication over the wrong abstraction), Rebecca Wirfs-Brock (responsibility-driven roles), Martin Fowler (refactor in behavior-preserving steps), and Matz (programmer happiness). Write prose in the style of `doc/contributors/documentation_style.md`.
 
-### STRICT REQUIREMENTS
+## Ruby, RBS, and docs
 
-- Every file MUST begin with an SPDX-compliant header. Use `AGPL-3.0-or-later` for code; `CC-BY-SA-4.0` for documentation. `reuse annotate` can help you generate the header. **For Ruby files**, wrap SPDX comments in `#--` / `#++` to hide them from RDoc output.
-- Every line of Ruby MUST be covered by tests that would stand up to mutation testing.
-  - Tests must be meaningful and verify specific behavior or rendering output; simply verifying that code "doesn't crash" is insufficient and unacceptable.
-- **Pre-commit:** Use `bundle exec rake` to ensure commit-readiness. See Tools for detailed instructions.
-- **Git Pager:** ALWAYS set `PAGER=cat` for ALL `git` commands (e.g., `PAGER=cat git diff`). This is mandatory.
+- `Data.define` for value objects (`class Foo < Data.define(...)`), `class` for entities.
+- Every Ruby method has an RBS signature in `sig/` mirroring `lib/`. No `untyped`, no `initialize` (use `self.new`), no comments in `.rbs`.
+- RDoc (never YARD) in `.rb` files only. Wrap SPDX headers in `#--` / `#++`.
+- Architectural decisions get an ADR; plans live in `doc/contributors/plan/`.
 
-### Tools
+## Commands
 
-- **ALWAYS** run `bundle exec ruby` to ensure libraries are loaded. **NEVER** run `ruby -Ilib:test ...` directly.
-- **ALWAYS use `bundle exec rake`** for running tests, linting, or checking compilation.
-  - **Usage:**
-    - Runs default task (test + lint + typecheck): `bundle exec rake`. Do this before considering a commit ready.
-    - Runs specific task: `bin/agent_rake test:ruby` (for example). Do not run specific rake tasks for commit readiness.
-- **Setup:** `bin/setup` must ensure all dependencies are installed.
-- **Rake:** Our rake tasks use `git ls-files`, so errors happen when you move or delete files. In this case, ask the user to stage changes for you.
+- Run Ruby with `bundle exec ruby`. Run tests with `bundle exec rake test`. Never `ruby -Ilib:test`.
+- `bundle exec rake` is the gate: tests, RuboCop, Steep, RDoc coverage, REUSE, Clippy, fmt. It must pass with zero errors and zero warnings. Run `bundle exec rake rubocop:autocorrect` first to save time.
+- Approved exceptions live in `rbs_exceptions.rb` and `clippy_exceptions.rb`; adding one needs a justification that it is impossible otherwise.
+- Rake tasks use `git ls-files`: new or deleted files must be staged before they count.
+- Always `PAGER=cat` for git.
 
-### Ruby Standards
+## Committing
 
-- Class names, method names, and module structure should mirror Tauri's Rust source unless Ruby's language constraints require adaptation.
-- Use `Data.define` for all value objects. (Prefer `class Foo < Data.define()` over `Foo = Data.define() do`).
-- Use `class` for all entities.
-- Define types in `.rbs` files. Don't use `untyped` just because it's easy; be comprehensive and accurate.
-  - Do not include `initialize` in `.rbs` files; use `self.new` for constructors instead.
-  - **Every** ruby class/method must have a corresponding `.rbs` type definition.
-- Every public Ruby class/method must be documented for humans in RDoc (required)--**not** YARD--or markdown files.
-  - RDoc documentation **must** be written in `.rb` files, not their corresponding `.rbs` files. `.rbs` files should have **ZERO** comments.
-- Every significant architectural and design decision must be documented for contributors in markdown files. Mermaid is allowed.
+- One commit per working session, on `trunk`, after the gate passes. Never push or release.
+- Include the session transcript as `doc/contributors/chats/NNN.md` and any plan or ADR the session produced.
+- Conventional Commits, plain text, wrapped at 72. The body explains why this approach over alternatives, in prose (no lists, no markdown, no file inventories). Types: `lib/ext/sig` feat/fix/refactor/perf; `bin/tasks`/CI chore; `examples/` and `doc/` docs; `test/` test. End with the AI footer shown by `git log -n1`.
 
-## 2. Directory Structure Convention
+## Changelog
 
-The project follows a standard Gem layout with `examples/` added to show other rubyists how to `require` and use `lib/tokra`.
+Keep a Changelog + SemVer. Only changes downstream app or library developers can observe: public APIs, behavior, breaking changes, deprecations, dependency changes. Not tests, docs, internal refactors, or tooling. Terse one-line entries under `## [Unreleased]`, which means "since the last tag": a change undone before the next tag removes its entry instead of adding a "Fixed" line. Never edit released sections.
 
-## 3. Configuration & Tooling
+## Definition of done
 
-### Development Environment
-
-- **Scripting Preference:** Simple `sed` or shell one-liners are fine. When a one-off script grows to multiple lines of logic, prefer a temporary rake task or `ruby -e '...'` over a multi-line shell script in a string. Ruby's `File.read`/`File.write`, `Dir.glob`, and regex handle complex transformations more cleanly.
-
-### Documentation
-
-- **The `doc/` folder contains source markdown files** that are included in RDoc output.
-- Documentation should separate "User Guide" (Ruby API for TUI developers) from "Contributor Guide" (Ruby/Rust/Magnus internals).
-  - Files within `doc/contributors/` are for library developers.
-  - Files within `doc/` outside of `conttributors/` are for application developers and users of this RubyGEm.
-- **Style Guide:** You **MUST** follow the [Documentation Style Guide](doc/contributors/documentation_style.md). This dictates the Alexandrian/Zinsser prose style and strict RDoc formatting required for all public API documentation.
-- DON'T write .md files for something RDoc (Ruby) can generate. DO use RDoc for documentation.
-
-
-## 4. Committing
-
-- Who commits: DON'T stage (DON'T `git add`) unless explicitly instructed. DON'T commit unless explicitly instructed. DO suggest a commit message when you finish, even if not instructed..
-- When: Before reporting the task as complete to the user, suggest the commit message.
-- What: Consider not what you remember, but EVERYTHING in the `git diff` and `git diff --cached`.
-- **Format:**
-    - Format: Use [Conventional Commits](https://www.conventionalcommits.org/).
-    - Body: Explanation if necessary (wrap at 72 chars).
-        - Explain why this is the implementation, as opposed to other possible implementations.
-        - Skip the body entirely if it's rote, a duplication of the diff, or otherwise unhelpful.
-        - **DON'T list the files changed or the edits made in the body.** Don't provide a bulleted list of changes. Use prose to explain the problem and the solution.
-        - **DON'T use markdown syntax** (no backticks, no bolding, no lists, no links). The commit message must be plain text.
-- **Type conventions by directory:**
-    - `lib/`, `exe/`, `sig/`: Use `feat`, `fix`, `refactor`, `perf` as appropriate.
-    - `bin/`, `tasks/`, `.builds/`, CI/CD: Use `chore` for tooling internal to developing this gem. Use `feat`/`fix` for changes that affect downstream users.
-    - `examples/`: Always `docs` (documentation by example).
-    - `test/`: Use `test` for new/changed tests, or match the type of the code being tested.
-    - `doc/`: Always `docs`.
-  
-### 5. Changelog
-
-- Follow [Semantic Versioning](https://semver.org/)
-- Follow the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) specification.
-- **What belongs in CHANGELOG:** Only changes that affect **executable users** or **higher-level library developers** who use or depend on `tokra`:
-    - New public APIs or CLI flags
-    - Backwards-incompatible type signature changes, or behavioral additions to type signature changes
-    - Observable behavior changes (rendering, styling, layout)
-    - Deprecations and removals
-    - Breaking changes
-- **What does NOT belong in CHANGELOG:** Internal or non-behavioral changes that don't affect downstream users:
-    - Test additions or improvements
-    - Documentation updates, RDoc fixes, markdown clarifications
-    - Refactors of internal code
-    - New or modified example code
-    - Internal tooling, CI/CD, or build configuration changes
-    - Code style or linting changes
-    - Performance improvements that affect applications
-- Changelogs should be useful to downstream developers (both app and library developers), not simple restatements of diffs or commit messages.
-- The Unreleased section MUST be considered "since the last git tag". Therefore, if a change was done in one commit and undone in another (both since the last tag), the second commit should remove its changelog entry.
-- **Location:** New entries ALWAYS go in `## [Unreleased]`. Never edit past version sections (e.g., `## [0.4.0]`)—those are frozen history.
-
-## 6. Definition of Done (DoD)
-
-Before considering a task complete and returning control to the user, you **MUST** ensure:
-
-0. **Production Ready:** RBS types are complete and accurate (no `untyped`), errors are handled with good DX, documentation follows guidelines, high code quality (no "pre-existing debt" excuses).
-1.  **Tauri Parity:** Verify that new or changed API shapes (method names, class structure, error messages) match Tauri's Rust source.
-2.  **Default Rake Task Passes:** Run `bundle exec rake` (no args). Confirm it passes with ZERO errors **and ZERO warnings**.
-  - You will save time if you run `bundle exec rake rubocop:autocorrect` first.
-  - If you think the Rake is looking for deleted files, STOP EVERYTHING and tell the user.
-3.  **Documentation Updated:** If public APIs or observable behavior changed, update relevant RDoc, RBS, `doc/` files, and/or `README.md`.
-4.  **Changelog Updated:** If public APIs, observable behavior, or gemspec dependencies have changed, update [CHANGELOG.md](CHANGELOG.md)'s **Unreleased** section.
-5.  **Commit Message Suggested:** You **MUST** ensure the final message to the user includes a suggested commit message block. This is NOT optional.
-  - You MUST also check `git log -n1` to see the current standard AI footer ("Generated  with" and "Co-Authored-By") and include it in your suggested message.
+1. Every item in the plan is done, or explicitly deferred with a reason.
+2. Behavior matches the cited Tauri source; deviations are justified by the precedence above and documented.
+3. `bundle exec rake` passes from a clean build (`rm -rf tmp`), zero errors, zero warnings.
+4. RDoc, RBS, `doc/`, README, and CHANGELOG updated where behavior changed.
+5. A commit message is written (and the commit made, per Committing).
