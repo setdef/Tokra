@@ -7,11 +7,29 @@ Tokra's plugin lifecycle.
 
 == Usage
 
-  Tokra::Builder.new
-    .plugin(Tokra::Plugins::Log.new(level: :info, path: "app.log"))
+Build the plugin with Tokra::Plugins::Log::Builder and register it on the
+app handle from the setup hook, before the window opens:
+
+  require "pathname"
+  require "tokra"
+  require "tokra-log"
+
+  Tokra::Builder.default
+    .setup(&Ractor.shareable_proc { |app|
+      log = Tokra::Plugins::Log::Builder.new
+        .level(:info)
+        .targets([Tokra::Plugins::Log::Target.new(Pathname("app.log"))])
+        .build
+      app.handle.plugin(log)
+    })
     .run
 
-== Configuration Options
+== Configuration
 
-- +:level+:: log level (+:debug+, +:info+, +:warn+, +:error+, +:fatal+)
-- +:path+:: log destination (String path or IO, defaults to +$stdout+)
+Each Builder method returns the builder, so calls chain:
+
+- +level+:: minimum level (+:trace+, +:debug+, +:info+, +:warn+, +:error+, +:fatal+; default +:debug+)
+- +targets+, +target+:: where messages go: a Target wrapping an IO, a
+  Pathname, or a TargetKind (such as TargetKind::LogDir)
+- +rotation_strategy+, +max_file_size+, +timezone_strategy+:: file handling
+- +format+, +filter+:: a Ractor-shareable formatter or filter for every target

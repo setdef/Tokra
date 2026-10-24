@@ -91,7 +91,8 @@ module Tokra
     # The native event loop is shutting down.
     #
     # Created from tao's LoopDestroyed event, the last event the loop
-    # delivers before the process exits. App turns it into
+    # delivers before EventLoop#run raises SystemExit to end the process
+    # with the loop's exit code. App turns it into
     # RunEvent::Exit, as Tauri's runtime does (tauri-runtime-wry lib.rs).
     #
     #   case event

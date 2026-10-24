@@ -1,0 +1,62 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Foreign origin</title>
+</head>
+<body>
+  <script>
+    // TEST FIXTURE ONLY: the app writes the real invoke key here (see
+    // app.rb). wry injects Tauri's scripts into the main frame only, so this
+    // frame sends both transports by hand.
+    const invokeKey = __INVOKE_KEY__;
+    const params = new URLSearchParams(location.search);
+
+    async function viaIpcProtocol() {
+      try {
+        const response = await fetch('ipc://localhost/ping', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Tauri-Callback': '1',
+            'Tauri-Error': '2',
+            'Tauri-Invoke-Key': invokeKey,
+          },
+          body: '{}',
+        });
+        return {
+          status: response.status,
+          tauriResponse: response.headers.get('Tauri-Response'),
+          body: await response.json(),
+        };
+      } catch (error) {
+        return { error: String(error) };
+      }
+    }
+
+    // Tokra answers postMessage with runCallback in the main frame, so the
+    // callback ids come from the parent page.
+    function viaPostMessage() {
+      const message = JSON.stringify({
+        cmd: 'ping',
+        callback: Number(params.get('callback')),
+        error: Number(params.get('error')),
+        payload: {},
+        options: {},
+        __TAURI_INVOKE_KEY__: invokeKey,
+      });
+      (window.ipc || window.webkit.messageHandlers.ipc).postMessage(message);
+    }
+
+    viaIpcProtocol().then((ipc) => {
+      parent.postMessage({ kind: 'foreign', origin: location.origin, ipc }, '*');
+      viaPostMessage();
+    });
+  </script>
+</body>
+</html>

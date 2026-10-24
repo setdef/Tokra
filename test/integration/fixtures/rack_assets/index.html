@@ -1,0 +1,49 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>rack assets</title>
+  <script src="/harness.js"></script>
+  <style>img { width: 96px; height: 48px; image-rendering: pixelated; }</style>
+</head>
+<body>
+  <ol id="checks"></ol>
+  <img id="array" src="/array.png" alt="2x1 PNG, array body">
+  <img id="file" src="/file.png" alt="2x1 PNG, file body">
+  <script>
+    const { check, finish } = window.fixture;
+
+    function loaded(img) {
+      if (img.complete) return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        img.addEventListener('load', resolve, { once: true });
+        img.addEventListener('error', () => reject(new Error(`${img.id} failed to load`)), { once: true });
+      });
+    }
+
+    async function bytes(path) {
+      const response = await fetch(path);
+      let binary = '';
+      for (const byte of new Uint8Array(await response.arrayBuffer())) binary += String.fromCharCode(byte);
+      return { contentType: response.headers.get('Content-Type'), base64: btoa(binary) };
+    }
+
+    (async () => {
+      for (const id of ['array', 'file']) {
+        await check(`${id} body renders`, async () => {
+          const img = document.getElementById(id);
+          await loaded(img);
+          return { pass: true, detail: { width: img.naturalWidth, height: img.naturalHeight } };
+        });
+        await check(`${id} body bytes`, async () => ({ pass: true, detail: await bytes(`/${id}.png`) }));
+      }
+      await finish();
+    })();
+  </script>
+</body>
+</html>

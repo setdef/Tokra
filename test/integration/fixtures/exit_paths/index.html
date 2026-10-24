@@ -1,0 +1,27 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>exit paths</title>
+  <script src="/harness.js"></script>
+</head>
+<body>
+  <ol id="checks"></ol>
+  <p>With --wait, close this window with its close button.</p>
+  <script>
+    const { check, finish } = window.fixture;
+
+    (async () => {
+      await check('loop answers', async () => ({
+        pass: true, detail: { reply: await window.__TAURI_INTERNALS__.invoke('ping') },
+      }));
+      await finish();
+    })();
+  </script>
+</body>
+</html>

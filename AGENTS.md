@@ -33,6 +33,7 @@ The authority is the pinned submodule `vendor/tauri` (`git submodule update --in
 - Every Ruby method has an RBS signature in `sig/` mirroring `lib/`. No `untyped`, no comments in `.rbs`. For `Data.define` classes, declare `self.new` instead of `initialize` (Steep mis-checks `initialize` there); plain classes declare `initialize` as usual.
 - RDoc (never YARD) in `.rb` files only. Wrap SPDX headers in `#--` / `#++`.
 - Architectural decisions get an ADR; plans live in `doc/contributors/plan/`.
+- `examples/` is documentation for app developers: small, focused, and copyable. Never put test hooks, probes, or fixtures there; those live under `test/`.
 
 ## Commands
 

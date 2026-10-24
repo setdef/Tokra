@@ -21,7 +21,9 @@ namespace :test do
 
   # Create a specific Minitest task for Ruby core tests
   Minitest::TestTask.create(:core) do |t|
-    t.test_globs = ["test/**/*.rb"]
+    # Test files only: fixture apps under test/integration/fixtures are .rb
+    # files that open a real window, and must run only in a child process.
+    t.test_globs = ["test/**/test_*.rb", "test/**/*_test.rb"]
   end
 
   desc "Run all Ruby tests (core + plugins)"

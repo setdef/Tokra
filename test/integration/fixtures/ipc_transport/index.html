@@ -1,0 +1,70 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ipc transport</title>
+  <script>
+    // Runs after Tauri's injected scripts and before any invoke.
+    // ipc-protocol.js looks up fetch and console.warn when it sends, so these
+    // wrappers see what each ipc:// fetch answered, and the one warning the
+    // client prints when it gives up on ipc:// for postMessage.
+    window.observed = { warnings: [], ipcFetches: [] };
+    const originalWarn = console.warn.bind(console);
+    console.warn = (...args) => {
+      window.observed.warnings.push(args.map(String).join(' '));
+      originalWarn(...args);
+    };
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async (input, init) => {
+      const url = String(input instanceof Request ? input.url : input);
+      const response = await originalFetch(input, init);
+      if (url.startsWith('ipc:')) {
+        window.observed.ipcFetches.push({
+          url, status: response.status, tauriResponse: response.headers.get('Tauri-Response'),
+        });
+      }
+      return response;
+    };
+  </script>
+  <script src="/harness.js"></script>
+</head>
+<body>
+  <ol id="checks"></ol>
+  <script>
+    const { invoke } = window.__TAURI__.core;
+    const { check, finish } = window.fixture;
+
+    (async () => {
+      await check('invoke resolves', async () => {
+        const reply = await invoke('ping', { message: 'PING' });
+        const fetchRecord = window.observed.ipcFetches.find((f) => f.url === 'ipc://localhost/ping');
+        return { pass: reply === 'PINGPONG', detail: { reply, fetch: fetchRecord || null } };
+      });
+
+      await check('unknown command rejects', async () => {
+        try {
+          return { pass: false, detail: { resolved: await invoke('no_such_command') } };
+        } catch (error) {
+          const fetchRecord = window.observed.ipcFetches.find((f) => f.url === 'ipc://localhost/no_such_command');
+          return { pass: true, detail: { rejected: error, fetch: fetchRecord || null } };
+        }
+      });
+
+      await check('transport', async () => ({
+        pass: true,
+        detail: {
+          fallbackWarnings: window.observed.warnings.filter((w) => w.includes('IPC custom protocol failed')),
+          ipcFetches: window.observed.ipcFetches.length,
+        },
+      }));
+
+      await finish();
+    })();
+  </script>
+</body>
+</html>

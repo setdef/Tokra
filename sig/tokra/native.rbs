@@ -6,7 +6,7 @@ module Tokra
     class EventLoop
       def self.new: () -> EventLoop
       def create_proxy: () -> Proxy
-      def run: (^(native_event) -> void) -> void
+      def run: (^(native_event) -> void) -> bot
     end
 
     class Window

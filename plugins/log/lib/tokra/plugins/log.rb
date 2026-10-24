@@ -29,8 +29,10 @@ module Tokra
       #
       # == Example
       #
-      #   Tokra::Builder.new
-      #     .plugin(Tokra::Plugins::Log::Plugin.new(app, level: :info))
+      #   Tokra::Builder.default
+      #     .setup(&Ractor.shareable_proc { |app|
+      #       app.handle.plugin(Tokra::Plugins::Log::Builder.new.level(:info).build)
+      #     })
       #     .run
       #
       class Plugin < Tokra::Plugin

@@ -53,7 +53,8 @@ module Tokra
     # - EventLoop: Main thread event loop
     #   - .new -> EventLoop
     #   - #create_proxy -> Proxy (must call before #run)
-    #   - #run(callback) -> never returns
+    #   - #run(callback) -> never returns; raises SystemExit with the
+    #     loop's exit code when the loop ends
     #
     # - Window: Native window
     #   - .new(event_loop) -> Window

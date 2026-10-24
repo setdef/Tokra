@@ -37,7 +37,7 @@ allow "ext/tokra/src/webview.rs", line: 268, reason: <<~END
   provides TryConvert for owned String types.
 END
 
-allow "ext/tokra/src/event_loop.rs", lines: [45, 46], reason: <<~END
+allow "ext/tokra/src/event_loop.rs", lines: [47, 48], reason: <<~END
   Tauri Pattern: unsafe impl Send for RbEventLoop
 
   RbEventLoop wraps tao::EventLoop which is bound to the main OS thread.

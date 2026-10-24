@@ -21,6 +21,10 @@ prevents it. The plans and ADRs cited hold the full story.
 - **Follow the input through every layer.** wry rewrites the WebView2
   workaround URI before Tokra sees it, so an `http://ipc.localhost/` branch
   was dead code (Plan 016, item 16).
+- **A function that never returns may still skip Ruby's exit.** tao's `run`
+  ends in `process::exit`, which skips `at_exit`, `ensure`, and the flush of
+  buffered output; a piped `$stdout` came back empty. The loop now runs with
+  `run_return` and raises `SystemExit` (Plan 018, decision 4).
 - **Pin behavior to the locked version.** serde_json's handling of `NaN`
   came from the version Tauri's `Cargo.lock` pins (Plan 016 review).
 
@@ -40,6 +44,11 @@ prevents it. The plans and ADRs cited hold the full story.
 - **A fix is not a fix until you can say why it worked.** Chat 004 credited
   `File.read` for a stylesheet fix that other edits in the same session made;
   for binary assets `File.read` is wrong (Plan 016, item 2).
+- **Run it for real.** The stub suite passed while a real run lost every
+  line of piped output. When a change reaches the webview, add a check to the
+  real-window tests in `test/integration/` (`RealApp` launches a fixture app
+  under `test/integration/fixtures/`), or a new fixture for a new concern
+  (Plan 018).
 - **Name what you could not test.** Native paths inside tao's loop are listed
   as untested without a display, with the manual check for each (Plan 016).
 

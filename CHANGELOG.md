@@ -127,6 +127,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Binary `tokra://` responses (images, fonts) no longer fail with an
   `EncodingError` and leave the request hanging; bodies are sent byte-exact
 - Binary request bodies reach Rack intact instead of being UTF-8 mangled
+- Output written to a pipe or file is no longer lost when the app exits, and
+  `at_exit` hooks and `ensure` clauses run: `Native::EventLoop#run` ends the
+  process by raising `SystemExit` with the loop's exit code instead of letting
+  tao call `process::exit`
 - Native extensions failing to load on macOS 27 ("load command #4 string
   extends beyond end of load command"): rb_sys 0.9.129 gives the bundle a
   valid install name instead of an empty one

@@ -1,0 +1,53 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>origin ACL</title>
+  <script src="/harness.js"></script>
+</head>
+<body>
+  <ol id="checks"></ol>
+  <iframe id="foreign" title="Foreign origin" hidden></iframe>
+  <script>
+    const internals = window.__TAURI_INTERNALS__;
+    const { check, finish, withTimeout } = window.fixture;
+
+    // Loads the foreign frame and collects both of its answers.
+    function foreignAttempts() {
+      return new Promise((resolve) => {
+        const answers = {};
+        const settle = () => { if (answers.ipc && answers.postMessage) resolve(answers); };
+        const onResolve = internals.transformCallback((value) => { answers.postMessage = { resolved: value }; settle(); }, true);
+        const onReject = internals.transformCallback((error) => { answers.postMessage = { rejected: error }; settle(); }, true);
+        window.addEventListener('message', (event) => {
+          if (event.data && event.data.kind === 'foreign') {
+            answers.ipc = event.data.ipc;
+            answers.frameOrigin = event.data.origin;
+            settle();
+          }
+        });
+        document.getElementById('foreign').src =
+          `tokra://foreign.test/foreign.html?callback=${onResolve}&error=${onReject}`;
+      });
+    }
+
+    (async () => {
+      await check('local origin accepted', async () => ({ pass: true, detail: { reply: await internals.invoke('ping') } }));
+
+      const foreign = withTimeout(foreignAttempts(), 20000, 'foreign frame');
+      await check('foreign origin over ipc://', async () => {
+        const { ipc, frameOrigin } = await foreign;
+        return { pass: true, detail: { frameOrigin, ...ipc } };
+      });
+      await check('foreign origin over postMessage', async () => ({ pass: true, detail: (await foreign).postMessage }));
+
+      await finish();
+    })();
+  </script>
+</body>
+</html>

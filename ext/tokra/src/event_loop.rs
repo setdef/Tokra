@@ -11,11 +11,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use magnus::{
-    error::ErrorType, function, kwargs, method, prelude::*, ArgList, Error, RClass, Ruby, Value,
+    error::ErrorType, function, kwargs, method, prelude::*, ArgList, Error, Exception, RClass,
+    Ruby, Value,
 };
 use tao::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy},
+    platform::run_return::EventLoopExtRunReturn,
 };
 
 use crate::proxy::RbProxy;
@@ -83,19 +85,28 @@ impl RbEventLoop {
         Ok(RbProxy::new(proxy))
     }
 
-    /// Run the event loop (blocking, never returns under normal operation).
+    /// Run the event loop. It never returns: it ends the process.
     ///
     /// The callback Proc is invoked for each event.
+    ///
+    /// tao's `run` is `process::exit(run_return(handler))` on every desktop
+    /// backend. Calling `process::exit` from inside Ruby skips Ruby's own
+    /// exit: `at_exit` hooks, `ensure` clauses, and the flush of buffered
+    /// output, so a piped `$stdout` loses everything it held. This method
+    /// runs the same loop with `run_return` and then raises `SystemExit`
+    /// with the loop's exit code, so the process still ends with that code,
+    /// the way Ruby ends a process.
     ///
     /// # Errors
     ///
     /// Returns an error if `run()` has already been called, consuming the event loop.
+    /// Otherwise always returns `SystemExit` carrying the loop's exit code.
     ///
     /// # Panics
     ///
     /// Panics if the responders mutex is poisoned (internal invariant violation).
     pub fn run(&self, callback: Value) -> Result<(), Error> {
-        let event_loop = self.inner.borrow_mut().take().ok_or_else(|| {
+        let mut event_loop = self.inner.borrow_mut().take().ok_or_else(|| {
             Error::new(
                 runtime_error(),
                 "EventLoop has already been consumed by run()",
@@ -116,7 +127,7 @@ impl RbEventLoop {
         }
 
         // Run the event loop - this is a blocking call
-        event_loop.run(move |event, _, control_flow| {
+        let exit_code = event_loop.run_return(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;
 
             match event {
@@ -198,8 +209,9 @@ impl RbEventLoop {
                 // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
                 // SPDX-SnippetComment: Exit on loop destruction adapted from tauri-runtime-wry/src/lib.rs handle_event_loop
                 Event::LoopDestroyed => {
-                    // tao calls process::exit right after this, so it is the
-                    // last event Ruby sees; Tauri emits RunEvent::Exit from it.
+                    // The last event Ruby sees: run_return returns right after
+                    // it and `run` raises SystemExit. Tauri emits
+                    // RunEvent::Exit from it.
                     deliver(
                         callback,
                         "::Tokra::Native::LoopDestroyedEvent",
@@ -211,6 +223,20 @@ impl RbEventLoop {
                 _ => {}
             }
         });
+
+        Err(system_exit(&Ruby::get_with(callback), exit_code))
+    }
+}
+
+/// Build the `SystemExit` that ends the process with the loop's exit code,
+/// exactly as `Kernel#exit(exit_code)` would.
+fn system_exit(ruby: &Ruby, exit_code: i32) -> Error {
+    match ruby
+        .exception_system_exit()
+        .funcall::<_, _, Exception>("new", (exit_code,))
+    {
+        Ok(exception) => Error::from(exception),
+        Err(error) => error,
     }
 }
 

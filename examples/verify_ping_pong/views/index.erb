@@ -23,8 +23,6 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 <div class="feedback" id="feedback"></div>
 
-<pre id="log" style="white-space:pre-wrap;font-size:12px;opacity:.75;margin-top:1rem"></pre>
-
 <% if flash["success"] %>
 <div class="feedback" data-visible data-type="success"><%= flash["success"] %></div>
 <% end %>
@@ -35,7 +33,6 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   const responseInput = document.getElementById('response');
   const feedback = document.getElementById('feedback');
   const ipcStatus = document.getElementById('ipc-status');
-  const logEl = document.getElementById('log');
 
   function showFeedback(message, type) {
     feedback.textContent = message;
@@ -43,39 +40,14 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     feedback.setAttribute('data-visible', '');
   }
 
-  // Mirror the flow to an on-page log and the console, so the round trip is
-  // observable even without DevTools open.
-  function logLine(message) {
-    console.log('[ipc]', message);
-    logEl.textContent += message + '\n';
-  }
-
-  logLine('page loaded; window.__TAURI__ present? ' + !!window.__TAURI__);
-  window.addEventListener('error', (e) => logLine('window error: ' + e.message));
-
-  // IPC — a real invoke() round-trip through the vendored @tauri-apps/api
-  // (window.__TAURI__.core.invoke), exactly how a bundler-less Tauri app
-  // invokes. It rides the ipc:// custom-protocol transport; the Ruby
-  // invoke_handler resolves the promise and we render the value.
-  document.getElementById('btn-ipc').addEventListener('click', async () => {
+  // IPC
+  document.getElementById('btn-ipc').addEventListener('click', () => {
     const value = responseInput.value;
-    logLine('button clicked');
-    showFeedback('IPC: sending…', 'pending');
-
-    const invoke = window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
-    logLine('invoke fn typeof = ' + typeof invoke);
-    if (!invoke) {
-      showFeedback('IPC not available (window.__TAURI__.core.invoke missing)', 'error');
-      return;
-    }
-
-    try {
-      const reply = await invoke('ping', { message: value });
-      logLine('resolved: ' + JSON.stringify(reply));
-      showFeedback('IPC round-trip: ' + reply, 'success');
-    } catch (err) {
-      logLine('rejected: ' + err);
-      showFeedback('IPC error: ' + err, 'error');
+    if (window.__TAURI__) {
+      window.__TAURI__.core.invoke('ping', { message: value });
+      showFeedback('Sent via IPC: ' + value, 'success');
+    } else {
+      showFeedback('IPC not available', 'error');
     }
   });
 
@@ -115,7 +87,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   });
 
   // IPC availability
-  if (!(window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke)) {
+  if (!window.__TAURI__) {
     ipcStatus.textContent = 'IPC unavailable';
     ipcStatus.style.setProperty('--accent', 'var(--warn)');
   }

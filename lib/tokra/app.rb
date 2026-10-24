@@ -99,8 +99,13 @@ module Tokra
     # the window is asked to close, and RunEvent::Exit as the loop ends.
     # Registered plugins hear each one first.
     #
-    # The native loop never returns: when it ends, the process exits. Put
-    # shutdown work in a RunEvent::Exit handler, not after this call.
+    # The native loop never returns. When it ends, it raises SystemExit
+    # with the loop's exit code, the way Kernel#exit ends a process, so
+    # +ensure+ clauses and +at_exit+ hooks run and buffered output reaches
+    # its pipe or file. Code after this call does not run; put shutdown
+    # work in a RunEvent::Exit handler. A <tt>rescue Exception</tt> or
+    # <tt>rescue SystemExit</tt> around this call catches the exit, and the
+    # process keeps running unless you re-raise it.
     #
     # === Example
     #
@@ -139,9 +144,10 @@ module Tokra
       # Emit Ready event
       emit_run_event(RunEvent::Ready.new, callback)
 
-      # Run the event loop, dispatching events. tao's run never returns
-      # (it exits the process), so RunEvent::Exit arrives from inside the
-      # loop as Native::LoopDestroyedEvent, as in Tauri's runtime.
+      # Run the event loop, dispatching events. It never returns: when the
+      # loop ends it raises SystemExit with the loop's exit code, so
+      # RunEvent::Exit arrives from inside the loop as
+      # Native::LoopDestroyedEvent, as in Tauri's runtime.
       event_loop.run(
         lambda { |event|
           dispatch_event(event, callback, native_window, proxy)

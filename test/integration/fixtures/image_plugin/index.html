@@ -1,0 +1,39 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>image plugin</title>
+  <script src="/harness.js"></script>
+</head>
+<body>
+  <ol id="checks"></ol>
+  <script>
+    const { Image } = window.__TAURI__.image;
+    const { check, finish } = window.fixture;
+
+    (async () => {
+      await check('image round trip', async () => {
+        const image = await Image.new(new Uint8Array([255, 0, 0, 255, 0, 0, 255, 255]), 2, 1);
+        const size = await image.size();
+        const rgba = Array.from(await image.rgba());
+        return { pass: true, detail: { rid: image.rid, size, rgba } };
+      });
+
+      await check('unknown rid rejects', async () => {
+        try {
+          return { pass: false, detail: { resolved: await new Image(4294967295).size() } };
+        } catch (error) {
+          return { pass: true, detail: { rejected: error } };
+        }
+      });
+
+      await finish();
+    })();
+  </script>
+</body>
+</html>
