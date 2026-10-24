@@ -47,7 +47,7 @@ The authority is the pinned submodule `vendor/tauri` (`git submodule update --in
 ## Committing
 
 - One commit per working session, on `trunk`, after the gate passes. Never push or release.
-- Include the session transcript as `doc/contributors/chats/NNN.md` and any plan or ADR the session produced.
+- Include any plan or ADR the session produced. Never commit session transcripts; `doc/contributors/chats/` is a closed archive.
 - Conventional Commits, plain text, wrapped at 72. The body explains why this approach over alternatives, in prose (no lists, no markdown, no file inventories). Types: `lib/ext/sig` feat/fix/refactor/perf; `bin/tasks`/CI chore; `examples/` and `doc/` docs; `test/` test. End with the AI footer shown by `git log -n1`.
 
 ## Changelog

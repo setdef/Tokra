@@ -1,6 +1,6 @@
 ---
 name: commit-session
-description: Finishes a Tokra working session - runs the clean-build gate, stages the work, exports the session transcript to doc/contributors/chats/NNN.md, and makes the single Conventional Commit AGENTS.md asks for, without pushing. Use when the work is done and the user wants it committed, or asks to wrap up, finish, or commit the session.
+description: Finishes a Tokra working session - runs the clean-build gate, stages the work, and makes the single Conventional Commit AGENTS.md asks for, without pushing. Use when the work is done and the user wants it committed, or asks to wrap up, finish, or commit the session.
 ---
 
 <!-- SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com> -->
@@ -9,10 +9,10 @@ description: Finishes a Tokra working session - runs the clean-build gate, stage
 # Commit a session
 
 AGENTS.md ("Committing", "Changelog", "Definition of done") sets the rules:
-one commit per session on `trunk`, transcript included, Conventional Commits
+one commit per session on `trunk`, no transcript, Conventional Commits
 with a prose body and the AI footer, never push or release. Follow them;
 this skill is the order of operations. If your instructions say an
-orchestrator commits, stop after step 3 and hand over the message instead.
+orchestrator commits, stop after step 2 and hand over the message instead.
 
 ## 1. Check the definition of done
 
@@ -36,26 +36,7 @@ bundle exec rake
 It passes with zero errors and zero warnings, or you do not commit. Note
 the test counts for the report.
 
-## 3. Export the transcript
-
-```sh
-bundle exec ruby .agents/skills/commit-session/scripts/export_transcript.rb --next \
-  --copyright "$(git config user.name) <$(git config user.email)>"
-```
-
-The script finds the current Claude Code session (from
-`CLAUDE_CODE_SESSION_ID`, or the newest transcript for this directory),
-writes the next `doc/contributors/chats/NNN.md`, and prints its path. Pass
-a transcript path to export another session (a subagent's transcript lives
-under the session's `subagents/` folder), `--title` for a heading, or
-`--output PATH`. The copyright holder comes from `--copyright`, or from
-`GIT_AUTHOR_NAME` and `GIT_AUTHOR_EMAIL`; the script stops with exit 2 if
-neither is set. It never overwrites a file and never runs git. Run with
-`--help` for the options and exit codes. Read the result before staging it:
-it records every user message, so remove nothing silently, but tell the
-user if it holds something they may not want committed.
-
-## 4. Stage and commit
+## 3. Stage and commit
 
 ```sh
 git add -A
@@ -70,7 +51,7 @@ line, then a body wrapped at 72 columns that explains in prose why this
 approach beat the alternatives. No lists, no Markdown, no file inventory.
 End with the AI footer exactly as `git log -n1` shows it.
 
-## 5. Stop
+## 4. Stop
 
 Do not push, tag, or release. Report the commit hash, the gate's counts,
 and anything deferred.
