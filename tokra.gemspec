@@ -48,7 +48,7 @@ Gem::Specification.new do |spec|
   spec.extensions = ["ext/tokra/extconf.rb"]
 
   # Runtime dependency for Rust extension
-  spec.add_dependency "rb_sys", "~> 0.9.91"
+  spec.add_dependency "rb_sys", "~> 0.9.129"
 
   # Development dependencies
 

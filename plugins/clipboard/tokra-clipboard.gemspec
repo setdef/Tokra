@@ -35,6 +35,6 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
   spec.extensions = ["ext/tokra_clipboard/extconf.rb"]
 
-  spec.add_dependency "rb_sys", "~> 0.9"
+  spec.add_dependency "rb_sys", "~> 0.9.129"
   spec.add_dependency "tokra", "~> 0.0"
 end

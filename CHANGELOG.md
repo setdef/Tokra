@@ -78,12 +78,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Rack::Handler::Tokra.run` now builds a `Tokra::Builder`, so Rack apps get
   IPC responses and injected scripts; its `invoke_handler` receives an
   `Ipc::Invoke` and must be Ractor-shareable (breaking)
+- `tokra` and `tokra-clipboard` now require `rb_sys ~> 0.9.129`
 
 ### Fixed
 
 - The per-page-load `ipc://` fetch failure and "IPC custom protocol failed"
   console warning: serving `ipc://` keeps the frontend on the custom protocol
   instead of falling back to `postMessage`
+- Native extensions failing to load on macOS 27 ("load command #4 string
+  extends beyond end of load command"): rb_sys 0.9.129 gives the bundle a
+  valid install name instead of an empty one
 
 ### Removed
 

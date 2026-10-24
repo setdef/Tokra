@@ -37,7 +37,11 @@ namespace :plugins do
   desc "Test all plugins"
   task :test do
     PLUGINS.each do |plugin|
-      sh "cd #{plugin} && bundle install --quiet && bundle exec rake test"
+      # Each plugin has its own Gemfile. Without an unbundled environment,
+      # the inherited BUNDLE_GEMFILE would run the plugin under the root bundle.
+      Bundler.with_unbundled_env do
+        sh "cd #{plugin} && bundle install --quiet && bundle exec rake test"
+      end
     end
   end
 

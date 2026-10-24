@@ -22,5 +22,7 @@ Rake::TestTask.new do |t|
   t.warning = true
 end
 
+# The tests exercise the native extension, so they need a fresh build.
+task test: :compile
 task build: :compile
-task default: [:compile, :test]
+task default: :test
