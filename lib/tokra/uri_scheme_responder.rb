@@ -44,7 +44,7 @@ module Tokra
       raise Error, "already responded" if @responded
 
       @responded = true
-      header_pairs = response.headers.map { |k, v| [k.to_s, v.to_s] }
+      header_pairs = response.headers.map { |k, v| [k.to_s, v.to_s] } #: Array[[String, String]]
       port.respond(request_id, response.status, header_pairs, response.body)
     end
   end

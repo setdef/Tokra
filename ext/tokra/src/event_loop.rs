@@ -10,7 +10,9 @@ use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use magnus::{function, method, prelude::*, Error, Ruby, Value};
+use magnus::{
+    error::ErrorType, function, kwargs, method, prelude::*, ArgList, Error, RClass, Ruby, Value,
+};
 use tao::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy},
@@ -117,23 +119,16 @@ impl RbEventLoop {
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;
 
-            // Helper to get Ruby class by constant path
-            // Uses Ruby::get_with to safely get a Ruby handle from the callback value
-            let get_ruby_class = |path: &str| -> Result<magnus::RClass, Error> {
-                let ruby = Ruby::get_with(callback);
-                ruby.eval(path)
-                    .map_err(|e| Error::new(runtime_error(), format!("Failed to get {path}: {e}")))
-            };
-
             match event {
                 Event::UserEvent(user_event) => match user_event {
-                    UserEvent::IpcMessage(msg) => {
-                        if let Ok(klass) = get_ruby_class("::Tokra::Native::IpcEvent") {
-                            // Data.define(:message) - pass positional arg
-                            if let Ok(event_obj) = klass.funcall::<_, _, Value>("new", (msg,)) {
-                                let _ = callback.funcall::<_, _, Value>("call", (event_obj,));
-                            }
-                        }
+                    UserEvent::IpcMessage { url, body } => {
+                        // Data.define(:message, :url)
+                        deliver(
+                            callback,
+                            "::Tokra::Native::IpcEvent",
+                            (body, url),
+                            control_flow,
+                        );
                     }
                     UserEvent::HttpRequest {
                         request_id,
@@ -142,42 +137,42 @@ impl RbEventLoop {
                         headers,
                         body,
                     } => {
-                        if let Ok(klass) = get_ruby_class("::Tokra::Native::HttpRequestEvent") {
-                            // Data.define(:request_id, :method, :uri, :headers, :body)
-                            if let Ok(event_obj) = klass.funcall::<_, _, Value>(
-                                "new",
-                                (request_id, method, uri, headers, body),
-                            ) {
-                                let _ = callback.funcall::<_, _, Value>("call", (event_obj,));
-                            }
-                        }
+                        // Data.define(:request_id, :method, :uri, :headers, :body);
+                        // the body arrives as a binary String holding the exact bytes.
+                        let body = Ruby::get_with(callback).str_from_slice(&body);
+                        deliver(
+                            callback,
+                            "::Tokra::Native::HttpRequestEvent",
+                            (request_id, method, uri, headers, body),
+                            control_flow,
+                        );
                     }
                     UserEvent::PageLoad { event, url } => {
-                        if let Ok(klass) = get_ruby_class("::Tokra::Native::PageLoadEvent") {
-                            // Data.define(:event, :url)
-                            if let Ok(event_obj) = klass.funcall::<_, _, Value>("new", (event, url))
-                            {
-                                let _ = callback.funcall::<_, _, Value>("call", (event_obj,));
-                            }
-                        }
+                        // Data.define(:event, :url)
+                        deliver(
+                            callback,
+                            "::Tokra::Native::PageLoadEvent",
+                            (event, url),
+                            control_flow,
+                        );
                     }
                     UserEvent::DragDrop { event, paths, x, y } => {
-                        if let Ok(klass) = get_ruby_class("::Tokra::Native::DragDropEvent") {
-                            // Data.define(:event, :paths, :x, :y)
-                            if let Ok(event_obj) =
-                                klass.funcall::<_, _, Value>("new", (event, paths, x, y))
-                            {
-                                let _ = callback.funcall::<_, _, Value>("call", (event_obj,));
-                            }
-                        }
+                        // Data.define(:event, :paths, :x, :y)
+                        deliver(
+                            callback,
+                            "::Tokra::Native::DragDropEvent",
+                            (event, paths, x, y),
+                            control_flow,
+                        );
                     }
                     UserEvent::WakeUp(payload) => {
-                        if let Ok(klass) = get_ruby_class("::Tokra::Native::WakeUpEvent") {
-                            // Data.define(:payload)
-                            if let Ok(event_obj) = klass.funcall::<_, _, Value>("new", (payload,)) {
-                                let _ = callback.funcall::<_, _, Value>("call", (event_obj,));
-                            }
-                        }
+                        // Data.define(:payload)
+                        deliver(
+                            callback,
+                            "::Tokra::Native::WakeUpEvent",
+                            (payload,),
+                            control_flow,
+                        );
                     }
                     UserEvent::Exit => {
                         *control_flow = ControlFlow::Exit;
@@ -188,16 +183,81 @@ impl RbEventLoop {
                     ..
                 } => {
                     // WindowCloseEvent has no fields
-                    if let Ok(klass) = get_ruby_class("::Tokra::Native::WindowCloseEvent") {
-                        if let Ok(event_obj) = klass.funcall::<_, _, Value>("new", ()) {
-                            let _ = callback.funcall::<_, _, Value>("call", (event_obj,));
-                        }
+                    deliver(
+                        callback,
+                        "::Tokra::Native::WindowCloseEvent",
+                        (),
+                        control_flow,
+                    );
+                    if *control_flow == ControlFlow::Wait {
+                        *control_flow = ControlFlow::Exit;
                     }
-                    *control_flow = ControlFlow::Exit;
                 }
+                // SPDX-SnippetBegin
+                // SPDX-License-Identifier: Apache-2.0 OR MIT
+                // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+                // SPDX-SnippetComment: Exit on loop destruction adapted from tauri-runtime-wry/src/lib.rs handle_event_loop
+                Event::LoopDestroyed => {
+                    // tao calls process::exit right after this, so it is the
+                    // last event Ruby sees; Tauri emits RunEvent::Exit from it.
+                    deliver(
+                        callback,
+                        "::Tokra::Native::LoopDestroyedEvent",
+                        (),
+                        control_flow,
+                    );
+                }
+                // SPDX-SnippetEnd
                 _ => {}
             }
         });
+    }
+}
+
+/// Build a `Tokra::Native` event and pass it to the Ruby callback.
+///
+/// The callback is the `App` dispatcher, and an exception it raises must not
+/// vanish. A `SystemExit` (from `AppHandle#exit` or `Kernel#exit`) ends the
+/// loop with its status. Any other exception is reported to stderr with its
+/// full message and backtrace, and the loop keeps running, since one failed
+/// event should not take down the window.
+fn deliver<A: ArgList>(callback: Value, class_path: &str, args: A, control_flow: &mut ControlFlow) {
+    let ruby = Ruby::get_with(callback);
+    let result = ruby
+        .eval::<RClass>(class_path)
+        .and_then(|klass| klass.funcall::<_, _, Value>("new", args))
+        .and_then(|event| callback.funcall::<_, _, Value>("call", (event,)));
+
+    if let Err(error) = result {
+        report_callback_error(&ruby, &error, control_flow);
+    }
+}
+
+/// Handle an exception raised while delivering an event (see `deliver`).
+fn report_callback_error(ruby: &Ruby, error: &Error, control_flow: &mut ControlFlow) {
+    if let ErrorType::Exception(exception) = error.error_type() {
+        if exception.is_kind_of(ruby.exception_system_exit()) {
+            let status = exception.funcall::<_, _, i32>("status", ()).unwrap_or(1);
+            *control_flow = ControlFlow::ExitWithCode(status);
+            return;
+        }
+        let message = exception
+            .funcall::<_, _, String>("full_message", (kwargs!("highlight" => false),))
+            .unwrap_or_else(|_| error.to_string());
+        warn(ruby, &message);
+    } else {
+        warn(ruby, &format!("Tokra event callback failed: {error}"));
+    }
+}
+
+/// Write a message to Ruby's `$stderr` through `Kernel#warn`.
+fn warn(ruby: &Ruby, message: &str) {
+    if ruby
+        .module_kernel()
+        .funcall::<_, _, Value>("warn", (message,))
+        .is_err()
+    {
+        eprintln!("{message}");
     }
 }
 

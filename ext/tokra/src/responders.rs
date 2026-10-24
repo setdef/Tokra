@@ -37,6 +37,20 @@ pub fn get_responders() -> &'static Mutex<HashMap<u64, RequestAsyncResponder>> {
     PENDING_RESPONDERS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+/// Remove the responder stored under `request_id`, returning it if present.
+///
+/// `Proxy#respond` replies with the returned responder; `Proxy#drop_response`
+/// lets it fall out of scope, which closes the request without a reply, the
+/// way Tauri drops its owned responder (`webview/mod.rs` `on_message`). A
+/// missing id returns `None`: the request was already answered or dropped.
+///
+/// # Panics
+///
+/// Panics if the responders mutex is poisoned (internal invariant violation).
+pub fn take_responder<R>(responders: &Mutex<HashMap<u64, R>>, request_id: u64) -> Option<R> {
+    responders.lock().unwrap().remove(&request_id)
+}
+
 /// Generate the next unique request ID.
 #[must_use]
 pub fn next_request_id() -> u64 {
@@ -77,6 +91,52 @@ mod tests {
         let first = get_responders();
         let second = get_responders();
         assert!(std::ptr::eq(first, second), "Should return same instance");
+    }
+
+    /// Records whether it was dropped, standing in for wry's responder,
+    /// which has no public constructor.
+    struct DropFlag(std::sync::Arc<std::sync::atomic::AtomicBool>);
+
+    impl Drop for DropFlag {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::SeqCst);
+        }
+    }
+
+    #[test]
+    fn test_take_responder_removes_and_dropping_it_releases_the_request() {
+        let dropped = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let responders = Mutex::new(HashMap::new());
+        responders
+            .lock()
+            .unwrap()
+            .insert(7, DropFlag(dropped.clone()));
+
+        // Proxy#drop_response discards what take_responder returns.
+        drop(take_responder(&responders, 7));
+
+        assert!(
+            dropped.load(Ordering::SeqCst),
+            "the responder must be dropped"
+        );
+        assert!(
+            responders.lock().unwrap().is_empty(),
+            "the responder must leave the map"
+        );
+        assert!(
+            take_responder(&responders, 7).is_none(),
+            "a second take finds nothing, so dropping is idempotent"
+        );
+    }
+
+    #[test]
+    fn test_take_responder_leaves_other_requests_pending() {
+        let responders = Mutex::new(HashMap::new());
+        responders.lock().unwrap().insert(1, "one");
+        responders.lock().unwrap().insert(2, "two");
+
+        assert_eq!(take_responder(&responders, 1), Some("one"));
+        assert_eq!(responders.lock().unwrap().get(&2), Some(&"two"));
     }
 
     #[test]

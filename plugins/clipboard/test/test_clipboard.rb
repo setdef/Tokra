@@ -7,7 +7,14 @@
 #++
 
 require "minitest/autorun"
+require "tmpdir"
+require "fileutils"
 require "tokra-clipboard"
+
+# Tokra's StubNative double lives with the core tests; plugins exercise a
+# real AppHandle built on it instead of a hand-rolled stand-in.
+$LOAD_PATH.unshift File.expand_path("../../../test", __dir__)
+require "support/stub_native"
 
 # Tests for Tokra::Plugins::Clipboard::Plugin.
 #
@@ -23,21 +30,13 @@ class TestClipboard < Minitest::Test
   EMPTY_CLIPBOARD_MESSAGE =
     "The clipboard contents were not available in the requested format or the clipboard is empty."
 
-  # Minimal app handle standing in for AppHandle#manage.
-  class StubApp
-    attr_reader :managed
-
-    def initialize
-      @managed = []
-    end
-
-    def manage(state)
-      @managed << state
-    end
+  # A real app handle, built exactly as an app builds one.
+  private def build_app
+    Tokra::Builder.default.build(native: StubNative)
   end
 
-  private def build_plugin
-    Tokra::Plugins::Clipboard::Plugin.new(StubApp.new)
+  private def build_plugin(app = build_app)
+    Tokra::Plugins::Clipboard::Plugin.new(app.handle)
   end
 
   private def stub_webview
@@ -50,7 +49,7 @@ class TestClipboard < Minitest::Test
       command:,
       payload:,
       webview:,
-      responder: -> (success, value) { responses << [success, value] }
+      responder: -> (success, value) { responses << [success, JSON.parse(value)] }
     )
     [invoke, responses]
   end
@@ -60,14 +59,15 @@ class TestClipboard < Minitest::Test
     assert_equal "clipboard-manager", build_plugin.name
   end
 
-  def test_initialize_manages_native_clipboard
-    app = StubApp.new
-    Tokra::Plugins::Clipboard::Plugin.new(app)
+  def test_registering_on_a_real_handle_manages_the_native_clipboard
+    app = build_app
+    plugin = Tokra::Plugins::Clipboard::Plugin.new(app.handle)
+    app.handle.plugin(plugin)
 
     # Registration stores the native clipboard in managed state, the body
-    # of Tauri's setup closure (clipboard-manager lib.rs)
-    assert_equal 1, app.managed.size
-    assert_instance_of TokraClipboard::Native::Clipboard, app.managed.first
+    # of Tauri's setup closure (clipboard-manager lib.rs:54-61)
+    assert_instance_of TokraClipboard::Native::Clipboard, app.handle.clipboard
+    assert Ractor.shareable?(app.handle.clipboard), "the managed clipboard is Ractor-shareable"
   end
 
   def test_native_clipboard_is_ractor_shareable_when_frozen
@@ -266,9 +266,8 @@ class TestClipboard < Minitest::Test
     result = plugin.extend_api(invoke)
 
     assert result, "extend_api should return true after rejecting"
-    success, message = responses.first
-    refute success
-    assert_match(/invalid args: image/, message)
+    assert_equal [[false, "invalid args `image` for command `write_image`: #{Tokra::JsImage::MISMATCH}"]],
+      responses
   end
 
   def test_extend_api_write_html_uses_camel_case_alt_text
@@ -304,19 +303,21 @@ class TestClipboard < Minitest::Test
   end
 
   def test_on_event_exit_cleans_up_native_clipboard
-    plugin = build_plugin
+    app = build_app
+    plugin = build_plugin(app)
 
-    plugin.on_event(StubApp.new, Tokra::RunEvent::Exit.new)
+    plugin.on_event(app.handle, Tokra::RunEvent::Exit.new)
 
     error = assert_raises(Tokra::Plugins::Clipboard::Error::Clipboard) { plugin.read_text }
     assert_match(/cleaned up/i, error.message)
   end
 
   def test_on_event_ignores_other_events
-    plugin = build_plugin
+    app = build_app
+    plugin = build_plugin(app)
     plugin.write_text("survives_ready")
 
-    plugin.on_event(StubApp.new, Tokra::RunEvent::Ready.new)
+    plugin.on_event(app.handle, Tokra::RunEvent::Ready.new)
 
     assert_equal "survives_ready", plugin.read_text, "non-Exit events should not clean up"
   end
@@ -329,5 +330,208 @@ class TestClipboard < Minitest::Test
     mock_manager.extend(Tokra::Plugins::Clipboard::ClipboardManagerExt)
 
     assert_equal native, mock_manager.clipboard
+  end
+
+  # ==========================================================================
+  # Managed state (Plan 016 #4, #9)
+  # ==========================================================================
+
+  # A second plugin finds a clipboard already managed (manage returns
+  # false) and must share it, so Exit cleans the one everything uses.
+  def test_second_plugin_shares_the_managed_clipboard
+    app = build_app
+    first = build_plugin(app)
+    managed = app.handle.clipboard
+    second = build_plugin(app)
+
+    assert_same managed, app.handle.clipboard, "the first clipboard stays managed"
+    second.write_text("shared")
+    assert_equal "shared", first.read_text
+
+    second.on_event(app.handle, Tokra::RunEvent::Exit.new)
+    error = assert_raises(Tokra::Plugins::Clipboard::Error::Clipboard) { first.read_text }
+    assert_match(/cleaned up/i, error.message, "Exit cleans app.clipboard, the managed one")
+  end
+
+  def test_exit_through_a_real_run_cleans_the_managed_clipboard
+    app = build_app
+    app.handle.plugin(build_plugin(app))
+
+    app.run
+
+    error = assert_raises(RuntimeError) { app.handle.clipboard.read_text }
+    assert_match(/cleaned up/i, error.message, "the run's final Exit reaches the plugin")
+  ensure
+    StubNative.clear_event
+  end
+
+  # ==========================================================================
+  # Zero-size images (Plan 016 #6)
+  # ==========================================================================
+
+  CONVERSION_FAILURE =
+    "The image or the text that was about the be transferred to/from the clipboard " \
+      "could not be converted to the appropriate format."
+
+  # arboard's macOS backend panics (uncatchable fatal) on these shapes.
+  def test_write_image_rejects_zero_dimensions_with_conversion_failure
+    native = TokraClipboard::Native::Clipboard.new
+    [[0, 0], [0, 1], [1, 0]].each do |width, height|
+      error = assert_raises(RuntimeError, "#{width}x#{height}") { native.write_image("".b, width, height) }
+      assert_equal CONVERSION_FAILURE, error.message
+    end
+  end
+
+  def test_write_image_rejects_zero_width_with_bytes
+    native = TokraClipboard::Native::Clipboard.new
+    error = assert_raises(RuntimeError) { native.write_image(RGBA_2X2, 0, 4) }
+    assert_equal CONVERSION_FAILURE, error.message
+  end
+
+  def test_cleaned_up_clipboard_reports_its_own_error_before_the_shape
+    native = TokraClipboard::Native::Clipboard.new
+    native.cleanup
+    error = assert_raises(RuntimeError) { native.write_image("".b, 0, 0) }
+    assert_equal "Clipboard has been cleaned up", error.message
+  end
+
+  def test_zero_size_image_over_ipc_rejects
+    plugin = build_plugin
+    invoke, responses = build_invoke("write_image", { "image" => { "rgba" => [], "width" => 0, "height" => 0 } })
+
+    assert plugin.extend_api(invoke)
+    assert_equal [[false, CONVERSION_FAILURE]], responses
+  end
+
+  # ==========================================================================
+  # Non-square images: swapping width and height must fail
+  # ==========================================================================
+
+  FIXTURES = File.expand_path("../../../test/fixtures", __dir__)
+  RED_THEN_BLUE = "\xFF\x00\x00\xFF\x00\x00\xFF\xFF".b
+
+  def test_non_square_image_round_trips_with_its_dimensions
+    native = TokraClipboard::Native::Clipboard.new
+    native.write_image(RED_THEN_BLUE, 2, 1)
+
+    assert_equal [RED_THEN_BLUE, 2, 1], native.read_image, "width 2, height 1, not 1 by 2"
+  end
+
+  def test_write_image_ipc_with_png_path
+    plugin = build_plugin
+    invoke, responses = build_invoke("write_image", { "image" => File.join(FIXTURES, "2x1.png") })
+
+    assert plugin.extend_api(invoke)
+    assert_equal [[true, nil]], responses
+    assert_equal Tokra::Image.new(rgba: RED_THEN_BLUE, width: 2, height: 1), plugin.read_image
+  end
+
+  def test_write_image_ipc_with_png_byte_array
+    plugin = build_plugin
+    bytes = File.binread(File.join(FIXTURES, "2x1.png")).bytes
+    invoke, responses = build_invoke("write_image", { "image" => bytes })
+
+    assert plugin.extend_api(invoke)
+    assert_equal [[true, nil]], responses
+    assert_equal Tokra::Image.new(rgba: RED_THEN_BLUE, width: 2, height: 1), plugin.read_image
+  end
+
+  def test_write_image_ipc_with_missing_png_path_rejects
+    plugin = build_plugin
+    invoke, responses = build_invoke("write_image", { "image" => File.join(FIXTURES, "absent.png") })
+
+    assert plugin.extend_api(invoke)
+    success, message = responses.first
+    refute success
+    assert_match(/No such file or directory/, message)
+  end
+
+  # ==========================================================================
+  # Argument validation (Plan 016 #7): Tauri's InvalidArgs wording
+  # ==========================================================================
+
+  {
+    ["write_text", {}] => "invalid args `text` for command `write_text`: command write_text missing required key text",
+    ["write_text", { "text" => nil }] => "invalid args `text` for command `write_text`: invalid type: null, expected a borrowed string",
+    ["write_text", { "text" => 5 }] => "invalid args `text` for command `write_text`: invalid type: integer `5`, expected a borrowed string",
+    ["write_text", { "text" => 1.5 }] => "invalid args `text` for command `write_text`: invalid type: floating point `1.5`, expected a borrowed string",
+    ["write_text", { "text" => true }] => "invalid args `text` for command `write_text`: invalid type: boolean `true`, expected a borrowed string",
+    ["write_text", { "text" => [] }] => "invalid args `text` for command `write_text`: invalid type: sequence, expected a borrowed string",
+    ["write_text", { "text" => {} }] => "invalid args `text` for command `write_text`: invalid type: map, expected a borrowed string",
+    ["write_html", {}] => "invalid args `html` for command `write_html`: command write_html missing required key html",
+    ["write_html", { "html" => "<b>x</b>", "altText" => 5 }] => "invalid args `altText` for command `write_html`: invalid type: integer `5`, expected a borrowed string",
+    ["write_image", {}] => "invalid args `image` for command `write_image`: command write_image missing required key image",
+    ["write_image", { "image" => { "rgba" => [], "width" => -1, "height" => 1 } }] => "invalid args `image` for command `write_image`: data did not match any variant of untagged enum JsImage",
+    ["write_image", { "image" => { "rgba" => [256, 0, 0, 0], "width" => 1, "height" => 1 } }] => "invalid args `image` for command `write_image`: data did not match any variant of untagged enum JsImage",
+  }.each_with_index do |((command, payload), message), index|
+    define_method(:"test_invalid_args_#{command}_#{index}_reject_instead_of_raising") do
+      plugin = build_plugin
+      invoke, responses = build_invoke(command, payload)
+
+      assert plugin.extend_api(invoke), "a bad argument is handled, not raised"
+      assert_equal [[false, message]], responses
+    end
+  end
+
+  def test_write_html_accepts_null_alt_text
+    plugin = build_plugin
+    invoke, responses = build_invoke("write_html", { "html" => "<i>x</i>", "altText" => nil })
+
+    assert plugin.extend_api(invoke)
+    assert_equal [[true, nil]], responses, "Option<&str> treats null as None"
+  end
+
+  # Tauri desktop still deserializes label as Option<String>, so a
+  # non-string label rejects before the text is written.
+  def test_write_text_rejects_a_non_string_label
+    plugin = build_plugin
+    plugin.write_text("before")
+    invoke, responses = build_invoke("write_text", { "text" => "after", "label" => 42 })
+
+    assert plugin.extend_api(invoke)
+    assert_equal [[false, "invalid args `label` for command `write_text`: invalid type: integer `42`, expected a string"]],
+      responses
+    assert_equal "before", plugin.read_text, "a rejected invoke writes nothing"
+  end
+
+  def test_write_text_accepts_a_null_label
+    plugin = build_plugin
+    invoke, responses = build_invoke("write_text", { "text" => "unlabelled", "label" => nil })
+
+    assert plugin.extend_api(invoke)
+    assert_equal [[true, nil]], responses
+  end
+
+  def test_write_text_ignores_the_mobile_label
+    plugin = build_plugin
+    invoke, responses = build_invoke("write_text", { "text" => "labelled", "label" => "work" })
+
+    assert plugin.extend_api(invoke)
+    assert_equal [[true, nil]], responses
+    assert_equal "labelled", plugin.read_text
+  end
+
+  # ==========================================================================
+  # Packaging (Plan 016 #1, #8)
+  # ==========================================================================
+
+  def test_crate_states_its_own_lints_for_an_installed_gem
+    manifest = File.read(File.expand_path("../ext/tokra_clipboard/Cargo.toml", __dir__))
+
+    refute_match(/^\s*workspace\s*=\s*true/, manifest, "an installed gem has no workspace to inherit from")
+    assert_includes manifest, "[lints.clippy]"
+  end
+
+  def test_native_load_error_propagates_with_its_real_message
+    Dir.mktmpdir do |dir|
+      FileUtils.mkdir_p(File.join(dir, "tokra_clipboard"))
+      File.write(File.join(dir, "tokra_clipboard", "tokra_clipboard.rb"),
+        'raise LoadError, "dlopen failed: image not found"')
+      lib = File.expand_path("../lib", __dir__)
+      script = 'begin; require "tokra/plugins/clipboard"; rescue LoadError => e; print e.message; end'
+      output = IO.popen([RbConfig.ruby, "-I", dir, "-I", lib, "-e", script], err: [:child, :out], &:read)
+
+      assert_equal "dlopen failed: image not found", output, "the real failure surfaces, not a later NameError"
+    end
   end
 end

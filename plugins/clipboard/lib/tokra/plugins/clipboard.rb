@@ -5,14 +5,17 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
+# SPDX-SnippetBegin
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# SPDX-SnippetCopyrightText: 2019-2023 Tauri Programme within The Commons Conservancy
+# SPDX-SnippetComment: Plugin, commands, and ClipboardExt adapted from
+#                      tauri-plugin-clipboard-manager src/lib.rs and src/commands.rs
+
 require "tokra"
 
-# Load native extension
-begin
-  require "tokra_clipboard/tokra_clipboard"
-rescue LoadError
-  # Extension not compiled yet
-end
+# The native extension. A failure to load it is a real installation problem
+# (a missing or unloadable library), so its LoadError propagates as-is.
+require "tokra_clipboard/tokra_clipboard"
 
 module Tokra
   # Namespace for Tokra plugins.
@@ -52,7 +55,7 @@ module Tokra
       #   app_handle.clipboard.read_text
       #   window.clipboard.write_text("Hello")
       #
-      # This mirrors Tauri's ClipboardExt blanket implementation.
+      # This mirrors Tauri's ClipboardExt blanket implementation (lib.rs:32-41).
       module ClipboardManagerExt
         # Returns the clipboard instance from managed state.
         def clipboard
@@ -87,6 +90,17 @@ module Tokra
       #   // Clear clipboard
       #   await invoke("plugin:clipboard-manager|clear");
       #
+      # Arguments are checked the way Tauri deserializes them: a missing or
+      # mistyped argument rejects with Tauri's message, for example
+      # <tt>invalid args `text` for command `write_text`: command
+      # write_text missing required key text</tt>.
+      #
+      # *Deviation*: Tauri runs these commands as +async+ functions, off the
+      # main thread. Tokra dispatches every invoke on the main thread today,
+      # so the Linux deadlock warning on read_text and read_image applies to
+      # the IPC commands too. Moving dispatch to a worker Ractor (ADR 001)
+      # lifts it.
+      #
       # == Ruby API
       #
       # Register the plugin with the app handle once the app exists, for
@@ -108,18 +122,20 @@ module Tokra
         # Initializes the plugin with the app handle and configuration.
         #
         # Creates the Ractor-shareable native clipboard (ADR-007) and
-        # stores it in managed state for ClipboardManagerExt access — the
+        # stores it in managed state for ClipboardManagerExt access, the
         # body of Tauri's setup closure, which calls
-        # <tt>app.manage(clipboard)</tt> (clipboard-manager lib.rs).
-        # Construction at registration matches Tauri's Plugin::initialize
-        # timing:
+        # <tt>app.manage(clipboard)</tt> (lib.rs:54-61). Construction at
+        # registration matches Tauri's Plugin::initialize timing. Every
+        # operation goes through the managed clipboard, so a second plugin
+        # instance (whose manage call finds one already managed) shares the
+        # first one's clipboard instead of opening another:
         #
         #   handle.plugin(Tokra::Plugins::Clipboard::Plugin.new(handle))
         def initialize(app, config = {})
           super
-          @native = TokraClipboard::Native::Clipboard.new
-          Ractor.make_shareable(@native)
-          app.manage(@native)
+          native = TokraClipboard::Native::Clipboard.new
+          Ractor.make_shareable(native)
+          app.manage(native)
         end
 
         # Reads text from the clipboard.
@@ -128,11 +144,15 @@ module Tokra
         # Error::Clipboard carrying arboard's message, exactly as Tauri's
         # <tt>read_text</tt> propagates the error to a rejected promise.
         #
-        # *Warning*: Do not call this on the main thread on Linux — the
+        # *Warning*: Do not call this on the main thread on Linux. The
         # underlying libraries may deadlock when reading data this app
         # copied, for example text the user copied from the WebView.
+        #
+        # === Example
+        #
+        #   plugin.read_text  #=> "copied text"
         def read_text
-          @native.read_text
+          clipboard.read_text
         rescue RuntimeError => e
           raise Error::Clipboard, e.message
         end
@@ -142,8 +162,12 @@ module Tokra
         # Raises Error::Clipboard when the write fails.
         #
         # +text+:: the text string to write
+        #
+        # === Example
+        #
+        #   plugin.write_text("Hello")
         def write_text(text)
-          @native.write_text(text)
+          clipboard.write_text(text)
         rescue RuntimeError => e
           raise Error::Clipboard, e.message
         end
@@ -153,7 +177,7 @@ module Tokra
         # Mirrors Tauri's Clipboard#read_image (desktop.rs). An empty
         # clipboard raises Error::Clipboard.
         #
-        # *Warning*: Do not call this on the main thread on Linux — the
+        # *Warning*: Do not call this on the main thread on Linux. The
         # underlying libraries may deadlock when reading data this app
         # copied.
         #
@@ -162,7 +186,7 @@ module Tokra
         #   image = plugin.read_image
         #   File.binwrite("shot.rgba", image.rgba)
         def read_image
-          Tokra::Image.new(*@native.read_image)
+          Tokra::Image.new(*clipboard.read_image)
         rescue RuntimeError => e
           raise Error::Clipboard, e.message
         end
@@ -170,8 +194,8 @@ module Tokra
         # Writes a Tokra::Image to the clipboard.
         #
         # Mirrors Tauri's Clipboard#write_image (desktop.rs). Raises
-        # Error::Clipboard when the write fails, including when the image's
-        # byte count does not match its dimensions.
+        # Error::Clipboard when the write fails, including when the image
+        # is empty or its byte count does not match its dimensions.
         #
         # +image+:: the Tokra::Image to write
         #
@@ -179,7 +203,7 @@ module Tokra
         #
         #   plugin.write_image(Tokra::Image.from_path("icon.png"))
         def write_image(image)
-          @native.write_image(image.rgba, image.width, image.height)
+          clipboard.write_image(image.rgba, image.width, image.height)
         rescue RuntimeError => e
           raise Error::Clipboard, e.message
         end
@@ -194,7 +218,7 @@ module Tokra
         #
         #   plugin.write_html("<b>Hi</b>", "Hi")
         def write_html(html, alt_text = nil)
-          @native.write_html(html, alt_text)
+          clipboard.write_html(html, alt_text)
         rescue RuntimeError => e
           raise Error::Clipboard, e.message
         end
@@ -202,8 +226,12 @@ module Tokra
         # Clears the clipboard contents.
         #
         # Raises Error::Clipboard when the clear fails.
+        #
+        # === Example
+        #
+        #   plugin.clear
         def clear
-          @native.clear
+          clipboard.clear
         rescue RuntimeError => e
           raise Error::Clipboard, e.message
         end
@@ -236,13 +264,19 @@ module Tokra
           true
         end
 
-        # Cleans up the native clipboard on exit, as arboard requires
+        # Cleans up the managed clipboard on exit, as arboard requires
         # before the process ends. Mirrors the on_event hook in Tauri's
-        # clipboard-manager lib.rs.
-        def on_event(_app, event)
+        # clipboard-manager lib.rs (62-66), which cleans
+        # <tt>app.clipboard()</tt>, the managed state.
+        def on_event(app, event)
           return unless event.is_a?(Tokra::RunEvent::Exit)
 
-          @native.cleanup
+          app.clipboard.cleanup
+        end
+
+        # The managed native clipboard (ClipboardExt, lib.rs:37-41).
+        private def clipboard
+          app.clipboard
         end
 
         private def handle_read_text(invoke)
@@ -250,10 +284,13 @@ module Tokra
           true
         end
 
-        # Writes payload text; the mobile-only label key is ignored, as
-        # on Tauri desktop (commands.rs:10-18).
+        # Writes payload text. The mobile-only label is checked but unused,
+        # as on Tauri desktop, which still deserializes it as an
+        # Option<String> (commands.rs:9-18).
         private def handle_write_text(invoke)
-          write_text(invoke.payload["text"])
+          text = string_arg(invoke, "text")
+          optional_string_arg(invoke, "label", expected: "a string")
+          write_text(text)
           invoke.resolve(nil)
           true
         end
@@ -269,17 +306,21 @@ module Tokra
         # Resolves the JsImage payload against the calling webview's
         # resource table and writes it (commands.rs:43-50).
         private def handle_write_image(invoke)
-          image = Tokra::JsImage.new(invoke.payload["image"])
-            .into_img(invoke.webview.resources_table)
+          value = required_arg(invoke, "image")
+          image = begin
+            Tokra::JsImage.new(value).into_img(invoke.webview.resources_table)
+          rescue ArgumentError => e
+            raise ArgumentError, invalid_args(invoke, "image", e.message)
+          end
           write_image(image)
           invoke.resolve(nil)
           true
         end
 
         # Writes HTML using the wire's camelCase altText key
-        # (commands.rs:64-72; guest-js sends { html, altText }).
+        # (commands.rs:63-72; guest-js sends { html, altText }).
         private def handle_write_html(invoke)
-          write_html(invoke.payload["html"], invoke.payload["altText"])
+          write_html(string_arg(invoke, "html"), optional_string_arg(invoke, "altText"))
           invoke.resolve(nil)
           true
         end
@@ -290,6 +331,56 @@ module Tokra
           invoke.resolve(nil)
           true
         end
+
+        # A required argument, or ArgumentError with Tauri's missing-key
+        # message (ipc/command.rs:97-102).
+        private def required_arg(invoke, key)
+          payload = invoke.payload
+          unless payload.key?(key)
+            raise ArgumentError,
+              invalid_args(invoke, key, "command #{invoke.command} missing required key #{key}")
+          end
+
+          payload[key]
+        end
+
+        # A required string argument (a Rust &str).
+        private def string_arg(invoke, key)
+          value = required_arg(invoke, key)
+          return value if value.is_a?(String)
+
+          raise ArgumentError, invalid_args(invoke, key, invalid_type(value))
+        end
+
+        # An optional string argument (a Rust Option<&str>, or with
+        # <tt>expected: "a string"</tt> an Option<String>): absent or null
+        # is +nil+.
+        private def optional_string_arg(invoke, key, expected: "a borrowed string")
+          value = invoke.payload[key]
+          return value if value.nil? || value.is_a?(String)
+
+          raise ArgumentError, invalid_args(invoke, key, invalid_type(value, expected))
+        end
+
+        # Tauri's InvalidArgs message (tauri error.rs:59-60).
+        private def invalid_args(invoke, key, reason)
+          "invalid args `#{key}` for command `#{invoke.command}`: #{reason}"
+        end
+
+        # serde_json's message for a JSON value where a string was
+        # expected: serde's &str visitor expects "a borrowed string", its
+        # String visitor "a string".
+        private def invalid_type(value, expected = "a borrowed string")
+          unexpected = case value
+          when nil then "null"
+          when true, false then "boolean `#{value}`"
+          when Integer then "integer `#{value}`"
+          when Float then "floating point `#{value}`"
+          when Array then "sequence"
+          else "map"
+          end
+          "invalid type: #{unexpected}, expected #{expected}"
+        end
       end
     end
   end
@@ -297,3 +388,5 @@ end
 
 # Extend Manager when plugin file is loaded (matches Tauri pattern)
 Tokra::Manager.include(Tokra::Plugins::Clipboard::ClipboardManagerExt)
+
+# SPDX-SnippetEnd

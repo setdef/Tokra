@@ -9,7 +9,7 @@
 //! The Proxy is the ONLY Tokra native type that is genuinely thread-safe
 //! and Ractor-shareable, as `EventLoopProxy` is designed to be `Send+Sync`.
 
-use magnus::{method, prelude::*, Error, Ruby};
+use magnus::{method, prelude::*, Error, RString, Ruby};
 use tao::event_loop::EventLoopProxy;
 
 use crate::runtime_error;
@@ -62,7 +62,9 @@ impl RbProxy {
     ///
     /// This is used by Ruby to respond to `tokra://` requests.
     /// The `request_id` must match a pending `HttpRequest` event.
-    /// Headers should be an array of [name, value] pairs.
+    /// Headers should be an array of [name, value] pairs. The body is sent as
+    /// its raw bytes whatever the Ruby string's encoding, so images, fonts,
+    /// and other binary assets reach the `WebView` byte for byte.
     ///
     /// # Thread Safety
     ///
@@ -85,18 +87,19 @@ impl RbProxy {
         request_id: u64,
         status: u16,
         headers: Vec<(String, String)>,
-        body: String,
+        body: RString,
     ) -> Result<(), Error> {
-        use crate::responders::get_responders;
+        use crate::responders::{get_responders, take_responder};
 
-        let responder = get_responders().lock().unwrap().remove(&request_id);
+        let body = body.to_bytes().to_vec();
+        let responder = take_responder(get_responders(), request_id);
         match responder {
             Some(responder) => {
                 let mut builder = wry::http::Response::builder().status(status);
                 for (name, value) in &headers {
                     builder = builder.header(name, value);
                 }
-                let response = builder.body(body.into_bytes()).unwrap_or_else(|_| {
+                let response = builder.body(body).unwrap_or_else(|_| {
                     wry::http::Response::builder()
                         .status(500)
                         .body(b"Internal Error".to_vec())
@@ -130,9 +133,9 @@ impl RbProxy {
     ///
     /// Panics if the responders mutex is poisoned (internal invariant violation).
     pub fn drop_response(&self, request_id: u64) {
-        use crate::responders::get_responders;
+        use crate::responders::{get_responders, take_responder};
 
-        get_responders().lock().unwrap().remove(&request_id);
+        drop(take_responder(get_responders(), request_id));
     }
 
     // SPDX-SnippetEnd

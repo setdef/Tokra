@@ -30,6 +30,7 @@ module Tokra
     def register: (_Plugin plugin) -> bool
     def unregister: (String name) -> bool
     def extend_api: (String name, Ipc::Invoke invoke) -> bool
+    def initialization_script: () -> Array[String]
     def on_event: (AppHandle app, run_event event) -> void
   end
 end

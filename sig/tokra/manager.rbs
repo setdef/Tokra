@@ -2,8 +2,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 module Tokra
-  # Shared interface for AppHandle, Window, and Webview.
-  # Mirrors Tauri's Manager<R> trait.
   module Manager
     def app_handle: -> AppHandle
     def config: -> Config

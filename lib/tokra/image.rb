@@ -81,6 +81,13 @@ module Tokra
   #   image = js_image.into_img(invoke.webview.resources_table)
   #
   class JsImage
+    # The message for a payload that fits none of the four shapes: serde's
+    # error for Tauri's untagged JsImage enum.
+    MISMATCH = "data did not match any variant of untagged enum JsImage"
+
+    # The largest u32, the type of Tauri's ResourceId and image dimensions.
+    U32_MAX = (2 ** 32) - 1
+
     # Wraps a raw payload value (Integer, Array, String, or Hash).
     def initialize(value)
       @value = value
@@ -94,14 +101,21 @@ module Tokra
     # [String]  decoded with Image.from_path.
     # [Hash]    built from its <tt>"rgba"</tt>, <tt>"width"</tt>, and
     #           <tt>"height"</tt> keys.
+    # [Array of three] <tt>[rgba, width, height]</tt>, the sequence form
+    #           serde's derived struct visitor also accepts for Tauri's
+    #           Rgba variant, when the array is not a byte array.
     #
-    # Raises Error::BadResourceId when a resource ID is unknown or does
-    # not hold an Image, Error::Image when bytes cannot be decoded, and
-    # ArgumentError for any other value.
+    # Each shape is checked the way Tauri deserializes it: bytes are
+    # integers from 0 to 255, and resource IDs, widths, and heights are
+    # integers from 0 to 4294967295. A value that fits no shape raises
+    # ArgumentError with serde's message,
+    # <tt>data did not match any variant of untagged enum JsImage</tt>.
+    # An unknown resource ID, or one that does not hold an Image, raises
+    # Error::BadResourceId; bytes that cannot be decoded raise Error::Image.
     #
-    # Matches Tauri's JsImage#into_img (image/mod.rs:191-229). Pass the
-    # webview's resources_table so resource IDs resolve against the same
-    # table that stored them.
+    # Matches Tauri's JsImage enum and JsImage#into_img
+    # (image/mod.rs:166-229). Pass the webview's resources_table so
+    # resource IDs resolve against the same table that stored them.
     #
     # === Example
     #
@@ -111,13 +125,11 @@ module Tokra
     def into_img(resources_table)
       value = @value
       case value
-      when Integer then image_resource(value, resources_table)
-      when Array then Image.from_bytes(pack_bytes(value))
+      when Integer then image_resource(u32(value), resources_table)
+      when Array then array_image(value)
       when String then Image.from_path(value)
       when Hash then rgba_image(value)
-      else
-        raise ArgumentError,
-          "invalid args: image must be a resource ID, byte array, file path, or RGBA hash"
+      else raise ArgumentError, MISMATCH
       end
     end
 
@@ -128,24 +140,38 @@ module Tokra
       resource
     end
 
+    # An array is Tauri's Bytes variant when every element is a u8, and
+    # otherwise its Rgba variant in sequence form: serde's untagged enum
+    # tries Bytes first, then the struct visitor, which reads exactly
+    # three elements in field order (rgba, width, height).
+    private def array_image(array)
+      return Image.from_bytes(pack_bytes(array)) unless array.size == 3 && array.first.is_a?(Array)
+
+      rgba, width, height = array
+      rgba_image({ "rgba" => rgba, "width" => width, "height" => height })
+    end
+
     # Builds an Image from an inline RGBA hash.
     private def rgba_image(hash)
       rgba = hash["rgba"]
-      width = hash["width"]
-      height = hash["height"]
-      unless rgba.is_a?(Array) && width.is_a?(Integer) && height.is_a?(Integer)
-        raise ArgumentError,
-          "invalid args: image hash must have an rgba array, an integer width, and an integer height"
-      end
+      raise ArgumentError, MISMATCH unless rgba.is_a?(Array)
 
-      Image.new(rgba: pack_bytes(rgba), width:, height:)
+      Image.new(rgba: pack_bytes(rgba), width: u32(hash["width"]), height: u32(hash["height"]))
     end
 
-    # Packs a JSON byte array into a binary string.
+    # Packs a JSON byte array into a binary string, accepting only u8
+    # values, so 256 cannot wrap to 0 and 1.5 cannot truncate to 1.
     private def pack_bytes(array)
+      raise ArgumentError, MISMATCH unless array.all? { |byte| byte.is_a?(Integer) && byte.between?(0, 255) }
+
       array.pack("C*")
-    rescue TypeError
-      raise ArgumentError, "invalid args: image bytes must be integers"
+    end
+
+    # Returns +value+ if it is a u32.
+    private def u32(value)
+      raise ArgumentError, MISMATCH unless value.is_a?(Integer) && value.between?(0, U32_MAX)
+
+      value
     end
   end
 end

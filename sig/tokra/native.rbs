@@ -2,12 +2,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 module Tokra
-  # Native extension classes (implemented in Rust via Magnus)
   module Native
     class EventLoop
       def initialize: () -> void
       def create_proxy: () -> Proxy
-      def run: (^(HttpRequestEvent | IpcEvent | WakeUpEvent | WindowCloseEvent | PageLoadEvent) -> void) -> void
+      def run: (^(native_event) -> void) -> void
     end
 
     class Window
@@ -23,9 +22,9 @@ module Tokra
     end
 
     class Proxy
-      def respond: (Integer, Integer, Array[Array[String]], String) -> void
-      def send_http_response: (Integer, Integer, Hash[String, String], String) -> void
-      def drop_response: (Integer) -> void
+      def wake_up: (String payload) -> void
+      def respond: (Integer request_id, Integer status, Array[[String, String]] headers, String body) -> void
+      def drop_response: (Integer request_id) -> void
     end
 
     class HttpRequestEvent
@@ -36,14 +35,21 @@ module Tokra
       def body: () -> String
     end
 
-    class IpcEvent
+    class IpcEvent < Data
       def message: () -> String
+      def url: () -> String
+      def self.new: (String message, String url) -> IpcEvent
+                  | (message: String, url: String) -> IpcEvent
     end
 
     class WakeUpEvent
     end
 
     class WindowCloseEvent
+    end
+
+    class LoopDestroyedEvent < Data
+      def self.new: () -> LoopDestroyedEvent
     end
 
     class PageLoadEvent
@@ -53,14 +59,10 @@ module Tokra
       def finished?: () -> bool
     end
 
-    # Generates JavaScript code to emit an event to the WebView.
     def self.emit_js_script: (String event, String payload) -> String
 
-    # Loads a JS template from lib/tokra/js/.
     def self.load_js_template: (String name) -> String
 
-    # Drag drop event from native layer.
-    # Data.define(:event, :paths, :x, :y)
     class DragDropEvent < Data
       def event: () -> String
       def paths: () -> Array[String]
@@ -69,11 +71,9 @@ module Tokra
       def self.new: (String, Array[String], Integer, Integer) -> DragDropEvent
     end
 
-    # Path resolution functions from dirs crate.
     def self.home_dir: () -> String
     def self.data_local_dir: () -> String
 
-    # Image decoding functions from image crate.
     def self.image_from_bytes: (String bytes) -> [String, Integer, Integer]
   end
 end

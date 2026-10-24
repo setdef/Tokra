@@ -48,9 +48,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Tokra::Image.from_path` decodes a PNG or ICO file to raw RGBA
 - `Tokra::Error::Image` raised when image bytes cannot be decoded
 - `Tokra::JsImage#into_img` resolves a frontend image payload (resource ID,
-  byte array, file path, or RGBA hash) into a `Tokra::Image`
-- Registered plugins receive every `RunEvent` through `Plugin#on_event`,
-  before the run callback
+  byte array, file path, or RGBA hash) into a `Tokra::Image`, accepting the
+  same u8 bytes and u32 IDs and dimensions as Tauri
+- Registered plugins receive `RunEvent::Ready`, `RunEvent::WindowEvent`
+  (close requested), and `RunEvent::Exit` through `Plugin#on_event`, before
+  the run callback; `Exit` is emitted from the native loop's
+  `Native::LoopDestroyedEvent`, since tao's event loop never returns
 - Frontend `invoke` promises now resolve and reject: `App` evaluates Tauri's
   `runCallback` in the WebView, so `@tauri-apps/api` works end to end
 - `Tokra::Ipc::FormatCallback` formats invoke responses as callback scripts
@@ -66,6 +69,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `window.__TAURI__.core.invoke(...)` directly (mirrors Tauri's
   `app.withGlobalTauri`); also available as
   `Rack::Handler::Tokra.run(app, with_global_tauri: true)`
+- `Plugin#initialization_script` is injected into every page after Tauri's
+  init scripts, wrapped in an IIFE; `PluginStore#initialization_script`
+  collects them
+- `AppHandle#manage(state)` stores managed state and returns whether it did
+- `Native::Proxy#drop_response(request_id)` closes a pending protocol request
+  without a reply
+- `Native::LoopDestroyedEvent`, delivered as the native event loop ends
+- `Native::IpcEvent#url`, the URL of the frame that posted the message
+- `Rack::Handler::Tokra.run` accepts `native:`, like `Builder#run`
+- `tokra-clipboard` gem: `Tokra::Plugins::Clipboard::Plugin.new(app)` manages
+  a native clipboard on the app handle (reachable as `app.clipboard`) and
+  serves Tauri's `clipboard-manager` commands (`read_text`, `write_text`,
+  `read_image`, `write_image`, `write_html`, `clear`); every failure raises or
+  rejects with `Error::Clipboard` or Tauri's argument error, and `read_text`
+  raises on an empty clipboard
 
 ### Changed
 
@@ -79,12 +97,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   IPC responses and injected scripts; its `invoke_handler` receives an
   `Ipc::Invoke` and must be Ractor-shareable (breaking)
 - `tokra` and `tokra-clipboard` now require `rb_sys ~> 0.9.129`
+- `Native::WebView.new_with_protocol` takes `(window, proxy,
+  initialization_scripts)` (breaking)
+- `Native::IpcEvent` gains a required `url` member (breaking)
+- `Native::HttpRequestEvent#body` is a binary (ASCII-8BIT) string holding the
+  exact request bytes, no longer UTF-8 (breaking)
+- `Ipc::Invoke` responders receive the response serialized as JSON text, and a
+  value JSON cannot encode rejects the invoke with the serializer's message
+  (breaking for code that builds an `Invoke` with its own responder)
+- `ipc://` and `postMessage` invokes from any origin other than the app's own
+  (`tokra://localhost`; `http://tokra.localhost` on Windows) are rejected with
+  `Command <name> not allowed by ACL` until capabilities exist (breaking)
+- An invoke handler that raises rejects the invoke with the exception message
+  and logs it; the native event loop reports exceptions to stderr instead of
+  discarding them, and `SystemExit` ends the loop with its status
 
 ### Fixed
 
-- The per-page-load `ipc://` fetch failure and "IPC custom protocol failed"
-  console warning: serving `ipc://` keeps the frontend on the custom protocol
-  instead of falling back to `postMessage`
+- Binary `tokra://` responses (images, fonts) no longer fail with an
+  `EncodingError` and leave the request hanging; bodies are sent byte-exact
+- Binary request bodies reach Rack intact instead of being UTF-8 mangled
 - Native extensions failing to load on macOS 27 ("load command #4 string
   extends beyond end of load command"): rb_sys 0.9.129 gives the bundle a
   valid install name instead of an empty one

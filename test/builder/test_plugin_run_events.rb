@@ -11,7 +11,9 @@ require_relative "../support/stub_native"
 # Tests for run event fan-out to registered plugins.
 #
 # Mirrors Tauri's dispatch in on_event_loop_event (app.rs): every RunEvent
-# reaches each plugin's on_event hook, before the user callback.
+# reaches each plugin's on_event hook, before the user callback. Exit comes
+# from the native loop's LoopDestroyedEvent, because tao's run never returns
+# (tauri-runtime-wry lib.rs:4046-4047).
 class TestBuilderPluginRunEvents < Minitest::Test
   # Plugin recording on_event calls.
   class RecordingPlugin < Tokra::Plugin
@@ -53,5 +55,43 @@ class TestBuilderPluginRunEvents < Minitest::Test
 
     assert_equal [:plugin, :callback, :plugin, :callback], order,
       "each event should reach plugins before the user callback, like Tauri"
+  end
+
+  def test_plugins_receive_the_window_close_as_a_window_event
+    plugin = RecordingPlugin.new
+    app = Tokra::Builder.default.build(native: StubNative)
+    app.handle.plugin(plugin)
+    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new)
+
+    app.run
+
+    assert_equal [
+      Tokra::RunEvent::Ready.new,
+      Tokra::RunEvent::WindowEvent.new(label: "main", event: Tokra::WindowEvent::CloseRequested.new),
+      Tokra::RunEvent::Exit.new,
+    ], plugin.events.map(&:last), "Ready, the close request, then Exit as the loop ends"
+  ensure
+    StubNative.clear_event
+  end
+
+  # A native loop that never reports its destruction: Exit must come from
+  # LoopDestroyedEvent, not from App#run returning (tao's run never does).
+  module SilentNative
+    EventLoop = Class.new(StubNative::EventLoop) { def run(_callback) = nil }
+    Window = StubNative::Window
+    WebView = StubNative::WebView
+  end
+
+  def test_exit_is_emitted_only_when_the_loop_is_destroyed
+    plugin = RecordingPlugin.new
+    app = Tokra::Builder.default.build(native: SilentNative)
+    app.handle.plugin(plugin)
+
+    app.run
+
+    assert_equal [Tokra::RunEvent::Ready.new], plugin.events.map(&:last),
+      "returning from the native run must not fabricate an Exit"
+  ensure
+    StubNative.clear_event
   end
 end

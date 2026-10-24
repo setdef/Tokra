@@ -20,7 +20,7 @@ allow "ext/tokra/src/window.rs", line: 61, reason: <<~END
   the Ruby GC cycle.
 END
 
-allow "ext/tokra/src/webview.rs", line: 101, reason: <<~END
+allow "ext/tokra/src/webview.rs", line: 120, reason: <<~END
   Magnus FFI requires owned types at the Ruby-Rust boundary. RbWebView::new
   receives a URL from Ruby that must be converted to an owned Rust String.
 
@@ -29,7 +29,7 @@ allow "ext/tokra/src/webview.rs", line: 101, reason: <<~END
   cannot be safely borrowed across the FFI boundary.
 END
 
-allow "ext/tokra/src/webview.rs", line: 249, reason: <<~END
+allow "ext/tokra/src/webview.rs", line: 268, reason: <<~END
   Magnus FFI requires owned types at the Ruby-Rust boundary. RbWebView::eval
   receives JavaScript code from Ruby that must be converted to an owned String.
 
@@ -37,7 +37,7 @@ allow "ext/tokra/src/webview.rs", line: 249, reason: <<~END
   provides TryConvert for owned String types.
 END
 
-allow "ext/tokra/src/event_loop.rs", lines: [44, 45], reason: <<~END
+allow "ext/tokra/src/event_loop.rs", lines: [45, 46], reason: <<~END
   Tauri Pattern: unsafe impl Send for RbEventLoop
 
   RbEventLoop wraps tao::EventLoop which is bound to the main OS thread.
@@ -68,7 +68,7 @@ allow "ext/tokra/src/window.rs", line: 30, reason: <<~END
   ENFORCED BY: test/integration/thread_safety_invariant_test.rb
 END
 
-allow "ext/tokra/src/webview.rs", lines: [85, 86], reason: <<~END
+allow "ext/tokra/src/webview.rs", lines: [104, 105], reason: <<~END
   Tauri Pattern: unsafe impl Send for RbWebView
 
   RbWebView wraps wry::WebView which is bound to the main OS thread.
@@ -81,7 +81,7 @@ allow "ext/tokra/src/webview.rs", lines: [85, 86], reason: <<~END
   ENFORCED BY: test/integration/thread_safety_invariant_test.rb
 END
 
-allow "ext/tokra/src/proxy.rs", line: 103, reason: <<~END
+allow "ext/tokra/src/proxy.rs", line: 154, reason: <<~END
   Magnus TypedData for RbProxy: unsafe impl TypedData for RbProxy
 
   Unlike the other unsafe impls, this IS actually safe. EventLoopProxy<T> is
@@ -96,16 +96,17 @@ allow "ext/tokra/src/proxy.rs", line: 103, reason: <<~END
   Tests that frozen Proxy becomes Ractor-shareable.
 END
 
-allow "ext/tokra/src/proxy.rs", lines: [81, 82], reason: <<~END
+allow "ext/tokra/src/proxy.rs", lines: [83, 84], reason: <<~END
   Proxy#respond method clippy allows for FFI boundary and readability.
 
-  Line 81: #[allow(clippy::needless_pass_by_value)]
-  Magnus FFI requires owned types at the Ruby-Rust boundary. The `headers` and
-  `body` parameters are received from Ruby as owned values. Changing to references
+  Line 83: #[allow(clippy::needless_pass_by_value)]
+  Magnus FFI requires owned types at the Ruby-Rust boundary. The `headers`
+  parameter is received from Ruby as an owned value (the body arrives as an
+  RString and is copied out as bytes). Changing to references
   would require an intermediate allocation anyway since TryConvert produces owned
   Strings.
 
-  Line 82: #[allow(clippy::option_if_let_else)]
+  Line 84: #[allow(clippy::option_if_let_else)]
   Using `match` is more readable than `map_or_else` when the branches have
   significantly different complexity. The `Some` branch builds an HTTP response
   while `None` returns a simple error.

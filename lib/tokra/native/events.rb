@@ -10,13 +10,16 @@ module Tokra
   module Native
     # IPC message received from WebView JavaScript.
     #
-    # Created when JavaScript calls +window.ipc.postMessage()+.
+    # Created when JavaScript calls +window.ipc.postMessage()+. +message+
+    # is the posted string; +url+ is the URL of the frame that posted it,
+    # which wry reports as the request URI and Tauri treats as the invoke
+    # origin (ipc/protocol.rs handle_ipc_message).
     #
     #   case event
     #   when Tokra::Native::IpcEvent
-    #     puts "Received: #{event.message}"
+    #     puts "Received #{event.message} from #{event.url}"
     #   end
-    IpcEvent = Data.define(:message)
+    IpcEvent = Data.define(:message, :url)
 
     # Wake-up signal from a Ractor via Proxy.
     #
@@ -38,7 +41,9 @@ module Tokra
     # HTTP request from WebView via the <tt>tokra://</tt> custom protocol.
     #
     # Contains all request data including a +request_id+ for correlating
-    # the async response via +proxy.respond()+.
+    # the async response via +proxy.respond()+. +headers+ is an array of
+    # [name, value] pairs with lowercase names, and +body+ is a binary
+    # (ASCII-8BIT) String holding the exact request bytes.
     #
     #   case event
     #   when Tokra::Native::HttpRequestEvent
@@ -82,5 +87,17 @@ module Tokra
     #     end
     #   end
     DragDropEvent = Data.define(:event, :paths, :x, :y)
+
+    # The native event loop is shutting down.
+    #
+    # Created from tao's LoopDestroyed event, the last event the loop
+    # delivers before the process exits. App turns it into
+    # RunEvent::Exit, as Tauri's runtime does (tauri-runtime-wry lib.rs).
+    #
+    #   case event
+    #   when Tokra::Native::LoopDestroyedEvent
+    #     puts "event loop finished"
+    #   end
+    LoopDestroyedEvent = Data.define
   end
 end

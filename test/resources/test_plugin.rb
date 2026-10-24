@@ -44,7 +44,7 @@ class TestResourcesPlugin < Minitest::Test
       command: "close",
       payload: { "rid" => rid },
       webview:,
-      responder: -> (success, value) { resolved_value = value if success }
+      responder: -> (success, value) { resolved_value = JSON.parse(value) if success }
     )
 
     # Plugin should handle the command
@@ -114,7 +114,7 @@ class TestResourcesPlugin < Minitest::Test
       command: "close",
       payload: { "rid" => 999_999 },
       webview:,
-      responder: -> (success, value) { rejected_message = value unless success }
+      responder: -> (success, value) { rejected_message = JSON.parse(value) unless success }
     )
 
     result = plugin.extend_api(invoke)
@@ -133,7 +133,7 @@ class TestResourcesPlugin < Minitest::Test
       command: "close",
       payload: { "rid" => "42" },
       webview:,
-      responder: -> (success, value) { rejected_message = value unless success }
+      responder: -> (success, value) { rejected_message = JSON.parse(value) unless success }
     )
 
     result = plugin.extend_api(invoke)

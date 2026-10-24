@@ -33,6 +33,28 @@ module Tokra
       self
     end
 
+    # Adds state to the application, keyed by its class.
+    #
+    # Plugins and commands share long-lived objects (a native clipboard, a
+    # database handle) through managed state instead of globals. Each class
+    # holds one instance: the first one managed wins.
+    #
+    # Returns +true+ if the state was stored, +false+ if an instance of the
+    # same class is already managed. Raises +Error+ if no StateManager.
+    # Mirrors Tauri's Manager::manage (lib.rs:694-699).
+    #
+    # === Example
+    #
+    #   handle.manage(Counter.new)  #=> true
+    #   handle.manage(Counter.new)  #=> false; the first Counter stays
+    #   handle.state(Counter)
+    def manage(state)
+      mgr = @state_manager
+      raise Error, "No StateManager available" unless mgr
+
+      mgr.set(state)
+    end
+
     # Retrieves managed state by class.
     #
     # Raises +KeyError+ if not found, +Error+ if no StateManager.
@@ -131,8 +153,14 @@ module Tokra
 
     # Requests application exit with optional exit code.
     #
-    # Currently calls Kernel.exit directly.
-    # Will signal native event loop when wired up.
+    # Calls Kernel.exit, which raises SystemExit. Inside a running app the
+    # native event loop catches it and ends with +code+, so plugins still
+    # receive RunEvent::Exit. Tauri also emits RunEvent::ExitRequested
+    # first (app.rs:531); Tokra does not yet.
+    #
+    # === Example
+    #
+    #   handle.exit(0)
     def exit(code = 0)
       Kernel.exit(code)
     end

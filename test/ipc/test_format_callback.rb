@@ -69,4 +69,32 @@ class TestFormatCallback < Minitest::Test
     assert_equal 'window.__TAURI_INTERNALS__.runCallback(11, {"rid":4})',
       Tokra::Ipc::FormatCallback.format_raw(11, '{"rid":4}')
   end
+
+  # Rust str::len counts bytes (format_callback.rs:64): exactly 10,240 bytes
+  # stays a literal, and one byte more switches to JSON.parse.
+  def test_exactly_min_json_parse_len_bytes_stays_a_literal
+    json = "[\"#{'x' * (Tokra::Ipc::FormatCallback::MIN_JSON_PARSE_LEN - 4)}\"]"
+    assert_equal 10_240, json.bytesize
+
+    assert_equal "window.__TAURI_INTERNALS__.runCallback(1, #{json})",
+      Tokra::Ipc::FormatCallback.format_raw(1, json)
+  end
+
+  def test_one_byte_over_min_json_parse_len_uses_json_parse
+    json = "[\"#{'x' * (Tokra::Ipc::FormatCallback::MIN_JSON_PARSE_LEN - 3)}\"]"
+    assert_equal 10_241, json.bytesize
+
+    assert_equal "window.__TAURI_INTERNALS__.runCallback(1, JSON.parse('#{json}'))",
+      Tokra::Ipc::FormatCallback.format_raw(1, json)
+  end
+
+  def test_threshold_counts_bytes_of_multibyte_characters
+    # 5,119 two-byte characters: 5,123 characters but 10,242 bytes.
+    json = "[\"#{'é' * 5_119}\"]"
+    assert_operator json.length, :<, Tokra::Ipc::FormatCallback::MIN_JSON_PARSE_LEN
+    assert_operator json.bytesize, :>, Tokra::Ipc::FormatCallback::MIN_JSON_PARSE_LEN
+
+    assert_equal "window.__TAURI_INTERNALS__.runCallback(2, JSON.parse('[\"#{'é' * 5_119}\"]'))",
+      Tokra::Ipc::FormatCallback.format_raw(2, json)
+  end
 end

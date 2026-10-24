@@ -35,18 +35,6 @@ fn forward_request_to_ruby(
     responder: wry::RequestAsyncResponder,
 ) {
     let request_id = next_request_id();
-    let method = request.method().to_string();
-    let uri = request.uri().to_string();
-
-    // Headers carry cookies (ADR 002) and, on the ipc:// path, the Tauri-*
-    // invoke headers and Origin that Ruby parses per ipc/protocol.rs.
-    let headers: Vec<(String, String)> = request
-        .headers()
-        .iter()
-        .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
-        .collect();
-
-    let body = String::from_utf8_lossy(request.body()).to_string();
 
     // Store the responder so Ruby can reply (or drop) it later by request_id.
     get_responders()
@@ -54,12 +42,43 @@ fn forward_request_to_ruby(
         .unwrap()
         .insert(request_id, responder);
 
-    let _ = proxy.send_event(UserEvent::HttpRequest {
+    let _ = proxy.send_event(http_request_event(request_id, request));
+}
+
+/// Build the `UserEvent::HttpRequest` Ruby receives for one protocol request.
+///
+/// Headers carry cookies (ADR 002) and, on the ipc:// path, the Tauri-*
+/// invoke headers and Origin that Ruby parses per ipc/protocol.rs. The body
+/// travels as its exact bytes: a lossy UTF-8 conversion would corrupt binary
+/// uploads.
+fn http_request_event(request_id: u64, request: &wry::http::Request<Vec<u8>>) -> UserEvent {
+    let headers: Vec<(String, String)> = request
+        .headers()
+        .iter()
+        .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
+        .collect();
+
+    UserEvent::HttpRequest {
         request_id,
-        method,
-        uri,
+        method: request.method().to_string(),
+        uri: request.uri().to_string(),
         headers,
-        body,
+        body: request.body().clone(),
+    }
+}
+
+/// Forward one `window.ipc.postMessage` call to Ruby through the event loop.
+///
+/// wry sets the request URI to the sending frame's URL; Tauri parses it as
+/// the invoke origin (`ipc/protocol.rs` `handle_ipc_message`), so it travels
+/// with the body.
+fn forward_ipc_message_to_ruby(
+    proxy: &EventLoopProxy<UserEvent>,
+    msg: &wry::http::Request<String>,
+) {
+    let _ = proxy.send_event(UserEvent::IpcMessage {
+        url: msg.uri().to_string(),
+        body: msg.body().clone(),
     });
 }
 
@@ -110,7 +129,7 @@ impl RbWebView {
         let webview = WebViewBuilder::new()
             .with_url(&url)
             .with_ipc_handler(move |msg| {
-                let _ = proxy_clone.send_event(UserEvent::IpcMessage(msg.body().clone()));
+                forward_ipc_message_to_ruby(&proxy_clone, &msg);
             })
             .build(&window.inner)
             .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
@@ -231,7 +250,7 @@ impl RbWebView {
             })
             // SPDX-SnippetEnd
             .with_ipc_handler(move |msg| {
-                let _ = proxy_clone.send_event(UserEvent::IpcMessage(msg.body().clone()));
+                forward_ipc_message_to_ruby(&proxy_clone, &msg);
             })
             .build(&window.inner)
             .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
@@ -268,4 +287,43 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
     )?;
     webview_class.define_method("eval", method!(RbWebView::eval, 1))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{http_request_event, UserEvent};
+
+    #[test]
+    fn http_request_event_passes_the_body_through_as_exact_bytes() {
+        // A PNG signature: not valid UTF-8, so a lossy conversion would
+        // replace bytes with U+FFFD.
+        let body = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0xFF, 0x00];
+        let request = wry::http::Request::builder()
+            .method("POST")
+            .uri("ipc://localhost/upload")
+            .header("Tauri-Callback", "12")
+            .body(body.clone())
+            .unwrap();
+
+        match http_request_event(7, &request) {
+            UserEvent::HttpRequest {
+                request_id,
+                method,
+                uri,
+                headers,
+                body: forwarded,
+            } => {
+                assert_eq!(request_id, 7);
+                assert_eq!(method, "POST");
+                assert_eq!(uri, "ipc://localhost/upload");
+                assert_eq!(
+                    headers,
+                    vec![("tauri-callback".to_string(), "12".to_string())],
+                    "the http crate lowercases header names"
+                );
+                assert_eq!(forwarded, body, "the body must arrive byte for byte");
+            }
+            other => panic!("expected HttpRequest, got {other:?}"),
+        }
+    }
 }

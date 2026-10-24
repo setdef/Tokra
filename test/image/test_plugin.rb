@@ -26,7 +26,7 @@ class TestImagePlugin < Minitest::Test
         "height" => 1,
       },
       webview:,
-      responder: -> (success, value) { resolved_rid = value if success }
+      responder: -> (success, value) { resolved_rid = JSON.parse(value) if success }
     )
 
     result = plugin.extend_api(invoke)
@@ -62,7 +62,7 @@ class TestImagePlugin < Minitest::Test
       command: "rgba",
       payload: { "rid" => rid },
       webview:,
-      responder: -> (success, value) { resolved_value = value if success }
+      responder: -> (success, value) { resolved_value = JSON.parse(value) if success }
     )
 
     result = plugin.extend_api(rgba_invoke)
@@ -91,7 +91,7 @@ class TestImagePlugin < Minitest::Test
       command: "size",
       payload: { "rid" => rid },
       webview:,
-      responder: -> (success, value) { resolved_value = value if success }
+      responder: -> (success, value) { resolved_value = JSON.parse(value) if success }
     )
 
     result = plugin.extend_api(size_invoke)
@@ -109,7 +109,7 @@ class TestImagePlugin < Minitest::Test
       command: "rgba",
       payload: { "rid" => 999 },
       webview: build_webview,
-      responder: -> (success, value) { rejected_message = value unless success }
+      responder: -> (success, value) { rejected_message = JSON.parse(value) unless success }
     )
 
     result = plugin.extend_api(invoke)
@@ -131,7 +131,7 @@ class TestImagePlugin < Minitest::Test
       command: "size",
       payload: { "rid" => rid },
       webview:,
-      responder: -> (success, value) { rejected_message = value unless success }
+      responder: -> (success, value) { rejected_message = JSON.parse(value) unless success }
     )
 
     result = plugin.extend_api(invoke)
@@ -169,7 +169,7 @@ class TestImagePlugin < Minitest::Test
       command: "from_bytes",
       payload: { "bytes" => png_bytes },
       webview:,
-      responder: -> (success, value) { resolved_rid = value if success }
+      responder: -> (success, value) { resolved_rid = JSON.parse(value) if success }
     )
 
     result = plugin.extend_api(invoke)
@@ -188,7 +188,7 @@ class TestImagePlugin < Minitest::Test
       command: "from_bytes",
       payload: { "bytes" => [1, 2, 3] },
       webview: build_webview,
-      responder: -> (success, value) { rejected_message = value unless success }
+      responder: -> (success, value) { rejected_message = JSON.parse(value) unless success }
     )
 
     result = plugin.extend_api(invoke)
@@ -207,7 +207,7 @@ class TestImagePlugin < Minitest::Test
       command: "from_path",
       payload: { "path" => fixture_path("2x2.ico") },
       webview:,
-      responder: -> (success, value) { resolved_rid = value if success }
+      responder: -> (success, value) { resolved_rid = JSON.parse(value) if success }
     )
 
     result = plugin.extend_api(invoke)
@@ -257,7 +257,7 @@ class TestImagePlugin < Minitest::Test
       command:,
       payload:,
       webview: build_webview,
-      responder: -> (success, value) { rejected_message = value unless success }
+      responder: -> (success, value) { rejected_message = JSON.parse(value) unless success }
     )
 
     result = plugin.extend_api(invoke)

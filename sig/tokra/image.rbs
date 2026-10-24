@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 module Tokra
-  # An RGBA image in row-major order from top to bottom.
   class Image
     include Resource
 
@@ -18,6 +17,9 @@ module Tokra
   end
 
   class JsImage
+    MISMATCH: String
+    U32_MAX: Integer
+
     @value: json_value
 
     def initialize: (json_value value) -> void
@@ -26,7 +28,9 @@ module Tokra
     private
 
     def image_resource: (Integer rid, ResourceTable resources_table) -> Image
+    def array_image: (Array[json_value] array) -> Image
     def rgba_image: (Hash[String, json_value] hash) -> Image
     def pack_bytes: (Array[json_value] array) -> String
+    def u32: (json_value value) -> Integer
   end
 end

@@ -87,4 +87,41 @@ class TestAppHandle < Minitest::Test
     handle = create_handle
     assert_nil handle.get_window("unknown")
   end
+
+  # Counter state for manage tests.
+  class Counter
+    attr_reader :count
+
+    def initialize(count) = @count = count
+  end
+
+  def test_manage_stores_state_and_returns_true
+    handle = Tokra::AppHandle.new(create_handle.__send__(:manager), state_manager: Tokra::StateManager.new)
+    first = Counter.new(1)
+
+    assert_equal true, handle.manage(first), "the first instance of a class is stored"
+    assert_same first, handle.state(Counter)
+  end
+
+  def test_manage_keeps_the_first_instance_and_returns_false
+    handle = Tokra::AppHandle.new(create_handle.__send__(:manager), state_manager: Tokra::StateManager.new)
+    first = Counter.new(1)
+    handle.manage(first)
+
+    assert_equal false, handle.manage(Counter.new(2)), "Tauri returns false when T is already managed"
+    assert_same first, handle.state(Counter), "the first instance stays managed"
+  end
+
+  def test_manage_without_state_manager_raises
+    error = assert_raises(Tokra::Error) { create_handle.manage(Counter.new(1)) }
+    assert_equal "No StateManager available", error.message
+  end
+
+  def test_built_app_handle_manages_through_the_builder_state
+    require_relative "support/stub_native"
+    app = Tokra::Builder.default.build(native: StubNative)
+
+    assert app.handle.manage(Counter.new(3))
+    assert_equal 3, app.handle.state(Counter).count
+  end
 end

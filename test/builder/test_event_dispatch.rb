@@ -68,7 +68,7 @@ class TestBuilderEventDispatch < Minitest::Test
       "payload" => { "text" => "Hello" },
       "__TAURI_INVOKE_KEY__" => app.invoke_key,
     }
-    StubNative.inject_event(Tokra::Native::IpcEvent.new(JSON.generate(message)))
+    StubNative.inject_event(Tokra::Native::IpcEvent.new(JSON.generate(message), "tokra://localhost/"))
 
     app.run
 
@@ -92,7 +92,9 @@ class TestBuilderEventDispatch < Minitest::Test
     app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
     StubNative.inject_event(Tokra::Native::IpcEvent.new(JSON.generate(
       { "cmd" => "read_text", "__TAURI_INVOKE_KEY__" => app.invoke_key }
-    )))
+    ),
+      "tokra://localhost/"
+    ))
 
     app.run
 

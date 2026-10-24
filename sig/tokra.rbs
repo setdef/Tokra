@@ -1,18 +1,14 @@
 # SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Tokra module types - global definitions and type aliases.
-# Individual class/module types are in sig/tokra/*.rbs files.
-
 module Tokra
   VERSION: String
 
-  # Recursive type alias for JSON values.
-  # Matches serde_json::Value semantics from Tauri's IPC protocol.
   type json_value = String | Integer | Float | bool | nil | Array[json_value] | Hash[String, json_value]
 
-  # Type alias for all native events dispatched by event loop
-  type native_event = Native::HttpRequestEvent | Native::IpcEvent | Native::PageLoadEvent | Native::WindowCloseEvent | Native::WakeUpEvent
+  type native_event = Native::HttpRequestEvent | Native::IpcEvent | Native::PageLoadEvent | Native::WindowCloseEvent | Native::WakeUpEvent | Native::DragDropEvent | Native::LoopDestroyedEvent
+
+  type ipc_responder = ^(bool success, String json) -> void
 
   def self.generate_invoke_key: () -> String
 

@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 module Tokra
-  # Handle to the running application, safe to pass between Ractors.
   class AppHandle
     @manager: AppManager
     @state_manager: StateManager?

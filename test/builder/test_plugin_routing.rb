@@ -36,7 +36,8 @@ class TestBuilderPluginRouting < Minitest::Test
 
   private def inject_ipc(app, message)
     StubNative.inject_event(Tokra::Native::IpcEvent.new(
-      JSON.generate(message.merge("__TAURI_INVOKE_KEY__" => app.invoke_key))
+      JSON.generate(message.merge("__TAURI_INVOKE_KEY__" => app.invoke_key)),
+      "tokra://localhost/"
     ))
   end
 

@@ -56,6 +56,10 @@ module Rack # :nodoc:
         # - <tt>:height</tt> - Window height in pixels (default: 600)
         # - <tt>:with_global_tauri</tt> - Inject <tt>@tauri-apps/api</tt> as
         #   <tt>window.__TAURI__</tt> (default: false)
+        # - <tt>:invoke_handler</tt> - A Ractor-shareable proc receiving each
+        #   Tokra::Ipc::Invoke the frontend sends (default: none)
+        # - <tt>:native</tt> - The native layer, replaceable with a test
+        #   double exactly as in Tokra::Builder#run (default: Tokra::Native)
         #
         # == Example
         #
@@ -66,7 +70,7 @@ module Rack # :nodoc:
         #   Rack::Handler::Tokra.run(MyApp.freeze.app)
         #
         def run(app, title: "Tokra", width: 800.0, height: 600.0, invoke_handler: nil,
-          with_global_tauri: false
+          with_global_tauri: false, native: ::Tokra::Native
         )
           # Porcelain over plumbing (ADR 004): build a Tokra::Builder with
           # this Rack app as the tokra:// content server and let App own the
@@ -75,7 +79,7 @@ module Rack # :nodoc:
           builder = ::Tokra::Builder.new.app(app).title(title).size(width, height)
           builder.with_global_tauri if with_global_tauri
           builder.invoke_handler(&invoke_handler) if invoke_handler
-          builder.run
+          builder.run(native:)
         end
       end
 
@@ -133,15 +137,18 @@ module Rack # :nodoc:
           # Prefer to_ary over each - Rails RackBody#each triggers synchronization
           # (sending!/sent!) that can cause rendering issues in single-threaded contexts.
           # to_ary bypasses this and returns the raw body array directly.
+          # Chunks are joined as bytes: a body mixing UTF-8 text with binary
+          # chunks would raise Encoding::CompatibilityError if joined as text.
           body_str = if body.respond_to?(:to_ary)
-            body.to_ary.join
+            binary_join(body.to_ary)
           elsif body.respond_to?(:to_path)
-            # Rack::Files::Iterator provides to_path for sendfile optimization
-            # Read the file directly instead of iterating
-            File.read(body.to_path)
+            # Rack::Files::Iterator provides to_path for sendfile optimization.
+            # Read the file directly instead of iterating, as bytes: images and
+            # fonts are not text, and the proxy sends the bytes as they are.
+            File.binread(body.to_path)
           else
-            buf = String.new
-            body.each { |chunk| buf << chunk }
+            buf = String.new(encoding: Encoding::BINARY)
+            body.each { |chunk| buf << chunk.b }
             buf
           end
           body.close if body.respond_to?(:close)
@@ -149,6 +156,11 @@ module Rack # :nodoc:
           @proxy.respond(event.request_id, status, header_pairs, body_str)
           break
         end
+      end
+
+      # Concatenates body chunks as raw bytes.
+      private def binary_join(chunks)
+        chunks.each_with_object(String.new(encoding: Encoding::BINARY)) { |chunk, buf| buf << chunk.b }
       end
 
       private def build_env(uri, method, body, event = nil, cookies = nil)

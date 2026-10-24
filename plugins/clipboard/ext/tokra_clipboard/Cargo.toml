@@ -16,5 +16,17 @@ magnus = { git = "https://github.com/matsadler/magnus", branch = "main", feature
 arboard = "3.6"
 rb-sys = "0.9"
 
-[lints]
-workspace = true
+# Strict linting: deny fails builds but allows targeted #[allow] for FFI
+# constraints. Each crate states its lints itself instead of inheriting them
+# with `workspace = true`: an installed gem ships only its own crate, with no
+# workspace root to inherit from.
+[lints.clippy]
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+all = { level = "deny", priority = -1 }
+
+# Unsafe code is denied by default, but targeted exceptions are allowed with
+# #[allow(unsafe_code)] annotations. Each exception must be documented in
+# clippy_exceptions.rb with justification.
+[lints.rust]
+unsafe_code = "deny"

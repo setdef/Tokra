@@ -5,15 +5,21 @@ module Tokra
   module Ipc
     class Invoke
       @responded: bool
-      @responder: (^(bool, json_value) -> void)?
+      @responder: ipc_responder?
 
       attr_reader command: String
       attr_reader payload: Hash[String, json_value]
       attr_reader webview: Webview
 
-      def initialize: (command: String, payload: Hash[String, json_value], responder: (^(bool, json_value) -> void)?, webview: Webview) -> void
+      def initialize: (command: String, payload: Hash[String, json_value], responder: ipc_responder?, webview: Webview) -> void
       def resolve: (json_value value) -> void
       def reject: (json_value error) -> void
+
+      private
+
+      def respond: (bool success, json_value value) -> void
+      def serialize: (json_value value) -> String
+      def without_non_finite_floats: (json_value value) -> json_value
     end
   end
 end

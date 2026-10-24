@@ -33,7 +33,7 @@ class TestInvoke < Minitest::Test
 
   def test_resolve_calls_responder_with_success
     calls = []
-    responder = -> (success, value) { calls << [success, value] }
+    responder = -> (success, value) { calls << [success, JSON.parse(value)] }
 
     invoke = Tokra::Ipc::Invoke.new(command: "cmd", payload: {}, responder:, webview: stub_webview)
     invoke.resolve("result")
@@ -43,7 +43,7 @@ class TestInvoke < Minitest::Test
 
   def test_reject_calls_responder_with_failure
     calls = []
-    responder = -> (success, value) { calls << [success, value] }
+    responder = -> (success, value) { calls << [success, JSON.parse(value)] }
 
     invoke = Tokra::Ipc::Invoke.new(command: "cmd", payload: {}, responder:, webview: stub_webview)
     invoke.reject("error message")
@@ -53,7 +53,7 @@ class TestInvoke < Minitest::Test
 
   def test_only_responds_once
     calls = []
-    responder = -> (success, value) { calls << [success, value] }
+    responder = -> (success, value) { calls << [success, JSON.parse(value)] }
 
     invoke = Tokra::Ipc::Invoke.new(command: "cmd", payload: {}, responder:, webview: stub_webview)
     invoke.resolve("first")

@@ -2,22 +2,37 @@
 
 Clipboard plugin for Tokra desktop applications.
 
-Provides read/write access to the system clipboard using the arboard crate.
+Provides read/write access to the system clipboard using the arboard crate,
+and serves the commands of Tauri's clipboard-manager plugin, so the frontend
+can use <tt>@tauri-apps/plugin-clipboard-manager</tt> unchanged.
 
 == Usage
 
+Register the plugin on the app handle, for example in the setup hook. It
+stores a native clipboard in managed state, reachable from any manager as
++clipboard+:
+
   Tokra::Builder.new
-    .plugin(Tokra::Plugins::Clipboard.new)
+    .setup { |app| app.handle.plugin(Tokra::Plugins::Clipboard::Plugin.new(app.handle)) }
     .run
 
-  # In your app:
-  clipboard = Tokra::Plugins::Clipboard.new(app)
-  text = clipboard.read_text
-  clipboard.write_text("Hello, World!")
-  clipboard.clear
+  # Later, with the handle:
+  handle.clipboard.write_text("Hello, World!")
+
+  # Or through the plugin, which raises Error::Clipboard on failure:
+  plugin = Tokra::Plugins::Clipboard::Plugin.new(handle)
+  plugin.write_text("Hello, World!")
+  plugin.read_text   # raises Error::Clipboard when the clipboard is empty
+  plugin.clear
+
+Every failure is a Tokra::Plugins::Clipboard::Error::Clipboard carrying
+arboard's message, as in Tauri. The clipboard is cleaned up when the app
+exits.
 
 == Features
 
-- Read and write text to the system clipboard
+- Read and write text, HTML, and images
+- Tauri-compatible IPC commands: read_text, write_text, read_image,
+  write_image, write_html, clear
 - Cross-platform support (macOS, Windows, Linux)
 - Native performance via Rust bindings

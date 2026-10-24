@@ -46,7 +46,10 @@ module Tokra
 
       # Creates a new Invoke with command, payload, webview, and responder callback.
       #
-      # This is called internally when dispatching IPC messages.
+      # This is called internally when dispatching IPC messages. The
+      # responder receives <tt>(success, json)</tt>: whether the invoke
+      # resolved, and the response already serialized as JSON text, which
+      # is what each transport puts on the wire.
       def initialize(command:, payload:, responder:, webview:)
         @command = command
         @payload = payload
@@ -55,20 +58,74 @@ module Tokra
         @responded = false
       end
 
-      # Resolve the invocation with a success value.
+      # Resolves the invocation with a success value.
+      #
+      # The value is serialized with JSON.generate. Non-finite floats
+      # (+NaN+, +Infinity+) become +null+, as serde_json writes them
+      # (ser.rs:157-174). A value that still cannot be serialized, such as
+      # a String holding invalid UTF-8 or an object whose +to_json+ raises,
+      # rejects the invoke with the error's message instead, so the
+      # frontend never waits forever. Only the first resolve or reject
+      # reaches the frontend. Mirrors Tauri's InvokeResolver#resolve and its
+      # InvokeResponse conversion (ipc/mod.rs:265-276, 404-406).
+      #
+      # === Example
+      #
+      #   invoke.resolve({ "greeting" => "Hello, #{invoke.payload['name']}!" })
       def resolve(value)
-        return if @responded
-
-        @responded = true
-        @responder&.call(true, value)
+        respond(true, value)
       end
 
-      # Reject the invocation with an error message.
+      # Rejects the invocation with an error value.
+      #
+      # The frontend promise rejects with the value, usually a message
+      # String. An unserializable value rejects with the serializer's
+      # message instead, as Tauri's InvokeError conversion does
+      # (ipc/mod.rs:240-247, 409-418).
+      #
+      # === Example
+      #
+      #   invoke.reject("Command greet needs a name")
       def reject(error)
+        respond(false, error)
+      end
+
+      # Serializes once and hands the JSON to the responder. The invoke is
+      # marked responded only once the JSON exists, and any serialization
+      # failure becomes a rejection, so every invoke settles exactly once.
+      private def respond(success, value)
         return if @responded
 
+        responder = @responder
+        json = begin
+          serialize(value)
+        rescue => e
+          success = false
+          JSON.generate(e.message.dup.force_encoding(Encoding::UTF_8).scrub)
+        end
         @responded = true
-        @responder&.call(false, error)
+        responder&.call(success, json)
+      end
+
+      # JSON text for +value+. JSON.generate refuses non-finite floats, so a
+      # value holding one is retried with them replaced by +nil+.
+      private def serialize(value)
+        JSON.generate(value)
+      rescue JSON::GeneratorError
+        finite = without_non_finite_floats(value)
+        raise if finite == value
+
+        JSON.generate(finite)
+      end
+
+      # +value+ with every NaN and Infinity inside it replaced by +nil+.
+      private def without_non_finite_floats(value)
+        case value
+        when Float then value.finite? ? value : nil
+        when Array then value.map { |item| without_non_finite_floats(item) }
+        when Hash then value.transform_values { |item| without_non_finite_floats(item) }
+        else value
+        end
       end
     end
   end

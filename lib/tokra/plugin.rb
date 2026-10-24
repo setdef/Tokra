@@ -54,8 +54,10 @@ module Tokra
 
     # Called with the app handle for every run loop event.
     #
-    # Override in subclasses to handle events. Mirrors the Plugin trait's
-    # <tt>on_event(&mut self, app, event)</tt> (plugin.rs).
+    # Override in subclasses to handle events. App delivers
+    # RunEvent::Ready, RunEvent::WindowEvent, and RunEvent::Exit, each
+    # before the run callback sees it. Mirrors the Plugin trait's
+    # <tt>on_event(app, event)</tt> (plugin.rs).
     # Returns +nil+ by default.
     public def on_event(app, event)
       nil
@@ -86,7 +88,11 @@ module Tokra
 
     # Returns JavaScript to inject at document start.
     #
-    # Override this to inject custom JavaScript into the webview.
+    # Override this to inject custom JavaScript into the webview. App runs
+    # it in every page after Tauri's own init scripts, wrapped in an IIFE
+    # so its top-level names stay private (PluginStore#initialization_script).
+    # Register the plugin before the webview exists, for example in the
+    # setup hook, or its script misses the first page.
     # Returns +nil+ by default (no script injection).
     public def initialization_script
       nil
@@ -97,6 +103,9 @@ module Tokra
     # Override this to perform window-specific setup. Named without an
     # +on_+ prefix to mirror the Plugin trait's +window_created+
     # (plugin.rs).
+    #
+    # *Note*: App does not call this hook yet; it creates its one window
+    # before plugins can observe it. Tauri calls it for every window.
     # Returns +nil+ by default (no-op).
     public def window_created(window)
       nil
@@ -107,6 +116,9 @@ module Tokra
     # Override this to perform webview-specific setup. Named without an
     # +on_+ prefix to mirror the Plugin trait's +webview_created+
     # (plugin.rs).
+    #
+    # *Note*: App does not call this hook yet; Tauri calls it for every
+    # webview.
     # Returns +nil+ by default (no-op).
     public def webview_created(webview)
       nil
@@ -179,6 +191,24 @@ module Tokra
 
       invoke.reject("plugin #{name} not found")
       true
+    end
+
+    # Collects every plugin's initialization script, in registration order.
+    #
+    # Each script is wrapped as <tt>(function () { SCRIPT })();</tt> so its
+    # top-level names stay private to the plugin. Plugins whose
+    # initialization_script returns +nil+ contribute nothing. Mirrors
+    # Tauri's PluginStore#initialization_script (plugin.rs:918-933).
+    #
+    # === Example
+    #
+    #   store.initialization_script
+    #   #=> ["(function () { console.log('ready') })();"]
+    def initialization_script
+      @store.filter_map do |plugin|
+        script = plugin.initialization_script
+        "(function () { #{script} })();" if script
+      end
     end
 
     # Dispatches a run event to every registered plugin.

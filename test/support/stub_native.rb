@@ -20,6 +20,13 @@ module StubNative
     Thread.current[:stub_native_event] = nil
     Thread.current[:stub_native_responses] = nil
     Thread.current[:stub_native_dropped] = nil
+    Thread.current[:stub_native_windows] = nil
+    Thread.current[:stub_native_webviews] = nil
+  end
+
+  # Windows created across the run, recording their title and size.
+  def self.windows
+    Thread.current[:stub_native_windows] ||= []
   end
 
   # Protocol responses recorded across the run, observable by tests
@@ -45,17 +52,28 @@ module StubNative
     end
   end
 
-  # Stub Window
-  Window = Struct.new(:event_loop) do
-    def set_title(_) = nil
-    def set_size(_, _) = nil
+  # Stub Window recording its title and size
+  class Window
+    attr_reader :title, :size
+
+    def initialize(_event_loop)
+      StubNative.windows << self
+    end
+
+    def set_title(title) = @title = title
+    def set_size(width, height) = @size = [width, height]
   end
 
   # Stub WebView factory recording initialization scripts and evals
   class WebView
     attr_reader :initialization_scripts, :evals
 
-    def self.new_with_protocol(_, _, scripts) = new(scripts)
+    def self.new_with_protocol(_, _, scripts) = new(scripts).tap { |webview| instances << webview }
+
+    # Webviews created across the run.
+    def self.instances
+      Thread.current[:stub_native_webviews] ||= []
+    end
 
     def initialize(scripts = [])
       @initialization_scripts = scripts
@@ -65,12 +83,16 @@ module StubNative
     def eval(js) = @evals << js
   end
 
-  # Stub EventLoop that delivers injected event to callback
+  # Stub EventLoop that delivers the injected event (or events) to the
+  # callback, then LoopDestroyedEvent, the order tao's loop ends in.
   class EventLoop
     def create_proxy = Proxy.new
 
     def run(callback)
-      callback.call(Thread.current[:stub_native_event]) if Thread.current[:stub_native_event]
+      injected = Thread.current[:stub_native_event]
+      events = injected.is_a?(Array) ? injected : [injected].compact
+      events.each { |event| callback.call(event) }
+      callback.call(Tokra::Native::LoopDestroyedEvent.new)
     end
   end
 end

@@ -12,7 +12,7 @@ use std::sync::Mutex;
 
 // SPDX-SnippetBegin
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+// SPDX-SnippetCopyrightText: 2019-2023 Tauri Programme within The Commons Conservancy
 // SPDX-SnippetComment: Clipboard struct and methods adapted from
 // tauri-plugin-clipboard-manager/src/desktop.rs
 
@@ -113,22 +113,21 @@ impl RbClipboard {
 
     /// Writes an RGBA image to the clipboard, mirroring desktop.rs:44-59.
     ///
-    /// Deviation: Tauri passes mismatched byte counts straight to arboard,
-    /// but arboard 3.6.1's macOS backend panics on the mismatch (unwrap on
-    /// None, platform/osx.rs:88; fixed on arboard main) instead of
-    /// returning `ConversionFailure`. A panic would abort the Ruby VM, so
-    /// the mismatch is caught here and raises arboard's own
-    /// `ConversionFailure` message — what the other backends report.
+    /// Deviation: Tauri passes the image straight to arboard, but arboard
+    /// 3.6.1's macOS backend panics on shapes it cannot draw: a byte count
+    /// that does not match the dimensions (unwrap on None, platform/osx.rs:88;
+    /// fixed on arboard main) and a zero width or height, for which
+    /// `CGImageCreate` returns null (platform/osx.rs:73-87). A panic surfaces
+    /// as Ruby's uncatchable `fatal`, so these shapes raise arboard's own
+    /// `ConversionFailure` message instead, what the other backends report.
+    /// The check runs inside the clipboard guard, so a failed or cleaned-up
+    /// clipboard reports its own error first, as Tauri's match arms do.
     fn write_image(&self, rgba: RString, width: usize, height: usize) -> Result<(), Error> {
         let bytes = rgba.to_bytes();
-        if bytes.len() != width.saturating_mul(height).saturating_mul(4) {
-            let ruby = Ruby::get().unwrap();
-            return Err(Error::new(
-                ruby.exception_runtime_error(),
-                arboard::Error::ConversionFailure.to_string(),
-            ));
-        }
         self.with_clipboard(|clipboard| {
+            if !is_drawable_rgba(bytes.len(), width, height) {
+                return Err(arboard::Error::ConversionFailure);
+            }
             clipboard.set_image(arboard::ImageData {
                 width,
                 height,
@@ -163,6 +162,13 @@ impl RbClipboard {
 }
 
 // SPDX-SnippetEnd
+
+/// Whether arboard can draw an RGBA buffer of `len` bytes as a
+/// `width` by `height` image: both dimensions non-zero and exactly four
+/// bytes per pixel.
+const fn is_drawable_rgba(len: usize, width: usize, height: usize) -> bool {
+    width != 0 && height != 0 && len != 0 && len == width.saturating_mul(height).saturating_mul(4)
+}
 
 impl magnus::DataTypeFunctions for RbClipboard {}
 
@@ -225,4 +231,30 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     clipboard_class.define_method("cleanup", method!(RbClipboard::cleanup, 0))?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_drawable_rgba;
+
+    #[test]
+    fn accepts_four_bytes_per_pixel() {
+        assert!(is_drawable_rgba(8, 2, 1));
+        assert!(is_drawable_rgba(8, 1, 2));
+    }
+
+    #[test]
+    fn rejects_zero_dimensions_and_empty_bytes() {
+        assert!(!is_drawable_rgba(0, 0, 0));
+        assert!(!is_drawable_rgba(0, 0, 5));
+        assert!(!is_drawable_rgba(0, 5, 0));
+        assert!(!is_drawable_rgba(4, 0, 1));
+    }
+
+    #[test]
+    fn rejects_mismatched_byte_counts() {
+        assert!(!is_drawable_rgba(7, 2, 1));
+        assert!(!is_drawable_rgba(9, 2, 1));
+        assert!(!is_drawable_rgba(4, usize::MAX, 2));
+    }
 }

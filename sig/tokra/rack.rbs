@@ -6,20 +6,15 @@ module Tokra
   end
 end
 
-# Rack types based on Rack 3.x spec
 module Rack
   type env = Hash[String, (String | Integer | Array[Integer] | IO | bool | nil | StringIO)]
   type headers = Hash[String, String]
   type status = Integer
 
-  # Rack body - any object that responds to each yielding strings
-  # We use Object as base to get respond_to? and other Object methods
   class Body < Object
     def each: () { (String) -> void } -> void
     def close: () -> void
-    # Optional: Array-style bodies
     def to_ary: () -> Array[String]
-    # Optional: File path for sendfile optimization
     def to_path: () -> String
   end
 
@@ -37,7 +32,7 @@ module Rack
       @app: Rack::_App
       @proxy: ::Tokra::Native::Proxy
 
-      def self.run: (Rack::_App app, ?title: String, ?width: Float, ?height: Float, ?invoke_handler: (^(::Tokra::Ipc::Invoke) -> bool)?, ?with_global_tauri: bool) -> void
+      def self.run: (Rack::_App app, ?title: String, ?width: Float, ?height: Float, ?invoke_handler: (^(::Tokra::Ipc::Invoke) -> bool)?, ?with_global_tauri: bool, ?native: Module) -> void
 
       def initialize: (Rack::_App app, ::Tokra::Native::Proxy proxy) -> void
       def call: (::Tokra::Native::HttpRequestEvent event) -> void
@@ -45,6 +40,7 @@ module Rack
       private
 
       def build_env: (URI::Generic uri, String method, String body, ?::Tokra::Native::HttpRequestEvent? event, ?String? cookies) -> Rack::env
+      def binary_join: (Array[String] chunks) -> String
       def respond_with_error: (Integer request_id, Integer status, String message) -> void
     end
   end

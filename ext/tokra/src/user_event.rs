@@ -12,8 +12,11 @@
 /// This is the payload type for `tao::EventLoopProxy<UserEvent>`.
 #[derive(Debug, Clone)]
 pub enum UserEvent {
-    /// IPC message received from `WebView` JavaScript
-    IpcMessage(String),
+    /// IPC message received from `WebView` JavaScript.
+    ///
+    /// `url` is the sending frame's URL, which wry passes as the request URI
+    /// and Tauri uses as the invoke origin (`ipc/protocol.rs` `InvokeRequest`).
+    IpcMessage { url: String, body: String },
 
     /// HTTP request received from `WebView` (via custom protocol)
     /// Contains: (`request_id`, method, uri, headers, body)
@@ -23,7 +26,8 @@ pub enum UserEvent {
         method: String,
         uri: String,
         headers: Vec<(String, String)>,
-        body: String,
+        /// The exact request body bytes; binary uploads must survive intact.
+        body: Vec<u8>,
     },
 
     /// Page load event (Started or Finished)
@@ -64,18 +68,24 @@ mod tests {
 
     #[test]
     fn test_user_event_ipc_message_stores_string() {
-        let event = UserEvent::IpcMessage("hello from JS".to_string());
+        let event = UserEvent::IpcMessage {
+            url: "tokra://localhost/".to_string(),
+            body: "hello from JS".to_string(),
+        };
         match event {
-            UserEvent::IpcMessage(msg) => assert_eq!(msg, "hello from JS"),
+            UserEvent::IpcMessage { body: msg, .. } => assert_eq!(msg, "hello from JS"),
             _ => panic!("Expected IpcMessage variant"),
         }
     }
 
     #[test]
     fn test_user_event_ipc_message_preserves_unicode() {
-        let event = UserEvent::IpcMessage("こんにちは 🎌".to_string());
+        let event = UserEvent::IpcMessage {
+            url: "tokra://localhost/".to_string(),
+            body: "こんにちは 🎌".to_string(),
+        };
         match event {
-            UserEvent::IpcMessage(msg) => assert_eq!(msg, "こんにちは 🎌"),
+            UserEvent::IpcMessage { body: msg, .. } => assert_eq!(msg, "こんにちは 🎌"),
             _ => panic!("Expected IpcMessage variant"),
         }
     }
@@ -91,7 +101,7 @@ mod tests {
             method: "POST".to_string(),
             uri: "tokra://localhost/api".to_string(),
             headers: headers.clone(),
-            body: r#"{"key":"value"}"#.to_string(),
+            body: br#"{"key":"value"}"#.to_vec(),
         };
 
         match event {
@@ -108,7 +118,7 @@ mod tests {
                 assert_eq!(h.len(), 2);
                 assert_eq!(h[0].0, "cookie");
                 assert_eq!(h[0].1, "session=abc123");
-                assert_eq!(body, r#"{"key":"value"}"#);
+                assert_eq!(body, br#"{"key":"value"}"#);
             }
             _ => panic!("Expected HttpRequest variant"),
         }
@@ -163,11 +173,18 @@ mod tests {
 
     #[test]
     fn test_user_event_clone_preserves_ipc_message() {
-        let original = UserEvent::IpcMessage("test".to_string());
+        let original = UserEvent::IpcMessage {
+            url: "tokra://localhost/".to_string(),
+            body: "test".to_string(),
+        };
         let cloned = original.clone();
 
         match (original, cloned) {
-            (UserEvent::IpcMessage(a), UserEvent::IpcMessage(b)) => {
+            (
+                UserEvent::IpcMessage { body: a, url: ua },
+                UserEvent::IpcMessage { body: b, url: ub },
+            ) => {
+                assert_eq!(ua, ub);
                 assert_eq!(a, b);
             }
             _ => panic!("Clone should preserve variant"),
@@ -181,7 +198,7 @@ mod tests {
             method: "GET".to_string(),
             uri: "tokra://test".to_string(),
             headers: vec![("accept".to_string(), "text/html".to_string())],
-            body: "".to_string(),
+            body: vec![],
         };
         let cloned = original.clone();
 
@@ -200,7 +217,10 @@ mod tests {
 
     #[test]
     fn test_user_event_debug_format_ipc() {
-        let event = UserEvent::IpcMessage("debug test".to_string());
+        let event = UserEvent::IpcMessage {
+            url: "tokra://localhost/".to_string(),
+            body: "debug test".to_string(),
+        };
         let debug_str = format!("{:?}", event);
         assert!(debug_str.contains("IpcMessage"));
         assert!(debug_str.contains("debug test"));
@@ -220,7 +240,7 @@ mod tests {
             method: "GET".to_string(),
             uri: "tokra://test".to_string(),
             headers: vec![],
-            body: "".to_string(),
+            body: vec![],
         };
 
         match event {
@@ -236,7 +256,7 @@ mod tests {
             method: "GET".to_string(),
             uri: "tokra://test".to_string(),
             headers: vec![],
-            body: "".to_string(),
+            body: vec![],
         };
 
         match event {
@@ -247,9 +267,12 @@ mod tests {
 
     #[test]
     fn test_empty_strings_are_preserved() {
-        let event = UserEvent::IpcMessage("".to_string());
+        let event = UserEvent::IpcMessage {
+            url: "tokra://localhost/".to_string(),
+            body: "".to_string(),
+        };
         match event {
-            UserEvent::IpcMessage(msg) => assert!(msg.is_empty()),
+            UserEvent::IpcMessage { body: msg, .. } => assert!(msg.is_empty()),
             _ => panic!("Expected IpcMessage"),
         }
     }

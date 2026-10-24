@@ -107,7 +107,7 @@ class TestPluginStore < Minitest::Test
 
     rejected_message = nil
     invoke = build_invoke("greet",
-      responder: -> (success, value) { rejected_message = value unless success })
+      responder: -> (success, value) { rejected_message = JSON.parse(value) unless success })
     handled = store.extend_api("missing", invoke)
 
     assert handled, "extend_api should return true after rejecting an unknown plugin"
@@ -132,5 +132,27 @@ class TestPluginStore < Minitest::Test
 
   private def build_invoke(command, responder: nil)
     Tokra::Ipc::Invoke.new(command:, payload: {}, responder:, webview: nil)
+  end
+  # Plugin contributing an initialization script.
+  class ScriptPlugin < Tokra::Plugin
+    def initialize(name, script)
+      super(nil)
+      @name = name
+      @script = script
+    end
+
+    attr_reader :name
+
+    def initialization_script = @script
+  end
+
+  def test_initialization_script_wraps_each_plugin_script_in_an_iife
+    store = Tokra::PluginStore.new
+    store.register(ScriptPlugin.new("a", "let x = 1"))
+    store.register(ScriptPlugin.new("none", nil))
+    store.register(ScriptPlugin.new("b", "let x = 2"))
+
+    assert_equal ["(function () { let x = 1 })();", "(function () { let x = 2 })();"],
+      store.initialization_script, "plugin.rs:918-933 formats each script, skipping None"
   end
 end

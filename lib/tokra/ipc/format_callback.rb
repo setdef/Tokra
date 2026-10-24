@@ -57,7 +57,8 @@ module Tokra
       # Formats a callback ID and a raw JSON string as an eval-ready
       # script.
       #
-      # Objects and arrays larger than MIN_JSON_PARSE_LEN render as
+      # Objects and arrays larger than MIN_JSON_PARSE_LEN bytes (not
+      # characters: Rust's len() counts bytes) render as
       # <tt>JSON.parse('...')</tt> with backslashes and single quotes
       # escaped; everything else is inlined as a literal. Matches
       # format_callback.rs +format_raw+ and +serialize_js_with+.
@@ -69,9 +70,9 @@ module Tokra
       def self.format_raw(callback_id, json_string)
         first = json_string[0]
         arg = json_string
-        if json_string.length > MIN_JSON_PARSE_LEN && (first == "{" || first == "[")
+        if json_string.bytesize > MIN_JSON_PARSE_LEN && (first == "{" || first == "[")
           parsed = "JSON.parse('#{escape(json_string)}')"
-          arg = parsed if parsed.length < MAX_JSON_STR_LEN
+          arg = parsed if parsed.bytesize < MAX_JSON_STR_LEN
         end
         "window.__TAURI_INTERNALS__.runCallback(#{callback_id}, #{arg})"
       end

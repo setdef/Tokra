@@ -29,8 +29,6 @@ module Tokra
       end
 
       class Plugin < Tokra::Plugin
-        @native: TokraClipboard::Native::Clipboard
-
         def name: () -> String
         def read_text: () -> String
         def write_text: (String) -> void
@@ -39,7 +37,7 @@ module Tokra
         def write_html: (String html, ?String? alt_text) -> void
         def clear: () -> void
         def extend_api: (Tokra::Ipc::Invoke) -> bool
-        def on_event: (Tokra::AppHandle, Tokra::run_event) -> void
+        def on_event: (Tokra::AppHandle app, Tokra::run_event event) -> void
 
         private
 
@@ -49,6 +47,12 @@ module Tokra
         def handle_write_image: (Tokra::Ipc::Invoke) -> bool
         def handle_write_html: (Tokra::Ipc::Invoke) -> bool
         def handle_clear: (Tokra::Ipc::Invoke) -> bool
+        def clipboard: () -> TokraClipboard::Native::Clipboard
+        def required_arg: (Tokra::Ipc::Invoke invoke, String key) -> Tokra::json_value
+        def string_arg: (Tokra::Ipc::Invoke invoke, String key) -> String
+        def optional_string_arg: (Tokra::Ipc::Invoke invoke, String key, ?expected: String) -> String?
+        def invalid_args: (Tokra::Ipc::Invoke invoke, String key, String reason) -> String
+        def invalid_type: (Tokra::json_value value, ?String expected) -> String
       end
     end
   end

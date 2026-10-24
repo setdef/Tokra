@@ -651,4 +651,75 @@ class TestRackHandler < Minitest::Test
     # After redirect, the Set-Cookie from redirect should be used
     assert_equal "session=new_session", cookies_received[1]
   end
+  # ==========================================================================
+  # Binary bodies (Plan 016 #2)
+  # ==========================================================================
+
+  # Rack::Files answers with a to_path body. A PNG is not text, so the
+  # handler must hand the proxy the file's exact bytes.
+  def test_call_serves_a_binary_file_body_byte_exact
+    require "rack/files"
+    fixtures = File.expand_path("fixtures", __dir__)
+    handler = Rack::Handler::Tokra.new(Rack::Files.new(fixtures), @proxy)
+
+    handler.call(MockHttpRequestEvent.new(request_id: 5, uri: "tokra://localhost/2x2.png",
+      http_method: "GET", body: ""))
+
+    response = @proxy.responses.first
+    assert_equal 200, response[:status]
+    assert_equal "image/png", response[:headers]["content-type"]
+    assert_equal File.binread(File.join(fixtures, "2x2.png")), response[:body]
+    assert_equal Encoding::BINARY, response[:body].encoding, "the body is bytes, not text"
+  end
+
+  # A body mixing a non-ASCII UTF-8 chunk with a binary chunk would raise
+  # Encoding::CompatibilityError if concatenated as text.
+  def test_call_joins_mixed_utf8_and_binary_chunks_as_bytes
+    utf8 = "café"
+    binary = "\xFF\x00".b
+    { "to_ary" => [utf8, binary], "each" => Enumerator.new { |y| y << utf8 << binary } }.each do |kind, body|
+      proxy = MockProxy.new
+      handler = Rack::Handler::Tokra.new(-> (_env) { [200, {}, body] }, proxy)
+
+      handler.call(MockHttpRequestEvent.new(request_id: 1, uri: "tokra://localhost/", http_method: "GET", body: ""))
+
+      assert_equal "café".b + "\xFF\x00".b, proxy.responses.first[:body], "#{kind} bodies join as bytes"
+      assert_equal Encoding::BINARY, proxy.responses.first[:body].encoding
+    end
+  end
+
+  # ==========================================================================
+  # Rack::Handler::Tokra.run (porcelain over Tokra::Builder)
+  # ==========================================================================
+
+  def test_run_forwards_title_size_global_tauri_and_invoke_handler
+    require_relative "support/stub_native"
+    Thread.current[:invoked] = nil
+    handler = Ractor.shareable_proc { |invoke|
+      Thread.current[:invoked] = invoke.command
+      invoke.resolve("pong")
+      true
+    }
+    StubNative.inject_event(Tokra::Native::IpcEvent.new(
+      JSON.generate("cmd" => "ping", "callback" => 1, "error" => 2, "__TAURI_INVOKE_KEY__" => "known-key"),
+      "tokra://localhost/"
+    ))
+
+    Tokra.stub(:generate_invoke_key, "known-key") do
+      Rack::Handler::Tokra.run(-> (_env) { [200, {}, ["ok"]] },
+        title: "Forwarded", width: 640, height: 480, with_global_tauri: true,
+        invoke_handler: handler, native: StubNative)
+    end
+
+    window = StubNative.windows.last
+    assert_equal "Forwarded", window.title
+    assert_equal [640.0, 480.0], window.size
+    assert_equal "ping", Thread.current[:invoked], "the invoke handler receives frontend invokes"
+    webview = StubNative::WebView.instances.last
+    assert_includes webview.initialization_scripts.last, "__TAURI_IIFE__",
+      "with_global_tauri reaches the builder"
+    assert_equal [%q{window.__TAURI_INTERNALS__.runCallback(1, "pong")}], webview.evals
+  ensure
+    StubNative.clear_event
+  end
 end

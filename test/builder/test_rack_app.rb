@@ -83,7 +83,7 @@ class TestBuilderRackApp < Minitest::Test
       "payload" => { "ping" => "hi" },
       "__TAURI_INVOKE_KEY__" => app.invoke_key,
     }
-    StubNative.inject_event(Tokra::Native::IpcEvent.new(JSON.generate(message)))
+    StubNative.inject_event(Tokra::Native::IpcEvent.new(JSON.generate(message), "tokra://localhost/"))
 
     app.run
 

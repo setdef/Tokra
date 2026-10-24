@@ -10,14 +10,5 @@
 members = ["./ext/tokra", "./plugins/clipboard/ext/tokra_clipboard"]
 resolver = "2"
 
-# Strict linting: deny fails builds but allows targeted #[allow] for FFI constraints
-[workspace.lints.clippy]
-pedantic = { level = "deny", priority = -1 }
-nursery = { level = "deny", priority = -1 }
-all = { level = "deny", priority = -1 }
-
-# Unsafe code is denied by default, but targeted exceptions are allowed with
-# #[allow(unsafe_code)] annotations. Each exception must be documented in
-# clippy_exceptions.rb with justification.
-[workspace.lints.rust]
-unsafe_code = "deny"
+# Lints live in each member crate (see ext/tokra/Cargo.toml), so a crate
+# packaged alone in its gem still compiles with them.
