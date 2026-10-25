@@ -22,7 +22,7 @@ Gem::Specification.new do |spec|
 
   spec.metadata["allowed_push_host"] = "https://rubygems.org"
   spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = "https://git.sr.ht/~kerrick/tokra/tree/trunk/item/plugins/log"
+  spec.metadata["source_code_uri"] = "https://github.com/setdef/Tokra/tree/trunk/plugins/log"
   spec.metadata["rubygems_mfa_required"] = "true"
 
   # Ship only what an installed app loads (Plan 017).

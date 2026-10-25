@@ -141,4 +141,4 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   tasks, tests, tool configuration) or the empty `semantic-highlight`
   executable
 
-[Unreleased]: https://git.sr.ht/~kerrick/tokra/refs/HEAD
+[Unreleased]: https://github.com/setdef/Tokra/compare/v0.0.1.pre.2...HEAD
