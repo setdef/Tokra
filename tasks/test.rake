@@ -25,6 +25,10 @@ namespace :test do
     # files that open a real window, and must run only in a child process.
     t.test_globs = ["test/**/test_*.rb", "test/**/*_test.rb"]
   end
+  # The packaging check's tests resolve fixture crates with cargo metadata
+  # --offline, which needs every platform's dependencies in Cargo's cache;
+  # compiling downloads only this machine's.
+  task core: "package:fetch"
 
   desc "Run all Ruby tests (core + plugins)"
   task ruby: ["test:core", "plugins:test"]

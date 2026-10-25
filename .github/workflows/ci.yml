@@ -1,0 +1,153 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# The gate contributors run, bundle exec rake, on each operating system tao
+# and wry support, for every Ruby release Tokra supports (Plan 019). The
+# gate covers tokra and every plugin, so every change runs all of it.
+
+name: CI
+
+on:
+  push:
+    branches: [trunk]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: ${{ matrix.os }}, Ruby ${{ matrix.ruby }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        # Each supported Ruby release, one per line (tokra.gemspec requires
+        # 4.0.1 or newer; setup-ruby picks the latest 4.0 patch). Add a
+        # release when it ships, and remove one only at its end of life.
+        ruby:
+          - "4.0"
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # Git for Windows writes symlinks as plain files by default, and
+      # CLAUDE.md and .claude/skills/ are symlinks the REUSE check reads.
+      # Line endings stay converted, as on a contributor's machine.
+      - name: Check out symlinks as symlinks
+        if: runner.os == 'Windows'
+        run: git config --global core.symlinks true
+
+      # sync:tauri extracts the JavaScript templates from the vendor/tauri
+      # submodule, so the checkout needs it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+
+      # mise.toml pins the toolchains contributors use; CI reads the same
+      # pins rather than repeating them. RubyInstaller's Ruby is a MinGW
+      # build, and rb-sys refuses to build it with Rust's MSVC target
+      # (rb-sys-build rb_config.rs, validate_target_compatibility), so
+      # Windows takes the GNU host toolchain.
+      - name: Read the toolchain pins
+        id: pins
+        run: |
+          rust=$(sed -n 's/^rust = "\(.*\)"$/\1/p' mise.toml)
+          python=$(sed -n 's/^python = "\(.*\)"$/\1/p' mise.toml)
+          if [ "$RUNNER_OS" = Windows ]; then rust="$rust-x86_64-pc-windows-gnu"; fi
+          {
+            echo "rust=$rust"
+            echo "python=$python"
+            # Each native gem is its own Cargo workspace with its own target
+            # directory.
+            echo "workspaces<<EOF"
+            echo ". -> target"
+            for workspace in plugins/*/Cargo.toml; do echo "$(dirname "$workspace") -> target"; done
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: ${{ steps.pins.outputs.rust }}
+          components: clippy, rustfmt
+
+      # The extensions link Ruby's headers through bindgen, so the compiled
+      # dependencies differ by Ruby release as well as by OS.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: ruby-${{ matrix.ruby }}
+          workspaces: ${{ steps.pins.outputs.workspaces }}
+
+      # The REUSE tool checks licensing, for the repository and for each
+      # unpacked gem.
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ steps.pins.outputs.python }}
+      # The maintainer's version, so CI and contributors read the same rules.
+      - name: Install the REUSE tool
+        run: python -m pip install reuse==6.2.0
+
+      - uses: ruby/setup-ruby@7f797815d8adceb1c412e7abefdd1ab4abc47a5f # v1.335.0
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+
+      # bindgen parses Ruby's MinGW headers, so clang must target MinGW and
+      # find the MSYS2 tree setup-ruby installs beside Ruby, as
+      # oxidize-rb/actions' setup-ruby-and-rust configures it. The two
+      # defines keep clang from parsing MinGW's AVX-512 FP16 intrinsics
+      # headers, which it cannot (rust-bindgen issue 2500), as oxidize-rb
+      # also passes them. libclang comes from the LLVM the runner image
+      # ships.
+      - name: Point bindgen at Ruby's MSYS2 headers
+        if: runner.os == 'Windows'
+        run: |
+          sysroot=$(ruby -e 'print File.join(RbConfig::TOPDIR, "msys64", RbConfig::CONFIG["host_os"].include?("ucrt") ? "ucrt64" : "mingw64")')
+          libclang="C:/Program Files/LLVM/bin"
+          test -d "$sysroot/include" || { echo "::error::no MSYS2 headers at $sysroot"; exit 1; }
+          test -f "$libclang/libclang.dll" || { echo "::error::no libclang.dll in $libclang"; exit 1; }
+          echo "BINDGEN_EXTRA_CLANG_ARGS=--target=x86_64-pc-windows-gnu --sysroot=$sysroot -D__AVX512VLFP16INTRIN_H -D__AVX512FP16INTRIN_H" >> "$GITHUB_ENV"
+          echo "LIBCLANG_PATH=$libclang" >> "$GITHUB_ENV"
+
+      # tao and wry link GTK 3 and WebKitGTK 4.1 (wry's and tao's READMEs),
+      # through the -sys crates Cargo.lock pins: webkit2gtk-sys, soup3-sys,
+      # javascriptcore-rs-sys, gtk-sys, and gdkx11-sys. libX11 needs no
+      # headers: the x11 crate is used for its types only, and x11-dl loads
+      # the library at run time. bindgen needs libclang.
+      # Xvfb and D-Bus give the real-window tests a display and a session
+      # bus. The clipboard plugin speaks X11 through arboard's pure-Rust
+      # client, and on X11 text outlives the last clipboard only once a
+      # clipboard manager takes it over (arboard 3.6.1
+      # src/platform/linux/x11.rs:1082-1110),
+      # so xfce4-clipman runs beside Xvfb, as on a desktop.
+      - name: Install GTK, WebKitGTK, a display server, and a clipboard manager
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
+            pkg-config libclang-dev xvfb xauth dbus dbus-x11 xfce4-clipman
+
+      # RealApp runs a real window only in an Aqua session (launchctl
+      # managername); this records which session the runner has.
+      - name: Report the GUI session
+        if: runner.os == 'macOS'
+        run: echo "launchctl managername is $(launchctl managername)"
+
+      # The real-window tests open tao windows with WebKitGTK webviews on
+      # Xvfb. The gate compiles and runs the tooling tests first, so the
+      # clipboard manager is up long before the plugin's tests.
+      - name: Run the gate under X11
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum dbus-run-session -- sh -c 'xfce4-clipman & exec bundle exec rake'
+
+      - name: Run the gate
+        if: runner.os != 'Linux'
+        run: bundle exec rake

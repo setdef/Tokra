@@ -388,7 +388,11 @@ module Tokra
     # invoke whose origin is not the app's own (local_url?) with Tauri's
     # release-build ACL message. That is stricter than Tauri, which lets a
     # remote origin call app commands when the app has no ACL manifest;
-    # the stopgap goes away when capabilities land (ADR 010).
+    # the stopgap goes away when capabilities land (ADR 010). On Linux the
+    # postMessage origin is the webview's top-level URI, not the posting
+    # frame's (wry's WebKitGTK backend reports it so, as Tauri sees it too),
+    # so a foreign frame passes the check over postMessage there; ipc://
+    # still rejects it by its Origin header.
     #
     # A handler that raises does not leave the frontend waiting: the error
     # is logged and, if the invoke has not responded yet, it rejects with

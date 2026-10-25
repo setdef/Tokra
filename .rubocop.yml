@@ -21,6 +21,8 @@ AllCops:
     - "tmp/**/*"
     # Tauri submodule contains non-Ruby template files
     - "vendor/tauri/**/*"
+    # setup-ruby's bundler-cache installs the bundle here in CI
+    - "vendor/bundle/**/*"
 # RDoc mis-parses endless methods: the methods after one lose their comments
 # and visibility (doc/contributors/documentation_style.md, section 5). Every
 # file RDoc reads uses def ... end.

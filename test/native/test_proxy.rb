@@ -6,6 +6,7 @@
 #++
 
 require "test_helper"
+require_relative "../support/native_event_loop"
 
 # Tests for the real Tokra::Native::Proxy response path.
 #
@@ -16,8 +17,9 @@ class TestNativeProxy < Minitest::Test
   PNG = File.binread(File.expand_path("../fixtures/2x2.png", __dir__))
 
   def setup
-    skip "Requires display server" if ENV["CI"] && !ENV["DISPLAY"]
-    @proxy = Tokra::Native::EventLoop.new.create_proxy
+    reason = NativeEventLoop.unavailable_reason
+    skip reason if reason
+    @proxy = NativeEventLoop.shared.create_proxy
   end
 
   def test_respond_accepts_a_binary_body

@@ -17,7 +17,9 @@ class TestPackageCheck < Minitest::Test
     write("fixture/fixture.gemspec", gemspec("fixture"))
     write("fixture/lib/fixture.rb", %(require_relative "fixture/part"\n))
     write("fixture/lib/fixture/part.rb", "module Fixture; PART = 42; end\n")
-    write(".gitignore", "*.bundle\nsecret.rb\ngenerated.txt\ntarget/\nCargo.lock.tmp\n")
+    # Compiled extensions are ignored as the repository ignores them: .bundle
+    # on macOS, .so on Linux and Windows.
+    write(".gitignore", "*.bundle\n*.so\n*.dll\nsecret.rb\ngenerated.txt\ntarget/\nCargo.lock.tmp\n")
     git("init", "--quiet")
     git("add", ".")
     @out = StringIO.new

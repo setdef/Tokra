@@ -7,6 +7,7 @@
 #++
 
 require "test_helper"
+require_relative "../support/native_event_loop"
 
 # Thread Safety Invariant Tests
 #
@@ -28,9 +29,10 @@ class ThreadSafetyInvariantTest < Minitest::Test
   # tao::EventLoopProxy is designed to be Send+Sync.
   # Note: frozen_shareable requires freezing the object first.
   def test_proxy_is_ractor_safe
-    skip "Requires display server" if ENV["CI"] && !ENV["DISPLAY"]
+    reason = NativeEventLoop.unavailable_reason
+    skip reason if reason
 
-    event_loop = Tokra::Native::EventLoop.new
+    event_loop = NativeEventLoop.shared
     proxy = event_loop.create_proxy
 
     # Before freezing: not shareable
@@ -46,9 +48,10 @@ class ThreadSafetyInvariantTest < Minitest::Test
 
   # Test that frozen proxy is deeply frozen
   def test_frozen_proxy_is_deeply_frozen
-    skip "Requires display server" if ENV["CI"] && !ENV["DISPLAY"]
+    reason = NativeEventLoop.unavailable_reason
+    skip reason if reason
 
-    event_loop = Tokra::Native::EventLoop.new
+    event_loop = NativeEventLoop.shared
     proxy = event_loop.create_proxy
     proxy.freeze
 
@@ -65,9 +68,10 @@ class ThreadSafetyInvariantTest < Minitest::Test
   #
   # INVARIANT VERIFIED: Types can be created on the main thread.
   def test_main_thread_types_instantiate
-    skip "Requires display server" if ENV["CI"] && !ENV["DISPLAY"]
+    reason = NativeEventLoop.unavailable_reason
+    skip reason if reason
 
-    event_loop = Tokra::Native::EventLoop.new
+    event_loop = NativeEventLoop.shared
     assert_kind_of Tokra::Native::EventLoop, event_loop
 
     proxy = event_loop.create_proxy
@@ -85,9 +89,10 @@ class ThreadSafetyInvariantTest < Minitest::Test
   #
   # INVARIANT VERIFIED: Window operations are safe on main thread.
   def test_window_operations_on_main_thread
-    skip "Requires display server" if ENV["CI"] && !ENV["DISPLAY"]
+    reason = NativeEventLoop.unavailable_reason
+    skip reason if reason
 
-    event_loop = Tokra::Native::EventLoop.new
+    event_loop = NativeEventLoop.shared
     window = Tokra::Native::Window.new(event_loop)
 
     # These operations should not raise
@@ -100,9 +105,10 @@ class ThreadSafetyInvariantTest < Minitest::Test
   end
 
   def test_window_set_title_accepts_unicode
-    skip "Requires display server" if ENV["CI"] && !ENV["DISPLAY"]
+    reason = NativeEventLoop.unavailable_reason
+    skip reason if reason
 
-    event_loop = Tokra::Native::EventLoop.new
+    event_loop = NativeEventLoop.shared
     window = Tokra::Native::Window.new(event_loop)
 
     # Should not raise with unicode
@@ -110,9 +116,10 @@ class ThreadSafetyInvariantTest < Minitest::Test
   end
 
   def test_window_set_size_accepts_float_dimensions
-    skip "Requires display server" if ENV["CI"] && !ENV["DISPLAY"]
+    reason = NativeEventLoop.unavailable_reason
+    skip reason if reason
 
-    event_loop = Tokra::Native::EventLoop.new
+    event_loop = NativeEventLoop.shared
     window = Tokra::Native::Window.new(event_loop)
 
     # Should accept float dimensions
@@ -120,9 +127,10 @@ class ThreadSafetyInvariantTest < Minitest::Test
   end
 
   def test_window_id_is_unique_per_window
-    skip "Requires display server" if ENV["CI"] && !ENV["DISPLAY"]
+    reason = NativeEventLoop.unavailable_reason
+    skip reason if reason
 
-    event_loop = Tokra::Native::EventLoop.new
+    event_loop = NativeEventLoop.shared
     window1 = Tokra::Native::Window.new(event_loop)
     window2 = Tokra::Native::Window.new(event_loop)
 
@@ -134,18 +142,20 @@ class ThreadSafetyInvariantTest < Minitest::Test
   # ==========================================================================
 
   def test_event_loop_create_proxy_returns_proxy
-    skip "Requires display server" if ENV["CI"] && !ENV["DISPLAY"]
+    reason = NativeEventLoop.unavailable_reason
+    skip reason if reason
 
-    event_loop = Tokra::Native::EventLoop.new
+    event_loop = NativeEventLoop.shared
     proxy = event_loop.create_proxy
 
     assert_kind_of Tokra::Native::Proxy, proxy
   end
 
   def test_event_loop_can_create_multiple_proxies
-    skip "Requires display server" if ENV["CI"] && !ENV["DISPLAY"]
+    reason = NativeEventLoop.unavailable_reason
+    skip reason if reason
 
-    event_loop = Tokra::Native::EventLoop.new
+    event_loop = NativeEventLoop.shared
     proxy1 = event_loop.create_proxy
     proxy2 = event_loop.create_proxy
 
@@ -158,18 +168,20 @@ class ThreadSafetyInvariantTest < Minitest::Test
   # ==========================================================================
 
   def test_proxy_responds_to_wake_up
-    skip "Requires display server" if ENV["CI"] && !ENV["DISPLAY"]
+    reason = NativeEventLoop.unavailable_reason
+    skip reason if reason
 
-    event_loop = Tokra::Native::EventLoop.new
+    event_loop = NativeEventLoop.shared
     proxy = event_loop.create_proxy
 
     assert_respond_to proxy, :wake_up
   end
 
   def test_proxy_responds_to_respond
-    skip "Requires display server" if ENV["CI"] && !ENV["DISPLAY"]
+    reason = NativeEventLoop.unavailable_reason
+    skip reason if reason
 
-    event_loop = Tokra::Native::EventLoop.new
+    event_loop = NativeEventLoop.shared
     proxy = event_loop.create_proxy
 
     assert_respond_to proxy, :respond

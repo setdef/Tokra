@@ -35,8 +35,20 @@ class OriginAclTest < RealApp::TestCase
     assert_equal "Command ping not allowed by ACL", detail["body"]
   end
 
-  def test_a_foreign_origin_is_rejected_over_post_message
-    assert_equal({ "rejected" => "Command ping not allowed by ACL" },
-      check_detail(@run, "foreign origin over postMessage"))
+  # On Linux the check cannot see the frame: wry's WebKitGTK backend reports
+  # the webview's top-level URI for every postMessage, not the sending
+  # frame's (wry 0.54.1 src/webkitgtk/mod.rs:635-645), so a foreign frame's
+  # message carries tokra://localhost and is answered. Tauri parses the same
+  # URI (ipc/protocol.rs:302) and decides locality from it
+  # (webview/mod.rs:1726), so it has the same gap (ADR 010, section 6). This
+  # asserts what Linux does, so a wry change that reports the frame shows up.
+  def test_a_foreign_origin_over_post_message_is_rejected_where_wry_reports_the_frame
+    expected = if RbConfig::CONFIG["host_os"].include?("linux")
+      { "resolved" => "PONG" }
+    else
+      { "rejected" => "Command ping not allowed by ACL" }
+    end
+
+    assert_equal expected, check_detail(@run, "foreign origin over postMessage")
   end
 end
