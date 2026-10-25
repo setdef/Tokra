@@ -88,6 +88,39 @@ fn forward_ipc_message_to_ruby(
 
 // SPDX-SnippetEnd
 
+// SPDX-SnippetBegin
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+// SPDX-SnippetComment: Webview placement adapted from tauri-runtime-wry/src/lib.rs create_webview
+
+/// Build the webview as its window's content, the way Tauri does.
+///
+/// On Linux, Tauri builds into the window's GTK box (`build_gtk` on
+/// `default_vbox`, tauri-runtime-wry `src/lib.rs:5032-5051`), and elsewhere
+/// with `build`. wry's `build` on Linux takes its X11 path instead
+/// (webkitgtk `mod.rs:140-190`): it works only on X11, and it adopts the
+/// window's own X window, which it destroys when the webview drops
+/// (`mod.rs:77-82`), so tao reports the window closing and the app ends.
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+fn build_in(builder: WebViewBuilder<'_>, window: &tao::window::Window) -> wry::Result<WebView> {
+    use tao::platform::unix::WindowExtUnix;
+    use wry::WebViewBuilderExtUnix;
+
+    let vbox = window
+        .default_vbox()
+        .ok_or(wry::Error::UnsupportedWindowHandle)?;
+    builder.build_gtk(vbox)
+}
+
+/// Build the webview as its window's content, the way Tauri does (see the
+/// Linux version).
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+fn build_in(builder: WebViewBuilder<'_>, window: &tao::window::Window) -> wry::Result<WebView> {
+    builder.build(window)
+}
+
+// SPDX-SnippetEnd
+
 /// Ruby wrapper for `wry::WebView`.
 ///
 /// wry's `WebView` is not `Send`: the compiler infers that from the platform
@@ -147,12 +180,12 @@ impl RbWebView {
     ) -> Result<Self, Error> {
         let proxy_clone = proxy.inner().clone();
 
-        let webview = WebViewBuilder::new()
+        let builder = WebViewBuilder::new()
             .with_url(&url)
             .with_ipc_handler(move |msg| {
                 forward_ipc_message_to_ruby(&proxy_clone, &msg);
-            })
-            .build(window.window()?)
+            });
+        let webview = build_in(builder, window.window()?)
             .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
 
         Ok(Self {
@@ -202,7 +235,7 @@ impl RbWebView {
             builder = builder.with_initialization_script(script);
         }
 
-        let webview = builder
+        let builder = builder
             .with_url("tokra://localhost/")
             // The tokra:// content protocol: Ruby serves HTML, assets, and Rack.
             .with_asynchronous_custom_protocol("tokra".into(), move |_id, request, responder| {
@@ -275,8 +308,8 @@ impl RbWebView {
             // SPDX-SnippetEnd
             .with_ipc_handler(move |msg| {
                 forward_ipc_message_to_ruby(&proxy_clone, &msg);
-            })
-            .build(window.window()?)
+            });
+        let webview = build_in(builder, window.window()?)
             .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
 
         Ok(Self {

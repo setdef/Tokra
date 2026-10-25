@@ -114,9 +114,12 @@ jobs:
             libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
             pkg-config libclang-dev xvfb xauth dbus dbus-x11
 
-      # Ruby first, without the bundle: on Windows, bindgen's settings come
-      # from what setup-ruby exports, and bundle install already needs them
-      # to compile ferro-arboard from its git source.
+      # Ruby without the bundle: on Windows, bindgen's settings come from
+      # what setup-ruby exports, and bundle install already needs them to
+      # compile ferro-arboard from its git source. setup-ruby runs once: a
+      # second run on Windows fails linking MSYS2's tree beside Ruby again
+      # (windows.js:133-136, fs.symlinkSync onto the junction the first run
+      # made), so the bundle is installed and cached by the steps below.
       - uses: ruby/setup-ruby@7f797815d8adceb1c412e7abefdd1ab4abc47a5f # v1.335.0
         with:
           ruby-version: ${{ matrix.ruby }}
@@ -140,12 +143,21 @@ jobs:
           echo "BINDGEN_EXTRA_CLANG_ARGS=--target=x86_64-pc-windows-gnu --sysroot=$sysroot -D__AVX512VLFP16INTRIN_H -D__AVX512FP16INTRIN_H" >> "$GITHUB_ENV"
           echo "LIBCLANG_PATH=$libclang" >> "$GITHUB_ENV"
 
-      # The same Ruby again, now installing and caching the bundle with
-      # bindgen's settings in the environment.
-      - uses: ruby/setup-ruby@7f797815d8adceb1c412e7abefdd1ab4abc47a5f # v1.335.0
+      # The bundle, as setup-ruby's bundler-cache would install it: frozen
+      # to Gemfile.lock, in vendor/bundle, cached by OS, CPU, exact Ruby,
+      # and lockfile.
+      - name: Read the exact Ruby
+        id: exact
+        run: echo "ruby=$(ruby -e 'print RUBY_VERSION, "-", RUBY_PLATFORM')" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          ruby-version: ${{ matrix.ruby }}
-          bundler-cache: true
+          path: vendor/bundle
+          key: bundle-${{ runner.os }}-${{ runner.arch }}-${{ steps.exact.outputs.ruby }}-${{ hashFiles('Gemfile.lock') }}
+      - name: Install the bundle
+        run: |
+          bundle config set --local path vendor/bundle
+          bundle config set --local frozen true
+          bundle install --jobs 4
 
       # RealApp runs a real window only in an Aqua session (launchctl
       # managername); this records which session the runner has.

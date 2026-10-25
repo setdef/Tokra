@@ -179,6 +179,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   being destroyed there; the webview case was undefined behavior, and the
   window case deadlocked on macOS
 - A response sent from a background thread deadlocking the app on macOS
+- On Linux, webviews are built into their window's GTK box, as Tauri builds
+  them, instead of through wry's X11-only path, which adopted the window's
+  own X window and closed the window, ending the app, when the webview
+  dropped; webviews now work under Wayland too
 
 ### Removed
 

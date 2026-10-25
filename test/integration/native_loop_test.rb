@@ -16,12 +16,18 @@ require_relative "support/real_app"
 # ends the app the way it ends any Ruby program, and that windows,
 # webviews, and protocol answers from other threads reach the main thread.
 class NativeLoopTest < RealApp::TestCase
-  # Wake-ups the ticker sends in the fixture's 4 s; most must arrive.
-  MIN_WAKEUPS = 10
+  # Ruby's time slice in milliseconds: RUBY_THREAD_TIMESLICE, or 100
+  # (Ruby v4.0.1 thread.c:118, 5746-5752). The fixture inherits it.
+  TIME_SLICE_MS = Integer(ENV.fetch("RUBY_THREAD_TIMESLICE", "100"))
 
-  # The slowest a 100 ms ticker's wake-up may take to reach the loop with
-  # three threads each taking a full time slice per turn.
-  MAX_LATENCY_MS = 2_000
+  # The longest a wake-up may wait: one round of time slices, one for each
+  # busy thread, the ticker, and the main thread, since the loop hands the
+  # GVL over once per turn; doubled for the timer thread's jitter. How many
+  # wake-ups arrive is not bounded: that is how often the ticker itself wins
+  # the GVL against the busy threads, which depends on the machine.
+  def max_latency_ms(busy_threads)
+    2 * (busy_threads + 2) * TIME_SLICE_MS
+  end
 
   # Seconds SIGTERM may take to end the app.
   TERM_GRACE = 15
@@ -38,26 +44,29 @@ class NativeLoopTest < RealApp::TestCase
     line.split.drop(1).map { |n| Integer(n) }
   end
 
-  def assert_the_window_keeps_turning(run)
+  # The loop kept turning: it delivered wake-ups, more than one, each
+  # within a round of time slices, and the exit the last one asked for
+  # ended the app.
+  def assert_the_window_keeps_turning(run, busy_threads)
     assert_finished run
     assert_equal 0, run.status, run.describe
     count, max = wakeups(run)
-    assert_operator count, :>=, MIN_WAKEUPS, run.describe
-    assert_operator max, :<, MAX_LATENCY_MS, run.describe
+    assert_operator count, :>=, 2, "the loop stopped turning\n#{run.describe}"
+    assert_operator max, :<, max_latency_ms(busy_threads), run.describe
   end
 
   def test_one_cpu_bound_thread_cannot_freeze_the_window_or_its_exit
-    assert_the_window_keeps_turning(cpu_bound(1))
+    assert_the_window_keeps_turning(cpu_bound(1), 1)
   end
 
   def test_three_cpu_bound_threads_cannot_freeze_the_window_or_its_exit
-    assert_the_window_keeps_turning(cpu_bound(3))
+    assert_the_window_keeps_turning(cpu_bound(3), 3)
   end
 
   # The threads, the ticker among them, wait for the GVL before the loop
   # installs its hook, so their READY events have already fired.
   def test_threads_waiting_before_the_loop_starts_still_get_the_gvl
-    assert_the_window_keeps_turning(cpu_bound(1, "--before-run"))
+    assert_the_window_keeps_turning(cpu_bound(1, "--before-run"), 1)
   end
 
   # Ruby's own SIGTERM handler raises SignalException in the main thread;
