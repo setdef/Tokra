@@ -38,7 +38,7 @@ The authority is the pinned submodule `vendor/tauri` (`git submodule update --in
 ## Commands
 
 - Run Ruby with `bundle exec ruby`. Run tests with `bundle exec rake test`. Never `ruby -Ilib:test`.
-- `bundle exec rake` is the gate: tests, RuboCop, Steep, RBS parity, RDoc coverage, REUSE, Clippy, fmt, and a packaging check that loads each built gem outside the repository. It must pass with zero errors and zero warnings. Run `bundle exec rake rubocop:autocorrect` first to save time.
+- `bundle exec rake` is the gate: tests, RuboCop, Steep, RBS parity, RDoc coverage, REUSE, Clippy, fmt, and a packaging check that loads each built gem outside the repository. It must pass with zero errors and zero warnings; every cargo step, the extension compiles included, fails on any rustc, Clippy, or Cargo warning. Every `unsafe` block or impl needs a `// SAFETY:` comment citing the source that makes it sound. Run `bundle exec rake rubocop:autocorrect` first to save time.
 - Approved exceptions live in `rbs_exceptions.rb` and `clippy_exceptions.rb`; adding one needs a justification that it is impossible otherwise.
 - Each native gem is its own Cargo workspace with a committed `Cargo.lock`, built with `--locked`. After changing a gemspec, `Cargo.toml`, or `extconf.rb`, and before any release, also run `bundle exec rake package:install`, which compiles every gem from its packaged sources.
 - Rake tasks use `git ls-files`: new or deleted files must be staged before they count.

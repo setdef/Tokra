@@ -82,7 +82,7 @@ mod tests {
     #[test]
     fn test_next_request_id_is_unique_across_calls() {
         let ids: Vec<u64> = (0..100).map(|_| next_request_id()).collect();
-        let unique: std::collections::HashSet<u64> = ids.iter().cloned().collect();
+        let unique: std::collections::HashSet<u64> = ids.iter().copied().collect();
         assert_eq!(ids.len(), unique.len(), "All IDs should be unique");
     }
 

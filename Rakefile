@@ -61,7 +61,27 @@ namespace :plugins do
   end
 end
 
+require_relative "tasks/cargo_output"
+
+# rake-compiler runs make, and rb_sys's Makefile runs cargo, without
+# looking at what either prints, so this compiles tokra and each plugin
+# crate in a child rake and fails on any warning in its output
+# (CargoOutput). The gate starts here; later compiles are no-ops, and Cargo
+# replays a crate's warnings even then.
+desc "Compile every native extension, failing on any rustc or Cargo warning"
+task "compile:strict" do
+  CargoOutput.run!(Gem.ruby, "-S", "rake", "compile")
+  PLUGINS.select { |plugin| Dir.exist?(File.join(plugin, "ext")) }.each do |plugin|
+    Bundler.with_unbundled_env do
+      sh Gem.ruby, "-S", "bundle", "install", "--quiet", chdir: plugin
+      CargoOutput.run!(Gem.ruby, "-S", "bundle", "exec", "rake", "compile", chdir: plugin)
+    end
+  end
+rescue CargoOutput::Failure => e
+  abort "❌ #{e.message}"
+end
+
 # Import all tasks from the tasks/ directory
 Dir.glob("tasks/*.rake").each { |r| import r }
 
-task default: %w[compile lint:fix test lint steep lint:rust package:check]
+task default: %w[compile:strict lint:fix test lint steep lint:rust package:check]

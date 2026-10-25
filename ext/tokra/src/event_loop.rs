@@ -40,10 +40,21 @@ pub struct RbEventLoop {
 // SPDX-SnippetCopyrightText: 2020-2023 Tauri Programme within The Commons Conservancy
 // SPDX-SnippetComment: Thread safety pattern adapted from tauri-runtime-wry/lib.rs unsafe impl Send for WindowsStore/DispatcherMainThreadContext
 
-// SAFETY: RbEventLoop is only accessed from the main thread. The event loop
-// itself runs on the main thread and all Ruby interactions happen there.
-// This matches Tauri's pattern in tauri-runtime-wry.
-// See clippy_exceptions.rb for full justification.
+// SAFETY: tao's `EventLoop` is neither `Send` nor `Sync`
+// (tao src/event_loop.rs:40-43), because its platform loop belongs to the
+// thread that built it, and magnus wraps only `Send` types
+// (magnus src/typed_data.rs:411-413) since any Ruby thread can reach a Ruby
+// object. This impl is sound only while every call and the drop happen on
+// the main thread, the invariant Tauri states for its own main-thread
+// types (tauri-runtime-wry src/lib.rs:431-454). Tokra's Ruby layer builds
+// and runs the loop only in App#run, and on macOS and Linux tao refuses to
+// build it off the main thread (platform_impl/macos/event_loop.rs:166-167,
+// linux/event_loop.rs:211-213). This extension never calls
+// rb_ext_ractor_safe, so Ruby refuses its methods to every other Ractor
+// (doc/extension.rdoc:2215-2217 at Ruby v4.0.1). Nothing here stops app
+// code on another Ruby Thread in the main Ractor from calling
+// Tokra::Native::EventLoop, or a garbage collection on such a thread from
+// freeing it: Plan 019 records that gap.
 #[allow(unsafe_code)]
 #[allow(clippy::non_send_fields_in_send_ty)]
 unsafe impl Send for RbEventLoop {}

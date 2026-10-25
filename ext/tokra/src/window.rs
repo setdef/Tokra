@@ -13,24 +13,15 @@ use crate::event_loop::RbEventLoop;
 use crate::runtime_error;
 
 /// Ruby wrapper for `tao::window::Window`.
+///
+/// magnus wraps only `Send` types (`typed_data.rs:411-413`). tao declares its
+/// `Window` `Send + Sync` on every desktop platform
+/// (`platform_impl/macos/mod.rs:68-69`, `linux/window.rs:1056-1059`; on
+/// Windows every field is), so this type needs no `unsafe impl` of its own.
 #[magnus::wrap(class = "Tokra::Native::Window", free_immediately, size)]
 pub struct RbWindow {
     pub(crate) inner: Window,
 }
-
-// SPDX-SnippetBegin
-// SPDX-License-Identifier: Apache-2.0 OR MIT
-// SPDX-SnippetCopyrightText: 2020-2023 Tauri Programme within The Commons Conservancy
-// SPDX-SnippetComment: Thread safety pattern adapted from tauri-runtime-wry/lib.rs unsafe impl Send for WindowsStore/WindowBuilderWrapper
-
-// SAFETY: RbWindow is only accessed from the main thread. Window operations
-// are only performed within the event loop callback on the main thread.
-// This matches Tauri's pattern in tauri-runtime-wry.
-// See clippy_exceptions.rb for full justification.
-#[allow(unsafe_code)]
-unsafe impl Send for RbWindow {}
-
-// SPDX-SnippetEnd
 
 impl RbWindow {
     /// Create a new `Window` attached to the given `EventLoop`.

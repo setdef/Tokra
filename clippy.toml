@@ -1,5 +1,0 @@
-# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
-# SPDX-License-Identifier: AGPL-3.0-or-later
-
-# Clippy configuration for lint parameters only.
-# Lint levels (forbid/deny/warn/allow) are configured in Cargo.toml [lints] section.

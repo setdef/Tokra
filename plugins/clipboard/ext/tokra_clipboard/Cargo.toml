@@ -24,6 +24,9 @@ rb-sys = "0.9"
 pedantic = { level = "deny", priority = -1 }
 nursery = { level = "deny", priority = -1 }
 all = { level = "deny", priority = -1 }
+# Every unsafe block and impl carries a SAFETY comment citing the source
+# that makes it sound.
+undocumented_unsafe_blocks = "deny"
 
 # Unsafe code is denied by default, but targeted exceptions are allowed with
 # #[allow(unsafe_code)] annotations. Each exception must be documented in

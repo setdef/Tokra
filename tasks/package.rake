@@ -60,8 +60,16 @@ PACKAGES = [
 ].freeze
 
 namespace :package do
+  # The packaging check resolves each crate with cargo metadata --offline,
+  # which needs every platform's dependencies in Cargo's cache; compiling
+  # downloads only this machine's.
+  desc "Download every platform's locked crates for each Cargo workspace"
+  task :fetch do
+    CARGO_WORKSPACES.each { |dir| cargo!("fetch", "--locked", chdir: dir) }
+  end
+
   desc "Build each gem and load it from its package, with the compiled extensions (fast)"
-  task check: %w[compile plugins:compile] do
+  task check: %w[compile plugins:compile package:fetch] do
     PackageCheck.new(root: Dir.pwd, gems: PACKAGES).fast
   rescue PackageCheck::Failure => e
     abort "❌ #{e.message}"

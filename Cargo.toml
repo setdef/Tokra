@@ -14,3 +14,14 @@ resolver = "2"
 
 # Lints live in each member crate (see ext/tokra/Cargo.toml), so a crate
 # never depends on a workspace table for them.
+
+# Keep the symbol table in released builds, so a crash or panic backtrace
+# from an installed gem names its functions. Debug info stays off: on Linux
+# it grows tokra.so from 6 MB to 29 MB (line tables only) or 94 MB (full),
+# and the symbols alone already name each frame. Not stripping also keeps
+# rust-objcopy out of the build: the objcopy in Rust before 1.99 stripped
+# bundles in a way macOS 27's loader rejects. Profiles take effect only at
+# the workspace root, so this lives here, beside the lockfile the gem ships.
+[profile.release]
+debug = false
+strip = false

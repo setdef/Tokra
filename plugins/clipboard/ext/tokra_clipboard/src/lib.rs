@@ -25,6 +25,17 @@ use std::sync::Mutex;
 /// provides interior mutability so methods work on frozen
 /// (Ractor-shareable) objects, and lets `cleanup` drop the clipboard
 /// before process exit as arboard requires.
+///
+/// The wrapper is `frozen_shareable`, which magnus accepts only for a `Sync`
+/// type (magnus `src/typed_data.rs:384-395`); arboard asserts its
+/// `Clipboard` is `Send + Sync` (arboard `src/lib.rs:500-505`), so the
+/// compiler checks the flag here.
+#[magnus::wrap(
+    class = "TokraClipboard::Native::Clipboard",
+    free_immediately,
+    size,
+    frozen_shareable
+)]
 pub struct RbClipboard {
     inner: Result<Mutex<Option<arboard::Clipboard>>, String>,
 }
@@ -170,47 +181,25 @@ const fn is_drawable_rgba(len: usize, width: usize, height: usize) -> bool {
     width != 0 && height != 0 && len != 0 && len == width.saturating_mul(height).saturating_mul(4)
 }
 
-impl magnus::DataTypeFunctions for RbClipboard {}
-
-// SAFETY: Result<Mutex<Option<arboard::Clipboard>>, String> is Send + Sync.
-// arboard::Clipboard is Send + Sync on all platforms.
-// This enables frozen_shareable for Ractor shareability.
-#[allow(unsafe_code)]
-unsafe impl magnus::TypedData for RbClipboard {
-    fn class(ruby: &magnus::Ruby) -> magnus::RClass {
-        use magnus::Class;
-        static CLASS: magnus::value::Lazy<magnus::RClass> = magnus::value::Lazy::new(|ruby| {
-            let module = ruby.define_module("TokraClipboard").unwrap();
-            let native = module.define_module("Native").unwrap();
-            let class = native
-                .define_class("Clipboard", ruby.class_object())
-                .unwrap();
-            class.undef_default_alloc_func();
-            class
-        });
-        ruby.get_inner(&CLASS)
-    }
-
-    fn data_type() -> &'static magnus::DataType {
-        static DATA_TYPE: magnus::DataType =
-            magnus::typed_data::DataTypeBuilder::<RbClipboard>::new(
-                c"TokraClipboard::Native::Clipboard",
-            )
-            .free_immediately()
-            .size()
-            .frozen_shareable()
-            .build();
-        &DATA_TYPE
-    }
-}
-
 #[magnus::init]
 fn init(ruby: &Ruby) -> Result<(), Error> {
     use magnus::Class;
 
-    // Mark this extension as Ractor-safe.
-    // This allows methods to be called from non-main Ractors.
-    // SAFETY: We ensure thread safety via Mutex<Option<Clipboard>>.
+    // Mark this extension as Ractor-safe, so non-main Ractors may call it.
+    // SAFETY: `rb_ext_ractor_safe` takes a plain flag and is called from
+    // `Init_`, as doc/extension.rdoc:2218-2220 at Ruby v4.0.1 asks. Ruby asks
+    // a Ractor-safe extension to share no unshareable object between
+    // Ractors and to be thread-safe, along with the libraries it calls
+    // (extension.rdoc:2222-2267). This crate keeps no Ruby value in a static
+    // except magnus's class lookups, and classes are shareable
+    // (extension.rdoc:2239-2240). Its one wrapped type holds arboard's
+    // `Clipboard`, which arboard asserts is `Send + Sync` (arboard
+    // src/lib.rs:500-505), behind a `Mutex`. extension.rdoc:2275-2280 says a
+    // frozen-shareable object's wrapped data must not be mutated; this crate
+    // reads that as a guard against unsynchronized mutation and mutates a
+    // frozen clipboard only under its `Mutex`. Every other value a method
+    // touches is an argument or the receiver, which Ruby guarantees are the
+    // calling Ractor's own or shareable (extension.rdoc:2260-2261).
     #[allow(unsafe_code)]
     unsafe {
         rb_sys::rb_ext_ractor_safe(true);

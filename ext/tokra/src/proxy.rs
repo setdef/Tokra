@@ -21,7 +21,17 @@ use crate::user_event::UserEvent;
 /// This is the ONLY type that is genuinely designed to be Send+Sync safe by tao.
 ///
 /// This type uses `frozen_shareable` to be Ractor-shareable when frozen.
-/// Ruby automatically freezes objects shared across Ractors.
+/// Ruby automatically freezes objects shared across Ractors. magnus accepts
+/// the flag only for a `Sync` type (`typed_data.rs:384-395`), and
+/// tao makes `EventLoopProxy` `Send + Sync` (`platform_impl/macos/event_loop.rs:307-308`,
+/// `windows/event_loop.rs:558-559`; on Linux its one field, a crossbeam
+/// `Sender`, is both), so the compiler checks the flag here.
+#[magnus::wrap(
+    class = "Tokra::Native::Proxy",
+    free_immediately,
+    size,
+    frozen_shareable
+)]
 #[derive(Clone)]
 pub struct RbProxy {
     inner: EventLoopProxy<UserEvent>,
@@ -139,41 +149,6 @@ impl RbProxy {
     }
 
     // SPDX-SnippetEnd
-}
-
-// RbProxy is genuinely Send+Sync because EventLoopProxy<T> is Send+Sync
-// This is NOT an unsafe impl - tao guarantees this.
-// SAFETY note: Sync is required for frozen_shareable in Magnus.
-// EventLoopProxy is explicitly designed to be used from any thread.
-
-impl magnus::DataTypeFunctions for RbProxy {}
-
-// SAFETY: RbProxy wraps EventLoopProxy which is Send+Sync by design.
-// This impl enables the frozen_shareable flag which makes the Ruby object
-// Ractor-shareable when frozen. Ruby automatically freezes shareable objects.
-#[allow(unsafe_code)]
-unsafe impl magnus::TypedData for RbProxy {
-    fn class(ruby: &magnus::Ruby) -> magnus::RClass {
-        use magnus::Class;
-        static CLASS: magnus::value::Lazy<magnus::RClass> = magnus::value::Lazy::new(|ruby| {
-            let tokra = ruby.define_module("Tokra").unwrap();
-            let native = tokra.define_module("Native").unwrap();
-            let class = native.define_class("Proxy", ruby.class_object()).unwrap();
-            class.undef_default_alloc_func();
-            class
-        });
-        ruby.get_inner(&CLASS)
-    }
-
-    fn data_type() -> &'static magnus::DataType {
-        static DATA_TYPE: magnus::DataType =
-            magnus::typed_data::DataTypeBuilder::<RbProxy>::new(c"Tokra::Native::Proxy")
-                .free_immediately()
-                .size()
-                .frozen_shareable()
-                .build();
-        &DATA_TYPE
-    }
 }
 
 /// Define the `Proxy` class methods on the given Ruby module.

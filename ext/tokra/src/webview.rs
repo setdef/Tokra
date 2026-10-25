@@ -95,12 +95,22 @@ pub struct RbWebView {
 // SPDX-SnippetCopyrightText: 2020-2023 Tauri Programme within The Commons Conservancy
 // SPDX-SnippetComment: Thread safety pattern adapted from tauri-runtime-wry/lib.rs unsafe impl Send for WindowsStore
 
-// SAFETY: RbWebView is only accessed from the main thread. WebView operations
-// are only performed within the event loop callback on the main thread.
-// This matches Tauri's pattern in tauri-runtime-wry where they use:
-// `unsafe impl Send for WindowsStore {}` with the comment:
-// "SAFETY: we ensure this type is only used on the main thread."
-// See clippy_exceptions.rb for full justification.
+// SAFETY: wry's `WebView` is not `Send`: the compiler infers that from the
+// platform webview it holds (wry src/lib.rs:1944-1946), a WKWebView,
+// WebKitGTK, or WebView2 object tied to the thread that built it. magnus wraps
+// only `Send` types (magnus src/typed_data.rs:411-413) since any Ruby
+// thread can reach a Ruby object. This impl is sound only while every call
+// and the drop happen on the main thread, the invariant Tauri states for
+// its own `unsafe impl Send for WindowsStore {}`: "we ensure this type is
+// only used on the main thread" (tauri-runtime-wry src/lib.rs:431-433).
+// Tokra's Ruby layer builds webviews only in App#run, beside the event
+// loop tao confines to the main thread, and makes its own calls from the
+// loop's callbacks. This extension never calls rb_ext_ractor_safe, so Ruby
+// refuses its methods to every other Ractor (doc/extension.rdoc:2215-2217
+// at Ruby v4.0.1). Nothing here stops app code on another Ruby Thread in
+// the main Ractor from calling a webview (Tokra::Webview#eval reaches it
+// directly), or a garbage collection on such a thread from freeing it:
+// Plan 019 records that gap.
 #[allow(unsafe_code)]
 #[allow(clippy::non_send_fields_in_send_ty)]
 unsafe impl Send for RbWebView {}

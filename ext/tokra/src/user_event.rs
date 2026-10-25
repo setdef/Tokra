@@ -100,7 +100,7 @@ mod tests {
             request_id: 42,
             method: "POST".to_string(),
             uri: "tokra://localhost/api".to_string(),
-            headers: headers.clone(),
+            headers,
             body: br#"{"key":"value"}"#.to_vec(),
         };
 
@@ -202,16 +202,18 @@ mod tests {
         };
         let cloned = original.clone();
 
-        match cloned {
-            UserEvent::HttpRequest {
-                request_id,
-                headers,
-                ..
-            } => {
-                assert_eq!(request_id, 123);
-                assert_eq!(headers.len(), 1);
+        for event in [original, cloned] {
+            match event {
+                UserEvent::HttpRequest {
+                    request_id,
+                    headers,
+                    ..
+                } => {
+                    assert_eq!(request_id, 123);
+                    assert_eq!(headers.len(), 1);
+                }
+                _ => panic!("Clone should preserve variant"),
             }
-            _ => panic!("Clone should preserve variant"),
         }
     }
 
@@ -221,7 +223,7 @@ mod tests {
             url: "tokra://localhost/".to_string(),
             body: "debug test".to_string(),
         };
-        let debug_str = format!("{:?}", event);
+        let debug_str = format!("{event:?}");
         assert!(debug_str.contains("IpcMessage"));
         assert!(debug_str.contains("debug test"));
     }
@@ -229,7 +231,7 @@ mod tests {
     #[test]
     fn test_user_event_debug_format_exit() {
         let event = UserEvent::Exit;
-        let debug_str = format!("{:?}", event);
+        let debug_str = format!("{event:?}");
         assert!(debug_str.contains("Exit"));
     }
 
@@ -269,10 +271,10 @@ mod tests {
     fn test_empty_strings_are_preserved() {
         let event = UserEvent::IpcMessage {
             url: "tokra://localhost/".to_string(),
-            body: "".to_string(),
+            body: String::new(),
         };
         match event {
-            UserEvent::IpcMessage { body: msg, .. } => assert!(msg.is_empty()),
+            UserEvent::IpcMessage { body: msg, .. } => assert_eq!(msg, ""),
             _ => panic!("Expected IpcMessage"),
         }
     }

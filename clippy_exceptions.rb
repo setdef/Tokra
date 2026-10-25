@@ -9,7 +9,7 @@
 # Each entry must explain WHY the exception is unavoidable.
 # Review carefully before adding new entries.
 
-allow "ext/tokra/src/window.rs", line: 61, reason: <<~END
+allow "ext/tokra/src/window.rs", line: 52, reason: <<~END
   Magnus FFI requires owned types at the Ruby-Rust boundary. RbWindow::set_title
   receives a Ruby string that must be converted to an owned Rust String because
   Magnus's TryConvert trait only implements String, not &str.
@@ -20,7 +20,7 @@ allow "ext/tokra/src/window.rs", line: 61, reason: <<~END
   the Ruby GC cycle.
 END
 
-allow "ext/tokra/src/webview.rs", line: 120, reason: <<~END
+allow "ext/tokra/src/webview.rs", line: 130, reason: <<~END
   Magnus FFI requires owned types at the Ruby-Rust boundary. RbWebView::new
   receives a URL from Ruby that must be converted to an owned Rust String.
 
@@ -29,7 +29,7 @@ allow "ext/tokra/src/webview.rs", line: 120, reason: <<~END
   cannot be safely borrowed across the FFI boundary.
 END
 
-allow "ext/tokra/src/webview.rs", line: 268, reason: <<~END
+allow "ext/tokra/src/webview.rs", line: 278, reason: <<~END
   Magnus FFI requires owned types at the Ruby-Rust boundary. RbWebView::eval
   receives JavaScript code from Ruby that must be converted to an owned String.
 
@@ -37,7 +37,7 @@ allow "ext/tokra/src/webview.rs", line: 268, reason: <<~END
   provides TryConvert for owned String types.
 END
 
-allow "ext/tokra/src/event_loop.rs", lines: [47, 48], reason: <<~END
+allow "ext/tokra/src/event_loop.rs", lines: [58, 59], reason: <<~END
   Tauri Pattern: unsafe impl Send for RbEventLoop
 
   RbEventLoop wraps tao::EventLoop which is bound to the main OS thread.
@@ -48,65 +48,36 @@ allow "ext/tokra/src/event_loop.rs", lines: [47, 48], reason: <<~END
   2. Don't wrap for Ruby (defeats purpose)
   3. Don't use Magnus (massive rewrite with raw C API)
 
-  INVARIANT: RbEventLoop is only accessed from the main thread via event loop
-  callback. This matches Tauri's `unsafe impl Send for DispatcherMainThreadContext<T>`.
-
-  ENFORCED BY: test/integration/thread_safety_invariant_test.rb
+  INVARIANT: RbEventLoop is only used and dropped on the main thread. This
+  matches Tauri's `unsafe impl Send for DispatcherMainThreadContext<T>`. The
+  SAFETY comment in event_loop.rs says what upholds it and what does not
+  (Plan 019).
 END
 
-allow "ext/tokra/src/window.rs", line: 30, reason: <<~END
-  Tauri Pattern: unsafe impl Send for RbWindow
-
-  RbWindow wraps tao::Window which is bound to the main OS thread.
-
-  UNFIXABLE: magnus/src/typed_data.rs:84 requires `DataTypeFunctions: Send`.
-  tao::Window is not Send. Same constraint as RbEventLoop.
-
-  INVARIANT: RbWindow is only accessed within event loop callback on main thread.
-  Matches Tauri's `unsafe impl Send for WindowsStore {}` in tauri-runtime-wry.
-
-  ENFORCED BY: test/integration/thread_safety_invariant_test.rb
-END
-
-allow "ext/tokra/src/webview.rs", lines: [104, 105], reason: <<~END
+allow "ext/tokra/src/webview.rs", lines: [114, 115], reason: <<~END
   Tauri Pattern: unsafe impl Send for RbWebView
 
   RbWebView wraps wry::WebView which is bound to the main OS thread.
 
   UNFIXABLE: magnus/src/typed_data.rs:84 requires `DataTypeFunctions: Send`.
-  wry::WebView is not Send. Same constraint as RbEventLoop and RbWindow.
+  wry::WebView is not Send. Same constraint as RbEventLoop.
 
-  INVARIANT: RbWebView is only accessed within event loop callback on main thread.
-
-  ENFORCED BY: test/integration/thread_safety_invariant_test.rb
+  INVARIANT: RbWebView is only used and dropped on the main thread. The
+  SAFETY comment in webview.rs says what upholds it and what does not
+  (Plan 019).
 END
 
-allow "ext/tokra/src/proxy.rs", line: 154, reason: <<~END
-  Magnus TypedData for RbProxy: unsafe impl TypedData for RbProxy
-
-  Unlike the other unsafe impls, this IS actually safe. EventLoopProxy<T> is
-  genuinely Send+Sync by tao's design - it's explicitly intended for cross-thread
-  wakeups. The unsafe is only required by Magnus's TypedData trait signature.
-
-  We use this to enable the frozen_shareable flag which makes the Ruby object
-  Ractor-shareable when frozen. Ruby automatically freezes objects shared across
-  Ractors.
-
-  VERIFIED BY: test/integration/thread_safety_invariant_test.rb:23-38
-  Tests that frozen Proxy becomes Ractor-shareable.
-END
-
-allow "ext/tokra/src/proxy.rs", lines: [83, 84], reason: <<~END
+allow "ext/tokra/src/proxy.rs", lines: [93, 94], reason: <<~END
   Proxy#respond method clippy allows for FFI boundary and readability.
 
-  Line 83: #[allow(clippy::needless_pass_by_value)]
+  Line 93: #[allow(clippy::needless_pass_by_value)]
   Magnus FFI requires owned types at the Ruby-Rust boundary. The `headers`
   parameter is received from Ruby as an owned value (the body arrives as an
   RString and is copied out as bytes). Changing to references
   would require an intermediate allocation anyway since TryConvert produces owned
   Strings.
 
-  Line 84: #[allow(clippy::option_if_let_else)]
+  Line 94: #[allow(clippy::option_if_let_else)]
   Using `match` is more readable than `map_or_else` when the branches have
   significantly different complexity. The `Some` branch builds an HTTP response
   while `None` returns a simple error.

@@ -26,10 +26,11 @@
 // SPDX-SnippetCopyrightText: 2020-2023 Tauri Programme within The Commons Conservancy
 // SPDX-SnippetComment: Thread safety model documentation adapted from tauri-runtime-wry/lib.rs safety comments
 //!
-//! This module follows the same thread safety patterns as Tauri. `Window` and
-//! `WebView` types are not inherently Send-safe because they're bound to the
-//! main OS thread. However, we mark our wrappers as Send with the following
-//! invariant:
+//! This module follows the same thread safety patterns as Tauri. tao's
+//! `EventLoop` and wry's `WebView` are not Send because they're bound to the
+//! main OS thread (tao's `Window` declares itself Send + Sync). We mark our
+//! wrappers for those two as Send with the following invariant, which the
+//! SAFETY comment on each impl qualifies:
 //!
 //! **INVARIANT: All access to `EventLoop`, `Window`, and `WebView` happens
 //! exclusively on the main thread via the tao event loop callback.**

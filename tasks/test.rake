@@ -16,7 +16,7 @@ task test: %w[test:rust test:ruby plugins:test]
 namespace :test do
   desc "Run Rust tests (requires compile)"
   task rust: :compile do
-    CARGO_WORKSPACES.each { |dir| sh "cargo test", chdir: dir }
+    CARGO_WORKSPACES.each { |dir| cargo!("test", "--locked", chdir: dir) }
   end
 
   # Create a specific Minitest task for Ruby core tests

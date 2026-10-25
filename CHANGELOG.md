@@ -121,6 +121,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `tokra` ships its `Cargo.lock` and compiles with `cargo --locked`, so an
   install builds the dependency versions this repository tested; magnus is
   pinned to a commit, not its main branch
+- `tokra` and `tokra-clipboard` no longer strip their native extensions'
+  symbols, so a panic backtrace names their functions
 
 ### Fixed
 
