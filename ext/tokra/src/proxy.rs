@@ -13,7 +13,8 @@ use magnus::{method, prelude::*, Error, RString, Ruby};
 use tao::event_loop::EventLoopProxy;
 
 use crate::runtime_error;
-use crate::user_event::UserEvent;
+use crate::thread_bound::OwnerThread;
+use crate::user_event::{Answer, UserEvent};
 
 /// Ruby wrapper for `tao::event_loop::EventLoopProxy<UserEvent>`.
 ///
@@ -35,13 +36,16 @@ use crate::user_event::UserEvent;
 #[derive(Clone)]
 pub struct RbProxy {
     inner: EventLoopProxy<UserEvent>,
+    /// The thread that runs the loop, where custom-protocol answers go.
+    loop_thread: OwnerThread,
 }
 
 impl RbProxy {
-    /// Create a new `RbProxy` from an `EventLoopProxy`.
+    /// Create a new `RbProxy` from an `EventLoopProxy` for the loop that
+    /// runs on `loop_thread`.
     #[must_use]
-    pub const fn new(inner: EventLoopProxy<UserEvent>) -> Self {
-        Self { inner }
+    pub const fn new(inner: EventLoopProxy<UserEvent>, loop_thread: OwnerThread) -> Self {
+        Self { inner, loop_thread }
     }
 
     /// Get a reference to the inner `EventLoopProxy`.
@@ -68,6 +72,24 @@ impl RbProxy {
             })
     }
 
+    /// Wake the event loop to run one task `Tokra::RuntimeContext` queued.
+    ///
+    /// The loop delivers `Tokra::Native::TaskEvent` for it, and the App runs
+    /// the oldest queued task on the main thread, as Tauri's runtime runs
+    /// `Message::Task` (tauri-runtime-wry `src/lib.rs:3212`).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the event loop has been closed.
+    pub fn send_task(&self) -> Result<(), Error> {
+        self.inner.send_event(UserEvent::Task).map_err(|_| {
+            Error::new(
+                runtime_error(),
+                "Failed to send task event: event loop closed",
+            )
+        })
+    }
+
     /// Send an HTTP response for a pending async protocol request.
     ///
     /// This is used by Ruby to respond to `tokra://` requests.
@@ -78,14 +100,15 @@ impl RbProxy {
     ///
     /// # Thread Safety
     ///
-    /// This is called directly from Ruby (potentially from a Ractor worker thread)
-    /// and builds/sends the response immediately. This is safe because Wry's
-    /// `RequestAsyncResponder` is `Send` and designed for cross-thread use.
-    /// See: wry/src/lib.rs `unsafe impl Send for RequestAsyncResponder`
+    /// Any thread may call it: wry's `RequestAsyncResponder` is `Send`. On
+    /// the loop's thread it responds at once; on any other it sends the
+    /// answer to the loop (see [`Answer`] for why).
     ///
     /// # Errors
     ///
-    /// Returns an error if the `request_id` is not found (already responded or invalid).
+    /// Returns an error if the `request_id` is not found (already responded
+    /// or invalid), or if the answer must travel to an event loop that has
+    /// closed.
     ///
     /// # Panics
     ///
@@ -115,8 +138,10 @@ impl RbProxy {
                         .body(b"Internal Error".to_vec())
                         .unwrap()
                 });
-                responder.respond(response);
-                Ok(())
+                self.answer(Answer {
+                    responder,
+                    response: Some(response),
+                })
             }
             None => Err(Error::new(
                 runtime_error(),
@@ -142,10 +167,43 @@ impl RbProxy {
     /// # Panics
     ///
     /// Panics if the responders mutex is poisoned (internal invariant violation).
-    pub fn drop_response(&self, request_id: u64) {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the drop must travel to an event loop that has
+    /// closed.
+    pub fn drop_response(&self, request_id: u64) -> Result<(), Error> {
         use crate::responders::{get_responders, take_responder};
 
-        drop(take_responder(get_responders(), request_id));
+        take_responder(get_responders(), request_id).map_or(Ok(()), |responder| {
+            self.answer(Answer {
+                responder,
+                response: None,
+            })
+        })
+    }
+
+    /// Deliver `answer` on the loop's thread: at once there, through the
+    /// loop from anywhere else.
+    ///
+    /// If the loop has closed, the answer is forgotten rather than dropped
+    /// here: its responder holds a `WebKit` task, and anything `WebKit` routes
+    /// to the main run loop from this thread would wait forever for a loop
+    /// that no longer runs.
+    fn answer(&self, answer: Answer) -> Result<(), Error> {
+        if self.loop_thread.is_current() {
+            answer.deliver();
+            return Ok(());
+        }
+        self.inner
+            .send_event(UserEvent::Respond(answer))
+            .map_err(|closed| {
+                std::mem::forget(closed.0);
+                Error::new(
+                    runtime_error(),
+                    "Failed to send response: event loop closed",
+                )
+            })
     }
 
     // SPDX-SnippetEnd
@@ -163,6 +221,7 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
     // This fixes the "undefining the allocator of T_DATA class" warning
     proxy_class.undef_default_alloc_func();
     proxy_class.define_method("wake_up", method!(RbProxy::wake_up, 1))?;
+    proxy_class.define_method("send_task", method!(RbProxy::send_task, 0))?;
     proxy_class.define_method("respond", method!(RbProxy::respond, 4))?;
     proxy_class.define_method("drop_response", method!(RbProxy::drop_response, 1))?;
     Ok(())

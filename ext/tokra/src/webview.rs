@@ -13,8 +13,12 @@ use wry::{PageLoadEvent, WebView, WebViewBuilder};
 use crate::proxy::RbProxy;
 use crate::responders::{get_responders, next_request_id};
 use crate::runtime_error;
-use crate::user_event::UserEvent;
+use crate::thread_bound::{wrong_thread, ThreadBound};
+use crate::user_event::{Released, UserEvent};
 use crate::window::RbWindow;
+
+/// The Ruby class name, for the wrong-thread error.
+const CLASS: &str = "Tokra::Native::WebView";
 
 // SPDX-SnippetBegin
 // SPDX-License-Identifier: Apache-2.0 OR MIT
@@ -85,37 +89,44 @@ fn forward_ipc_message_to_ruby(
 // SPDX-SnippetEnd
 
 /// Ruby wrapper for `wry::WebView`.
+///
+/// wry's `WebView` is not `Send`: the compiler infers that from the platform
+/// webview it holds (wry `src/lib.rs:1944-1946`), a `WKWebView`, `WebKitGTK`,
+/// or `WebView2` object tied to the thread that built it. magnus wraps only
+/// `Send` types (magnus `src/typed_data.rs:411-413`). The webview lives in a
+/// [`ThreadBound`], which is `Send` because it never reaches the webview
+/// off the thread that built it, so this type needs no `unsafe impl` of its
+/// own. Every method answers only that thread; `Tokra::Webview` brings each
+/// call there (`Tokra::RuntimeContext`), as Tauri's runtime does for its
+/// own main-thread types (tauri-runtime-wry `src/lib.rs:234-254`, `431-454`).
 #[magnus::wrap(class = "Tokra::Native::WebView", free_immediately, size)]
 pub struct RbWebView {
-    inner: WebView,
+    inner: ThreadBound<WebView>,
+    /// Carries the webview back to its thread if Ruby frees this object on
+    /// another (see `Drop`).
+    proxy: EventLoopProxy<UserEvent>,
 }
 
-// SPDX-SnippetBegin
-// SPDX-License-Identifier: Apache-2.0 OR MIT
-// SPDX-SnippetCopyrightText: 2020-2023 Tauri Programme within The Commons Conservancy
-// SPDX-SnippetComment: Thread safety pattern adapted from tauri-runtime-wry/lib.rs unsafe impl Send for WindowsStore
-
-// SAFETY: wry's `WebView` is not `Send`: the compiler infers that from the
-// platform webview it holds (wry src/lib.rs:1944-1946), a WKWebView,
-// WebKitGTK, or WebView2 object tied to the thread that built it. magnus wraps
-// only `Send` types (magnus src/typed_data.rs:411-413) since any Ruby
-// thread can reach a Ruby object. This impl is sound only while every call
-// and the drop happen on the main thread, the invariant Tauri states for
-// its own `unsafe impl Send for WindowsStore {}`: "we ensure this type is
-// only used on the main thread" (tauri-runtime-wry src/lib.rs:431-433).
-// Tokra's Ruby layer builds webviews only in App#run, beside the event
-// loop tao confines to the main thread, and makes its own calls from the
-// loop's callbacks. This extension never calls rb_ext_ractor_safe, so Ruby
-// refuses its methods to every other Ractor (doc/extension.rdoc:2215-2217
-// at Ruby v4.0.1). Nothing here stops app code on another Ruby Thread in
-// the main Ractor from calling a webview (Tokra::Webview#eval reaches it
-// directly), or a garbage collection on such a thread from freeing it:
-// Plan 019 records that gap.
-#[allow(unsafe_code)]
-#[allow(clippy::non_send_fields_in_send_ty)]
-unsafe impl Send for RbWebView {}
-
-// SPDX-SnippetEnd
+impl Drop for RbWebView {
+    /// Drop the webview on its own thread.
+    ///
+    /// Ruby frees this object on whichever thread sweeps it (Ruby v4.0.1
+    /// `gc.c:1182-1222` runs a `free_immediately` type's free during the
+    /// sweep, and lazy sweeping continues on any allocating thread,
+    /// `gc/default/default.c:2062-2120`). Off the webview's thread this sends
+    /// it to the loop, which drops it on the main thread
+    /// (`UserEvent::Release`). If the loop is gone the event comes back and
+    /// drops here, where the `ThreadBound` leaks the webview instead. No
+    /// Ruby API is called, as `free_immediately` requires (magnus
+    /// `src/typed_data.rs:310-316`).
+    fn drop(&mut self) {
+        if !self.inner.owner().is_current() {
+            let _ = self
+                .proxy
+                .send_event(UserEvent::Release(Released::WebView(self.inner.take())));
+        }
+    }
+}
 
 impl RbWebView {
     /// Create a new `WebView` attached to the given `Window`.
@@ -141,10 +152,13 @@ impl RbWebView {
             .with_ipc_handler(move |msg| {
                 forward_ipc_message_to_ruby(&proxy_clone, &msg);
             })
-            .build(&window.inner)
+            .build(window.window()?)
             .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
 
-        Ok(Self { inner: webview })
+        Ok(Self {
+            inner: ThreadBound::new(webview),
+            proxy: proxy.inner().clone(),
+        })
     }
 
     // SPDX-SnippetBegin
@@ -262,24 +276,33 @@ impl RbWebView {
             .with_ipc_handler(move |msg| {
                 forward_ipc_message_to_ruby(&proxy_clone, &msg);
             })
-            .build(&window.inner)
+            .build(window.window()?)
             .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
 
-        Ok(Self { inner: webview })
+        Ok(Self {
+            inner: ThreadBound::new(webview),
+            proxy: proxy.inner().clone(),
+        })
     }
 
     /// Evaluate JavaScript in the `WebView`.
     ///
     /// # Errors
     ///
-    /// Returns an error if JavaScript evaluation fails.
+    /// Returns `ThreadError` off the webview's thread, or an error if
+    /// JavaScript evaluation fails.
     // Magnus FFI requires owned types at the Ruby-Rust boundary.
     // See clippy_exceptions.rb for justification.
     #[allow(clippy::needless_pass_by_value)]
     pub fn eval(&self, js: String) -> Result<(), Error> {
-        self.inner
+        self.webview()?
             .evaluate_script(&js)
             .map_err(|e| Error::new(runtime_error(), e.to_string()))
+    }
+
+    /// The wry webview, on the thread that built it.
+    fn webview(&self) -> Result<&WebView, Error> {
+        self.inner.get().ok_or_else(|| wrong_thread(CLASS))
     }
 }
 

@@ -100,5 +100,18 @@ module Tokra
     #     puts "event loop finished"
     #   end
     LoopDestroyedEvent = Data.define
+
+    # A task is waiting to run on the main thread.
+    #
+    # Created once for each call another thread sends to the main thread
+    # through Proxy#send_task. The App answers it by running the oldest
+    # queued task (RuntimeContext#handle_task), as Tauri's runtime runs
+    # Message::Task (tauri-runtime-wry lib.rs:3212).
+    #
+    #   case event
+    #   when Tokra::Native::TaskEvent
+    #     context.handle_task
+    #   end
+    TaskEvent = Data.define
   end
 end

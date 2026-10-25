@@ -22,6 +22,12 @@ module StubNative
     Thread.current[:stub_native_dropped] = nil
     Thread.current[:stub_native_windows] = nil
     Thread.current[:stub_native_webviews] = nil
+    Thread.current[:stub_native_task_wake_ups] = nil
+  end
+
+  # How many times Proxy#send_task woke the loop across the run.
+  def self.task_wake_ups
+    Thread.current[:stub_native_task_wake_ups] ||= 0
   end
 
   # Windows created across the run, recording their title and size.
@@ -50,6 +56,12 @@ module StubNative
     def drop_response(id)
       StubNative.dropped << id
     end
+
+    # Counts the wake-up; the test injects the Native::TaskEvent it causes.
+    def send_task
+      Thread.current[:stub_native_task_wake_ups] = StubNative.task_wake_ups + 1
+      nil
+    end
   end
 
   # Stub Window recording its title and size
@@ -66,6 +78,9 @@ module StubNative
 
   # Stub WebView factory recording initialization scripts and evals
   class WebView
+    # A script whose evaluation fails, the way wry's evaluate_script can.
+    FAILING_SCRIPT = "throw from wry"
+
     attr_reader :initialization_scripts, :evals
 
     def self.new_with_protocol(_, _, scripts) = new(scripts).tap { |webview| instances << webview }
@@ -80,7 +95,11 @@ module StubNative
       @evals = []
     end
 
-    def eval(js) = @evals << js
+    def eval(js)
+      raise "evaluation failed" if js == FAILING_SCRIPT
+
+      @evals << js
+    end
   end
 
   # Stub EventLoop that delivers the injected event (or events) to the

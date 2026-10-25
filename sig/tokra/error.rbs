@@ -8,6 +8,14 @@ module Tokra
     class Image < Error
     end
 
+    # Raised when a call cannot reach the main thread, or its answer never comes back.
+    class Runtime < Error
+      FAILED_TO_SEND_MESSAGE: String
+      FAILED_TO_RECEIVE_MESSAGE: String
+
+      def initialize: (String message) -> void
+    end
+
     # Raised when a resource ID is not found in a ResourceTable.
     class BadResourceId < Error
       attr_reader rid: Integer

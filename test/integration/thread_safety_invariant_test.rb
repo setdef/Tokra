@@ -11,12 +11,12 @@ require_relative "../support/native_event_loop"
 
 # Thread Safety Invariant Tests
 #
-# These tests verify the invariants that make our `unsafe impl Send` safe.
-# Referenced by: clippy_exceptions.rb
-# lib.rs lines: 77 (RbEventLoop), 189 (RbWindow), 249 (RbWebView), 310 (RbProxy TypedData)
-#
-# The invariant: All access to EventLoop, Window, and WebView happens
-# exclusively on the main thread via the tao event loop callback.
+# The invariant: EventLoop, Window, and WebView are used, and dropped, only
+# on the thread that created them. The native layer enforces it (each
+# method raises ThreadError on any other thread, and ThreadBound leaks a
+# value rather than drop it there), and Tokra::RuntimeContext brings Ruby's
+# calls to that thread, as Tauri's dispatcher does (Plan 020). Only Proxy
+# crosses threads and Ractors by design.
 class ThreadSafetyInvariantTest < Minitest::Test
   # ==========================================================================
   # Proxy Ractor Safety Tests
@@ -135,6 +135,77 @@ class ThreadSafetyInvariantTest < Minitest::Test
     window2 = Tokra::Native::Window.new(event_loop)
 
     refute_equal window1.id, window2.id, "Each window should have a unique ID"
+  end
+
+  # ==========================================================================
+  # Other Threads Are Refused
+  # ==========================================================================
+
+  # Runs the block on a new thread and returns what it raised.
+  def raised_on_another_thread
+    Thread.new do
+      yield
+      nil
+    rescue Exception => e
+      e
+    end.value
+  end
+
+  def assert_refused(class_name, &call)
+    error = raised_on_another_thread(&call)
+    assert_instance_of ThreadError, error
+    assert_equal "#{class_name} can only be used on the thread that created it", error.message
+  end
+
+  def test_window_methods_refuse_another_thread
+    reason = NativeEventLoop.unavailable_reason
+    skip reason if reason
+
+    window = Tokra::Native::Window.new(NativeEventLoop.shared)
+
+    assert_refused("Tokra::Native::Window") { window.set_title("from a thread") }
+    assert_refused("Tokra::Native::Window") { window.set_size(1.0, 1.0) }
+    assert_refused("Tokra::Native::Window") { window.title }
+    assert_refused("Tokra::Native::Window") { window.id }
+  end
+
+  def test_window_title_answers_its_own_thread
+    reason = NativeEventLoop.unavailable_reason
+    skip reason if reason
+
+    window = Tokra::Native::Window.new(NativeEventLoop.shared)
+
+    assert_equal "Tokra", window.title
+  end
+
+  def test_a_window_cannot_be_built_on_another_thread
+    reason = NativeEventLoop.unavailable_reason
+    skip reason if reason
+
+    event_loop = NativeEventLoop.shared
+    assert_refused("Tokra::Native::EventLoop") { Tokra::Native::Window.new(event_loop) }
+  end
+
+  def test_the_event_loop_refuses_to_run_on_another_thread_and_stays_runnable
+    reason = NativeEventLoop.unavailable_reason
+    skip reason if reason
+
+    event_loop = NativeEventLoop.shared
+    assert_refused("Tokra::Native::EventLoop") { event_loop.run(-> (_event) {}) }
+
+    # The refusal did not consume the loop: it still builds windows here.
+    assert_kind_of Tokra::Native::Window, Tokra::Native::Window.new(event_loop)
+  end
+
+  def test_any_thread_can_create_a_proxy_and_wake_the_loop
+    reason = NativeEventLoop.unavailable_reason
+    skip reason if reason
+
+    event_loop = NativeEventLoop.shared
+    proxy = Thread.new { event_loop.create_proxy }.value
+
+    assert_kind_of Tokra::Native::Proxy, proxy
+    assert_nil Thread.new { proxy.send_task }.value
   end
 
   # ==========================================================================

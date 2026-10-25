@@ -2432,6 +2432,7 @@ dependencies = [
  "dirs",
  "image",
  "magnus",
+ "rb-sys",
  "tao",
  "wry",
 ]

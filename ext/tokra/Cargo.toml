@@ -14,7 +14,11 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-magnus = { git = "https://github.com/matsadler/magnus", rev = "2370a35261db7476f59e165752791fd60fddc26b", features = ["bytes"] }
+# rb-sys exposes AsRawValue, for comparing a thread VALUE without the GVL.
+magnus = { git = "https://github.com/matsadler/magnus", rev = "2370a35261db7476f59e165752791fd60fddc26b", features = ["bytes", "rb-sys"] }
+# Ruby's thread-event hooks, which magnus does not wrap (gvl_handoff.rs).
+# The same rb-sys magnus links, with no features of its own.
+rb-sys = { version = "0.9.124", default-features = false }
 tao = "0.34.5"
 # linux-body hands custom-protocol request bodies to the handler on Linux,
 # as tauri-runtime-wry enables it (Cargo.toml:15-20); without it WebKitGTK

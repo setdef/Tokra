@@ -59,6 +59,18 @@ module Tokra
       @manager.invoke_key
     end
 
+    # Runs the block on the main thread and returns +nil+, as
+    # AppHandle#run_on_main_thread does.
+    #
+    # Mirrors Tauri's App::run_on_main_thread (app.rs:1137-1140).
+    #
+    # === Example
+    #
+    #   app.run_on_main_thread { puts "on the main thread" }
+    def run_on_main_thread(&)
+      @handle.run_on_main_thread(&)
+    end
+
     # Default window configuration when not specified.
     DEFAULT_CONFIG = {
       title: "Tokra",
@@ -78,7 +90,11 @@ module Tokra
         version: @window_config[:version]&.to_s
       )
       @manager = AppManager.new(config:, webviews: {}, windows: {})
-      @handle = AppHandle.new(@manager, state_manager: builder.__send__(:state_manager))
+      # The thread that builds the app is its main thread until App#run
+      # attaches the event loop, which makes the running thread the main one.
+      @runtime_context = RuntimeContext.new
+      @handle = AppHandle.new(@manager, state_manager: builder.__send__(:state_manager),
+        runtime_context: @runtime_context)
       @builder = builder
       @with_global_tauri = builder.__send__(:with_global_tauri?)
 
@@ -119,6 +135,7 @@ module Tokra
       # Create native components via injected factory
       event_loop = @event_loop_class.new
       proxy = event_loop.create_proxy
+      @runtime_context.attach(proxy)
 
       # If a Rack app was configured, build the adapter that serves it
       # over tokra:// (ADR 004: Builder aggregates the app, App instantiates
@@ -148,11 +165,17 @@ module Tokra
       # loop ends it raises SystemExit with the loop's exit code, so
       # RunEvent::Exit arrives from inside the loop as
       # Native::LoopDestroyedEvent, as in Tauri's runtime.
-      event_loop.run(
-        lambda { |event|
-          dispatch_event(event, callback, native_window, proxy)
-        }
-      )
+      begin
+        event_loop.run(
+          lambda { |event|
+            dispatch_event(event, callback, native_window, proxy)
+          }
+        )
+      ensure
+        # The loop is gone: a call from another thread can no longer reach
+        # the main thread, and one waiting for an answer will never get it.
+        @runtime_context.close
+      end
     end
 
     # Sends a run event to every registered plugin, then the user callback.
@@ -294,7 +317,9 @@ module Tokra
 
     private def dispatch_event(event, callback, window, proxy)
       # Use is_a? instead of case/when to support mock event injection in tests
-      if event.is_a?(Native::HttpRequestEvent)
+      if event.is_a?(Native::TaskEvent)
+        @runtime_context.handle_task
+      elsif event.is_a?(Native::HttpRequestEvent)
         dispatch_http_request(event, proxy)
       elsif event.is_a?(Native::IpcEvent)
         dispatch_ipc(event)

@@ -27,9 +27,10 @@ module RealApp
   # Seconds the reader threads get to drain the pipes once the child is gone.
   DRAIN = 5
 
-  # What one run of a fixture app left behind. +exit_after_signal+ is how
-  # long the app lived after the +on_line+ hook last signalled it.
-  Run = Data.define(:status, :stdout, :stderr, :timed_out, :seconds, :exit_after_signal) do
+  # What one run of a fixture app left behind. +termsig+ is the signal
+  # that ended it, if one did. +exit_after_signal+ is how long the app lived
+  # after the +on_line+ hook last signalled it.
+  Run = Data.define(:status, :termsig, :stdout, :stderr, :timed_out, :seconds, :exit_after_signal) do
     def lines
       stdout.lines(chomp: true)
     end
@@ -49,7 +50,7 @@ module RealApp
     end
 
     def describe
-      "status=#{status.inspect} timed_out=#{timed_out} seconds=#{seconds.round(2)} " \
+      "status=#{status.inspect} termsig=#{termsig.inspect} timed_out=#{timed_out} seconds=#{seconds.round(2)} " \
         "exit_after_signal=#{exit_after_signal&.round(2).inspect}\n" \
         "--- stdout\n#{stdout}\n--- stderr\n#{stderr}"
     end
@@ -102,6 +103,7 @@ module RealApp
 
     Run.new(
       status: waiter.alive? ? nil : waiter.value&.exitstatus,
+      termsig: waiter.alive? ? nil : waiter.value&.termsig,
       stdout: drain(out_thread),
       stderr: drain(err_thread),
       timed_out:,

@@ -5,10 +5,13 @@ module Tokra
   class AppHandle
     @manager: AppManager
     @state_manager: StateManager?
+    @runtime_context: RuntimeContext
     @path: Path::Resolver?
     @resources_table: ResourceTable?
 
-    def initialize: (AppManager manager, ?state_manager: StateManager?) -> void
+    def initialize: (AppManager manager, ?state_manager: StateManager?, ?runtime_context: RuntimeContext) -> void
+    attr_reader runtime_context: RuntimeContext
+    def run_on_main_thread: () { () -> void } -> nil
     def app_handle: -> AppHandle
     def config: -> Config
     def webviews: -> Hash[String, Webview]

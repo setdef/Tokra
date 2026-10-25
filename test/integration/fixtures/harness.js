@@ -5,7 +5,7 @@
 // runs named checks with check(), then calls finish(). finish() reports the
 // results over a plain Rack POST (so a broken IPC layer still reports) and,
 // unless the app was started with --wait, asks Ruby to exit through
-// plugin:fixture|exit.
+// plugin:fixture|exit, or through the command finish({ exitCommand }) names.
 (function () {
   const results = [];
 
@@ -34,7 +34,7 @@
     return result;
   }
 
-  async function finish() {
+  async function finish({ exitCommand = 'plugin:fixture|exit' } = {}) {
     const passed = results.every((r) => r.pass);
     await fetch('/report', {
       method: 'POST',
@@ -43,7 +43,7 @@
     });
     const options = await (await fetch('/options.json')).json();
     if (options.wait) return;
-    window.__TAURI_INTERNALS__.invoke('plugin:fixture|exit', { code: passed ? options.exitCode : 1 });
+    window.__TAURI_INTERNALS__.invoke(exitCommand, { code: passed ? options.exitCode : 1 });
   }
 
   window.fixture = { check, finish, withTimeout };

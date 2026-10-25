@@ -98,12 +98,14 @@ module FixtureApp
     end
   end
 
-  # A Builder serving +site+ with the fixture plugin registered.
-  def self.builder(site, title)
+  # A Builder serving +site+ with the fixture plugin registered, and one
+  # instance of each class in +plugins+ beside it.
+  def self.builder(site, title, plugins: [])
+    classes = Ractor.make_shareable([FixtureApp::Plugin, *plugins])
     Tokra::Builder.default
       .title("Tokra integration: #{title}")
       .size(480, 360)
       .app(site)
-      .setup(&Ractor.shareable_proc { |app| app.handle.plugin(FixtureApp::Plugin.new(app.handle)) })
+      .setup(&Ractor.shareable_proc { |app| classes.each { |plugin| app.handle.plugin(plugin.new(app.handle)) } })
   end
 end

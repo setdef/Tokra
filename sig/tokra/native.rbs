@@ -12,6 +12,7 @@ module Tokra
     class Window
       def self.new: (EventLoop) -> Window
       def id: () -> String
+      def title: () -> String
       def set_title: (String) -> void
       def set_size: (Float, Float) -> void
     end
@@ -24,6 +25,7 @@ module Tokra
 
     class Proxy
       def wake_up: (String payload) -> void
+      def send_task: () -> nil
       def respond: (Integer request_id, Integer status, Array[[String, String]] headers, String body) -> void
       def drop_response: (Integer request_id) -> void
     end
@@ -55,6 +57,10 @@ module Tokra
 
     class LoopDestroyedEvent < Data
       def self.new: () -> LoopDestroyedEvent
+    end
+
+    class TaskEvent < Data
+      def self.new: () -> TaskEvent
     end
 
     class PageLoadEvent < Data

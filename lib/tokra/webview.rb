@@ -63,11 +63,40 @@ module Tokra
       @resources_table
     end
 
-    # Evaluate JavaScript in this webview.
+    # Evaluates JavaScript in this webview and returns +nil+.
+    #
+    # From another thread the script travels to the main thread and this
+    # method returns without waiting for it to run. A script the webview
+    # fails to evaluate is logged, never raised, as Tauri's runtime logs it
+    # (tauri-runtime-wry lib.rs:1773-1783, 3642-3646). Raises
+    # Error::Runtime when the event loop has ended.
+    #
+    # Mirrors Tauri's Webview::eval (webview/mod.rs:1896-1902).
+    #
+    # === Example
+    #
+    #   webview.eval("document.title = 'Ready'")
     def evaluate(script)
-      @native.eval(script)
+      native = @native
+      @app_handle.runtime_context.run_on_main_thread do
+        native.eval(script)
+      rescue RuntimeError => e
+        warn(e.message)
+      end
     end
     alias eval evaluate
+
+    # Runs the block on the main thread and returns +nil+, as
+    # AppHandle#run_on_main_thread does.
+    #
+    # Mirrors Tauri's Webview::run_on_main_thread (webview/mod.rs:1356-1363).
+    #
+    # === Example
+    #
+    #   Thread.new { webview.run_on_main_thread { webview.eval("refresh()") } }
+    def run_on_main_thread(&)
+      @app_handle.runtime_context.run_on_main_thread(&)
+    end
   end
 end
 

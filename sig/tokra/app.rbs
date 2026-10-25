@@ -19,6 +19,7 @@ module Tokra
     @window_config: Hash[Symbol, String | Integer | Float]
     @manager: AppManager
     @handle: AppHandle
+    @runtime_context: RuntimeContext
     @builder: Builder
     @with_global_tauri: bool
     @event_loop_class: singleton(Native::EventLoop)
@@ -36,6 +37,7 @@ module Tokra
     def initialize: (Builder builder, ?native: Module) -> void
     def run: () { (AppHandle, run_event) -> void } -> void
          | () -> void
+    def run_on_main_thread: () { () -> void } -> nil
 
     private
 

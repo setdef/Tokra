@@ -6,9 +6,15 @@
 #++
 
 require "test_helper"
+require_relative "support/stub_native"
 
 # Tests for Tokra::Webview.
 class TestWebview < Minitest::Test
+  # A real handle, built on this thread, so this thread is the main thread.
+  def app_handle
+    @app_handle ||= Tokra::Builder.default.build(native: StubNative).handle
+  end
+
   def test_new_with_label_and_native
     native = Object.new
     window = Object.new
@@ -33,10 +39,16 @@ class TestWebview < Minitest::Test
   def test_eval_delegates_to_native
     native = Minitest::Mock.new
     native.expect :eval, nil, ["console.log('hi')"]
-    webview = Tokra::Webview.new(label: "wv", native:, window: Object.new, app_handle: Object.new)
+    webview = Tokra::Webview.new(label: "wv", native:, window: Object.new, app_handle:)
 
     webview.eval("console.log('hi')")
 
     native.verify
+  end
+
+  def test_eval_returns_nil
+    webview = Tokra::Webview.new(label: "wv", native: StubNative::WebView.new, window: Object.new, app_handle:)
+
+    assert_nil webview.eval("1")
   end
 end

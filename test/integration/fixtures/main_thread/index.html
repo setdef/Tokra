@@ -1,0 +1,51 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>main thread</title>
+  <script src="/harness.js"></script>
+</head>
+<body>
+  <ol id="checks"></ol>
+  <script>
+    const { check, finish } = window.fixture;
+    const invoke = (cmd, args) => window.__TAURI_INTERNALS__.invoke(`plugin:main-thread|${cmd}`, args);
+
+    (async () => {
+      await check('a background thread runs while the loop waits', async () => {
+        const reply = await invoke('wake_after_sleep');
+        return { pass: reply === 'woke', detail: { reply } };
+      });
+
+      await check('a background thread evaluates script', async () => {
+        const arrived = new Promise((resolve) => { window.__fromThread = resolve; });
+        const reply = await invoke('eval_from_thread');
+        const evaluated = await arrived;
+        return { pass: reply === true && evaluated === 'evaluated', detail: { reply, evaluated } };
+      });
+
+      await check('a background thread reads and sets the title', async () => {
+        const before = await invoke('title_from_thread', { title: 'set from a thread' });
+        return { pass: before === 'Tokra integration: main thread', detail: { before } };
+      });
+
+      await check('run_on_main_thread runs on the main thread', async () => {
+        const onMain = await invoke('run_on_main_thread');
+        return { pass: onMain === true, detail: { onMain } };
+      });
+
+      await check('a main-thread handler reads the title without waiting on itself', async () => {
+        const title = await invoke('title_on_main_thread');
+        return { pass: title === 'set from a thread', detail: { title } };
+      });
+
+      await finish({ exitCommand: 'plugin:main-thread|exit_from_thread' });
+    })();
+  </script>
+</body>
+</html>

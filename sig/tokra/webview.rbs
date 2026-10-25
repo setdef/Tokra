@@ -20,7 +20,8 @@ module Tokra
     def initialize: (label: String, native: Native::WebView, window: Window, app_handle: AppHandle) -> void
     def window: () -> Window
     def resources_table: () -> ResourceTable
-    def evaluate: (String script) -> void
+    def evaluate: (String script) -> nil
     alias eval evaluate
+    def run_on_main_thread: () { () -> void } -> nil
   end
 end

@@ -18,7 +18,13 @@ module Tokra
 
     def initialize: (label: String, native: Native::Window, app_handle: AppHandle) -> void
     def resources_table: () -> ResourceTable
-    def set_title: (String title) -> void
-    def set_size: (Float width, Float height) -> void
+    def set_title: (String title) -> nil
+    def set_size: (Float width, Float height) -> nil
+    def title: () -> String
+    def run_on_main_thread: () { () -> void } -> nil
+
+    private
+
+    def dispatch: () { () -> void } -> nil
   end
 end

@@ -15,11 +15,21 @@ module Tokra
   #
   # ## Thread Safety
   #
-  # EventLoop, Window, and WebView are main-thread-only types. They use
-  # Tauri's pattern of `unsafe impl Send` with the invariant that all
-  # access happens on the main thread via the event loop callback.
+  # EventLoop, Window, and WebView belong to the thread that created them,
+  # the main thread. Each of their methods raises ThreadError on any other
+  # thread, and a Window or WebView that Ruby frees on another thread is
+  # dropped on the main thread. Tokra::Window and Tokra::Webview bring calls from
+  # other threads to the main thread (Tokra::RuntimeContext), as Tauri's
+  # runtime does.
   #
-  # Only Proxy is genuinely Send-safe and can be shared with Worker Ractors.
+  # EventLoop#run holds the GVL and, once per turn of the loop, hands it to
+  # any other Ruby thread that wants it, so background threads keep running
+  # and a busy one cannot freeze the window. A signal or Thread#raise that
+  # reaches the main thread meanwhile ends the loop and is raised again
+  # from #run.
+  #
+  # Only Proxy, and EventLoop#create_proxy, work from any thread; a frozen
+  # Proxy can be shared with Worker Ractors.
   #
   # @example Basic usage
   #   event_loop = Tokra::Native::EventLoop.new
@@ -58,6 +68,7 @@ module Tokra
     #
     # - Window: Native window
     #   - .new(event_loop) -> Window
+    #   - #title -> String
     #   - #set_title(string)
     #   - #set_size(width, height)
     #   - #id -> String
@@ -68,6 +79,7 @@ module Tokra
     #
     # - Proxy: Thread-safe handle (genuinely Send-safe)
     #   - #wake_up(payload) - Send wake event to main thread
+    #   - #send_task - Wake the loop to run one queued RuntimeContext task
     #
     # - IpcEvent: Event fired when WebView sends IPC message
     #   - #message -> String

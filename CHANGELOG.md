@@ -91,6 +91,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `tokra-log` gem: `Tokra::Plugins::Log::Builder` builds a logging plugin
   with Tauri's log targets (standard output, files, the app log directory,
   the webview), rotation and timezone strategies, and RBS signatures
+- `run_on_main_thread` on `AppHandle`, `App`, `Window`, and `Webview` runs a
+  block on the main thread: at once there, or queued from any other thread
+- `Window#title`, answered on the main thread
+- `Tokra::Error::Runtime` (`runtime error: failed to send message to the
+  webview` / `failed to receive message from webview`), raised when a call
+  from another thread cannot reach the main thread or gets no answer
+- `Native::Window#title`, `Native::Proxy#send_task`, and `Native::TaskEvent`
 
 ### Changed
 
@@ -125,6 +132,24 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `linux-body` feature)
 - `tokra` and `tokra-clipboard` no longer strip their native extensions'
   symbols, so a panic backtrace names their functions
+- `Window#set_title`, `Window#set_size`, `Webview#eval`, and
+  `AppHandle#emit` called from another thread run on the main thread and
+  return `nil` without waiting, as in Tauri
+- `Webview#eval` logs a script the webview fails to evaluate instead of
+  raising
+- `Native::EventLoop`, `Native::Window`, and `Native::WebView` raise
+  `ThreadError` when called from a thread other than the one that created
+  them (breaking)
+- `Native::Proxy#respond` and `#drop_response` called off the main thread
+  answer through the event loop, and raise once the loop has closed
+- An exception that is not a `StandardError` (a `SignalException`,
+  `Interrupt`, `Thread#kill`), raised in an event callback or delivered to
+  the main thread while the loop runs, ends the loop and is raised again by
+  `Native::EventLoop#run`, instead of being reported and ignored (breaking)
+- Events for Ruby are delivered once per turn of the event loop, after the
+  platform's events, instead of one by one as they arrive
+- `tokra`'s native crate now depends on the `rb-sys` crate directly, for Ruby's
+  thread-event hooks
 
 ### Fixed
 
@@ -140,6 +165,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   valid install name instead of an empty one
 - Request bodies sent over `tokra://` and `ipc://` arriving empty on Linux:
   wry's `linux-body` feature is now on, as in Tauri
+- Background Ruby threads stopping while the window is idle: the event loop
+  now hands them the GVL once per turn whenever they wait for it, so a
+  CPU-bound thread can neither starve them nor freeze the window and its
+  exit
+- `SIGTERM`, `SIGHUP`, and `SIGQUIT` with Ruby's default handlers being
+  printed and ignored by a running app; they now end it as they end any
+  Ruby program
+- A webview call from a background thread reaching wry off the main thread,
+  and a window or webview freed by a garbage collection on another thread
+  being destroyed there; the webview case was undefined behavior, and the
+  window case deadlocked on macOS
+- A response sent from a background thread deadlocking the app on macOS
 
 ### Removed
 

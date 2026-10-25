@@ -21,12 +21,42 @@ module Tokra
     # Creates a new AppHandle with the given AppManager.
     #
     # This is called internally by App and should not be called directly.
-    def initialize(manager, state_manager: nil) # :nodoc:
+    def initialize(manager, state_manager: nil, runtime_context: RuntimeContext.new) # :nodoc:
       @manager = manager
       @state_manager = state_manager
+      @runtime_context = runtime_context
     end
 
     private attr_reader :manager
+
+    # The dispatcher that carries window and webview calls to the main
+    # thread. Window and Webview reach it here, as Tauri's handles reach
+    # the runtime through the app handle's runtime_handle (app.rs).
+    attr_reader :runtime_context # :nodoc:
+
+    # Runs the block on the main thread and returns +nil+.
+    #
+    # The operating system ties every window and webview to the main
+    # thread, so work on another thread that needs one hands it over with
+    # this method. Called on the main thread, the block runs at once.
+    # Called on any other thread, it runs when the event loop gets to it,
+    # in the order you sent it, and this method returns without waiting.
+    # Raises Error::Runtime when the event loop has ended.
+    #
+    # Window and Webview send their own native calls this way, so you need
+    # it only for your own main-thread work.
+    #
+    # Mirrors Tauri's AppHandle::run_on_main_thread (app.rs:452-458).
+    #
+    # === Example
+    #
+    #   Thread.new do
+    #     report = build_report
+    #     handle.run_on_main_thread { handle.emit("report", report) }
+    #   end
+    def run_on_main_thread(&)
+      @runtime_context.run_on_main_thread(&)
+    end
 
     # Returns self since this is already an app handle.
     def app_handle
@@ -155,8 +185,11 @@ module Tokra
     #
     # Calls Kernel.exit, which raises SystemExit. Inside a running app the
     # native event loop catches it and ends with +code+, so plugins still
-    # receive RunEvent::Exit. Tauri also emits RunEvent::ExitRequested
-    # first (app.rs:531); Tokra does not yet.
+    # receive RunEvent::Exit. Called on another thread, it ends that thread,
+    # and Ruby raises the same SystemExit in the main thread
+    # (thread.c:726-732, 772-775 at Ruby v4.0.1), where the loop ends with
+    # +code+ as Tauri's exit request does (app.rs:531-538). Tauri also emits
+    # RunEvent::ExitRequested first; Tokra does not yet.
     #
     # === Example
     #

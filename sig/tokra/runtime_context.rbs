@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  # Runs window and webview work on the main thread, from any thread.
+  class RuntimeContext
+    class Failure < Data
+      attr_reader error: Exception
+      def self.new: (error: Exception) -> Failure
+    end
+
+    @main_thread: Thread
+    @mutex: Thread::Mutex
+    @tasks: Array[[^() -> void, Thread::Queue[Object]?]]
+    @proxy: Native::Proxy?
+    @closed: bool
+
+    def initialize: (?main_thread: Thread) -> void
+    def main_thread?: () -> bool
+    def attach: (Native::Proxy proxy) -> void
+    def run_on_main_thread: () { () -> void } -> nil
+    def getter: [T] () { () -> T } -> T
+    def handle_task: () -> nil
+    def close: () -> nil
+
+    private
+
+    def send_user_message: (^() -> void task, ?Thread::Queue[Object]? reply) -> nil
+    def wake: (Native::Proxy? proxy) -> void
+    def answer: [T] ([T] | Failure | nil reply) -> T
+  end
+end

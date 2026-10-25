@@ -18,38 +18,51 @@
 //! - [`proxy`] - Ractor-safe proxy for cross-thread communication (`Tokra::Native::Proxy`)
 //! - [`responders`] - Async protocol responder storage
 //! - [`image`] - PNG/ICO decoding (`Tokra::Native.image_from_bytes`)
+//! - [`thread_bound`] - Values usable only on the thread that created them
+//! - [`gvl_handoff`] - Hands the GVL to other Ruby threads while the loop waits
 //!
 //! # Thread Safety Model
 //!
 // SPDX-SnippetBegin
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // SPDX-SnippetCopyrightText: 2020-2023 Tauri Programme within The Commons Conservancy
-// SPDX-SnippetComment: Thread safety model documentation adapted from tauri-runtime-wry/lib.rs safety comments
+// SPDX-SnippetComment: Thread safety model adapted from tauri-runtime-wry/lib.rs safety comments
 //!
-//! This module follows the same thread safety patterns as Tauri. tao's
-//! `EventLoop` and wry's `WebView` are not Send because they're bound to the
-//! main OS thread (tao's `Window` declares itself Send + Sync). We mark our
-//! wrappers for those two as Send with the following invariant, which the
-//! SAFETY comment on each impl qualifies:
+//! tao's `EventLoop` and wry's `WebView` are not `Send`: they belong to the
+//! thread that built them, the main thread. Tauri marks its own main-thread
+//! types `Send` with "we ensure this type is only used on the main thread"
+//! (tauri-runtime-wry `lib.rs:431-454`), and its dispatcher keeps that
+//! promise by running every call there (`send_user_message`,
+//! `lib.rs:234-254`).
 //!
-//! **INVARIANT: All access to `EventLoop`, `Window`, and `WebView` happens
-//! exclusively on the main thread via the tao event loop callback.**
+//! Tokra enforces the same invariant in two layers:
 //!
-//! Ruby's Ractors communicate with the main thread through the Proxy, which
-//! sends messages to wake the event loop. The event loop then processes these
-//! on the main thread where Window/WebView access is safe.
+//! - **Here**, [`thread_bound::ThreadBound`] holds each non-`Send` value with
+//!   the id of its thread, hands it out only on that thread, and leaks it
+//!   rather than drop it anywhere else. Every `EventLoop`, `Window`, and
+//!   `WebView` method raises `ThreadError` on another thread, so no Ruby
+//!   code can reach a platform object from the wrong thread, and a garbage
+//!   collection on another thread can never run its destructor there
+//!   (a webview is sent home to be dropped, `webview.rs`).
+//! - **In Ruby**, `Tokra::RuntimeContext` mirrors Tauri's dispatcher: a call
+//!   on the main thread runs at once, and a call from any other thread is
+//!   queued and run by the loop (`UserEvent::Task`).
 //!
-//! This pattern is identical to Tauri's `tauri-runtime-wry` crate:
-//! - `unsafe impl Send for WindowsStore {}` (lib.rs:433)
-//! - `unsafe impl Send for DispatcherMainThreadContext<T> {}` (lib.rs:451)
-//! - `unsafe impl Send for WindowBuilderWrapper {}` (lib.rs:809)
+//! The loop holds the GVL while it waits, and [`gvl_handoff`] wakes it to
+//! hand the GVL to any other Ruby thread that wants it. Ractors cannot call
+//! these types at all: the extension never calls `rb_ext_ractor_safe`, so
+//! Ruby refuses its methods to every non-main Ractor (Ruby v4.0.1
+//! `doc/extension.rdoc:2215-2220`). Only `Proxy` is shared across threads
+//! and Ractors by design.
 // SPDX-SnippetEnd
 
 mod event_loop;
+mod gvl_handoff;
 mod image;
 mod path;
 mod proxy;
 mod responders;
+mod thread_bound;
 mod user_event;
 mod webview;
 mod window;
