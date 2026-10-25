@@ -16,7 +16,10 @@ crate-type = ["cdylib"]
 [dependencies]
 magnus = { git = "https://github.com/matsadler/magnus", rev = "2370a35261db7476f59e165752791fd60fddc26b", features = ["bytes"] }
 tao = "0.34.5"
-wry = "0.54.1"
+# linux-body hands custom-protocol request bodies to the handler on Linux,
+# as tauri-runtime-wry enables it (Cargo.toml:15-20); without it WebKitGTK
+# requests arrive with empty bodies.
+wry = { version = "0.54.1", features = ["linux-body"] }
 ctrlc = "3.4"
 dirs = "6.0"
 image = { version = "0.25", default-features = false, features = ["ico", "png"] }

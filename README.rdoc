@@ -19,3 +19,7 @@ gem needs Rust and Cargo:
   newer ones. To build against newer versions anyway, set
   +RB_SYS_EXTRA_CARGO_ARGS+ (for example to an empty string); it replaces
   <tt>--locked</tt>.
+* On Linux, the GTK 3 and WebKitGTK 4.1 development libraries, with
+  WebKitGTK 2.40 or newer: Tokra enables wry's +linux-body+ feature, as
+  Tauri does, so request bodies reach Ruby. On Debian and Ubuntu, install
+  +libwebkit2gtk-4.1-dev+ and +libgtk-3-dev+.

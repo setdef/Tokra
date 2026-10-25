@@ -121,6 +121,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `tokra` ships its `Cargo.lock` and compiles with `cargo --locked`, so an
   install builds the dependency versions this repository tested; magnus is
   pinned to a commit, not its main branch
+- On Linux, `tokra` now requires WebKitGTK 2.40 or newer (wry's
+  `linux-body` feature)
 - `tokra` and `tokra-clipboard` no longer strip their native extensions'
   symbols, so a panic backtrace names their functions
 
@@ -136,6 +138,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Native extensions failing to load on macOS 27 ("load command #4 string
   extends beyond end of load command"): rb_sys 0.9.129 gives the bundle a
   valid install name instead of an empty one
+- Request bodies sent over `tokra://` and `ipc://` arriving empty on Linux:
+  wry's `linux-body` feature is now on, as in Tauri
 
 ### Removed
 
