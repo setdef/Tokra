@@ -27,6 +27,11 @@ require "tmpdir"
 # gems into an empty GEM_HOME, so RubyGems compiles every extension from the
 # packaged sources (Plan 017).
 #
+# A dependency that RubyGems cannot install by name, because Bundler took it
+# from a git source (ferro-arboard, ADR 011), comes from the bundle: fast
+# mode puts its require paths on the load path, and full mode builds it from
+# its checkout and installs it first.
+#
 # Files a gem reads without require (templates, assets) are checked only by
 # what its smoke script exercises; the require-all script covers the rest.
 class PackageCheck
@@ -77,11 +82,14 @@ class PackageCheck
   # gem directory, the repository root, the mode (+files+, +fast+, or
   # +full+), the gem name, the gems it may activate (itself and its runtime
   # dependencies, transitively, comma-separated), the names of every gem
-  # this check builds, and the directory holding those packages.
+  # this check builds, the directory holding those packages, and the
+  # directories of bundled dependencies the script may load from even inside
+  # the repository (comma-separated), as CI's vendor/bundle is.
   ISOLATED = <<~'RUBY'
-    gem_dir, repo, mode, name, allowed, ours, packages = ARGV
+    gem_dir, repo, mode, name, allowed, ours, packages, bundled = ARGV
     roots = [repo, File.realpath(repo)].map { |root| "#{root}/" }
-    leaked = $LOADED_FEATURES.select { |feature| feature.start_with?(*roots) }
+    vendored = bundled.to_s.split(",").flat_map { |dir| [dir, File.realpath(dir)] }.map { |dir| "#{dir}/" }
+    leaked = $LOADED_FEATURES.select { |feature| feature.start_with?(*roots) && !feature.start_with?(*vendored) }
     abort "loaded from the repository instead of the package: #{leaked.join(", ")}" if leaked.any?
 
     # Default gems ship with Ruby, so any app has them, even when a newer
@@ -106,10 +114,13 @@ class PackageCheck
   # [root] The repository root.
   # [gems] The gems to check, in dependency order.
   # [out] Where progress goes.
-  def initialize(root:, gems:, out: $stdout)
+  # [find_spec] Returns the installed or bundled Gem::Specification for a
+  #   gem name, or +nil+.
+  def initialize(root:, gems:, out: $stdout, find_spec: -> (name) { Gem::Specification.find_all_by_name(name).max_by(&:version) })
     @root = root
     @gems = gems
     @out = out
+    @find_spec = find_spec
   end
 
   # Builds, unpacks, and smoke-tests each gem against the repository's
@@ -129,7 +140,10 @@ class PackageCheck
       @gems.each do |gem|
         allowed = dependency_closure(gem.name, specs)
         libs = allowed.filter_map { |name| unpacked[name] }.map { |dir| File.join(dir, "lib") }
-        smoke(gem, env:, load_paths: libs, dir: unpacked[gem.name], mode: "fast", allowed:, work:)
+        bundled = bundled_dependencies(allowed, specs)
+        libs += bundled.flat_map(&:full_require_paths)
+        smoke(gem, env:, load_paths: libs, dir: unpacked[gem.name], mode: "fast", allowed:, work:,
+          bundled: bundled.map(&:full_gem_path))
       end
     end
   end
@@ -143,6 +157,11 @@ class PackageCheck
       specs = packages.transform_values { |package| Gem::Package.new(package).spec }
       @gems.each { |gem| verify_files(gem, unpack(packages[gem.name], work)) }
       env = isolated_env(home)
+      bundled_dependencies(specs.keys.flat_map { |name| dependency_closure(name, specs) }.uniq, specs).each do |spec|
+        package = build_bundled(spec, work)
+        @out.puts "Installing #{File.basename(package)} from its bundled source (compiling)..."
+        run!(env, Gem.ruby, "-S", "gem", "install", "--local", "--no-document", package, chdir: work)
+      end
       packages.each_value do |package|
         @out.puts "Installing #{File.basename(package)} (compiling from the packaged sources)..."
         run!(env, Gem.ruby, "-S", "gem", "install", "--local", "--no-document", package, chdir: work)
@@ -166,6 +185,24 @@ class PackageCheck
   # Working-tree files that the package lacks.
   def self.missing_files(working_tree, contents)
     working_tree - contents
+  end
+
+  # The dependencies among +names+ that RubyGems cannot install by name:
+  # gems Bundler took from a git or path source, which leave no cached
+  # package. Our own gems and default gems are never among them.
+  private def bundled_dependencies(names, specs)
+    names.reject { |name| specs.key?(name) }.filter_map { |name| @find_spec.call(name) }
+      .reject { |spec| spec.default_gem? || File.exist?(spec.cache_file) }
+  end
+
+  # Builds a bundled dependency's package from its checkout.
+  private def build_bundled(spec, work)
+    output = File.join(work, "#{spec.full_name}.gem")
+    gemspec = File.join(spec.full_gem_path, "#{spec.name}.gemspec")
+    raise Failure, "#{spec.name}: no #{gemspec} to build it from" unless File.exist?(gemspec)
+
+    run!(UNBUNDLED, Gem.ruby, "-S", "gem", "build", gemspec, "--output", output, chdir: spec.full_gem_path)
+    output
   end
 
   private def build(gem, work)
@@ -252,9 +289,11 @@ class PackageCheck
 
   # Runs the require-all script, then the gem's smoke script, each in a
   # process that sees only +load_paths+ and +env+.
-  private def smoke(gem, env:, load_paths:, dir:, mode:, allowed:, work:)
+  private def smoke(gem, env:, load_paths:, dir:, mode:, allowed:, work:, bundled: [])
     includes = load_paths.flat_map { |path| ["-I", path] }
-    context = -> (run_mode) { [dir, File.expand_path(@root), run_mode, gem.name, allowed.join(","), ours, work] }
+    context = lambda do |run_mode|
+      [dir, File.expand_path(@root), run_mode, gem.name, allowed.join(","), ours, work, bundled.join(",")]
+    end
     run!(env, Gem.ruby, *includes, "-e", "#{REQUIRE_ALL}\n#{ISOLATED}", *context.call("files"), chdir: Dir.tmpdir)
     output = run!(env, Gem.ruby, *includes, "-e", "#{gem.smoke}\n#{ISOLATED}", *context.call(mode), chdir: Dir.tmpdir)
     @out.puts "✅ #{gem.name}: #{output.strip}"
@@ -275,7 +314,7 @@ class PackageCheck
       next if seen.include?(current)
 
       seen << current
-      spec = specs[current] || Gem::Specification.find_all_by_name(current).max_by(&:version)
+      spec = specs[current] || @find_spec.call(current)
       queue.concat(spec.runtime_dependencies.map(&:name)) if spec
     end
     seen

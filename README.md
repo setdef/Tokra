@@ -28,8 +28,9 @@ gem install UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
 
 ### Building the native extension
 
-Installing `tokra` (and `tokra-clipboard`) compiles a Rust extension, so you
-need Rust and Cargo on the machine that installs the gem:
+Installing `tokra` compiles a Rust extension, so you need Rust and Cargo on
+the machine that installs the gem. `tokra-clipboard` is pure Ruby, but its
+`ferro-arboard` dependency compiles one too (its README names its versions).
 
 - Rust 1.88 or newer, the highest `rust-version` among the locked
   dependencies (the gem ships a version 4 `Cargo.lock`, which Cargo reads

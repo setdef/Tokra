@@ -82,12 +82,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Native::IpcEvent#url`, the URL of the frame that posted the message
 - `Rack::Handler::Tokra.run` accepts `native:`, like `Builder#run`
 - `tokra-clipboard` gem: `Tokra::Plugins::Clipboard::Plugin.new(app)` manages
-  a native clipboard on the app handle (reachable as `app.clipboard`) and
-  serves Tauri's `clipboard-manager` commands (`read_text`, `write_text`,
-  `read_image`, `write_image`, `write_html`, `clear`); every failure raises or
-  rejects with `Error::Clipboard` or Tauri's argument error, and `read_text`
-  raises on an empty clipboard; it ships its `Cargo.lock` and compiles with
-  `cargo --locked`
+  a `Tokra::Plugins::Clipboard::Clipboard` on the app handle (reachable as
+  `app.clipboard`, Ractor-shareable) and serves Tauri's `clipboard-manager`
+  commands (`read_text`, `write_text`, `read_image`, `write_image`,
+  `write_html`, `clear`); every failure raises or rejects with
+  `Error::Clipboard` or Tauri's argument error, and `read_text` raises on an
+  empty clipboard; it is pure Ruby and depends on `ferro-arboard`
+  0.1.0.pre.2 (arboard 3.7.0, Wayland included), which apps take from its
+  git tag until it is on RubyGems.org
 - `tokra-log` gem: `Tokra::Plugins::Log::Builder` builds a logging plugin
   with Tauri's log targets (standard output, files, the app log directory,
   the webview), rotation and timezone strategies, and RBS signatures
@@ -110,7 +112,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Rack::Handler::Tokra.run` now builds a `Tokra::Builder`, so Rack apps get
   IPC responses and injected scripts; its `invoke_handler` receives an
   `Ipc::Invoke` and must be Ractor-shareable (breaking)
-- `tokra` and `tokra-clipboard` now require `rb_sys ~> 0.9.129`
+- `tokra` now requires `rb_sys ~> 0.9.129`
 - `Native::WebView.new_with_protocol` takes `(window, proxy,
   initialization_scripts)` (breaking)
 - `Native::IpcEvent` gains a required `url` member (breaking)
@@ -130,8 +132,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   pinned to a commit, not its main branch
 - On Linux, `tokra` now requires WebKitGTK 2.40 or newer (wry's
   `linux-body` feature)
-- `tokra` and `tokra-clipboard` no longer strip their native extensions'
-  symbols, so a panic backtrace names their functions
+- `tokra` no longer strips its native extension's symbols, so a panic
+  backtrace names its functions
 - `Window#set_title`, `Window#set_size`, `Webview#eval`, and
   `AppHandle#emit` called from another thread run on the main thread and
   return `nil` without waiting, as in Tauri

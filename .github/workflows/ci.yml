@@ -65,12 +65,9 @@ jobs:
           {
             echo "rust=$rust"
             echo "python=$python"
-            # Each native gem is its own Cargo workspace with its own target
-            # directory.
-            echo "workspaces<<EOF"
-            echo ". -> target"
-            for workspace in plugins/*/Cargo.toml; do echo "$(dirname "$workspace") -> target"; done
-            echo "EOF"
+            # tokra is the one native gem in this repository, its own Cargo
+            # workspace (plugins build on Ferro's gems, ADR 011).
+            echo "workspaces=. -> target"
           } >> "$GITHUB_OUTPUT"
 
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
@@ -96,10 +93,33 @@ jobs:
       - name: Install the REUSE tool
         run: python -m pip install "reuse[charset-normalizer]==6.2.0"
 
+      # tao and wry link GTK 3 and WebKitGTK 4.1 (wry's and tao's READMEs),
+      # through the -sys crates Cargo.lock pins: webkit2gtk-sys, soup3-sys,
+      # javascriptcore-rs-sys, gtk-sys, and gdkx11-sys. libX11 needs no
+      # headers: the x11 crate is used for its types only, and x11-dl loads
+      # the library at run time. bindgen needs libclang, for tokra and for
+      # ferro-arboard, which bundle install compiles, so this comes first.
+      # Xvfb and D-Bus give the real-window tests a display and a session
+      # bus. arboard speaks X11 through a pure-Rust client and needs no
+      # library. There is no clipboard manager: arboard offers one the
+      # contents only when the last clipboard drops, within 100 ms
+      # (arboard 3.7.0 src/platform/linux/x11.rs:788-801), so no test relies
+      # on it, and xfce4-clipman refills a clipboard a test has just cleared
+      # (Ferro's plan 001; Plan 021).
+      - name: Install GTK, WebKitGTK, and a display server
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
+            pkg-config libclang-dev xvfb xauth dbus dbus-x11
+
+      # Ruby first, without the bundle: on Windows, bindgen's settings come
+      # from what setup-ruby exports, and bundle install already needs them
+      # to compile ferro-arboard from its git source.
       - uses: ruby/setup-ruby@7f797815d8adceb1c412e7abefdd1ab4abc47a5f # v1.335.0
         with:
           ruby-version: ${{ matrix.ruby }}
-          bundler-cache: true
 
       # bindgen parses Ruby's MinGW headers, so clang must target MinGW and
       # find the MSYS2 tree setup-ruby installs beside Ruby. setup-ruby
@@ -120,25 +140,12 @@ jobs:
           echo "BINDGEN_EXTRA_CLANG_ARGS=--target=x86_64-pc-windows-gnu --sysroot=$sysroot -D__AVX512VLFP16INTRIN_H -D__AVX512FP16INTRIN_H" >> "$GITHUB_ENV"
           echo "LIBCLANG_PATH=$libclang" >> "$GITHUB_ENV"
 
-      # tao and wry link GTK 3 and WebKitGTK 4.1 (wry's and tao's READMEs),
-      # through the -sys crates Cargo.lock pins: webkit2gtk-sys, soup3-sys,
-      # javascriptcore-rs-sys, gtk-sys, and gdkx11-sys. libX11 needs no
-      # headers: the x11 crate is used for its types only, and x11-dl loads
-      # the library at run time. bindgen needs libclang.
-      # Xvfb and D-Bus give the real-window tests a display and a session
-      # bus. The clipboard plugin speaks X11 through arboard's pure-Rust
-      # client, and on X11 text outlives the last clipboard only once a
-      # clipboard manager takes it over (arboard 3.6.1
-      # src/platform/linux/x11.rs:1082-1110), so xfce4-clipman runs beside
-      # Xvfb, as on a desktop, with stalonetray to hold its icon
-      # (.github/ci/with-clipboard-manager says why).
-      - name: Install GTK, WebKitGTK, a display server, and a clipboard manager
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends \
-            libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
-            pkg-config libclang-dev xvfb xauth dbus dbus-x11 xfce4-clipman stalonetray python3-xlib
+      # The same Ruby again, now installing and caching the bundle with
+      # bindgen's settings in the environment.
+      - uses: ruby/setup-ruby@7f797815d8adceb1c412e7abefdd1ab4abc47a5f # v1.335.0
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
 
       # RealApp runs a real window only in an Aqua session (launchctl
       # managername); this records which session the runner has.
@@ -147,11 +154,10 @@ jobs:
         run: echo "launchctl managername is $(launchctl managername)"
 
       # The real-window tests open tao windows with WebKitGTK webviews on
-      # Xvfb, and the whole gate starts only once the clipboard manager owns
-      # its selection.
+      # Xvfb, and the clipboard tests use the same display.
       - name: Run the gate under X11
         if: runner.os == 'Linux'
-        run: xvfb-run --auto-servernum dbus-run-session -- .github/ci/with-clipboard-manager bundle exec rake
+        run: xvfb-run --auto-servernum dbus-run-session -- bundle exec rake
 
       - name: Run the gate
         if: runner.os != 'Linux'

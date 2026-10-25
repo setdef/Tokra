@@ -18,10 +18,22 @@ require "support/stub_native"
 
 # Tests for Tokra::Plugins::Clipboard::Plugin.
 #
+# Every test drives the real system clipboard through ferro-arboard.
+#
 # The construction-error arm (arboard failing in Clipboard.new, e.g. on a
 # clipboard-less system) is not testable on a machine with a working
 # clipboard; it is verified by review against desktop.rs:11-19.
 class TestClipboard < Minitest::Test
+  # The plugin's managed state, Tauri's desktop.rs Clipboard.
+  CLIPBOARD = Tokra::Plugins::Clipboard::Clipboard
+  CLIPBOARD_ERROR = Tokra::Plugins::Clipboard::Error::Clipboard
+  CLEANED_UP = "Clipboard has been cleaned up"
+
+  # arboard's ConversionFailure message, typo included (common.rs).
+  CONVERSION_FAILURE =
+    "The image or the text that was about the be transferred to/from the clipboard " \
+      "could not be converted to the appropriate format."
+
   # Same 16 bytes as core's test/fixtures/2x2_rgba.bin: red, green, blue, white.
   RGBA_2X2 = "\xFF\x00\x00\xFF\x00\xFF\x00\xFF\x00\x00\xFF\xFF\xFF\xFF\xFF\xFF".b
 
@@ -59,22 +71,21 @@ class TestClipboard < Minitest::Test
     assert_equal "clipboard-manager", build_plugin.name
   end
 
-  def test_registering_on_a_real_handle_manages_the_native_clipboard
+  def test_registering_on_a_real_handle_manages_the_clipboard
     app = build_app
     plugin = Tokra::Plugins::Clipboard::Plugin.new(app.handle)
     app.handle.plugin(plugin)
 
-    # Registration stores the native clipboard in managed state, the body
-    # of Tauri's setup closure (clipboard-manager lib.rs:54-61)
-    assert_instance_of TokraClipboard::Native::Clipboard, app.handle.clipboard
+    # Registration stores the clipboard in managed state, the body of
+    # Tauri's setup closure (clipboard-manager lib.rs:54-61)
+    assert_instance_of CLIPBOARD, app.handle.clipboard
     assert Ractor.shareable?(app.handle.clipboard), "the managed clipboard is Ractor-shareable"
   end
 
-  def test_native_clipboard_is_ractor_shareable_when_frozen
-    # Per ADR-007, native clipboard can be made shareable via Ractor.make_shareable
-    native = TokraClipboard::Native::Clipboard.new
-    Ractor.make_shareable(native)
-    assert Ractor.shareable?(native), "Native clipboard should be Ractor-shareable when frozen"
+  # Per ADR 007 and ADR 011 section 7, the clipboard is born shareable:
+  # ferro-arboard's frozen clipboard is, and so is the cleanup latch.
+  def test_clipboard_is_ractor_shareable_as_built
+    assert Ractor.shareable?(CLIPBOARD.new), "the clipboard should be Ractor-shareable without help"
   end
 
   def test_write_and_read_roundtrip
@@ -96,66 +107,102 @@ class TestClipboard < Minitest::Test
   end
 
   def test_cleanup_prevents_further_use
-    # cleanup() drops the native clipboard; further operations should raise
-    native = TokraClipboard::Native::Clipboard.new
-    native.cleanup
-    error = assert_raises(RuntimeError) { native.read_text }
-    assert_match(/cleaned up/i, error.message)
+    # cleanup() retires the clipboard; further operations should raise
+    clipboard = CLIPBOARD.new
+    clipboard.cleanup
+    error = assert_raises(CLIPBOARD_ERROR) { clipboard.read_text }
+    assert_equal CLEANED_UP, error.message
+  end
+
+  def test_cleanup_may_repeat
+    clipboard = CLIPBOARD.new
+    clipboard.cleanup
+    clipboard.cleanup
+
+    assert_raises(CLIPBOARD_ERROR) { clipboard.write_text("after") }
+  end
+
+  def test_cleanup_retires_only_its_own_clipboard
+    retired = CLIPBOARD.new
+    live = CLIPBOARD.new
+    retired.cleanup
+
+    live.write_text("still here")
+    assert_equal "still here", live.read_text
   end
 
   def test_write_and_read_image_roundtrip
-    native = TokraClipboard::Native::Clipboard.new
-    native.write_image(RGBA_2X2, 2, 2)
+    clipboard = CLIPBOARD.new
+    clipboard.write_image(Tokra::Image.new(rgba: RGBA_2X2, width: 2, height: 2))
 
-    rgba, width, height = native.read_image
+    image = clipboard.read_image
 
-    assert_equal 2, width
-    assert_equal 2, height
-    assert_equal RGBA_2X2, rgba
+    assert_equal 2, image.width
+    assert_equal 2, image.height
+    assert_equal RGBA_2X2, image.rgba
   end
 
   def test_read_image_raises_when_no_image
-    native = TokraClipboard::Native::Clipboard.new
-    native.clear
-    error = assert_raises(RuntimeError) { native.read_image }
+    clipboard = CLIPBOARD.new
+    clipboard.clear
+    error = assert_raises(CLIPBOARD_ERROR) { clipboard.read_image }
+    assert_equal EMPTY_CLIPBOARD_MESSAGE, error.message
+  end
+
+  def test_read_image_raises_when_the_clipboard_holds_text
+    clipboard = CLIPBOARD.new
+    clipboard.write_text("not an image")
+    error = assert_raises(CLIPBOARD_ERROR) { clipboard.read_image }
     assert_equal EMPTY_CLIPBOARD_MESSAGE, error.message
   end
 
   def test_write_image_with_wrong_byte_count_raises
-    native = TokraClipboard::Native::Clipboard.new
-    # The native layer raises arboard's ConversionFailure message; arboard
-    # 3.6.1's macOS backend would panic (aborting the VM) on the mismatch
-    error = assert_raises(RuntimeError) { native.write_image("\xFF".b, 2, 2) }
-    assert_match(/could not be converted/, error.message)
+    clipboard = CLIPBOARD.new
+    # ferro-arboard raises arboard's ConversionFailure; arboard's macOS
+    # backend would panic (aborting the VM) on the mismatch
+    error = assert_raises(CLIPBOARD_ERROR) do
+      clipboard.write_image(Tokra::Image.new(rgba: "\xFF".b, width: 2, height: 2))
+    end
+    assert_equal CONVERSION_FAILURE, error.message
   end
 
   def test_write_html_sets_alt_text_as_plain_text
-    native = TokraClipboard::Native::Clipboard.new
-    native.write_html("<b>hi</b>", "hi")
+    clipboard = CLIPBOARD.new
+    clipboard.write_html("<b>hi</b>", "hi")
     # arboard writes alt_text as the plain-text flavor; reading it back
-    # verifies the write without a read-html API (arboard has none)
-    assert_equal "hi", native.read_text
+    # verifies the write without a read-html API (Tauri has none)
+    assert_equal "hi", clipboard.read_text
   end
 
   def test_read_image_rejects_after_cleanup
-    native = TokraClipboard::Native::Clipboard.new
-    native.cleanup
-    error = assert_raises(RuntimeError) { native.read_image }
-    assert_match(/cleaned up/i, error.message)
+    clipboard = CLIPBOARD.new
+    clipboard.cleanup
+    error = assert_raises(CLIPBOARD_ERROR) { clipboard.read_image }
+    assert_equal CLEANED_UP, error.message
   end
 
   def test_write_image_rejects_after_cleanup
-    native = TokraClipboard::Native::Clipboard.new
-    native.cleanup
-    error = assert_raises(RuntimeError) { native.write_image(RGBA_2X2, 2, 2) }
-    assert_match(/cleaned up/i, error.message)
+    clipboard = CLIPBOARD.new
+    clipboard.cleanup
+    error = assert_raises(CLIPBOARD_ERROR) do
+      clipboard.write_image(Tokra::Image.new(rgba: RGBA_2X2, width: 2, height: 2))
+    end
+    assert_equal CLEANED_UP, error.message
   end
 
   def test_write_html_rejects_after_cleanup
-    native = TokraClipboard::Native::Clipboard.new
-    native.cleanup
-    error = assert_raises(RuntimeError) { native.write_html("<b>hi</b>", "hi") }
-    assert_match(/cleaned up/i, error.message)
+    clipboard = CLIPBOARD.new
+    clipboard.cleanup
+    error = assert_raises(CLIPBOARD_ERROR) { clipboard.write_html("<b>hi</b>", "hi") }
+    assert_equal CLEANED_UP, error.message
+  end
+
+  def test_write_text_and_clear_reject_after_cleanup
+    clipboard = CLIPBOARD.new
+    clipboard.cleanup
+
+    assert_equal CLEANED_UP, assert_raises(CLIPBOARD_ERROR) { clipboard.write_text("x") }.message
+    assert_equal CLEANED_UP, assert_raises(CLIPBOARD_ERROR) { clipboard.clear }.message
   end
 
   def test_plugin_image_roundtrip_through_tokra_image
@@ -323,13 +370,13 @@ class TestClipboard < Minitest::Test
   end
 
   def test_manager_extension_provides_clipboard_accessor
-    # ClipboardManagerExt.clipboard returns native from managed state
-    native = TokraClipboard::Native::Clipboard.new
+    # ClipboardManagerExt.clipboard returns the clipboard from managed state
+    clipboard = CLIPBOARD.new
     mock_manager = Object.new
-    mock_manager.define_singleton_method(:state) { |klass| native if klass == TokraClipboard::Native::Clipboard }
+    mock_manager.define_singleton_method(:state) { |klass| clipboard if klass == CLIPBOARD }
     mock_manager.extend(Tokra::Plugins::Clipboard::ClipboardManagerExt)
 
-    assert_equal native, mock_manager.clipboard
+    assert_equal clipboard, mock_manager.clipboard
   end
 
   # ==========================================================================
@@ -359,8 +406,10 @@ class TestClipboard < Minitest::Test
 
     app.run
 
-    error = assert_raises(RuntimeError) { app.handle.clipboard.read_text }
-    assert_match(/cleaned up/i, error.message, "the run's final Exit reaches the plugin")
+    # handle.clipboard is Tauri's app.clipboard(): its errors are the
+    # plugin's Error::Clipboard, as in Tauri
+    error = assert_raises(CLIPBOARD_ERROR) { app.handle.clipboard.read_text }
+    assert_equal CLEANED_UP, error.message, "the run's final Exit reaches the plugin"
   ensure
     StubNative.clear_event
   end
@@ -369,30 +418,28 @@ class TestClipboard < Minitest::Test
   # Zero-size images (Plan 016 #6)
   # ==========================================================================
 
-  CONVERSION_FAILURE =
-    "The image or the text that was about the be transferred to/from the clipboard " \
-      "could not be converted to the appropriate format."
-
-  # arboard's macOS backend panics (uncatchable fatal) on these shapes.
+  # arboard's macOS backend panics (uncatchable fatal) on these shapes;
+  # ferro-arboard refuses them with ConversionFailure.
   def test_write_image_rejects_zero_dimensions_with_conversion_failure
-    native = TokraClipboard::Native::Clipboard.new
+    clipboard = CLIPBOARD.new
     [[0, 0], [0, 1], [1, 0]].each do |width, height|
-      error = assert_raises(RuntimeError, "#{width}x#{height}") { native.write_image("".b, width, height) }
+      image = Tokra::Image.new(rgba: "".b, width:, height:)
+      error = assert_raises(CLIPBOARD_ERROR, "#{width}x#{height}") { clipboard.write_image(image) }
       assert_equal CONVERSION_FAILURE, error.message
     end
   end
 
   def test_write_image_rejects_zero_width_with_bytes
-    native = TokraClipboard::Native::Clipboard.new
-    error = assert_raises(RuntimeError) { native.write_image(RGBA_2X2, 0, 4) }
+    clipboard = CLIPBOARD.new
+    error = assert_raises(CLIPBOARD_ERROR) { clipboard.write_image(Tokra::Image.new(rgba: RGBA_2X2, width: 0, height: 4)) }
     assert_equal CONVERSION_FAILURE, error.message
   end
 
   def test_cleaned_up_clipboard_reports_its_own_error_before_the_shape
-    native = TokraClipboard::Native::Clipboard.new
-    native.cleanup
-    error = assert_raises(RuntimeError) { native.write_image("".b, 0, 0) }
-    assert_equal "Clipboard has been cleaned up", error.message
+    clipboard = CLIPBOARD.new
+    clipboard.cleanup
+    error = assert_raises(CLIPBOARD_ERROR) { clipboard.write_image(Tokra::Image.new(rgba: "".b, width: 0, height: 0)) }
+    assert_equal CLEANED_UP, error.message
   end
 
   def test_zero_size_image_over_ipc_rejects
@@ -411,10 +458,11 @@ class TestClipboard < Minitest::Test
   RED_THEN_BLUE = "\xFF\x00\x00\xFF\x00\x00\xFF\xFF".b
 
   def test_non_square_image_round_trips_with_its_dimensions
-    native = TokraClipboard::Native::Clipboard.new
-    native.write_image(RED_THEN_BLUE, 2, 1)
+    clipboard = CLIPBOARD.new
+    clipboard.write_image(Tokra::Image.new(rgba: RED_THEN_BLUE, width: 2, height: 1))
 
-    assert_equal [RED_THEN_BLUE, 2, 1], native.read_image, "width 2, height 1, not 1 by 2"
+    assert_equal Tokra::Image.new(rgba: RED_THEN_BLUE, width: 2, height: 1), clipboard.read_image,
+      "width 2, height 1, not 1 by 2"
   end
 
   def test_write_image_ipc_with_png_path
@@ -512,21 +560,21 @@ class TestClipboard < Minitest::Test
   end
 
   # ==========================================================================
-  # Packaging (Plan 016 #1, #8)
+  # Packaging (Plan 016 #8, Plan 021)
   # ==========================================================================
 
-  def test_crate_states_its_own_lints_for_an_installed_gem
-    manifest = File.read(File.expand_path("../ext/tokra_clipboard/Cargo.toml", __dir__))
+  # The plugin is pure Ruby (ADR 011 section 9): no extension of its own.
+  def test_the_gem_ships_no_native_extension
+    spec = Gem::Specification.load(File.expand_path("../tokra-clipboard.gemspec", __dir__))
 
-    refute_match(/^\s*workspace\s*=\s*true/, manifest, "an installed gem has no workspace to inherit from")
-    assert_includes manifest, "[lints.clippy]"
+    assert_empty spec.extensions
+    assert_includes spec.runtime_dependencies.map(&:name), "ferro-arboard"
   end
 
-  def test_native_load_error_propagates_with_its_real_message
+  def test_ferro_arboard_load_error_propagates_with_its_real_message
     Dir.mktmpdir do |dir|
-      FileUtils.mkdir_p(File.join(dir, "tokra_clipboard"))
-      File.write(File.join(dir, "tokra_clipboard", "tokra_clipboard.rb"),
-        'raise LoadError, "dlopen failed: image not found"')
+      FileUtils.mkdir_p(File.join(dir, "ferro"))
+      File.write(File.join(dir, "ferro", "arboard.rb"), 'raise LoadError, "dlopen failed: image not found"')
       lib = File.expand_path("../lib", __dir__)
       script = 'begin; require "tokra/plugins/clipboard"; rescue LoadError => e; print e.message; end'
       output = IO.popen([RbConfig.ruby, "-I", dir, "-I", lib, "-e", script], err: [:child, :out], &:read)

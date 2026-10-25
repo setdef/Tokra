@@ -7,14 +7,6 @@
 
 require "bundler/gem_tasks"
 require "rake/testtask"
-require "rb_sys/extensiontask"
-
-GEMSPEC = Gem::Specification.load("tokra-clipboard.gemspec")
-
-RbSys::ExtensionTask.new("tokra_clipboard", GEMSPEC) do |ext|
-  ext.lib_dir = "lib/tokra_clipboard"
-  ext.ext_dir = "ext/tokra_clipboard"
-end
 
 Rake::TestTask.new do |t|
   t.libs << "lib"
@@ -22,7 +14,4 @@ Rake::TestTask.new do |t|
   t.warning = true
 end
 
-# The tests exercise the native extension, so they need a fresh build.
-task test: :compile
-task build: :compile
 task default: :test

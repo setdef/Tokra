@@ -163,6 +163,46 @@ class TestPackageCheck < Minitest::Test
     assert_includes @out.string, "✅ other: 42"
   end
 
+  # A gem Bundler took from a git source (ferro-arboard) has no package
+  # RubyGems could install, so fast mode loads it from the bundle.
+  private def bundled_gem(dir)
+    FileUtils.mkdir_p(File.join(dir, "lib"))
+    File.write(File.join(dir, "lib", "bundled.rb"), "module Bundled; ANSWER = 7; end\n")
+    spec = Gem::Specification.new do |bundled|
+      bundled.name = "bundled"
+      bundled.version = "0.1.0.pre.2"
+      bundled.summary = "Bundled"
+      bundled.authors = ["Fixture"]
+    end
+    spec.full_gem_path = dir
+    spec
+  end
+
+  def test_a_bundled_git_dependency_loads_from_the_bundle
+    Dir.mktmpdir("bundled") do |dir|
+      spec = bundled_gem(dir)
+      write("fixture/fixture.gemspec", gemspec("fixture", dependencies: [["bundled", "= 0.1.0.pre.2"]]))
+      smoke = %(require "bundled"\nputs Bundled::ANSWER\n)
+
+      PackageCheck.new(root: @root, gems: [target(smoke:)], out: @out,
+        find_spec: -> (name) { spec if name == "bundled" }).fast
+
+      assert_includes @out.string, "✅ fixture: 7"
+    end
+  end
+
+  # CI installs the bundle in vendor/bundle, inside the repository.
+  def test_a_bundled_dependency_inside_the_repository_is_not_a_leak
+    spec = bundled_gem(File.join(@root, "vendor", "bundled"))
+    write("fixture/fixture.gemspec", gemspec("fixture", dependencies: ["bundled"]))
+    smoke = %(require "bundled"\nputs Bundled::ANSWER\n)
+
+    PackageCheck.new(root: @root, gems: [target(smoke:)], out: @out,
+      find_spec: -> (name) { spec if name == "bundled" }).fast
+
+    assert_includes @out.string, "✅ fixture: 7"
+  end
+
   def test_the_compiled_extension_is_copied_into_the_package
     write("fixture/lib/fixture/native.#{RbConfig::CONFIG['DLEXT']}", "compiled\n")
     smoke = %(puts File.read(File.join(ARGV[0], "lib/fixture/native.#{RbConfig::CONFIG['DLEXT']}")))

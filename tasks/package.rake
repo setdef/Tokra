@@ -31,17 +31,18 @@ PACKAGES = [
   PackageCheck::Target.new(
     name: "tokra-clipboard",
     dir: "plugins/clipboard",
-    packaged: %w[lib sig ext Cargo.toml Cargo.lock README.rdoc],
+    packaged: %w[lib sig README.rdoc],
     generated: [],
-    crate: "ext/tokra_clipboard",
-    extension: "lib/tokra_clipboard/tokra_clipboard",
+    crate: nil,
+    extension: nil,
     smoke: <<~RUBY),
       require "tokra-clipboard"
       require "tokra/plugins/clipboard/version"
-      methods = %i[read_text write_text read_image write_image write_html clear cleanup]
-      missing = methods.reject { |name| TokraClipboard::Native::Clipboard.method_defined?(name) }
-      abort "native clipboard lacks \#{missing.join(", ")}" if missing.any?
-      puts "tokra-clipboard \#{Tokra::Plugins::Clipboard::VERSION} loads its native clipboard"
+      # ferro-arboard comes from its own installed gem, extension and all.
+      clipboard = Tokra::Plugins::Clipboard::Clipboard.new
+      clipboard.write_text("tokra-clipboard smoke")
+      abort "the clipboard lost its text" unless clipboard.read_text == "tokra-clipboard smoke"
+      puts "tokra-clipboard \#{Tokra::Plugins::Clipboard::VERSION} round-trips text through ferro-arboard"
     RUBY
   PackageCheck::Target.new(
     name: "tokra-log",
@@ -69,7 +70,7 @@ namespace :package do
   end
 
   desc "Build each gem and load it from its package, with the compiled extensions (fast)"
-  task check: %w[compile plugins:compile package:fetch] do
+  task check: %w[compile package:fetch] do
     PackageCheck.new(root: Dir.pwd, gems: PACKAGES).fast
   rescue PackageCheck::Failure => e
     abort "❌ #{e.message}"

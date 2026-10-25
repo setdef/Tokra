@@ -31,17 +31,19 @@ namespace :rbs do
   desc "Validate every RBS file, plugins included"
   task :validate do
     libraries = %w[logger pathname json uri erb securerandom stringio fileutils date timeout]
-    dirs = ["sig"] + Dir.glob("plugins/*/sig")
+    # The clipboard plugin's signatures name ferro-arboard's types, from the
+    # signatures that gem ships.
+    dirs = ["sig"] + Dir.glob("plugins/*/sig") + [File.join(Gem::Specification.find_by_name("ferro-arboard").full_gem_path, "sig")]
     sh "bundle", "exec", "rbs", *libraries.flat_map { |name| ["-r", name] }, *dirs.flat_map { |dir| ["-I", dir] }, "validate"
   end
 
   desc "Check every signature has an implementation and every public method a signature"
-  task parity: %w[compile plugins:compile] do
+  task parity: :compile do
     plugins = Dir.glob("plugins/*").select { |dir| File.directory?(File.join(dir, "lib")) }.sort
     sigs = ["sig"] + plugins.map { |dir| File.join(dir, "sig") }.select { |dir| Dir.exist?(dir) }
     libs = ["lib"] + plugins.map { |dir| File.join(dir, "lib") }
     args = sigs.flat_map { |dir| ["--sig", dir] } + libs.flat_map { |dir| ["--lib", dir] }
-    args += %w[--native Tokra::Native --native TokraClipboard::Native --allow rbs_exceptions.rb]
+    args += %w[--native Tokra::Native --allow rbs_exceptions.rb]
     ruby File.expand_path("rbs_parity.rb", __dir__), *args
   end
 end

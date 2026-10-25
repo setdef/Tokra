@@ -25,15 +25,16 @@ Gem::Specification.new do |spec|
   spec.metadata["source_code_uri"] = "https://github.com/setdef/Tokra/tree/trunk/plugins/clipboard"
   spec.metadata["rubygems_mfa_required"] = "true"
 
-  # Ship what an installed app loads and what compiles the native
-  # extension against its pinned dependencies (Plan 017).
-  packaged = %w[lib sig ext Cargo.toml Cargo.lock README.rdoc]
+  # Ship what an installed app loads. The plugin is pure Ruby: the native
+  # clipboard comes from ferro-arboard (ADR 011, Plan 021).
+  packaged = %w[lib sig README.rdoc]
   spec.files = IO.popen(["git", "ls-files", "-z", "--", *packaged], chdir: __dir__, err: IO::NULL) do |ls|
     ls.readlines("\x0", chomp: true)
   end
   spec.require_paths = ["lib"]
-  spec.extensions = ["ext/tokra_clipboard/extconf.rb"]
 
-  spec.add_dependency "rb_sys", "~> 0.9.129"
+  # An exact pin: a prerelease promises no API between prereleases, and
+  # RubyGems considers prereleases only for a requirement that names one.
+  spec.add_dependency "ferro-arboard", "= 0.1.0.pre.2"
   spec.add_dependency "tokra", "~> 0.0"
 end

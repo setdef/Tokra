@@ -8,9 +8,10 @@
 require_relative "cargo_output"
 require_relative "lint"
 
-# Each gem with a native crate is its own Cargo workspace with its own
-# Cargo.lock (see Cargo.toml), so every cargo task runs in each of them.
-CARGO_WORKSPACES = ["."] + Dir.glob("plugins/*/Cargo.toml").map { |path| File.dirname(path) }.sort
+# tokra is the one gem with a native crate (plugins build on Ferro, ADR
+# 011). It is its own Cargo workspace with its own Cargo.lock (see
+# Cargo.toml); the list keeps every cargo task ready for another.
+CARGO_WORKSPACES = ["."].freeze
 
 # Runs a cargo command, failing the task on any warning (CargoOutput).
 def cargo!(*command, chdir:)
@@ -56,7 +57,7 @@ namespace :rust do
   desc "Forbid #[allow(clippy::...)] except approved exceptions"
   task :no_allows do
     Lint.load(File.expand_path("../clippy_exceptions.rb", __dir__)).enforce!(
-      glob: "{ext,plugins/*/ext}/**/*.rs",
+      glob: "ext/**/*.rs",
       pattern: /#\[allow\(clippy::/,
       violation_name: "#[allow(clippy::...)]"
     )

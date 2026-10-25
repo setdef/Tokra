@@ -8,14 +8,16 @@
 # SPDX-SnippetBegin
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # SPDX-SnippetCopyrightText: 2019-2023 Tauri Programme within The Commons Conservancy
-# SPDX-SnippetComment: Plugin, commands, and ClipboardExt adapted from
-#                      tauri-plugin-clipboard-manager src/lib.rs and src/commands.rs
+# SPDX-SnippetComment: Plugin, commands, Clipboard, and ClipboardExt adapted
+#                      from tauri-plugin-clipboard-manager src/lib.rs,
+#                      src/commands.rs, and src/desktop.rs
 
 require "tokra"
 
-# The native extension. A failure to load it is a real installation problem
-# (a missing or unloadable library), so its LoadError propagates as-is.
-require "tokra_clipboard/tokra_clipboard"
+# The system clipboard, through arboard (ADR 011). A failure to load it is a
+# real installation problem (a missing or unloadable library), so its
+# LoadError propagates as-is.
+require "ferro/arboard"
 
 module Tokra
   # Namespace for Tokra plugins.
@@ -36,7 +38,9 @@ module Tokra
         # variant carrying the underlying message, and so does Tokra.
         #
         # Mirrors <tt>tauri_plugin_clipboard_manager::Error::Clipboard(String)</tt>
-        # (error.rs), which every arboard error converts into.
+        # (error.rs), which every arboard error converts into. Tokra turns
+        # each Ferro::Arboard::Error subclass into it the same way, keeping
+        # arboard's message.
         #
         # === Example
         #
@@ -57,16 +61,163 @@ module Tokra
       #
       # This mirrors Tauri's ClipboardExt blanket implementation (lib.rs:32-41).
       module ClipboardManagerExt
-        # Returns the clipboard instance from managed state.
+        # Returns the Clipboard from managed state.
         def clipboard
-          state(TokraClipboard::Native::Clipboard)
+          state(Clipboard)
+        end
+      end
+
+      # The clipboard an app shares through managed state.
+      #
+      # An app reads and writes the clipboard from many places: IPC commands,
+      # setup hooks, menu handlers, perhaps other Ractors. Each opening its
+      # own system clipboard would scatter the failures, and on Linux the
+      # copied contents live only as long as some clipboard in the process
+      # stays open.
+      #
+      # The plugin builds one Clipboard at registration and manages it, so
+      # every manager reaches it as +clipboard+. Each method raises
+      # Error::Clipboard with arboard's message when the system clipboard
+      # refuses, exactly as Tauri's methods return
+      # <tt>Error::Clipboard(String)</tt>.
+      #
+      # A Clipboard is frozen and Ractor-shareable as built (ADR 007): it
+      # holds a frozen Ferro::Arboard::Clipboard, which takes calls from any
+      # thread or Ractor.
+      #
+      # Mirrors Tauri's <tt>Clipboard</tt> (desktop.rs:11-123).
+      #
+      # === Example
+      #
+      #   handle.clipboard.write_text("Hello")
+      #   handle.clipboard.read_text  #=> "Hello"
+      class Clipboard
+        # Opens the system clipboard.
+        #
+        # A system without a clipboard does not stop the app from booting:
+        # the failure is kept, and every method raises it as
+        # Error::Clipboard, as Tauri's <tt>init</tt> stores arboard's error
+        # (desktop.rs:11-19).
+        def initialize
+          @clipboard, @error = begin
+            [Ferro::Arboard::Clipboard.new, nil]
+          rescue Ferro::Arboard::Error => e
+            [nil, e.message]
+          end
+          # Tauri keeps arboard's clipboard in an Option so its exit hook
+          # can drop it. A frozen object cannot drop a reference or flip a
+          # flag, so a Ractor::Port, shareable yet closable once, marks the
+          # clipboard retired. Ruby frees arboard's clipboard itself at exit.
+          @live = Ractor::Port.new
+          Ractor.make_shareable(self)
+        end
+
+        # Writes text to the clipboard (desktop.rs:31-42).
+        #
+        # === Example
+        #
+        #   clipboard.write_text("Hello")
+        def write_text(text)
+          with_clipboard { |clipboard| clipboard.set_text(text) }
+        end
+
+        # Writes a Tokra::Image to the clipboard (desktop.rs:44-59).
+        #
+        # An image with a zero width or height, or with a byte count other
+        # than <tt>width * height * 4</tt>, raises Error::Clipboard with
+        # arboard's ConversionFailure message.
+        #
+        # === Example
+        #
+        #   clipboard.write_image(Tokra::Image.from_path("icon.png"))
+        def write_image(image)
+          bytes = Ferro::Arboard::ImageData.new(width: image.width, height: image.height, bytes: image.rgba)
+          with_clipboard { |clipboard| clipboard.set_image(bytes) }
+        end
+
+        # Reads text from the clipboard (desktop.rs:61-70). An empty
+        # clipboard raises Error::Clipboard.
+        #
+        # *Warning*: Do not call this on the main thread on Linux. The
+        # underlying libraries may deadlock when reading data this app
+        # copied, for example text the user copied from the WebView.
+        #
+        # === Example
+        #
+        #   clipboard.read_text  #=> "copied text"
+        def read_text
+          with_clipboard(&:get_text)
+        end
+
+        # Writes HTML, with +alt_text+ as the plain-text flavor when given
+        # (desktop.rs:72-87).
+        #
+        # === Example
+        #
+        #   clipboard.write_html("<b>Hi</b>", "Hi")
+        def write_html(html, alt_text = nil)
+          with_clipboard { |clipboard| clipboard.set_html(html, alt_text) }
+        end
+
+        # Clears the clipboard (desktop.rs:89-100).
+        #
+        # On X11, text written right after a clear, from any clipboard in
+        # the process, can vanish: arboard drops the process's data when the
+        # X server's late reply to the clear arrives (arboard 3.7.0
+        # src/platform/linux/x11.rs:233-242). Tauri shares the race.
+        #
+        # === Example
+        #
+        #   clipboard.clear
+        def clear
+          with_clipboard(&:clear)
+        end
+
+        # Reads an image from the clipboard as a Tokra::Image
+        # (desktop.rs:102-116). An empty clipboard raises Error::Clipboard.
+        #
+        # *Warning*: Do not call this on the main thread on Linux. The
+        # underlying libraries may deadlock when reading data this app
+        # copied.
+        #
+        # === Example
+        #
+        #   clipboard.read_image.width  #=> 640
+        def read_image
+          image = with_clipboard(&:get_image)
+          Tokra::Image.new(rgba: image.bytes, width: image.width, height: image.height)
+        end
+
+        # Retires the clipboard; the plugin calls this when the app exits
+        # (desktop.rs:118-122). Every later call raises Error::Clipboard
+        # with "Clipboard has been cleaned up".
+        #
+        # *Deviation*: Tauri drops arboard's clipboard here and panics on a
+        # later call. Ruby cannot drop an object on demand, so arboard's
+        # clipboard goes when Ruby frees it, at the latest when the process
+        # exits; a later call raises instead of ending the VM.
+        def cleanup
+          @live.close
+          nil
+        end
+
+        # Runs the block on the open clipboard, in Tauri's order: a failed
+        # open reports its own error first (desktop.rs:33-39).
+        private def with_clipboard
+          raise Error::Clipboard, @error if @error
+          raise Error::Clipboard, "Clipboard has been cleaned up" if @live.closed?
+
+          yield @clipboard
+        rescue Ferro::Arboard::Error => e
+          raise Error::Clipboard, e.message
         end
       end
 
       # Clipboard plugin for Tokra desktop applications.
       #
-      # Provides read/write access to the system clipboard using the arboard crate.
-      # Uses Rust Mutex for thread-safe, Ractor-shareable clipboard access per ADR-007.
+      # Provides read/write access to the system clipboard through
+      # ferro-arboard, a one-to-one Ruby binding of the arboard crate. The
+      # managed Clipboard is Ractor-shareable (ADR 007).
       #
       # == JavaScript API (Tauri Compatibility)
       #
@@ -121,8 +272,8 @@ module Tokra
 
         # Initializes the plugin with the app handle and configuration.
         #
-        # Creates the Ractor-shareable native clipboard (ADR-007) and
-        # stores it in managed state for ClipboardManagerExt access, the
+        # Creates the Ractor-shareable Clipboard (ADR 007) and stores it in
+        # managed state for ClipboardManagerExt access, the
         # body of Tauri's setup closure, which calls
         # <tt>app.manage(clipboard)</tt> (lib.rs:54-61). Construction at
         # registration matches Tauri's Plugin::initialize timing. Every
@@ -133,9 +284,7 @@ module Tokra
         #   handle.plugin(Tokra::Plugins::Clipboard::Plugin.new(handle))
         def initialize(app, config = {})
           super
-          native = TokraClipboard::Native::Clipboard.new
-          Ractor.make_shareable(native)
-          app.manage(native)
+          app.manage(Clipboard.new)
         end
 
         # Reads text from the clipboard.
@@ -153,8 +302,6 @@ module Tokra
         #   plugin.read_text  #=> "copied text"
         def read_text
           clipboard.read_text
-        rescue RuntimeError => e
-          raise Error::Clipboard, e.message
         end
 
         # Writes text to the clipboard.
@@ -168,8 +315,6 @@ module Tokra
         #   plugin.write_text("Hello")
         def write_text(text)
           clipboard.write_text(text)
-        rescue RuntimeError => e
-          raise Error::Clipboard, e.message
         end
 
         # Reads an image from the clipboard as a Tokra::Image.
@@ -186,9 +331,7 @@ module Tokra
         #   image = plugin.read_image
         #   File.binwrite("shot.rgba", image.rgba)
         def read_image
-          Tokra::Image.new(*clipboard.read_image)
-        rescue RuntimeError => e
-          raise Error::Clipboard, e.message
+          clipboard.read_image
         end
 
         # Writes a Tokra::Image to the clipboard.
@@ -203,9 +346,7 @@ module Tokra
         #
         #   plugin.write_image(Tokra::Image.from_path("icon.png"))
         def write_image(image)
-          clipboard.write_image(image.rgba, image.width, image.height)
-        rescue RuntimeError => e
-          raise Error::Clipboard, e.message
+          clipboard.write_image(image)
         end
 
         # Writes HTML to the clipboard.
@@ -219,8 +360,6 @@ module Tokra
         #   plugin.write_html("<b>Hi</b>", "Hi")
         def write_html(html, alt_text = nil)
           clipboard.write_html(html, alt_text)
-        rescue RuntimeError => e
-          raise Error::Clipboard, e.message
         end
 
         # Clears the clipboard contents.
@@ -232,8 +371,6 @@ module Tokra
         #   plugin.clear
         def clear
           clipboard.clear
-        rescue RuntimeError => e
-          raise Error::Clipboard, e.message
         end
 
         # Handles IPC invoke commands from the JavaScript frontend.
@@ -264,8 +401,7 @@ module Tokra
           true
         end
 
-        # Cleans up the managed clipboard on exit, as arboard requires
-        # before the process ends. Mirrors the on_event hook in Tauri's
+        # Cleans up the managed clipboard on exit. Mirrors the on_event hook in Tauri's
         # clipboard-manager lib.rs (62-66), which cleans
         # <tt>app.clipboard()</tt>, the managed state.
         def on_event(app, event)
@@ -274,7 +410,7 @@ module Tokra
           app.clipboard.cleanup
         end
 
-        # The managed native clipboard (ClipboardExt, lib.rs:37-41).
+        # The managed Clipboard (ClipboardExt, lib.rs:37-41).
         private def clipboard
           app.clipboard
         end

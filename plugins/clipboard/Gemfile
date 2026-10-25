@@ -11,10 +11,12 @@ gemspec
 
 gem "tokra", path: "../.."
 
+# ferro-arboard is not on RubyGems.org yet, so Bundler takes it from its
+# release tag (ADR 011).
+gem "ferro-arboard", git: "https://github.com/setdef/Ferro", tag: "ferro-arboard/v0.1.0.pre.2", glob: "gems/*/*.gemspec"
+
 group :development, :test do
   gem "minitest"
   gem "minitest-mock"
   gem "rake"
-  gem "rake-compiler"
-  gem "rb_sys"
 end

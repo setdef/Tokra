@@ -1,21 +1,6 @@
 # SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-module TokraClipboard
-  module Native
-    class Clipboard
-      def self.new: () -> Clipboard
-      def read_text: () -> String
-      def write_text: (String) -> void
-      def read_image: () -> [String, Integer, Integer]
-      def write_image: (String rgba, Integer width, Integer height) -> void
-      def write_html: (String html, String? alt_text) -> void
-      def clear: () -> void
-      def cleanup: () -> void
-    end
-  end
-end
-
 module Tokra
   module Plugins
     module Clipboard
@@ -25,7 +10,26 @@ module Tokra
       end
 
       module ClipboardManagerExt
-        def clipboard: () -> TokraClipboard::Native::Clipboard
+        def clipboard: () -> Clipboard
+      end
+
+      class Clipboard
+        @clipboard: Ferro::Arboard::Clipboard?
+        @error: String?
+        @live: Ractor::Port[nil]
+
+        def initialize: () -> void
+        def write_text: (String text) -> void
+        def write_image: (Tokra::Image image) -> void
+        def read_text: () -> String
+        def write_html: (String html, ?String? alt_text) -> void
+        def clear: () -> void
+        def read_image: () -> Tokra::Image
+        def cleanup: () -> nil
+
+        private
+
+        def with_clipboard: [T] () { (Ferro::Arboard::Clipboard) -> T } -> T
       end
 
       class Plugin < Tokra::Plugin
@@ -47,7 +51,7 @@ module Tokra
         def handle_write_image: (Tokra::Ipc::Invoke) -> bool
         def handle_write_html: (Tokra::Ipc::Invoke) -> bool
         def handle_clear: (Tokra::Ipc::Invoke) -> bool
-        def clipboard: () -> TokraClipboard::Native::Clipboard
+        def clipboard: () -> Clipboard
         def required_arg: (Tokra::Ipc::Invoke invoke, String key) -> Tokra::json_value
         def string_arg: (Tokra::Ipc::Invoke invoke, String key) -> String
         def optional_string_arg: (Tokra::Ipc::Invoke invoke, String key, ?expected: String) -> String?
