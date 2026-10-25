@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# Runs a command on the current X display with a clipboard manager, as a
+# desktop session has one. On X11, arboard hands text to the manager when
+# the last clipboard closes (arboard 3.6.1
+# src/platform/linux/x11.rs:1082-1110); without one, the text is gone.
+# Tokra's whole gate, real-window tests included, runs as the command.
+#
+# xfce4-clipman is the manager. It quits 60 seconds after starting unless
+# a system tray holds its icon (xfce4-clipman-plugin 1.6.6
+# panel-plugin/main-status-icon.c:88-99), and the gate takes far longer
+# (the clipboard plugin's tests come after the core suite), so stalonetray
+# provides the tray. The command starts only once the manager owns the
+# CLIPBOARD_MANAGER selection.
+set -euo pipefail
+
+logs=${RUNNER_TEMP:-/tmp}
+stalonetray > "$logs/stalonetray.log" 2>&1 &
+xfce4-clipman > "$logs/xfce4-clipman.log" 2>&1 &
+
+# The X server's system Python has python3-xlib; setup-python's does not.
+owner() {
+  /usr/bin/python3 -c '
+from Xlib import display
+d = display.Display()
+owner = d.get_selection_owner(d.intern_atom("CLIPBOARD_MANAGER"))
+print(getattr(owner, "id", owner))'
+}
+
+for _ in $(seq 100); do
+  if [ "$(owner)" != 0 ]; then exec "$@"; fi
+  sleep 0.1
+done
+cat "$logs/xfce4-clipman.log"
+echo "::error::no clipboard manager took the CLIPBOARD_MANAGER selection within 10 seconds"
+exit 1

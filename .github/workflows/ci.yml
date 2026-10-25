@@ -86,13 +86,15 @@ jobs:
           workspaces: ${{ steps.pins.outputs.workspaces }}
 
       # The REUSE tool checks licensing, for the repository and for each
-      # unpacked gem.
+      # unpacked gem. It needs a module that detects file encodings: its
+      # python-magic needs libmagic, which only the Linux image has, so
+      # charset-normalizer, pure Python, serves every OS.
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ steps.pins.outputs.python }}
       # The maintainer's version, so CI and contributors read the same rules.
       - name: Install the REUSE tool
-        run: python -m pip install reuse==6.2.0
+        run: python -m pip install "reuse[charset-normalizer]==6.2.0"
 
       - uses: ruby/setup-ruby@7f797815d8adceb1c412e7abefdd1ab4abc47a5f # v1.335.0
         with:
@@ -100,18 +102,20 @@ jobs:
           bundler-cache: true
 
       # bindgen parses Ruby's MinGW headers, so clang must target MinGW and
-      # find the MSYS2 tree setup-ruby installs beside Ruby, as
-      # oxidize-rb/actions' setup-ruby-and-rust configures it. The two
-      # defines keep clang from parsing MinGW's AVX-512 FP16 intrinsics
-      # headers, which it cannot (rust-bindgen issue 2500), as oxidize-rb
-      # also passes them. libclang comes from the LLVM the runner image
-      # ships.
+      # find the MSYS2 tree setup-ruby installs beside Ruby. setup-ruby
+      # exports what RubyInstaller's ridk enable sets (windows.js:138-140):
+      # the tree as RI_DEVKIT and its prefix as MSYSTEM_PREFIX, /ucrt64 for
+      # Ruby 4.0. RbConfig's host_os does not say ucrt. This follows
+      # oxidize-rb/actions' setup-ruby-and-rust, including its two AVX-512
+      # defines, which keep clang from parsing intrinsics headers bindgen
+      # cannot handle (rust-bindgen #2500). libclang comes from the LLVM the
+      # runner image ships.
       - name: Point bindgen at Ruby's MSYS2 headers
         if: runner.os == 'Windows'
         run: |
-          sysroot=$(ruby -e 'print File.join(RbConfig::TOPDIR, "msys64", RbConfig::CONFIG["host_os"].include?("ucrt") ? "ucrt64" : "mingw64")')
+          sysroot="${RI_DEVKIT//\\//}${MSYSTEM_PREFIX:?setup-ruby did not set MSYSTEM_PREFIX}"
           libclang="C:/Program Files/LLVM/bin"
-          test -d "$sysroot/include" || { echo "::error::no MSYS2 headers at $sysroot"; exit 1; }
+          test -f "$sysroot/include/stdio.h" || { echo "::error::no C headers (stdio.h) in $sysroot/include"; exit 1; }
           test -f "$libclang/libclang.dll" || { echo "::error::no libclang.dll in $libclang"; exit 1; }
           echo "BINDGEN_EXTRA_CLANG_ARGS=--target=x86_64-pc-windows-gnu --sysroot=$sysroot -D__AVX512VLFP16INTRIN_H -D__AVX512FP16INTRIN_H" >> "$GITHUB_ENV"
           echo "LIBCLANG_PATH=$libclang" >> "$GITHUB_ENV"
@@ -125,15 +129,16 @@ jobs:
       # bus. The clipboard plugin speaks X11 through arboard's pure-Rust
       # client, and on X11 text outlives the last clipboard only once a
       # clipboard manager takes it over (arboard 3.6.1
-      # src/platform/linux/x11.rs:1082-1110),
-      # so xfce4-clipman runs beside Xvfb, as on a desktop.
+      # src/platform/linux/x11.rs:1082-1110), so xfce4-clipman runs beside
+      # Xvfb, as on a desktop, with stalonetray to hold its icon
+      # (.github/ci/with-clipboard-manager says why).
       - name: Install GTK, WebKitGTK, a display server, and a clipboard manager
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends \
             libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
-            pkg-config libclang-dev xvfb xauth dbus dbus-x11 xfce4-clipman
+            pkg-config libclang-dev xvfb xauth dbus dbus-x11 xfce4-clipman stalonetray python3-xlib
 
       # RealApp runs a real window only in an Aqua session (launchctl
       # managername); this records which session the runner has.
@@ -142,11 +147,11 @@ jobs:
         run: echo "launchctl managername is $(launchctl managername)"
 
       # The real-window tests open tao windows with WebKitGTK webviews on
-      # Xvfb. The gate compiles and runs the tooling tests first, so the
-      # clipboard manager is up long before the plugin's tests.
+      # Xvfb, and the whole gate starts only once the clipboard manager owns
+      # its selection.
       - name: Run the gate under X11
         if: runner.os == 'Linux'
-        run: xvfb-run --auto-servernum dbus-run-session -- sh -c 'xfce4-clipman & exec bundle exec rake'
+        run: xvfb-run --auto-servernum dbus-run-session -- .github/ci/with-clipboard-manager bundle exec rake
 
       - name: Run the gate
         if: runner.os != 'Linux'

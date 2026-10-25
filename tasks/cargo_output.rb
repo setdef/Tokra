@@ -25,12 +25,18 @@ class CargoOutput
   # or <tt>warning[E0602]: ...</tt>, at the start of the line.
   WARNING = /^warning(?:\[[A-Za-z0-9_]+\])?: /
 
+  # A terminal color or style sequence. Cargo and rustc color their output
+  # when CARGO_TERM_COLOR is +always+, as dtolnay/rust-toolchain sets it in
+  # CI, and a colored warning starts with one of these instead of
+  # <tt>warning</tt>.
+  STYLE = /\e\[[0-9;]*m/
+
   # Raised when the command fails or warns; the message lists the warnings.
   class Failure < StandardError; end
 
   # The warning lines in +output+.
   def self.warnings(output)
-    output.lines.grep(WARNING).map(&:chomp)
+    output.lines.map { |line| line.gsub(STYLE, "") }.grep(WARNING).map(&:chomp)
   end
 
   # Runs +command+ in +chdir+, echoing its output to +out+, and raises

@@ -46,6 +46,15 @@ class TestCargoOutput < Minitest::Test
     assert_includes error.message, "failed"
   end
 
+  # What cargo prints with CARGO_TERM_COLOR=always, which CI sets.
+  def test_a_colored_warning_fails
+    error = assert_raises(CargoOutput::Failure) do
+      run_script(%(puts "\\e[1m\\e[33mwarning\\e[0m\\e[1m: unused variable: `x`\\e[0m"))
+    end
+
+    assert_includes error.message, "warning: unused variable: `x`"
+  end
+
   def test_only_lines_that_start_a_warning_count
     text = "note: the `unknown_lints` lint ignores warnings\n   = warning: indented\nwarnings: 0\nwarning: real\n"
 
