@@ -156,7 +156,9 @@ impl Drop for RbWebView {
         if !self.inner.owner().is_current() {
             let _ = self
                 .proxy
-                .send_event(UserEvent::Release(Released::WebView(self.inner.take())));
+                .send_event(UserEvent::Release(Released::WebView(Box::new(
+                    self.inner.take(),
+                ))));
         }
     }
 }

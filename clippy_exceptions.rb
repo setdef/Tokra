@@ -9,7 +9,7 @@
 # Each entry must explain WHY the exception is unavoidable.
 # Review carefully before adding new entries.
 
-allow "ext/tokra/src/window.rs", line: 102, reason: <<~END
+allow "ext/tokra/src/window.rs", line: 104, reason: <<~END
   Magnus FFI requires owned types at the Ruby-Rust boundary. RbWindow::set_title
   receives a Ruby string that must be converted to an owned Rust String because
   Magnus's TryConvert trait only implements String, not &str.
@@ -20,7 +20,7 @@ allow "ext/tokra/src/window.rs", line: 102, reason: <<~END
   the Ruby GC cycle.
 END
 
-allow "ext/tokra/src/webview.rs", line: 174, reason: <<~END
+allow "ext/tokra/src/webview.rs", line: 176, reason: <<~END
   Magnus FFI requires owned types at the Ruby-Rust boundary. RbWebView::new
   receives a URL from Ruby that must be converted to an owned Rust String.
 
@@ -29,7 +29,7 @@ allow "ext/tokra/src/webview.rs", line: 174, reason: <<~END
   cannot be safely borrowed across the FFI boundary.
 END
 
-allow "ext/tokra/src/webview.rs", line: 329, reason: <<~END
+allow "ext/tokra/src/webview.rs", line: 331, reason: <<~END
   Magnus FFI requires owned types at the Ruby-Rust boundary. RbWebView::eval
   receives JavaScript code from Ruby that must be converted to an owned String.
 

@@ -183,6 +183,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   them, instead of through wry's X11-only path, which adopted the window's
   own X window and closed the window, ending the app, when the webview
   dropped; webviews now work under Wayland too
+- `tokra` failing to load on Windows (`The specified module could not be
+  found`): the build installs `WebView2Loader.dll`, which the extension
+  imports, beside it, and `require "tokra"` adds that directory to Windows'
+  DLL search path
 
 ### Removed
 

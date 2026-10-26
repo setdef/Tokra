@@ -51,7 +51,9 @@ impl Drop for RbWindow {
         if !self.inner.owner().is_current() {
             let _ = self
                 .proxy
-                .send_event(UserEvent::Release(Released::Window(self.inner.take())));
+                .send_event(UserEvent::Release(Released::Window(Box::new(
+                    self.inner.take(),
+                ))));
         }
     }
 }

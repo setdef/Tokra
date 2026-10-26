@@ -283,8 +283,14 @@ class PackageCheck
     source = File.join(@root, gem.dir, gem.extension_file)
     raise Failure, "#{gem.name}: #{source} is missing; compile first" unless File.exist?(source)
 
-    FileUtils.mkdir_p(File.dirname(File.join(dir, gem.extension_file)))
+    target = File.dirname(File.join(dir, gem.extension_file))
+    FileUtils.mkdir_p(target)
     FileUtils.cp(source, File.join(dir, gem.extension_file))
+    # The DLLs the build installs beside the extension, which it loads at
+    # load time: WebView2Loader.dll on Windows (ext/tokra/extconf.rb).
+    Dir.glob("*.dll", base: File.dirname(source)).each do |dll|
+      FileUtils.cp(File.join(File.dirname(source), dll), target)
+    end
   end
 
   # Runs the require-all script, then the gem's smoke script, each in a

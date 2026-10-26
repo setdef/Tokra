@@ -44,6 +44,21 @@ require_relative "tokra/path/resolver"
 require_relative "tokra/physical_position"
 require_relative "tokra/drag_drop_event"
 require_relative "tokra/webview_event"
+# On Windows the extension imports WebView2Loader.dll, which its build
+# installs beside it (ext/tokra/extconf.rb), and Windows does not look for an
+# extension's DLLs in the extension's own directory. RubyInstaller limits the
+# search to the directories it sets up and those added with
+# add_dll_directory (AddDllDirectory; rubyinstaller2
+# lib/ruby_installer/build/dll_directory.rb), so the directory is added
+# there, or to PATH for a Ruby without RubyInstaller.
+if RUBY_PLATFORM.match?(/mingw|mswin/)
+  native_dir = File.expand_path("tokra", __dir__.to_s)
+  if Object.const_defined?("RubyInstaller::Runtime")
+    Object.const_get("RubyInstaller::Runtime").__send__(:add_dll_directory, native_dir)
+  else
+    ENV["PATH"] = "#{native_dir}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH', '')}"
+  end
+end
 require_relative "tokra/tokra"
 require_relative "tokra/rack/handler"
 

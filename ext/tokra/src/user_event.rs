@@ -18,9 +18,13 @@ use crate::thread_bound::ThreadBound;
 /// in this wrapper (`webview.rs`, `window.rs`). The `ThreadBound` makes
 /// dropping it anywhere sound: on the main thread the value drops, anywhere
 /// else it leaks.
+///
+/// Both are boxed: on Linux a `WebKitGTK` webview is over 6 KB and a tao
+/// window about 240 bytes, and every `UserEvent` in the loop's channel would
+/// otherwise be that large (`clippy::large_enum_variant`).
 pub enum Released {
-    WebView(ThreadBound<wry::WebView>),
-    Window(ThreadBound<tao::window::Window>),
+    WebView(Box<ThreadBound<wry::WebView>>),
+    Window(Box<ThreadBound<tao::window::Window>>),
 }
 
 impl fmt::Debug for Released {
