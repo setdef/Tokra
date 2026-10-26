@@ -28,7 +28,7 @@ module Tokra
       def initialize: () { (String json) -> void } -> void
       def send: (json_value data) -> nil
       def drop: () -> nil
-      def to_json: (*JSON::State | Hash[Symbol, Object] args) -> String
+      def to_json: (?JSON::State? state) -> String
 
       private
 

@@ -13,6 +13,6 @@ module Tokra
     def self.new: (name: String) -> PermissionState
     def self.default: () -> PermissionState
     def to_s: () -> String
-    def to_json: (*JSON::State | Hash[Symbol, Object] args) -> String
+    def to_json: (?JSON::State? state) -> String
   end
 end

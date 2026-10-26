@@ -157,8 +157,9 @@ module Tokra
       # === Example
       #
       #   JSON.generate({ "onEvent" => channel })  #=> "{\"onEvent\":\"__CHANNEL__:5\"}"
-      def to_json(*)
-        "#{IPC_PAYLOAD_PREFIX}#{@id}".to_json(*)
+      def to_json(state = nil)
+        text = "#{IPC_PAYLOAD_PREFIX}#{@id}"
+        state ? text.to_json(state) : text.to_json
       end
 
       private def setup(id, on_message, on_drop)

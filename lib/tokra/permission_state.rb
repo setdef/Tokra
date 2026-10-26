@@ -65,8 +65,9 @@ module Tokra
     # === Example
     #
     #   Tokra::PermissionState::Granted.to_json  #=> "\"granted\""
-    def to_json(*)
-      name.to_json(*)
+    def to_json(state = nil)
+      text = name
+      state ? text.to_json(state) : text.to_json
     end
   end
 end
