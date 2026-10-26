@@ -1,0 +1,105 @@
+= tokra-notification
+
+{rdoc-image:https://justin.searls.co/img/shovelware.svg}[https://justin.searls.co/shovelware/]
+{rdoc-image:https://github.com/setdef/Tokra/actions/workflows/ci.yml/badge.svg?branch=trunk}[https://github.com/setdef/Tokra/actions/workflows/ci.yml]
+
+Desktop notifications for Tokra applications.
+
+Shows the system's own notifications through ferro-notify-rust, a
+one-to-one Ruby binding of the notify-rust crate, and serves the desktop
+commands of Tauri's notification plugin, so the frontend can use
+<tt>@tauri-apps/plugin-notification</tt> unchanged. The page's
+<tt>window.Notification</tt> shows the system's notifications too, as in
+Tauri.
+
+== Installation
+
+tokra-notification is pure Ruby. Its notifications go out through
+ferro-notify-rust, which compiles a Rust extension when it installs (its
+README names the Rust versions). ferro-notify-rust is not on RubyGems.org
+yet, so name its release tag in your Gemfile beside this gem. Keep the glob to
+ferro-notify-rust's own folder: a wider one lets Bundler take other Ferro
+gems, such as ferro-arboard, from this source instead of their own:
+
+  gem "ferro-notify-rust", git: "https://github.com/setdef/Ferro",
+    tag: "ferro-notify-rust/v0.1.0.pre.1", glob: "gems/notify-rust/*.gemspec"
+  gem "tokra-notification"
+
+On Linux and the BSDs, notifications travel over D-Bus to the desktop's
+notification server, which GNOME, Plasma, and most desktops run (dunst
+and mako do for the rest). Building needs no system libraries.
+
+== Usage
+
+Register the plugin on the app handle, for example in the setup hook. It
+manages a Tokra::Plugins::Notification::Notification, reachable from any
+manager as +notification+:
+
+  Tokra::Builder.new
+    .setup { |app| app.handle.plugin(Tokra::Plugins::Notification::Plugin.new(app.handle)) }
+    .run
+
+In the frontend:
+
+  import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification';
+
+  let granted = await isPermissionGranted();
+  if (!granted) granted = (await requestPermission()) === 'granted';
+  if (granted) sendNotification({ title: 'Tokra', body: 'Build finished' });
+
+Desktop systems never ask, so permission is always granted. On desktop a
+notification shows its title (or your app's product name), body, icon,
+and sound; the other options are checked and kept, but only mobile
+systems read them. The mobile-only functions, such as
++registerActionTypes+, +pending+, and +createChannel+, reject with
+<tt>Command NAME not found</tt>, as they do in Tauri on desktop.
+
+In Ruby:
+
+  handle.notification.builder
+    .title("Download finished")
+    .body("report.pdf is in your Downloads folder.")
+    .sound("Ping")
+    .show
+
++show+ returns at once. The notification goes out on a thread of its own,
+so the window never waits for the notification server, and a failure to
+send it is dropped, as in Tauri.
+
+== The app a notification comes from
+
+On macOS the first notification names the app it comes from by your app's
+identifier. An app run from source has no installed bundle with that
+identifier, so its notifications come from Terminal, as a Tauri app's do
+in development; an app bundle with that identifier shows its own name and
+icon.
+
+notify-rust sets this once for the whole process, by changing what the
+process reports as its bundle identifier, and the first call wins. Call
+<tt>Ferro::NotifyRust.set_application</tt> yourself, before the first
+notification, to choose another app. No other library in the same process
+may link notify-rust or mac-notification-sys.
+
+On Windows a toast names no app, so it comes from PowerShell, as a Tauri
+app's do in development. Tauri names the installed app; no installer
+registers a Tokra app yet.
+
+== Differences from Tauri
+
+- Windows toasts come from PowerShell, and Windows 7 gets none: Rust no
+  longer builds for it.
+- Without a configured identifier, macOS notifications come from
+  Terminal.
+- An attachment URL whose host has non-ASCII characters, or a label that
+  starts with <tt>xn--</tt>, is not checked against international domain
+  name rules.
+- <tt>window.__TAURI__.notification</tt> is not defined; import the
+  package through your bundler.
+
+== Features
+
+- Tauri-compatible IPC commands: notify, request_permission,
+  is_permission_granted
+- <tt>window.Notification</tt> backed by the system's notifications
+- Tauri's argument errors, word for word
+- macOS, Windows, Linux, and the BSDs

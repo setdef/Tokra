@@ -1,0 +1,73 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>notification plugin</title>
+  <script src="/harness.js"></script>
+  <script src="/api-iife.js"></script>
+</head>
+<body>
+  <ol id="checks"></ol>
+  <script>
+    const { isPermissionGranted, requestPermission, sendNotification, pending, registerActionTypes } =
+      window.__TAURI__.notification;
+    const { invoke } = window.__TAURI__.core;
+    const { check, finish } = window.fixture;
+    const TITLE = 'tokra-notification test';
+    const rejection = async (promise) => {
+      try { return { resolved: await promise }; } catch (error) { return { rejected: String(error) }; }
+    };
+
+    (async () => {
+      const { sends } = await (await fetch('/notification.json')).json();
+
+      await check('window.Notification reports the permission granted', async () => {
+        for (let i = 0; i < 50 && window.Notification.permission === 'default'; i++) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        return { pass: window.Notification.permission === 'granted', detail: { permission: window.Notification.permission } };
+      });
+
+      await check('permission is granted on desktop', async () => {
+        const granted = await isPermissionGranted();
+        const asked = await requestPermission();
+        const direct = await invoke('plugin:notification|is_permission_granted');
+        return { pass: granted === true && asked === 'granted' && direct === true, detail: { granted, asked, direct } };
+      });
+
+      await check('mobile-only commands are not found', async () => {
+        const pendingResult = await rejection(pending());
+        const actions = await rejection(registerActionTypes([{ id: 'x', actions: [] }]));
+        return {
+          pass: pendingResult.rejected === 'Command get_pending not found' &&
+            actions.rejected === 'Command register_action_types not found',
+          detail: { pending: pendingResult, actions },
+        };
+      });
+
+      await check('a bad option rejects with Tauri\'s message', async () => {
+        const result = await rejection(invoke('plugin:notification|notify', { options: { title: TITLE, id: 1.5 } }));
+        return { pass: 'rejected' in result, detail: result };
+      });
+
+      if (sends) {
+        await check('notify, sendNotification, and new Notification send', async () => {
+          const notified = await invoke('plugin:notification|notify', {
+            options: { title: `${TITLE}: notify`, body: 'from invoke', icon: 'dialog-information', sound: 'message-new-instant' },
+          });
+          sendNotification({ title: `${TITLE}: send`, body: 'from sendNotification' });
+          new window.Notification(`${TITLE}: web`, { body: 'from window.Notification' });
+          return { pass: notified === null, detail: { notified } };
+        });
+      }
+
+      await finish();
+    })();
+  </script>
+</body>
+</html>

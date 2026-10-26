@@ -64,6 +64,28 @@ PACKAGES = [
       puts "tokra-dialog \#{Tokra::Plugins::Dialog::VERSION} builds an rfd dialog through ferro-rfd"
     RUBY
   PackageCheck::Target.new(
+    name: "tokra-notification",
+    dir: "plugins/notification",
+    packaged: %w[lib sig README.rdoc],
+    generated: [],
+    crate: nil,
+    extension: nil,
+    smoke: <<~RUBY),
+      require "tokra-notification"
+      require "tokra/plugins/notification/version"
+      # ferro-notify-rust comes from its own installed gem, extension and
+      # all; the init script is a packaged file the plugin reads at load.
+      # Nothing is sent: on macOS a send would name the app for good.
+      script = Tokra::Plugins::Notification::Plugin::INIT_SCRIPT
+      abort "the init script lost notify" unless script.include?("plugin:notification|notify")
+      abort "the init script kept its template" if script.include?("__TEMPLATE_windows__")
+      handle = Tokra::Builder.default.build.handle
+      builder = Tokra::Plugins::Notification::Notification.new(handle).builder.title("smoke")
+      notification = builder.__send__(:desktop_notification).to_notify_rust
+      abort "ferro-notify-rust lost the summary" unless notification.summary == "smoke"
+      puts "tokra-notification \#{Tokra::Plugins::Notification::VERSION} builds a notification through ferro-notify-rust"
+    RUBY
+  PackageCheck::Target.new(
     name: "tokra-log",
     dir: "plugins/log",
     packaged: %w[lib sig README.rdoc],

@@ -1,0 +1,65 @@
+GIT
+  remote: https://github.com/setdef/Ferro
+  revision: fc39d3f357d460dd05a77075fbe32cca43eaaf85
+  tag: ferro-notify-rust/v0.1.0.pre.1
+  glob: gems/notify-rust/*.gemspec
+  specs:
+    ferro-notify-rust (0.1.0.pre.1)
+      rb_sys (~> 0.9.129)
+
+PATH
+  remote: ../..
+  specs:
+    tokra (0.0.1.pre.2)
+      rb_sys (~> 0.9.129)
+
+PATH
+  remote: .
+  specs:
+    tokra-notification (0.0.1.pre.1)
+      ferro-notify-rust (= 0.1.0.pre.1)
+      tokra (~> 0.0)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    drb (2.2.3)
+    fiddle (1.1.8)
+    minitest (6.0.6)
+      drb (~> 2.0)
+      prism (~> 1.5)
+    minitest-mock (5.27.0)
+    prism (1.9.0)
+    rake (13.4.2)
+    rake-compiler-dock (1.12.0)
+    rb_sys (0.9.130)
+      rake-compiler-dock (= 1.12.0)
+
+PLATFORMS
+  arm64-darwin-25
+  ruby
+
+DEPENDENCIES
+  ferro-notify-rust!
+  fiddle
+  minitest
+  minitest-mock
+  rake
+  tokra!
+  tokra-notification!
+
+CHECKSUMS
+  drb (2.2.3) sha256=0b00d6fdb50995fe4a45dea13663493c841112e4068656854646f418fda13373
+  ferro-notify-rust (0.1.0.pre.1)
+  fiddle (1.1.8) sha256=7fa8ee3627271497f3add5503acdbc3f40b32f610fc1cf49634f083ef3f32eee
+  minitest (6.0.6) sha256=153ea36d1d987a62942382b61075745042a2b3123b1cd48f4c3675af9cc7d6f1
+  minitest-mock (5.27.0) sha256=7040ed7185417a966920987eaa6eaf1be4ea1fc5b25bb03ff4703f98564a55b0
+  prism (1.9.0) sha256=7b530c6a9f92c24300014919c9dcbc055bf4cdf51ec30aed099b06cd6674ef85
+  rake (13.4.2) sha256=cb825b2bd5f1f8e91ca37bddb4b9aaf345551b4731da62949be002fa89283701
+  rake-compiler-dock (1.12.0) sha256=f13205c2738f3d2053afcd03491a9e4541b22a59a0bfc53fc8bc883bd8188023
+  rb_sys (0.9.130) sha256=7d486d99c1da02635515deaf9860fc5aea90bb4ab2589b2deec7fdc7d3548615
+  tokra (0.0.1.pre.2)
+  tokra-notification (0.0.1.pre.1)
+
+BUNDLED WITH
+  4.0.20

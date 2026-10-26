@@ -1,0 +1,355 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Plugins
+    module Notification
+      VERSION: String
+      PermissionState: singleton(Tokra::PermissionState)
+
+      type json = Tokra::json_value
+      type schedule = Schedule::At | Schedule::Interval | Schedule::Every
+      type field_default = :required | :option | bool | ^() -> Object
+      type field = [String, Symbol, field_default, Symbol]
+
+      class Attachment < Data
+        attr_reader id: String
+        attr_reader url: String
+
+        def self.new: (id: String, url: String) -> instance
+      end
+
+      class ScheduleInterval < Data
+        attr_reader year: Integer?
+        attr_reader month: Integer?
+        attr_reader day: Integer?
+        attr_reader weekday: Integer?
+        attr_reader hour: Integer?
+        attr_reader minute: Integer?
+        attr_reader second: Integer?
+
+        def self.new: (?year: Integer?, ?month: Integer?, ?day: Integer?, ?weekday: Integer?, ?hour: Integer?,
+                       ?minute: Integer?, ?second: Integer?) -> instance
+      end
+
+      class ScheduleEvery < Data
+        attr_reader name: String
+
+        Year: ScheduleEvery
+        Month: ScheduleEvery
+        TwoWeeks: ScheduleEvery
+        Week: ScheduleEvery
+        Day: ScheduleEvery
+        Hour: ScheduleEvery
+        Minute: ScheduleEvery
+        Second: ScheduleEvery
+
+        def self.new: (name: String) -> instance
+        def to_s: () -> String
+      end
+
+      module Schedule
+        class At < Data
+          attr_reader date: Time
+          attr_reader repeating: bool
+          attr_reader allow_while_idle: bool
+
+          def self.new: (date: Time, ?repeating: bool, ?allow_while_idle: bool) -> instance
+        end
+
+        class Interval < Data
+          attr_reader interval: ScheduleInterval
+          attr_reader allow_while_idle: bool
+
+          def self.new: (interval: ScheduleInterval, ?allow_while_idle: bool) -> instance
+        end
+
+        class Every < Data
+          attr_reader interval: ScheduleEvery
+          attr_reader count: Integer
+          attr_reader allow_while_idle: bool
+
+          def self.new: (interval: ScheduleEvery, count: Integer, ?allow_while_idle: bool) -> instance
+        end
+      end
+
+      class NotificationData < Data
+        attr_reader id: Integer
+        attr_reader channel_id: String?
+        attr_reader title: String?
+        attr_reader body: String?
+        attr_reader schedule: schedule?
+        attr_reader large_body: String?
+        attr_reader summary: String?
+        attr_reader action_type_id: String?
+        attr_reader group: String?
+        attr_reader group_summary: bool
+        attr_reader sound: String?
+        attr_reader inbox_lines: Array[String]
+        attr_reader icon: String?
+        attr_reader large_icon: String?
+        attr_reader icon_color: String?
+        attr_reader attachments: Array[Attachment]
+        attr_reader extra: Hash[String, json]
+        attr_reader ongoing: bool
+        attr_reader auto_cancel: bool
+        attr_reader silent: bool
+
+        def self.default_id: () -> Integer
+        def self.new: (?id: Integer, ?channel_id: String?, ?title: String?, ?body: String?, ?schedule: schedule?,
+                       ?large_body: String?, ?summary: String?, ?action_type_id: String?, ?group: String?,
+                       ?group_summary: bool, ?sound: String?, ?inbox_lines: Array[String], ?icon: String?,
+                       ?large_icon: String?, ?icon_color: String?, ?attachments: Array[Attachment],
+                       ?extra: Hash[String, json], ?ongoing: bool, ?auto_cancel: bool, ?silent: bool) -> instance
+      end
+
+      class NotificationBuilder
+        attr_accessor data: NotificationData
+
+        @app: Tokra::AppHandle
+
+        def initialize: (Tokra::AppHandle app) -> void
+        def id: (Integer id) -> self
+        def channel_id: (String id) -> self
+        def title: (String title) -> self
+        def body: (String body) -> self
+        def schedule: (schedule schedule) -> self
+        def large_body: (String large_body) -> self
+        def summary: (String summary) -> self
+        def action_type_id: (String action_type_id) -> self
+        def group: (String group) -> self
+        def group_summary: () -> self
+        def sound: (String sound) -> self
+        def inbox_line: (String line) -> self
+        def icon: (String icon) -> self
+        def large_icon: (String large_icon) -> self
+        def icon_color: (String icon_color) -> self
+        def attachment: (Attachment attachment) -> self
+        def extra: (String | Symbol key, Object value) -> self
+        def ongoing: () -> self
+        def auto_cancel: () -> self
+        def silent: () -> self
+        def show: () -> nil
+
+        private
+
+        def desktop_notification: () -> Imp::Notification
+        def finite: (Object value) -> Object
+        def update: (**Object fields) -> self
+      end
+
+      class Notification
+        attr_reader app_handle: Tokra::AppHandle
+
+        def initialize: (Tokra::AppHandle app_handle) -> void
+        def builder: () -> NotificationBuilder
+        def request_permission: () -> Tokra::PermissionState
+        def permission_state: () -> Tokra::PermissionState
+      end
+
+      module NotificationExt : Tokra::Manager
+        def notification: () -> Notification
+      end
+
+      module Imp
+        class Notification
+          attr_reader identifier: String
+
+          @body: String?
+          @title: String?
+          @icon: String?
+          @sound: String?
+
+          def initialize: (String identifier) -> void
+          def body: (String body) -> Notification
+          def title: (String title) -> Notification
+          def icon: (String icon) -> Notification
+          def sound: (String sound) -> Notification
+          def to_notify_rust: () -> Ferro::NotifyRust::Notification
+          def name_application: () -> nil
+          def show: () -> Thread
+
+          private
+
+          def with: (Symbol name, String value) -> Notification
+        end
+      end
+
+      module Iso8601
+        class Error < StandardError
+        end
+
+        class Failure < StandardError
+        end
+
+        MIN_YEAR: Integer
+        MAX_YEAR: Integer
+        RANGES: Hash[Symbol, Range[Integer]]
+        FIELDS: Array[Symbol]
+        MONTHS: Hash[String, Integer]
+        WEEKDAYS: Hash[String, Integer]
+        INVALID_LITERAL: String
+        INVALID_COMPONENT: String
+        TRAILING: String
+        INSUFFICIENT: String
+        EXPECTING: String
+
+        type kind = Hash[Symbol, Symbol]
+
+        class Parsed
+          attr_reader year: Integer?
+          attr_reader iso_year: Integer?
+          attr_reader iso_week_number: Integer?
+          attr_reader ordinal: Integer?
+          attr_reader day: Integer?
+          attr_reader hour_24: Integer?
+          attr_reader minute: Integer?
+          attr_reader second: Integer?
+          attr_reader subsecond: Integer?
+          attr_reader offset_hour: Integer?
+          attr_reader offset_minute: Integer?
+          attr_reader offset_second: Integer?
+          attr_reader month: Integer?
+          attr_reader weekday: Integer?
+          attr_accessor leap_second_allowed: bool
+
+          def set: (Symbol field, Integer value) -> true?
+          def with: (Symbol field, Integer value) -> Parsed?
+          def replace: (Parsed other) -> self
+        end
+
+        def self.parse: (String string) -> Time
+
+        private
+
+        def self.parse_into: (String input, Parsed parsed) -> String
+        def self.attempt: (^() -> String step) { (String) -> void } -> (true | Failure)
+        def self.fail_component: (String name) -> bot
+        def self.fail_literal: () -> bot
+        def self.parse_date: (String input, Parsed parsed, kind kind) -> String
+        def self.parse_time: (String input, Parsed parsed, kind kind, bool date_present) -> String
+        def self.parse_offset: (String input, Parsed parsed, kind kind) -> String
+        def self.year: (String input) -> [Integer, String]?
+        def self.digits: (String input, Integer count, ?nonzero: bool) -> [Integer, String]?
+        def self.float: (String input) -> [[Integer, Float?], String]?
+        def self.offset_date_time: (Parsed parsed) -> Time
+        def self.date: (Parsed parsed) -> [Integer, Integer]
+        def self.time_of_day: (Parsed parsed) -> [Integer, Integer, Integer, Integer]
+        def self.leap_year?: (Integer year) -> bool
+        def self.days_in_year: (Integer year) -> Integer
+        def self.weeks_in_year: (Integer year) -> Integer
+        def self.out_of_range: (String name, Integer maximum, String condition) -> bot
+        def self.from_ordinal_date: (Integer year, Integer ordinal) -> [Integer, Integer]
+        def self.from_calendar_date: (Integer year, Integer month, Integer day) -> [Integer, Integer]
+        def self.from_iso_week_date: (Integer year, Integer week, Integer weekday) -> [Integer, Integer]
+        def self.leap_second_stand_in?: (Time local) -> bool
+      end
+
+      module UrlCheck
+        class Error < StandardError
+        end
+
+        EMPTY_HOST: String
+        IDNA: String
+        INVALID_PORT: String
+        INVALID_IPV4: String
+        INVALID_IPV6: String
+        INVALID_DOMAIN_CHARACTER: String
+        RELATIVE: String
+        SPECIAL: Array[String]
+        DEFAULT_PORTS: Hash[String, Integer]
+        OPAQUE_FORBIDDEN: String
+        DENIED: Set[Integer]
+
+        def self.check: (String string) -> String
+
+        private
+
+        def self.file: (String rest) -> void
+        def self.authority: (String rest, String scheme, special: bool) -> void
+        def self.userinfo: (String rest, bool special) -> [String, bool]
+        def self.host_text: (String rest, bool special) -> String
+        def self.port: (String rest, Integer? _default) -> void
+        def self.domain: (String text) -> String
+        def self.ascii_domain: (String bytes) -> String
+        def self.opaque: (String text) -> String
+        def self.ends_in_a_number?: (String domain) -> bool
+        def self.ipv4_number: (String text) -> (Integer | :overflow | nil)
+        def self.ipv4: (String domain) -> void
+        def self.ipv6: (String text) -> String
+        def self.ipv6_address: (String input) -> void
+      end
+
+      module Commands
+        def self.is_permission_granted: (Tokra::Ipc::Invoke invoke, Notification notification) -> void
+        def self.request_permission: (Tokra::Ipc::Invoke invoke, Notification notification) -> void
+        def self.notify: (Tokra::Ipc::Invoke invoke, Notification notification) -> void
+
+        class Arguments
+          class Mismatch < StandardError
+          end
+
+          SCHEDULES: Array[String]
+          EVERY: Hash[String, ScheduleEvery]
+          RANGES: Hash[String, Range[Integer]]
+          JSON_INTEGERS: Range[Integer]
+          NOTIFICATION_DATA: Array[field]
+          ATTACHMENT: Array[field]
+          SCHEDULE_INTERVAL: Array[field]
+          AT: Array[field]
+          INTERVAL: Array[field]
+          EVERY_FIELDS: Array[field]
+          UNPRINTABLE: Regexp
+
+          @payload: Hash[String, json]
+          @command: String
+
+          def initialize: (Hash[String, json]? payload, String command) -> void
+          def notification_data: () -> NotificationData
+
+          private
+
+          def argument: [T] (String key) { () -> T } -> T
+          def required: (String key) -> json
+          def mismatch: (json value, String expected) -> bot
+          def unexpected: (json value) -> String
+          def float_text: (Float float) -> String
+          def shortest_digits: (Float float) -> [String, Integer]
+          def debug: (String string) -> String
+          def string: (json value) -> String
+          def optional_string: (json value) -> String?
+          def bool: (json value) -> bool
+          def i32: (json value) -> Integer
+          def u8: (json value) -> Integer
+          def optional_u8: (json value) -> Integer?
+          def integer: (json value, String type) -> Integer
+          def strings: (json value) -> Array[String]
+          def sequence: [T] (json value) { (json) -> T } -> Array[T]
+          def map: (json value) -> Hash[String, json]
+          def attachments: (json value) -> Array[Attachment]
+          def url: (json value) -> String
+          def date: (json value) -> Time
+          def schedule_interval: (json value) -> ScheduleInterval
+          def every: (json value) -> ScheduleEvery
+          def optional_schedule: (json value) -> schedule?
+          def schedule: (json value) -> schedule
+          def one_of: (Array[String] variants) -> String
+          def struct_value: (json value, String name, Array[field] fields) -> Hash[Symbol, Object]
+          def struct_from_map: (Hash[String, json] value, Array[field] fields) -> Hash[Symbol, Object]
+          def struct_from_sequence: (Array[json] value, String expecting, Array[field] fields) -> Hash[Symbol, Object]
+          def default_value: (field_default default) -> Object
+        end
+      end
+
+      class Plugin < Tokra::Plugin
+        INIT_SCRIPT: String
+        COMMANDS: Array[String]
+
+        def name: () -> String
+        def initialize: (Tokra::AppHandle app, ?Hash[Symbol, Object] config) -> void
+        def initialization_script: () -> String
+        def extend_api: (Tokra::Ipc::Invoke invoke) -> bool
+      end
+    end
+  end
+end

@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class PermissionState < Data
+    Granted: PermissionState
+    Denied: PermissionState
+    Prompt: PermissionState
+    PromptWithRationale: PermissionState
+
+    attr_reader name: String
+
+    def self.new: (name: String) -> PermissionState
+    def self.default: () -> PermissionState
+    def to_s: () -> String
+    def to_json: (*JSON::State | Hash[Symbol, Object] args) -> String
+  end
+end

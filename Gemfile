@@ -18,6 +18,10 @@ gem "ferro-arboard", git: "https://github.com/setdef/Ferro", tag: "ferro-arboard
 # tokra-dialog builds on ferro-rfd (Plan 023). Its glob names only ferro-rfd,
 # so ferro-arboard still comes from its own tag.
 gem "ferro-rfd", git: "https://github.com/setdef/Ferro", tag: "ferro-rfd/v0.1.0.pre.2", glob: "gems/rfd/*.gemspec"
+# tokra-notification builds on ferro-notify-rust (Plan 024). Its glob names
+# only ferro-notify-rust, so the other Ferro gems keep their own tags.
+gem "ferro-notify-rust", git: "https://github.com/setdef/Ferro", tag: "ferro-notify-rust/v0.1.0.pre.1",
+  glob: "gems/notify-rust/*.gemspec"
 
 gem "irb"
 gem "rake", "~> 13.0"

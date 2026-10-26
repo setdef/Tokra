@@ -100,6 +100,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   picked paths join no scope; it is pure Ruby and depends on `ferro-rfd`
   0.1.0.pre.2 (rfd 0.17.2), which apps take from its git tag until
   it is on RubyGems.org
+- `tokra-notification` gem: `Tokra::Plugins::Notification::Plugin.new(app)`
+  manages a `Tokra::Plugins::Notification::Notification` (reachable as
+  `app.notification`) with Tauri's `NotificationBuilder`, serves Tauri's
+  desktop notification commands (`notify`, `request_permission`,
+  `is_permission_granted`) for `@tauri-apps/plugin-notification` with
+  Tauri's argument errors, and backs the page's `window.Notification`;
+  permission is always granted, a notification shows its title (or the
+  product name), body, icon, and sound, and goes out on its own thread;
+  macOS names the app by its identifier, Windows names none; it is pure
+  Ruby and depends on `ferro-notify-rust` 0.1.0.pre.1 (notify-rust
+  4.18.2), which apps take from its git tag until it is on RubyGems.org
+- `Tokra::PermissionState` (`Granted`, `Denied`, `Prompt`,
+  `PromptWithRationale`), Tauri's `tauri::plugin::PermissionState`
 - `tokra-log` gem: `Tokra::Plugins::Log::Builder` builds a logging plugin
   with Tauri's log targets (standard output, files, the app log directory,
   the webview), rotation and timezone strategies, and RBS signatures
