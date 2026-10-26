@@ -123,6 +123,18 @@ class TestCommands < Minitest::Test
       notify_rejection({ "title" => 1 })
   end
 
+  # Only an argument that does not read rejects here: an ArgumentError
+  # from a bug reaches the router, which logs it before it rejects
+  # (plan 026, decision 7).
+  def test_an_argument_error_from_a_bug_is_not_taken_for_a_bad_argument
+    app = build_app
+    plugin = build_plugin(app)
+    app.handle.notification.define_singleton_method(:permission_state) { raise ArgumentError, "a bug" }
+    invoke, = build_invoke(app.handle, "is_permission_granted")
+
+    assert_equal "a bug", assert_raises(ArgumentError) { plugin.extend_api(invoke) }.message
+  end
+
   private def build_plugin_on(handle)
     handle.plugin(Notification::Plugin.new(handle))
   end

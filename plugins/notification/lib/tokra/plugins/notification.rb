@@ -167,7 +167,9 @@ module Tokra
         # Returns +true+ for one of the plugin's commands and +false+ for
         # any other, so Tokra rejects the rest with <tt>Command NAME not
         # found</tt>, as Tauri does for the commands only its mobile
-        # plugins answer.
+        # plugins answer. An argument that does not read rejects the
+        # invoke with Tauri's message; anything else is a bug, and reaches
+        # the router.
         def extend_api(invoke)
           command = invoke.command
           return false unless COMMANDS.include?(command)
@@ -179,7 +181,7 @@ module Tokra
           else Commands.is_permission_granted(invoke, notification)
           end
           true
-        rescue ArgumentError => e
+        rescue Tokra::Error::InvalidArgs => e
           invoke.reject(e.message)
           true
         end

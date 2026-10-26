@@ -126,9 +126,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Tokra::Ipc::Channel` and `Tokra::Ipc::JavaScriptChannelId`, Tauri's
   `ipc::Channel`: read a page's Channel argument with
   `Channel.from_command(invoke, key)` and `send` it JSON values
-- `Tokra::Ipc::CommandItem` reads a command's `String` and `Vec<String>`
-  arguments with Tauri's argument errors, and `Tokra::Ipc::Unexpected`
-  describes a JSON value as serde_json's errors do
+- `Tokra::Ipc::CommandItem` reads one argument of a command as Tauri's
+  `CommandItem` does: `string` and `strings`, or any type through
+  `deserialize` and `deserialize_option` with a block that raises
+  `CommandItem::Mismatch`; `Tokra::Ipc::Unexpected` describes a JSON value
+  as serde_json's errors do
+- `Tokra::Error::InvalidArgs`, Tauri's `invalid args` error, which
+  `CommandItem` and `Channel.from_command` raise for an argument that does
+  not read, and `Tokra::Ipc::InvokeError`, which `Channel.from_command`
+  raises for a string that is not a channel; plugins reject the invoke for
+  these and let any other `ArgumentError` reach the router, except an
+  image that does not read, which still rejects
 - `Tokra::Error::PluginInitialization`, Tauri's `failed to initialize plugin`
   error
 - `tokra-log` gem: `Tokra::Plugins::Log::Builder` builds a logging plugin

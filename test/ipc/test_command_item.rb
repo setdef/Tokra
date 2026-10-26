@@ -18,8 +18,10 @@ class TestCommandItem < Minitest::Test
     CommandItem.new(name: "register", key:, payload:)
   end
 
+  # CommandItem raises Tauri's Error::InvalidArgs, so a plugin rescues
+  # exactly the argument failures (plan 026, decision 1).
   private def error(&)
-    assert_raises(ArgumentError, &).message
+    assert_raises(Tokra::Error::InvalidArgs, &).message
   end
 
   def test_a_string_reads_as_it_is
@@ -43,6 +45,31 @@ class TestCommandItem < Minitest::Test
     assert_equal "#{prefix} null, expected a sequence", error { item({ "shortcuts" => nil }).strings }
     assert_equal "#{prefix} integer `1`, expected a string", error { item({ "shortcuts" => ["F19", 1] }).strings }
     assert_equal "#{prefix} map, expected a string", error { item({ "shortcuts" => {} }).string }
+  end
+
+  # Any argument reads through the block, whose Mismatch becomes
+  # InvalidArgs; a missing key is serde_json's custom error
+  # (command.rs:60-70, 97-102).
+  def test_deserialize_yields_the_value_and_wraps_a_mismatch
+    assert_equal 2, item({ "count" => 1 }, "count").deserialize { |value| value + 1 }
+    assert_equal "invalid args `count` for command `register`: invalid type: integer `1`, expected a boolean",
+      error { item({ "count" => 1 }, "count").deserialize { |value| raise CommandItem::Mismatch.invalid_type(value, "a boolean") } }
+    assert_equal "invalid args `count` for command `register`: command register missing required key count",
+      error { item({}, "count").deserialize { flunk "a missing key yields nothing" } }
+    # A null is present, so a type that is not an Option gets to see it
+    # (command.rs:97-102).
+    assert_equal "invalid args `count` for command `register`: invalid type: null, expected a boolean",
+      error { item({ "count" => nil }, "count").deserialize { |value| raise CommandItem::Mismatch.invalid_type(value, "a boolean") } }
+  end
+
+  # An Option is None for a missing key or null, and otherwise reads the
+  # value (command.rs:134-145, serde_json value/de.rs deserialize_option).
+  def test_deserialize_option_reads_a_missing_key_or_null_as_nil
+    assert_nil item({}, "label").deserialize_option { flunk "a missing key yields nothing" }
+    assert_nil item({ "label" => nil }, "label").deserialize_option { flunk "null yields nothing" }
+    assert_equal "A", item({ "label" => "a" }, "label").deserialize_option(&:upcase)
+    assert_equal "invalid args `label` for command `register`: invalid value: integer `3`, expected u8",
+      error { item({ "label" => 3 }, "label").deserialize_option { raise CommandItem::Mismatch, "invalid value: integer `3`, expected u8" } }
   end
 
   # serde_json's descriptions (value/de.rs:1395-1404, error.rs

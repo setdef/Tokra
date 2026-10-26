@@ -34,4 +34,16 @@ class TestError < Minitest::Test
     assert_equal "global-shortcut", error.plugin
     assert_kind_of Tokra::Error, error
   end
+
+  # tauri::Error::InvalidArgs (error.rs:58-60): the command, the key, and
+  # serde_json's error.
+  def test_invalid_args_names_the_command_and_the_key
+    error = Tokra::Error::InvalidArgs.new("register", "shortcuts", "invalid type: null, expected a sequence")
+
+    assert_equal "invalid args `shortcuts` for command `register`: invalid type: null, expected a sequence", error.message
+    assert_equal "register", error.command
+    assert_equal "shortcuts", error.key
+    assert_kind_of Tokra::Error, error
+    refute_kind_of ArgumentError, error
+  end
 end

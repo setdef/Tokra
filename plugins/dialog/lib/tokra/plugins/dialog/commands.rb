@@ -77,9 +77,9 @@ module Tokra
           args = arguments(invoke.payload, "message")
           title = args.optional_string("title")
           message = args.string("message")
-          kind = args.kind("kind", args.optional("kind"))
+          kind = args.kind("kind")
           ok_button_label = args.optional_string("okButtonLabel")
-          buttons = message_buttons(args.buttons("buttons", args.optional("buttons")), ok_button_label)
+          buttons = message_buttons(args.buttons("buttons"), ok_button_label)
           spawn(invoke) do
             message_dialog(dialog, title, message, kind, buttons).blocking_show_with_result.to_s
           end
@@ -95,7 +95,7 @@ module Tokra
           args = arguments(invoke.payload, "ask")
           title = args.optional_string("title")
           message = args.string("message")
-          kind = args.kind("kind", args.optional("kind"))
+          kind = args.kind("kind")
           buttons = ask_buttons(args.optional_string("yesButtonLabel"), args.optional_string("noButtonLabel"))
           spawn(invoke) { message_dialog(dialog, title, message, kind, buttons).blocking_show }
         end
@@ -110,7 +110,7 @@ module Tokra
           args = arguments(invoke.payload, "confirm")
           title = args.optional_string("title")
           message = args.string("message")
-          kind = args.kind("kind", args.optional("kind"))
+          kind = args.kind("kind")
           buttons = confirm_buttons(args.optional_string("okButtonLabel"), args.optional_string("cancelButtonLabel"))
           spawn(invoke) { message_dialog(dialog, title, message, kind, buttons).blocking_show }
         end

@@ -378,7 +378,8 @@ module Tokra
         # The router strips the <tt>plugin:clipboard-manager|</tt> prefix,
         # so this matches bare command names. Failures reject the invoke
         # with the error message, mirroring Tauri's Result-to-InvokeError
-        # propagation (commands.rs).
+        # propagation (commands.rs), as does an argument that does not
+        # read. Anything else is a bug, and reaches the router.
         #
         # Returns +true+ if this plugin handled the command, +false+ otherwise.
         def extend_api(invoke)
@@ -394,7 +395,7 @@ module Tokra
         rescue Error,
           Tokra::Error::BadResourceId,
           Tokra::Error::Image,
-          ArgumentError,
+          Tokra::Error::InvalidArgs,
           SystemCallError => e
 
           invoke.reject(e.message)
@@ -440,13 +441,14 @@ module Tokra
         end
 
         # Resolves the JsImage payload against the calling webview's
-        # resource table and writes it (commands.rs:43-50).
+        # resource table and writes it (commands.rs:43-50). JsImage reports
+        # serde's untagged-enum mismatch as an ArgumentError, which is the
+        # argument's InvalidArgs.
         private def handle_write_image(invoke)
-          value = required_arg(invoke, "image")
-          image = begin
+          image = argument(invoke, "image").deserialize do |value|
             Tokra::JsImage.new(value).into_img(invoke.webview.resources_table)
           rescue ArgumentError => e
-            raise ArgumentError, invalid_args(invoke, "image", e.message)
+            raise Tokra::Ipc::CommandItem::Mismatch, e.message
           end
           write_image(image)
           invoke.resolve(nil)
@@ -468,54 +470,28 @@ module Tokra
           true
         end
 
-        # A required argument, or ArgumentError with Tauri's missing-key
-        # message (ipc/command.rs:97-102).
-        private def required_arg(invoke, key)
-          payload = invoke.payload
-          unless payload.key?(key)
-            raise ArgumentError,
-              invalid_args(invoke, key, "command #{invoke.command} missing required key #{key}")
-          end
-
-          payload[key]
+        # Argument +key+ of +invoke+, read as Tauri's CommandItem reads it.
+        private def argument(invoke, key)
+          Tokra::Ipc::CommandItem.new(name: invoke.command, key:, payload: invoke.payload)
         end
 
-        # A required string argument (a Rust &str).
+        # A required string argument (a Rust &str), or InvalidArgs.
         private def string_arg(invoke, key)
-          value = required_arg(invoke, key)
-          return value if value.is_a?(String)
-
-          raise ArgumentError, invalid_args(invoke, key, invalid_type(value))
+          argument(invoke, key).deserialize { |value| string_value(value, "a borrowed string") }
         end
 
         # An optional string argument (a Rust Option<&str>, or with
         # <tt>expected: "a string"</tt> an Option<String>): absent or null
         # is +nil+.
         private def optional_string_arg(invoke, key, expected: "a borrowed string")
-          value = invoke.payload[key]
-          return value if value.nil? || value.is_a?(String)
-
-          raise ArgumentError, invalid_args(invoke, key, invalid_type(value, expected))
+          argument(invoke, key).deserialize_option { |value| string_value(value, expected) }
         end
 
-        # Tauri's InvalidArgs message (tauri error.rs:59-60).
-        private def invalid_args(invoke, key, reason)
-          "invalid args `#{key}` for command `#{invoke.command}`: #{reason}"
-        end
-
-        # serde_json's message for a JSON value where a string was
-        # expected: serde's &str visitor expects "a borrowed string", its
-        # String visitor "a string".
-        private def invalid_type(value, expected = "a borrowed string")
-          unexpected = case value
-          when nil then "null"
-          when true, false then "boolean `#{value}`"
-          when Integer then "integer `#{value}`"
-          when Float then "floating point `#{value}`"
-          when Array then "sequence"
-          else "map"
-          end
-          "invalid type: #{unexpected}, expected #{expected}"
+        # +value+ if it is a String, or serde's error naming +expected+:
+        # serde's &str visitor expects "a borrowed string", its String
+        # visitor "a string".
+        private def string_value(value, expected)
+          value.is_a?(String) ? value : raise(Tokra::Ipc::CommandItem::Mismatch.invalid_type(value, expected))
         end
       end
     end

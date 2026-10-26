@@ -139,13 +139,15 @@ class TestChannel < Minitest::Test
     assert_equal ["window.__TAURI_INTERNALS__.runCallback(11, { message: true, index: 0 })"], evals
   end
 
+  # A value that is not a string is serde's InvalidArgs; a string that is
+  # not a channel is a bare InvokeError (channel.rs:305-313).
   def test_from_command_rejects_what_tauri_rejects
     assert_equal "invalid args `handler` for command `register`: command register missing required key handler",
-      assert_raises(ArgumentError) { Channel.from_command(invoke({}), "handler") }.message
+      assert_raises(Tokra::Error::InvalidArgs) { Channel.from_command(invoke({}), "handler") }.message
     assert_equal "invalid args `handler` for command `register`: invalid type: integer `1`, expected a string",
-      assert_raises(ArgumentError) { Channel.from_command(invoke({ "handler" => 1 }), "handler") }.message
+      assert_raises(Tokra::Error::InvalidArgs) { Channel.from_command(invoke({ "handler" => 1 }), "handler") }.message
     assert_equal "invalid channel value `__CHANNEL__:x`, expected a string in the `__CHANNEL__:ID` format",
-      assert_raises(ArgumentError) { Channel.from_command(invoke({ "handler" => "__CHANNEL__:x" }), "handler") }.message
+      assert_raises(Tokra::Ipc::InvokeError) { Channel.from_command(invoke({ "handler" => "__CHANNEL__:x" }), "handler") }.message
   end
 
   def test_the_channel_plugin_names_are_tauris

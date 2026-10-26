@@ -29,8 +29,8 @@ module Tokra
     # SPDX-SnippetBegin
     # SPDX-License-Identifier: Apache-2.0 OR MIT
     # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
-    # SPDX-SnippetComment: Runtime error and its messages from tauri/src/error.rs and
-    # tauri-runtime/src/lib.rs
+    # SPDX-SnippetComment: Runtime, PluginInitialization, and InvalidArgs and their
+    # messages from tauri/src/error.rs and tauri-runtime/src/lib.rs
 
     # Raised when a call cannot reach the main thread, or its answer never
     # comes back.
@@ -92,6 +92,42 @@ module Tokra
       def initialize(plugin, message)
         @plugin = plugin
         super("failed to initialize plugin `#{plugin}`: #{message}")
+      end
+    end
+
+    # Raised when a command's argument is missing or of the wrong kind.
+    #
+    # The frontend calls a command with a payload, and each argument the
+    # command takes is read from one key of it. When the key is missing,
+    # or holds the wrong kind of value, the invoke rejects, and the
+    # frontend should hear which argument of which command was wrong and
+    # why, in Tauri's words.
+    #
+    # Tokra::Ipc::CommandItem raises this when an argument does not read.
+    # A plugin's extend_api rescues it and rejects the invoke with its
+    # message. It is not an ArgumentError, so a bug's ArgumentError is not
+    # mistaken for the frontend's mistake. Mirrors
+    # <tt>tauri::Error::InvalidArgs</tt> (error.rs:58-60), which Tauri
+    # builds from the command's name, the argument's key, and serde_json's
+    # error (ipc/command.rs:63-69).
+    #
+    # === Example
+    #
+    #   raise Tokra::Error::InvalidArgs.new("register", "shortcuts", "invalid type: null, expected a sequence")
+    #   # message: "invalid args `shortcuts` for command `register`: invalid type: null, expected a sequence"
+    class InvalidArgs < Error
+      # The name of the command whose argument did not read.
+      attr_reader :command
+
+      # The argument's key in the payload.
+      attr_reader :key
+
+      # Creates the error for argument +key+ of +command+, with +reason+,
+      # what serde_json said went wrong.
+      def initialize(command, key, reason)
+        @command = command
+        @key = key
+        super("invalid args `#{key}` for command `#{command}`: #{reason}")
       end
     end
 

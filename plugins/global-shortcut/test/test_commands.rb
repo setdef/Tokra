@@ -150,4 +150,17 @@ class TestCommands < Minitest::Test
       rejection("is_registered", { "shortcut" => 1.5 })
     assert_equal [true, false], call("is_registered", { "shortcut" => unusual }), "nothing was registered"
   end
+
+  # Only an argument that does not read rejects here: an ArgumentError
+  # from a bug reaches the router, which logs it before it rejects
+  # (plan 026, decision 7).
+  def test_an_argument_error_from_a_bug_is_not_taken_for_a_bad_argument
+    global_shortcut = shared.global_shortcut
+    global_shortcut.define_singleton_method(:unregister_all) { raise ArgumentError, "a bug" }
+    invoke, = build_invoke(@webview, "unregister_all")
+
+    assert_equal "a bug", assert_raises(ArgumentError) { shared.plugin.extend_api(invoke) }.message
+  ensure
+    global_shortcut&.singleton_class&.remove_method(:unregister_all)
+  end
 end

@@ -331,7 +331,7 @@ class TestArguments < Minitest::Test
 
   private def assert_reading(payload, expected, label)
     if expected
-      error = assert_raises(ArgumentError, label) { Arguments.new(payload, "notify").notification_data }
+      error = assert_raises(Tokra::Error::InvalidArgs, label) { Arguments.new(payload, "notify").notification_data }
       assert_equal "invalid args `options` for command `notify`: #{expected}", error.message, label
     else
       assert_kind_of Notification::NotificationData, Arguments.new(payload, "notify").notification_data, label

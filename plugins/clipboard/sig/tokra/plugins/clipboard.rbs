@@ -52,11 +52,10 @@ module Tokra
         def handle_write_html: (Tokra::Ipc::Invoke) -> bool
         def handle_clear: (Tokra::Ipc::Invoke) -> bool
         def clipboard: () -> Clipboard
-        def required_arg: (Tokra::Ipc::Invoke invoke, String key) -> Tokra::json_value
+        def argument: (Tokra::Ipc::Invoke invoke, String key) -> Tokra::Ipc::CommandItem
         def string_arg: (Tokra::Ipc::Invoke invoke, String key) -> String
         def optional_string_arg: (Tokra::Ipc::Invoke invoke, String key, ?expected: String) -> String?
-        def invalid_args: (Tokra::Ipc::Invoke invoke, String key, String reason) -> String
-        def invalid_type: (Tokra::json_value value, ?String expected) -> String
+        def string_value: (Tokra::json_value value, String expected) -> String
       end
     end
   end

@@ -286,8 +286,7 @@ module Tokra
         def self.notify: (Tokra::Ipc::Invoke invoke, Notification notification) -> void
 
         class Arguments
-          class Mismatch < StandardError
-          end
+          class Mismatch = Tokra::Ipc::CommandItem::Mismatch
 
           SCHEDULES: Array[String]
           EVERY: Hash[String, ScheduleEvery]
@@ -308,10 +307,7 @@ module Tokra
 
           private
 
-          def argument: [T] (String key) { () -> T } -> T
-          def required: (String key) -> json
           def mismatch: (json value, String expected) -> bot
-          def unexpected: (json value) -> String
           def debug: (String string) -> String
           def string: (json value) -> String
           def optional_string: (json value) -> String?

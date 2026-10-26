@@ -161,7 +161,9 @@ module Tokra
         #
         # Returns +true+ for one of the plugin's commands and +false+ for
         # any other, so Tokra rejects the rest with <tt>Command NAME not
-        # found</tt>, as Tauri does.
+        # found</tt>, as Tauri does. An argument that does not read, or the
+        # plugin's Error, rejects the invoke with its message; anything
+        # else is a bug, and reaches the router.
         def extend_api(invoke)
           command = invoke.command
           return false unless COMMANDS.include?(command)
@@ -174,7 +176,7 @@ module Tokra
           else Commands.is_registered(invoke, global_shortcut)
           end
           true
-        rescue ArgumentError, Error => e
+        rescue Tokra::Error::InvalidArgs, Tokra::Ipc::InvokeError, Error => e
           invoke.reject(e.message)
           true
         end

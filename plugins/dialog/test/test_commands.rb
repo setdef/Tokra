@@ -86,19 +86,33 @@ class TestCommands < Minitest::Test
       { "pickerMode" => "photo" } =>
         "unknown variant `photo`, expected one of `document`, `media`, `image`, `video`",
       { "fileAccessMode" => 2 } => "invalid type: integer `2`, expected string or map",
+      # serde's OneOf names two variants with "or" (de/mod.rs:2337-2355).
+      { "fileAccessMode" => "copied" } => "unknown variant `copied`, expected `copy` or `scoped`",
     }.each do |options, message|
       assert_equal "invalid args `options` for command `open`: #{message}",
         rejection("open", { "options" => options }), options.inspect
     end
   end
 
-  # serde_derive reads an object's keys in order and stops at the first
-  # bad one; missing fields come after, in declaration order.
+  # serde_derive stops at the first bad field it reads; missing fields
+  # come after, in declaration order.
   def test_the_first_bad_option_wins
     assert_equal "invalid args `options` for command `open`: invalid type: integer `2`, expected a boolean",
       rejection("open", { "options" => { "multiple" => 2, "title" => 1 } })
     assert_equal "invalid args `options` for command `open`: missing field `name`",
       rejection("open", { "options" => { "filters" => [{}] } })
+  end
+
+  # Only an argument that does not read rejects here: an ArgumentError
+  # from a bug reaches the router, which logs it before it rejects
+  # (plan 026, decision 7).
+  def test_an_argument_error_from_a_bug_is_not_taken_for_a_bad_argument
+    app = build_app
+    plugin = build_plugin(app)
+    app.handle.define_singleton_method(:dialog) { raise ArgumentError, "a bug" }
+    invoke, = build_invoke(app.handle, "message", { "message" => "m" })
+
+    assert_equal "a bug", assert_raises(ArgumentError) { plugin.extend_api(invoke) }.message
   end
 
   # A failure after the arguments, here ferro-rfd refusing a filter name
@@ -136,6 +150,55 @@ class TestCommands < Minitest::Test
       sleep 0.2
       app.handle.runtime_context.close
       assert_equal [false, Tokra::Error::Runtime.new(Tokra::Error::Runtime::FAILED_TO_RECEIVE_MESSAGE).message], answers.pop(timeout: 2), command
+    end
+  end
+
+  # serde_json describes a value through ryu and Rust's Debug: floats in
+  # their shortest form, integers past u64 as floats, and every character
+  # Debug escapes. The messages are the plan 026 oracle's.
+  def test_values_are_described_as_serde_json_describes_them
+    {
+      { "multiple" => 1e16 } => "invalid type: floating point `1e16`, expected a boolean",
+      { "title" => 2 ** 64 } => "invalid type: floating point `1.8446744073709552e19`, expected a string",
+      { "multiple" => "a\u200bb\u0085\u0301" } => 'invalid type: string "a\u{200b}b\u{85}\u{301}", expected a boolean',
+    }.each do |options, message|
+      assert_equal "invalid args `options` for command `open`: #{message}", rejection("open", { "options" => options }), options.inspect
+    end
+  end
+
+  # serde_json's Map is a BTreeMap without its preserve_order feature, so
+  # serde visits an object's keys in byte order, whatever order the
+  # frontend sent them in, and names the first bad one in that order
+  # (plan 024, Results). The messages are the plan 026 oracle's.
+  def test_an_object_is_read_in_key_order
+    {
+      { "title" => 1, "multiple" => 2 } => "invalid type: integer `2`, expected a boolean",
+      { "title" => 1, "defaultPath" => 2 } => "invalid type: integer `2`, expected path string",
+      { "filters" => [{ "name" => 1, "extensions" => 2 }] } => "invalid type: integer `2`, expected a sequence",
+    }.each do |options, message|
+      assert_equal "invalid args `options` for command `open`: #{message}", rejection("open", { "options" => options }), options.inspect
+    end
+  end
+
+  # serde_derive reads a struct from a sequence too, field by field in
+  # declaration order: a missing field takes its serde default if it has
+  # one, and otherwise ends the read (de.rs visit_seq). The messages are
+  # the plan 026 oracle's.
+  def test_options_may_be_a_sequence
+    options = Dialog::Commands.__send__(:arguments, { "options" => ["t", [["n", ["txt"]]], true, false, "/p", false, nil, "image"] }, "open").open_options
+    assert_equal Dialog::Commands::OpenDialogOptions.new(
+      title: "t", filters: [Dialog::Commands::DialogFilter.new(name: "n", extensions: ["txt"])], multiple: true, directory: false,
+      default_path: "/p", recursive: false, can_create_directories: nil, picker_mode: Dialog::PickerMode::Image, file_access_mode: nil,
+    ), options
+    {
+      ["open", ["t"]] => "invalid length 4, expected struct OpenDialogOptions with 9 elements",
+      ["open", [1]] => "invalid type: integer `1`, expected a string",
+      ["open", ["t", [], true, false, "/p", false, nil, "image", "copy", "extra"]] => "invalid length 10, expected fewer elements in array",
+      ["save", []] => "invalid length 0, expected struct SaveDialogOptions with 4 elements",
+      ["save", ["t"]] => "invalid length 2, expected struct SaveDialogOptions with 4 elements",
+      ["save", ["t", [], "/p", true, 1]] => "invalid length 5, expected fewer elements in array",
+    }.each do |(command, sequence), message|
+      assert_equal "invalid args `options` for command `#{command}`: #{message}", rejection(command, { "options" => sequence }), sequence.inspect
     end
   end
 
@@ -194,7 +257,6 @@ class TestCommands < Minitest::Test
   end
 
   def test_buttons_read_every_variant
-    args = Dialog::Commands.__send__(:arguments, nil, "message")
     {
       "Ok" => Dialog::MessageDialogButtons::Ok,
       "YesNoCancel" => Dialog::MessageDialogButtons::YesNoCancel,
@@ -203,16 +265,17 @@ class TestCommands < Minitest::Test
       { "OkCancelCustom" => %w[Save Discard] } => Dialog::MessageDialogButtons::OkCancelCustom.new(ok: "Save", cancel: "Discard"),
       { "YesNoCancelCustom" => %w[Y N C] } => Dialog::MessageDialogButtons::YesNoCancelCustom.new(yes: "Y", no: "N", cancel: "C"),
     }.each do |wire, expected|
-      assert_equal expected, args.buttons("buttons", wire), wire.inspect
+      args = Dialog::Commands.__send__(:arguments, { "buttons" => wire }, "message")
+      assert_equal expected, args.buttons("buttons"), wire.inspect
     end
   end
 
   # Any string, any case; anything unknown is info (models.rs:20-33).
   def test_a_kind_is_any_string
-    args = Dialog::Commands.__send__(:arguments, nil, "message")
-    assert_same Dialog::MessageDialogKind::Warning, args.kind("kind", "WARNING")
-    assert_same Dialog::MessageDialogKind::Error, args.kind("kind", "error")
-    assert_same Dialog::MessageDialogKind::Info, args.kind("kind", "loud")
+    { "WARNING" => :Warning, "error" => :Error, "loud" => :Info }.each do |wire, kind|
+      args = Dialog::Commands.__send__(:arguments, { "kind" => wire }, "message")
+      assert_same Dialog::MessageDialogKind.const_get(kind, false), args.kind("kind"), wire
+    end
   end
 
   # ask and confirm pick their buttons from the labels they get

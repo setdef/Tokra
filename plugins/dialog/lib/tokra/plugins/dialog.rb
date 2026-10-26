@@ -132,7 +132,9 @@ module Tokra
         # Each checks its arguments now, rejecting a bad one with Tauri's
         # message, and then waits for the user on a thread of its own, so
         # the event loop keeps running. Returns +true+ for one of the
-        # plugin's commands and +false+ for any other.
+        # plugin's commands and +false+ for any other. Only an argument
+        # that does not read rejects here; anything else is a bug, and
+        # reaches the router.
         def extend_api(invoke)
           command = invoke.command
           return false unless COMMANDS.include?(command)
@@ -145,7 +147,7 @@ module Tokra
           when "ask" then Commands.ask(invoke, dialog)
           else Commands.confirm(invoke, dialog)
           end
-        rescue ArgumentError => e
+        rescue Tokra::Error::InvalidArgs => e
           invoke.reject(e.message)
           true
         end

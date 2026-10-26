@@ -31,22 +31,23 @@ module Tokra
         # frontend's error handling, and a developer reading the console,
         # depend on those words.
         #
-        # This class reads the options field by field, in the order the
-        # object gives them, as serde's derived visitor does, and raises
-        # ArgumentError with Tauri's <tt>invalid args `options` for
-        # command `notify`: ...</tt> message (tauri error.rs:59-60) and
-        # serde_json's text for what was wrong. Unknown fields are
-        # ignored, and missing ones take Tauri's defaults.
+        # This class reads the options field by field, in the order
+        # serde_json's map gives them, as serde's derived visitor does,
+        # through Tokra::Ipc::CommandItem, which raises
+        # Tokra::Error::InvalidArgs with Tauri's <tt>invalid args `options`
+        # for command `notify`: ...</tt> message and serde_json's text for
+        # what was wrong. Unknown fields are ignored, and missing ones take
+        # Tauri's defaults.
         #
         # === Examples
         #
         #   Arguments.new({ "options" => { "title" => "Hi" } }, "notify").notification_data.title  #=> "Hi"
         #   Arguments.new({ "options" => { "id" => 1.5 } }, "notify").notification_data
-        #   # raises ArgumentError: invalid args `options` for command `notify`:
+        #   # raises Tokra::Error::InvalidArgs: invalid args `options` for command `notify`:
         #   #   invalid type: floating point `1.5`, expected i32
         class Arguments
           # What serde says went wrong with one value.
-          class Mismatch < StandardError; end
+          Mismatch = Tokra::Ipc::CommandItem::Mismatch
 
           # The variants of Schedule, in declaration order, camelCased by
           # serde (models.rs:96-124).
@@ -135,34 +136,13 @@ module Tokra
           #
           #   args.notification_data.body  #=> "You've got mail."
           def notification_data
-            argument("options") do
-              NotificationData.new(**struct_value(required("options"), "NotificationData", NOTIFICATION_DATA))
+            Tokra::Ipc::CommandItem.new(name: @command, key: "options", payload: @payload).deserialize do |options|
+              NotificationData.new(**struct_value(options, "NotificationData", NOTIFICATION_DATA))
             end
           end
 
-          # Runs the block, turning a Mismatch into Tauri's InvalidArgs
-          # message for +key+.
-          private def argument(key)
-            yield
-          rescue Mismatch => e
-            raise ArgumentError, "invalid args `#{key}` for command `#{@command}`: #{e.message}"
-          end
-
-          # A required argument, or Tauri's missing-key message
-          # (tauri ipc/command.rs:97-102).
-          private def required(key)
-            return @payload[key] if @payload.key?(key)
-
-            raise Mismatch, "command #{@command} missing required key #{key}"
-          end
-
           private def mismatch(value, expected)
-            raise Mismatch, "invalid type: #{unexpected(value)}, expected #{expected}"
-          end
-
-          # serde_json's description of a JSON value (Tokra::Ipc::Unexpected).
-          private def unexpected(value)
-            Tokra::Ipc::Unexpected.describe(value)
+            raise Mismatch.invalid_type(value, expected)
           end
 
           # +string+ quoted as Rust's Debug quotes a str

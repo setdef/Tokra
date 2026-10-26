@@ -311,28 +311,23 @@ module Commands
           PICKER_MODES: Array[String]
           FILE_ACCESS_MODES: Array[String]
 
-          class Mismatch < StandardError
-          end
+          class Mismatch = Tokra::Ipc::CommandItem::Mismatch
 
           @payload: Hash[String, json]
           @command: String
 
           def initialize: (Hash[String, json]? payload, String command) -> void
-          def optional: (String key) -> json
           def string: (String key) -> String
           def optional_string: (String key) -> String?
-          def kind: (String key, json value) -> MessageDialogKind?
-          def buttons: (String key, json value) -> buttons?
+          def kind: (String key) -> MessageDialogKind?
+          def buttons: (String key) -> buttons?
           def open_options: () -> OpenDialogOptions
           def save_options: () -> SaveDialogOptions
 
           private
 
-          def argument: [T] (String key) { () -> T } -> T
-          def required: (String key) -> json
+          def item: (String key) -> Tokra::Ipc::CommandItem
           def mismatch: (json value, String expected) -> bot
-          def unexpected: (json value) -> String
-          def debug: (String string) -> String
           def string_value: (json value) -> String
           def bool: (json value) -> bool
           def path: (json value) -> String
@@ -340,6 +335,8 @@ module Commands
           def filters: (json value) -> Array[DialogFilter]
           def sequence: [T] (json value) { (json) -> T } -> Array[T]
           def struct_value: (json value, String name, Hash[String, field] fields) -> Array[Object]
+          def struct_from_map: (Hash[String, json] value, Hash[String, field] fields) -> Array[Object]
+          def struct_from_sequence: (Array[json] value, String name, Hash[String, field] fields) -> Array[Object]
           def enum_value: (json value, Array[String] variants) -> [String, Array[json]?]
           def one_of: (Array[String] variants) -> String
           def unit: (Array[json]? content) -> void

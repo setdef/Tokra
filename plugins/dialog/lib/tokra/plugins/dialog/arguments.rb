@@ -9,9 +9,10 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
 # SPDX-SnippetCopyrightText: Erick Tryzelaar and David Tolnay (serde, serde_json)
-# SPDX-SnippetComment: Argument errors from tauri ipc/command.rs and error.rs;
-#                      the messages are serde's (serde_core 1.0.228
-#                      de/mod.rs) as serde_json 1.0.150 src/value/de.rs and
+# SPDX-SnippetComment: Argument shapes from tauri-plugin-dialog commands.rs,
+#                      lib.rs, and models.rs; the messages are serde's
+#                      (serde_core 1.0.228 de/mod.rs, serde_derive 1.0.228
+#                      de.rs) as serde_json 1.0.140 src/value/de.rs and
 #                      src/error.rs produce them
 
 module Tokra
@@ -27,15 +28,16 @@ module Tokra
         # depend on those words.
         #
         # This class checks each argument the plugin's commands take, in the
-        # order Tauri reads them, and raises ArgumentError with Tauri's
-        # <tt>invalid args `key` for command `name`: ...</tt> message
-        # (tauri error.rs:59-60) and serde_json's text for what was wrong.
+        # order Tauri reads them, through Tokra::Ipc::CommandItem, which
+        # raises Tokra::Error::InvalidArgs with Tauri's <tt>invalid args
+        # `key` for command `name`: ...</tt> message and serde_json's text
+        # for what was wrong.
         #
         # === Examples
         #
         #   args = Arguments.new({ "message" => 1 }, "message")
         #   args.string("message")
-        #   # raises ArgumentError: invalid args `message` for command `message`:
+        #   # raises Tokra::Error::InvalidArgs: invalid args `message` for command `message`:
         #   #   invalid type: integer `1`, expected a string
         #
         #   Arguments.new({ "options" => {} }, "open").open_options.multiple  #=> false
@@ -55,7 +57,7 @@ module Tokra
           FILE_ACCESS_MODES = %w[copy scoped].freeze
 
           # What serde says went wrong with one value.
-          class Mismatch < StandardError; end
+          Mismatch = Tokra::Ipc::CommandItem::Mismatch
 
           # Creates a reader for +payload+, the invoke's arguments, of
           # +command+.
@@ -67,22 +69,13 @@ module Tokra
             @command = command
           end
 
-          # The value for +key+, or +nil+ when the frontend left it out.
-          #
-          # === Example
-          #
-          #   args.optional("kind")  #=> "warning"
-          def optional(key)
-            @payload[key]
-          end
-
           # The String for required +key+ (a Rust +String+).
           #
           # === Example
           #
           #   args.string("message")  #=> "Saved"
           def string(key)
-            argument(key) { string_value(required(key)) }
+            item(key).deserialize { |value| string_value(value) }
           end
 
           # The String for +key+, or +nil+ when absent or null (a Rust
@@ -92,21 +85,18 @@ module Tokra
           #
           #   args.optional_string("title")  #=> nil
           def optional_string(key)
-            value = optional(key)
-            argument(key) { value.nil? ? nil : string_value(value) }
+            item(key).deserialize_option { |value| string_value(value) }
           end
 
-          # The MessageDialogKind for +value+ at +key+, or +nil+: any
-          # string, ignoring case, and Info for anything unknown
+          # The MessageDialogKind for +key+, or +nil+ when absent or null:
+          # any string, ignoring case, and Info for anything unknown
           # (models.rs:20-33).
           #
           # === Example
           #
-          #   args.kind("kind", "WARNING")  #=> MessageDialogKind::Warning
-          def kind(key, value)
-            return nil if value.nil?
-
-            argument(key) do
+          #   args.kind("kind")  #=> MessageDialogKind::Warning
+          def kind(key)
+            item(key).deserialize_option do |value|
               case string_value(value).downcase
               when "warning" then MessageDialogKind::Warning
               when "error" then MessageDialogKind::Error
@@ -115,18 +105,16 @@ module Tokra
             end
           end
 
-          # The MessageDialogButtons for +value+ at +key+, or +nil+, read as
-          # serde reads an externally tagged enum: a variant's name, or an
-          # object with the variant's name as its one key
+          # The MessageDialogButtons for +key+, or +nil+ when absent or
+          # null, read as serde reads an externally tagged enum: a variant's
+          # name, or an object with the variant's name as its one key
           # (serde_json value/de.rs:328-347, 1066-1107).
           #
           # === Example
           #
-          #   args.buttons("buttons", { "OkCustom" => "Fine" })  #=> MessageDialogButtons::OkCustom.new(ok: "Fine")
-          def buttons(key, value)
-            return nil if value.nil?
-
-            argument(key) do
+          #   args.buttons("buttons")  #=> MessageDialogButtons::OkCustom.new(ok: "Fine")
+          def buttons(key)
+            item(key).deserialize_option do |value|
               variant, content = enum_value(value, BUTTONS)
               case variant
               when "OkCustom" then MessageDialogButtons::OkCustom.new(ok: newtype(content) { |text| string_value(text) })
@@ -149,15 +137,15 @@ module Tokra
           #
           #   args.open_options.directory  #=> false
           def open_options
-            argument("options") do
-              fields = struct_value(required("options"), "OpenDialogOptions", {
-                "title" => [nil, -> (value) { option(value) { string_value(value) } }],
+            item("options").deserialize do |options|
+              fields = struct_value(options, "OpenDialogOptions", {
+                "title" => [:option, -> (value) { option(value) { string_value(value) } }],
                 "filters" => [[], -> (value) { filters(value) }],
                 "multiple" => [false, -> (value) { bool(value) }],
                 "directory" => [false, -> (value) { bool(value) }],
-                "defaultPath" => [nil, -> (value) { option(value) { path(value) } }],
+                "defaultPath" => [:option, -> (value) { option(value) { path(value) } }],
                 "recursive" => [false, -> (value) { bool(value) }],
-                "canCreateDirectories" => [nil, -> (value) { option(value) { bool(value) } }],
+                "canCreateDirectories" => [:option, -> (value) { option(value) { bool(value) } }],
                 "pickerMode" => [nil, -> (value) { option(value) { picker_mode(value) } }],
                 "fileAccessMode" => [nil, -> (value) { option(value) { file_access_mode(value) } }],
               })
@@ -171,68 +159,24 @@ module Tokra
           #
           #   args.save_options.default_path  #=> "/tmp/out.txt"
           def save_options
-            argument("options") do
-              fields = struct_value(required("options"), "SaveDialogOptions", {
-                "title" => [nil, -> (value) { option(value) { string_value(value) } }],
+            item("options").deserialize do |options|
+              fields = struct_value(options, "SaveDialogOptions", {
+                "title" => [:option, -> (value) { option(value) { string_value(value) } }],
                 "filters" => [[], -> (value) { filters(value) }],
-                "defaultPath" => [nil, -> (value) { option(value) { path(value) } }],
-                "canCreateDirectories" => [nil, -> (value) { option(value) { bool(value) } }],
+                "defaultPath" => [:option, -> (value) { option(value) { path(value) } }],
+                "canCreateDirectories" => [:option, -> (value) { option(value) { bool(value) } }],
               })
               SaveDialogOptions.new(*fields)
             end
           end
 
-          # Runs the block, turning a Mismatch into Tauri's InvalidArgs
-          # message for +key+.
-          private def argument(key)
-            yield
-          rescue Mismatch => e
-            raise ArgumentError, "invalid args `#{key}` for command `#{@command}`: #{e.message}"
-          end
-
-          # A required argument, or Tauri's missing-key message
-          # (tauri ipc/command.rs:97-102).
-          private def required(key)
-            return @payload[key] if @payload.key?(key)
-
-            raise Mismatch, "command #{@command} missing required key #{key}"
+          # Argument +key+, read as Tauri's CommandItem reads it.
+          private def item(key)
+            Tokra::Ipc::CommandItem.new(name: @command, key:, payload: @payload)
           end
 
           private def mismatch(value, expected)
-            raise Mismatch, "invalid type: #{unexpected(value)}, expected #{expected}"
-          end
-
-          # serde_json's description of a JSON value (value/de.rs:1395-1404,
-          # error.rs:465-478).
-          private def unexpected(value)
-            case value
-            when nil then "null"
-            when true, false then "boolean `#{value}`"
-            when Integer then "integer `#{value}`"
-            when Float then "floating point `#{value}`"
-            when String then "string #{debug(value)}"
-            when Array then "sequence"
-            else "map"
-            end
-          end
-
-          # +string+ quoted as Rust's Debug quotes a str: escapes for
-          # quotes, backslashes, tabs, returns, newlines, and NUL, and
-          # <tt>\u{..}</tt> for other control characters
-          # (char::escape_debug). Printable text passes as it is.
-          private def debug(string)
-            escaped = string.each_char.map do |char|
-              case char
-              when "\t" then "\\t"
-              when "\r" then "\\r"
-              when "\n" then "\\n"
-              when "\\" then "\\\\"
-              when '"' then "\\\""
-              when "\0" then "\\0"
-              else (char.ord < 0x20 || char.ord == 0x7F) ? format("\\u{%x}", char.ord) : char
-              end
-            end
-            "\"#{escaped.join}\""
+            raise Mismatch.invalid_type(value, expected)
           end
 
           private def string_value(value)
@@ -269,13 +213,29 @@ module Tokra
             value.map(&)
           end
 
-          # The fields of a derived struct, in declaration order: each key of
-          # the object in its order, then each missing field's default, or
-          # serde's missing-field message for one without.
+          # The fields of a derived struct named +name+, in declaration
+          # order. +fields+ maps each wire name to its default and reader:
+          # the default is +:required+, +:option+ for an <tt>Option</tt>
+          # without <tt>#[serde(default)]</tt>, or the serde default's value.
+          # An object is read key by key, then each missing field takes its
+          # default; an array is read field by field (serde_derive de.rs
+          # visit_map and visit_seq).
           private def struct_value(value, name, fields)
-            mismatch(value, "struct #{name}") unless value.is_a?(Hash)
+            case value
+            when Hash then struct_from_map(value, fields)
+            when Array then struct_from_sequence(value, name, fields)
+            else mismatch(value, "struct #{name}")
+            end
+          end
+
+          # serde_json's Map, without its +preserve_order+ feature, as
+          # Tauri builds it, is a BTreeMap: serde visits the keys in byte
+          # order, whatever order the frontend sent them in, so the first
+          # bad field in that order is the one reported. Unknown keys are
+          # skipped; a missing Option is +nil+.
+          private def struct_from_map(value, fields)
             read = {}
-            value.each do |key, item|
+            value.sort_by { |key, _| key.b }.each do |key, item|
               field = fields[key]
               read[key] = field.last.call(item) if field
             end
@@ -283,8 +243,27 @@ module Tokra
               next read[key] if read.key?(key)
               raise Mismatch, "missing field `#{key}`" if default == :required
 
+              (default == :option) ? nil : default
+            end
+          end
+
+          # A struct from a sequence: each field from the next element, a
+          # missing one from its serde default, or serde's invalid length
+          # for a field without one; then serde_json's error for elements
+          # left over (serde_json value/de.rs visit_array).
+          private def struct_from_sequence(value, name, fields)
+            count = fields.size
+            values = fields.each_with_index.map do |(_key, (default, reader)), index|
+              next reader.call(value[index]) if index < value.size
+              if default == :required || default == :option
+                raise Mismatch, "invalid length #{index}, expected struct #{name} with #{count} element#{'s' unless count == 1}"
+              end
+
               default
             end
+            raise Mismatch, "invalid length #{value.size}, expected fewer elements in array" if value.size > count
+
+            values
           end
 
           # The variant name and content of an externally tagged enum.
@@ -303,9 +282,15 @@ module Tokra
             [variant, content]
           end
 
-          # serde's OneOf list of variant names (de/mod.rs:2339-2352).
+          # serde's OneOf list of variant names: one name alone, two joined
+          # by "or", more after "one of" (de/mod.rs:2337-2355).
           private def one_of(variants)
-            "one of #{variants.map { |name| "`#{name}`" }.join(', ')}"
+            names = variants.map { |name| "`#{name}`" }
+            case names.size
+            when 1 then names.first.to_s
+            when 2 then names.join(" or ")
+            else "one of #{names.join(', ')}"
+            end
           end
 
           # A unit variant's content: none, or null in an object.

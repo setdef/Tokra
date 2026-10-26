@@ -64,10 +64,10 @@ module Tokra
         # The channel the frontend passed as argument +key+ of +invoke+,
         # sending to the page that invoked it.
         #
-        # Raises ArgumentError with Tauri's message when the argument is
-        # missing or not a string (CommandItem), or when the string is not
-        # <tt>__CHANNEL__:</tt> and an id. Mirrors the CommandArg impl
-        # for Channel (channel.rs:300-316).
+        # Raises Tokra::Error::InvalidArgs with Tauri's message when the
+        # argument is missing or not a string (CommandItem), and
+        # InvokeError when the string is not <tt>__CHANNEL__:</tt> and an
+        # id. Mirrors the CommandArg impl for Channel (channel.rs:300-316).
         #
         # === Example
         #
@@ -77,7 +77,7 @@ module Tokra
           id = begin
             JavaScriptChannelId.from_str(value)
           rescue ArgumentError
-            raise ArgumentError, "invalid channel value `#{value}`, expected a string in the `#{IPC_PAYLOAD_PREFIX}ID` format"
+            raise InvokeError, "invalid channel value `#{value}`, expected a string in the `#{IPC_PAYLOAD_PREFIX}ID` format"
           end
           id.channel_on(invoke.webview)
         end

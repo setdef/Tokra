@@ -24,10 +24,13 @@ module Tokra
     # depend on those words.
     #
     # This class reads one key of an invoke's payload as the Rust type
-    # would, and raises ArgumentError with Tauri's <tt>invalid args `key`
-    # for command `name`: ...</tt> message and serde_json's text. A plugin's
-    # extend_api rejects the invoke with that message. Use it for the
-    # String and Vec<String> arguments of a command.
+    # would, and raises Tokra::Error::InvalidArgs with Tauri's
+    # <tt>invalid args `key` for command `name`: ...</tt> message and
+    # serde_json's text. A plugin's extend_api rescues it and rejects the
+    # invoke with that message. #string and #strings read a command's
+    # String and Vec<String> arguments; #deserialize and
+    # #deserialize_option read any other through a block that checks the
+    # value, raising Mismatch where serde would fail.
     #
     # Mirrors Tauri's +CommandItem+ deserializer (ipc/command.rs:60-130) and
     # <tt>Error::InvalidArgs</tt> (error.rs:59-60). +name+ is the command's
@@ -39,11 +42,30 @@ module Tokra
     #   item.strings  #=> ["CmdOrCtrl+Shift+K"]
     #
     #   Tokra::Ipc::CommandItem.new(name: "register", key: "shortcuts", payload: {}).strings
-    #   # raises ArgumentError: invalid args `shortcuts` for command `register`:
+    #   # raises Tokra::Error::InvalidArgs: invalid args `shortcuts` for command `register`:
     #   #   command register missing required key shortcuts
     class CommandItem < Data.define(:name, :key, :payload)
-      # What serde_json said went wrong, before InvalidArgs wraps it.
-      class Mismatch < StandardError # :nodoc:
+      # What serde_json said went wrong with a value, before InvalidArgs
+      # wraps it: serde_json's +Error+ in this role.
+      #
+      # Raise it inside #deserialize or #deserialize_option, which turn it
+      # into Tokra::Error::InvalidArgs for the argument.
+      #
+      # === Example
+      #
+      #   item.deserialize { |value| value == true || value == false ? value : raise(Mismatch.invalid_type(value, "a boolean")) }
+      class Mismatch < StandardError
+        # serde's <tt>invalid type</tt> error for +value+, a JSON value,
+        # where +expected+ was wanted (serde de/mod.rs
+        # Error::invalid_type), describing the value as serde_json does
+        # (Unexpected).
+        #
+        # === Example
+        #
+        #   Mismatch.invalid_type(1, "a string").message  #=> "invalid type: integer `1`, expected a string"
+        def self.invalid_type(value, expected)
+          new("invalid type: #{Unexpected.describe(value)}, expected #{expected}")
+        end
       end
 
       # :attr_reader: name
@@ -61,7 +83,7 @@ module Tokra
       #
       #   Tokra::Ipc::CommandItem.new(name: "is_registered", key: "shortcut", payload: { "shortcut" => "F19" }).string  #=> "F19"
       def string
-        deserialize { string_value(value) }
+        deserialize { |value| string_value(value) }
       end
 
       # The argument as a Rust <tt>Vec<String></tt>.
@@ -70,37 +92,48 @@ module Tokra
       #
       #   Tokra::Ipc::CommandItem.new(name: "unregister", key: "shortcuts", payload: { "shortcuts" => ["F19"] }).strings  #=> ["F19"]
       def strings
-        deserialize do
-          items = value
-          invalid_type(items, "a sequence") unless items.is_a?(Array)
+        deserialize do |items|
+          raise Mismatch.invalid_type(items, "a sequence") unless items.is_a?(Array)
+
           items.map { |item| string_value(item) }
         end
       end
 
-      # Runs the block, turning a Mismatch into Tauri's InvalidArgs message
-      # (error.rs:59-60).
-      private def deserialize
-        yield
+      # The argument as the block reads it: the block receives the value
+      # at #key and returns the argument, raising Mismatch when the value
+      # is not one. A missing key raises serde_json's custom error
+      # (command.rs:97-102), and a Mismatch becomes
+      # Tokra::Error::InvalidArgs, as the CommandArg impl for every
+      # deserializable type does (command.rs:60-70).
+      #
+      # === Example
+      #
+      #   item.deserialize { |value| value.is_a?(Hash) ? value : raise(Mismatch.invalid_type(value, "a map")) }
+      def deserialize
+        arguments = payload
+        raise Mismatch, "command #{name} missing required key #{key}" unless arguments.key?(key)
+
+        yield arguments[key]
       rescue Mismatch => e
-        raise ArgumentError, "invalid args `#{key}` for command `#{name}`: #{e.message}"
+        raise Error::InvalidArgs.new(name, key, e.message)
       end
 
-      # The value at +key+, or serde_json's custom missing-key error
-      # (command.rs:97-102).
-      private def value
-        arguments = payload
-        return arguments[key] if arguments.key?(key)
+      # The argument as a Rust <tt>Option</tt>: +nil+ when the key is
+      # missing or null, and otherwise the value as the block reads it,
+      # as for #deserialize (command.rs:134-145, and serde_json's
+      # <tt>Value::deserialize_option</tt>).
+      #
+      # === Example
+      #
+      #   Tokra::Ipc::CommandItem.new(name: "write_text", key: "label", payload: {}).deserialize_option { |value| value }  #=> nil
+      def deserialize_option
+        return nil if payload[key].nil?
 
-        raise Mismatch, "command #{name} missing required key #{key}"
+        deserialize { |value| yield value }
       end
 
       private def string_value(item)
-        item.is_a?(String) ? item : invalid_type(item, "a string")
-      end
-
-      # serde's <tt>invalid type</tt> error (de/mod.rs Error::invalid_type).
-      private def invalid_type(item, expected)
-        raise Mismatch, "invalid type: #{Unexpected.describe(item)}, expected #{expected}"
+        item.is_a?(String) ? item : raise(Mismatch.invalid_type(item, "a string"))
       end
     end
   end

@@ -506,8 +506,14 @@ class TestClipboard < Minitest::Test
     ["write_text", { "text" => true }] => "invalid args `text` for command `write_text`: invalid type: boolean `true`, expected a borrowed string",
     ["write_text", { "text" => [] }] => "invalid args `text` for command `write_text`: invalid type: sequence, expected a borrowed string",
     ["write_text", { "text" => {} }] => "invalid args `text` for command `write_text`: invalid type: map, expected a borrowed string",
+    # serde_json describes floats as ryu prints them, and integers past
+    # u64 as floats (plan 026, decision 6).
+    ["write_text", { "text" => 1e16 }] => "invalid args `text` for command `write_text`: invalid type: floating point `1e16`, expected a borrowed string",
+    ["write_text", { "text" => 2 ** 64 }] => "invalid args `text` for command `write_text`: invalid type: floating point `1.8446744073709552e19`, expected a borrowed string",
+    ["write_text", { "text" => "x", "label" => 1e300 }] => "invalid args `label` for command `write_text`: invalid type: floating point `1e300`, expected a string",
     ["write_html", {}] => "invalid args `html` for command `write_html`: command write_html missing required key html",
     ["write_html", { "html" => "<b>x</b>", "altText" => 5 }] => "invalid args `altText` for command `write_html`: invalid type: integer `5`, expected a borrowed string",
+    ["write_html", { "html" => "<b>x</b>", "altText" => 0.00001 }] => "invalid args `altText` for command `write_html`: invalid type: floating point `0.00001`, expected a borrowed string",
     ["write_image", {}] => "invalid args `image` for command `write_image`: command write_image missing required key image",
     ["write_image", { "image" => { "rgba" => [], "width" => -1, "height" => 1 } }] => "invalid args `image` for command `write_image`: data did not match any variant of untagged enum JsImage",
     ["write_image", { "image" => { "rgba" => [256, 0, 0, 0], "width" => 1, "height" => 1 } }] => "invalid args `image` for command `write_image`: data did not match any variant of untagged enum JsImage",
@@ -519,6 +525,17 @@ class TestClipboard < Minitest::Test
       assert plugin.extend_api(invoke), "a bad argument is handled, not raised"
       assert_equal [[false, message]], responses
     end
+  end
+
+  # Only what Tauri's commands return rejects here: an ArgumentError from
+  # a bug reaches the router, which logs it before it rejects (plan 026,
+  # decision 7).
+  def test_an_argument_error_from_a_bug_is_not_taken_for_a_bad_argument
+    plugin = build_plugin
+    plugin.define_singleton_method(:write_text) { |_text| raise ArgumentError, "a bug" }
+    invoke, = build_invoke("write_text", { "text" => "x" })
+
+    assert_equal "a bug", assert_raises(ArgumentError) { plugin.extend_api(invoke) }.message
   end
 
   def test_write_html_accepts_null_alt_text
