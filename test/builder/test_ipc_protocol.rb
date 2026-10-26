@@ -6,6 +6,7 @@
 #++
 
 require "test_helper"
+require_relative "../support/local_origin"
 require_relative "../support/stub_native"
 
 # Tests the ipc:// custom-protocol transport (Plan 015).
@@ -22,7 +23,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   # +omit+ drops named headers to exercise the malformed paths.
   private def ipc_request(app, cmd:, method: "POST", body: "{}", callback: "100",
     error: "200", key: :app, content_type: "application/json",
-    origin: "tokra://localhost", uri: nil, omit: [], lowercase: false
+    origin: LocalOrigin.url("", app:), uri: nil, omit: [], lowercase: false
   )
     headers = [] #: Array[[String, String]]
     headers << ["Content-Type", content_type] unless omit.include?(:content_type)
@@ -428,7 +429,9 @@ class TestBuilderIpcProtocol < Minitest::Test
 
   def test_windows_origin_is_local_only_on_windows
     app = Tokra::Builder.default.build(native: StubNative)
-    run_with(app, ipc_request(app, cmd: "missing", origin: "http://tokra.localhost"))
+    app.stub(:os_name, "macos") do
+      run_with(app, ipc_request(app, cmd: "missing", origin: "http://tokra.localhost"))
+    end
     assert_equal '"Command missing not allowed by ACL"', last_response[3],
       "http://tokra.localhost is foreign off Windows"
 

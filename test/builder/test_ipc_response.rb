@@ -6,6 +6,7 @@
 #++
 
 require "test_helper"
+require_relative "../support/local_origin"
 require_relative "../support/stub_native"
 
 # Tests that IPC responses reach the WebView.
@@ -14,7 +15,7 @@ require_relative "../support/stub_native"
 # webview: success targets the callback id, failure the error id. Mirrors
 # responder_eval (ipc/protocol.rs).
 class TestBuilderIpcResponse < Minitest::Test
-  private def inject_ipc(app, message, url = "tokra://localhost/")
+  private def inject_ipc(app, message, url = LocalOrigin.url(app:))
     StubNative.inject_event(Tokra::Native::IpcEvent.new(
       JSON.generate(message.merge("__TAURI_INVOKE_KEY__" => app.invoke_key)),
       url
@@ -111,7 +112,7 @@ class TestBuilderIpcResponse < Minitest::Test
     StubNative.inject_event(Tokra::Native::IpcEvent.new(JSON.generate(
       { "cmd" => "ping", "callback" => 1, "error" => 2, "__TAURI_INVOKE_KEY__" => "wrong" }
     ),
-      "tokra://localhost/"
+      LocalOrigin.url(app:)
     ))
 
     _out, err = capture_subprocess_io { app.run }
@@ -155,7 +156,8 @@ class TestBuilderIpcResponse < Minitest::Test
 
   def test_page_in_app_with_path_and_uppercase_scheme_is_local
     app = Tokra::Builder.default.build(native: StubNative)
-    inject_ipc(app, { "cmd" => "missing", "callback" => 1, "error" => 2 }, "TOKRA://LOCALHOST/deep/page?x=1")
+    inject_ipc(app, { "cmd" => "missing", "callback" => 1, "error" => 2 },
+      "#{LocalOrigin.url(app:).upcase.delete_suffix('/')}/deep/page?x=1")
 
     app.run
 

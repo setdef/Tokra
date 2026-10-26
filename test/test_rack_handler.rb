@@ -7,6 +7,7 @@
 #++
 
 require "test_helper"
+require_relative "support/local_origin"
 require "stringio"
 
 # Tests for Rack::Handler::Tokra
@@ -702,7 +703,7 @@ class TestRackHandler < Minitest::Test
     }
     StubNative.inject_event(Tokra::Native::IpcEvent.new(
       JSON.generate("cmd" => "ping", "callback" => 1, "error" => 2, "__TAURI_INVOKE_KEY__" => "known-key"),
-      "tokra://localhost/"
+      LocalOrigin.url
     ))
 
     Tokra.stub(:generate_invoke_key, "known-key") do

@@ -7,6 +7,7 @@
 #++
 
 require "test_helper"
+require_relative "../support/local_origin"
 require_relative "../support/stub_native"
 
 # Tests for Tokra::Builder event dispatch.
@@ -68,7 +69,7 @@ class TestBuilderEventDispatch < Minitest::Test
       "payload" => { "text" => "Hello" },
       "__TAURI_INVOKE_KEY__" => app.invoke_key,
     }
-    StubNative.inject_event(Tokra::Native::IpcEvent.new(JSON.generate(message), "tokra://localhost/"))
+    StubNative.inject_event(Tokra::Native::IpcEvent.new(JSON.generate(message), LocalOrigin.url))
 
     app.run
 
@@ -93,7 +94,7 @@ class TestBuilderEventDispatch < Minitest::Test
     StubNative.inject_event(Tokra::Native::IpcEvent.new(JSON.generate(
       { "cmd" => "read_text", "__TAURI_INVOKE_KEY__" => app.invoke_key }
     ),
-      "tokra://localhost/"
+      LocalOrigin.url
     ))
 
     app.run

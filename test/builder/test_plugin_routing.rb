@@ -6,6 +6,7 @@
 #++
 
 require "test_helper"
+require_relative "../support/local_origin"
 require_relative "../support/stub_native"
 
 # Tests for IPC routing of plugin:NAME|command invokes.
@@ -37,7 +38,7 @@ class TestBuilderPluginRouting < Minitest::Test
   private def inject_ipc(app, message)
     StubNative.inject_event(Tokra::Native::IpcEvent.new(
       JSON.generate(message.merge("__TAURI_INVOKE_KEY__" => app.invoke_key)),
-      "tokra://localhost/"
+      LocalOrigin.url
     ))
   end
 
