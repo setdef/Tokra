@@ -78,6 +78,20 @@ class RbsParity
     @allowed = allowed
   end
 
+  # The text the gate prints for +found+ violations: each one, and how to
+  # allow the first in +allow_file+ when no fix is possible.
+  def self.failure_message(found, allow_file)
+    <<~ERROR
+      ❌ Signatures and implementations disagree:
+      #{found.map { |line| "  #{line}" }.join("\n")}
+
+      Fix the signature or the implementation. Only when no fix is possible,
+      add an exception with its justification to #{allow_file}:
+
+        allow "#{found.first.to_s.split(': ').first}", lint: :rbs_parity, reason: "..."
+    ERROR
+  end
+
   # Every violation, as <tt>"key: message"</tt> lines, sorted.
   def violations
     found = declared_violations + undeclared_violations + stub_violations
@@ -106,17 +120,24 @@ class RbsParity
   end
 
   # A lib class that inherits a NotImplementedError stub from a lib module
-  # or class without overriding it raises when that method is called.
+  # or class without overriding it raises when that method is called. Its
+  # public and protected instance methods and its class methods count.
   private def stub_violations
     lib_modules.grep(Class).flat_map do |klass|
-      klass.public_instance_methods.filter_map do |name|
-        method = klass.instance_method(name)
-        next if method.owner == klass || !lib_source?(method) || !stub?(method)
+      callable = [
+        [:instance, klass, klass.public_instance_methods + klass.protected_instance_methods],
+        [:singleton, klass.singleton_class, klass.singleton_class.public_instance_methods],
+      ]
+      callable.flat_map do |kind, owner, names|
+        names.filter_map do |name|
+          method = owner.instance_method(name)
+          next if method.owner == owner || !lib_source?(method) || !stub?(method)
 
-        [
-          key(klass.name, :instance, name),
-          "inherited from #{describe(method.owner)}, whose #{name} only raises NotImplementedError; define it here",
-]
+          [
+            key(klass.name, kind, name),
+            "inherited from #{describe(method.owner)}, whose #{name} only raises NotImplementedError; define it here",
+          ]
+        end
       end
     end
   end
@@ -229,19 +250,26 @@ class RbsParity
     generated.is_a?(Class) && generated.name.nil? && owner.ancestors.include?(method_owner)
   end
 
-  # Whether a method's whole body is <tt>raise NotImplementedError</tt>.
+  # Whether a method always ends by raising NotImplementedError: its last
+  # statement is an unconditional +raise+ or +fail+ of the class, or of a
+  # new instance of it, named with or without a leading <tt>::</tt>.
   private def stub?(method)
     file, line = method.source_location
     definition = definitions(file).find { |node| node.location.start_line == line && node.name == method.name }
     statements = definition&.body
-    return false unless statements.is_a?(Prism::StatementsNode) && statements.body.size == 1
+    return false unless statements.is_a?(Prism::StatementsNode)
 
-    call = statements.body.first
-    return false unless call.is_a?(Prism::CallNode) && call.name == :raise && call.receiver.nil?
+    call = statements.body.last
+    return false unless call.is_a?(Prism::CallNode) && %i[raise fail].include?(call.name) && call.receiver.nil?
 
     error = call.arguments&.arguments&.first
-    (error.is_a?(Prism::ConstantReadNode) && error.name == :NotImplementedError) ||
-      (error.is_a?(Prism::ConstantPathNode) && error.full_name == "NotImplementedError")
+    error = error.receiver if error.is_a?(Prism::CallNode) && error.name == :new
+    not_implemented_error?(error)
+  end
+
+  private def not_implemented_error?(node)
+    (node.is_a?(Prism::ConstantReadNode) && node.name == :NotImplementedError) ||
+      (node.is_a?(Prism::ConstantPathNode) && node.full_name.delete_prefix("::") == "NotImplementedError")
   end
 
   private def definitions(file)
@@ -257,8 +285,11 @@ class RbsParity
     end
   end
 
+  # A method owner's name; a class method's owner is the singleton class,
+  # named here by the class it belongs to.
   private def describe(method_owner)
-    method_owner.name || method_owner.inspect
+    owner = method_owner.singleton_class? ? method_owner.attached_object : method_owner
+    (owner.is_a?(Module) && owner.name) || method_owner.inspect
   end
 
   private def visibility_of(owner, name)
@@ -296,9 +327,13 @@ class RbsParity
     false
   end
 
+  # Our named modules. A module whose constant was removed (a reloaded
+  # class, or a test fixture) keeps its name but is no longer reachable by
+  # it, so no signature can describe it. That check runs last, because
+  # looking up a deprecated constant of someone else's prints a warning.
   private def lib_modules
     @lib_modules ||= ObjectSpace.each_object(Module).select do |mod|
-      mod.name && !mod.singleton_class? && ours?(mod)
+      mod.name && !mod.singleton_class? && ours?(mod) && resolve(mod.name).equal?(mod)
     end
   end
 
@@ -416,13 +451,7 @@ if $PROGRAM_NAME == __FILE__
   allowed = options[:allow] ? Lint.load(options[:allow]).keys(lint: :rbs_parity) : []
   found = RbsParity.new(sig_dirs: options[:sig], lib_dirs: options[:lib],
     native_namespaces: options[:native], allowed:).violations
-  abort <<~ERROR if found.any?
-    ❌ Signatures and implementations disagree:
-    #{found.map { |line| "  #{line}" }.join("\n")}
-
-    Fix the signature or the implementation. Add to #{options[:allow]} only
-    with a justification that no fix is possible.
-  ERROR
+  abort RbsParity.failure_message(found, options[:allow]) if found.any?
 
   puts "✅ Every signature has an implementation and every public method a signature"
 end

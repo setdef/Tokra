@@ -148,14 +148,16 @@ class TestRbsParity < Minitest::Test
 
   # Loads +source+ into the fixture library for one test, then removes the
   # file and the constant so later tests do not see it.
-  private def with_fixture(constant, source)
+  private def with_fixture(constants, source)
     path = File.join(LIB, "extra_#{name}.rb")
     File.write(path, source)
     load path
     yield
   ensure
     File.delete(path)
-    RbsParityFixture.__send__(:remove_const, constant) if RbsParityFixture.const_defined?(constant, false)
+    Array(constants).each do |constant|
+      RbsParityFixture.__send__(:remove_const, constant) if RbsParityFixture.const_defined?(constant, false)
+    end
   end
 
   def test_a_faithful_signature_passes
@@ -330,6 +332,92 @@ class TestRbsParity < Minitest::Test
     assert_empty violations(FAITHFUL).grep(/\AComparable#/)
     assert_includes violations(FAITHFUL, native_namespaces: ["Comparable"]),
       "Comparable#between?: public in lib/ but has no signature"
+  end
+
+  # Every way of writing a stub the rule recognizes, and one it must not:
+  # a conditional raise can return.
+  STUB_SHAPES = <<~RUBY
+    module RbsParityFixture::Shapes
+      def with_fail
+        fail NotImplementedError, "implement with_fail"
+      end
+
+      def with_new
+        raise NotImplementedError.new("implement with_new")
+      end
+
+      def with_path
+        raise ::NotImplementedError
+      end
+
+      def with_path_new
+        raise(::NotImplementedError.new)
+      end
+
+      def after_statements
+        name = "after_statements"
+        raise NotImplementedError, "implement \#{name}"
+      end
+
+      protected def guarded
+        raise NotImplementedError
+      end
+
+      def conditional
+        raise NotImplementedError if $PROGRAM_NAME.empty?
+
+        1
+      end
+
+      def other_error
+        raise ArgumentError
+      end
+    end
+
+    class RbsParityFixture::ShapesBase
+      def self.create
+        raise NotImplementedError
+      end
+    end
+
+    class RbsParityFixture::Shaped < RbsParityFixture::ShapesBase
+      include RbsParityFixture::Shapes
+    end
+  RUBY
+
+  def test_each_way_of_writing_a_stub_is_recognized
+    with_fixture(%i[Shapes ShapesBase Shaped], STUB_SHAPES) do
+      stubs = violations(FAITHFUL).grep(/only raises NotImplementedError/).map { |line| line.split(": ").first }
+
+      assert_equal %w[
+        RbsParityFixture::Shaped#after_statements
+        RbsParityFixture::Shaped#guarded
+        RbsParityFixture::Shaped#with_fail
+        RbsParityFixture::Shaped#with_new
+        RbsParityFixture::Shaped#with_path
+        RbsParityFixture::Shaped#with_path_new
+        RbsParityFixture::Shaped.create
+      ], stubs
+    end
+  end
+
+  def test_an_inherited_singleton_stub_names_the_class_it_came_from
+    with_fixture(%i[Shapes ShapesBase Shaped], STUB_SHAPES) do
+      assert_includes violations(FAITHFUL),
+        "RbsParityFixture::Shaped.create: inherited from RbsParityFixture::ShapesBase, whose " \
+          "create only raises NotImplementedError; define it here"
+    end
+  end
+
+  def test_the_failure_message_names_the_escape_hatch_with_the_first_key
+    message = RbsParity.failure_message(
+      ["RbsParityFixture::Handle#label: public in lib/ but has no signature", "Other#x: declared in sig/ but not defined in lib/"],
+      "rbs_exceptions.rb"
+    )
+
+    assert_includes message, "  RbsParityFixture::Handle#label: public in lib/ but has no signature\n"
+    assert_includes message, 'allow "RbsParityFixture::Handle#label", lint: :rbs_parity, reason: "..."'
+    assert_includes message, "rbs_exceptions.rb"
   end
 
   def test_an_allowed_key_is_not_reported

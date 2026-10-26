@@ -54,6 +54,16 @@ class TestSkills < Minitest::Test
     end
   end
 
+  # Each skill carries its own copy of the parity checklist so it stands
+  # alone (Plan 017), and the copies must not drift apart.
+  def test_both_parity_checklists_are_identical
+    port, audit = %w[port-tauri-feature audit-parity].map do |name|
+      File.read(File.join(ROOT, ".agents/skills", name, "references/parity-checklist.md"))
+    end
+
+    assert_equal port, audit, "edit both copies of references/parity-checklist.md together"
+  end
+
   def test_claude_code_sees_each_skill_through_a_relative_symlink
     SKILLS.each do |path|
       name = File.basename(File.dirname(path))
