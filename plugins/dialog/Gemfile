@@ -1,0 +1,24 @@
+# frozen_string_literal: true
+
+#--
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#++
+
+source "https://rubygems.org"
+
+gemspec
+
+gem "tokra", path: "../.."
+
+# ferro-rfd is not on RubyGems.org yet, so Bundler takes it from Ferro's
+# repository (ADR 011).
+gem "ferro-rfd", git: "https://github.com/setdef/Ferro", tag: "ferro-rfd/v0.1.0.pre.2", glob: "gems/rfd/*.gemspec"
+
+group :development, :test do
+  # The macOS dialog tests press a sheet's buttons through AppKit.
+  gem "fiddle"
+  gem "minitest"
+  gem "minitest-mock"
+  gem "rake"
+end

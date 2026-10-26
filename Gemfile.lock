@@ -7,6 +7,15 @@ GIT
     ferro-arboard (0.1.0.pre.2)
       rb_sys (~> 0.9.129)
 
+GIT
+  remote: https://github.com/setdef/Ferro
+  revision: 614968f5b3959a6096daabac6840dcd183379701
+  tag: ferro-rfd/v0.1.0.pre.2
+  glob: gems/rfd/*.gemspec
+  specs:
+    ferro-rfd (0.1.0.pre.2)
+      rb_sys (~> 0.9.129)
+
 PATH
   remote: .
   specs:
@@ -285,6 +294,7 @@ PLATFORMS
 
 DEPENDENCIES
   ferro-arboard!
+  ferro-rfd!
   flog (= 4.8.0)
   inch (~> 0.4)
   irb
@@ -329,6 +339,7 @@ CHECKSUMS
   erb (6.0.1) sha256=28ecdd99c5472aebd5674d6061e3c6b0a45c049578b071e5a52c2a7f13c197e5
   erubi (1.13.1) sha256=a082103b0885dbc5ecf1172fede897f9ebdb745a4b97a5e8dc63953db1ee4ad9
   ferro-arboard (0.1.0.pre.2)
+  ferro-rfd (0.1.0.pre.2)
   ffi (1.17.3) sha256=0e9f39f7bb3934f77ad6feab49662be77e87eedcdeb2a3f5c0234c2938563d4c
   ffi (1.17.3-aarch64-linux-gnu) sha256=28ad573df26560f0aedd8a90c3371279a0b2bd0b4e834b16a2baa10bd7a97068
   ffi (1.17.3-aarch64-linux-musl) sha256=020b33b76775b1abacc3b7d86b287cef3251f66d747092deec592c7f5df764b2

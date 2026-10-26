@@ -15,6 +15,9 @@ gemspec
 # tags on its repository; Tokra depends only on released versions, never a
 # path source, so a contributor needs only this clone.
 gem "ferro-arboard", git: "https://github.com/setdef/Ferro", tag: "ferro-arboard/v0.1.0.pre.2", glob: "gems/*/*.gemspec"
+# tokra-dialog builds on ferro-rfd (Plan 023). Its glob names only ferro-rfd,
+# so ferro-arboard still comes from its own tag.
+gem "ferro-rfd", git: "https://github.com/setdef/Ferro", tag: "ferro-rfd/v0.1.0.pre.2", glob: "gems/rfd/*.gemspec"
 
 gem "irb"
 gem "rake", "~> 13.0"

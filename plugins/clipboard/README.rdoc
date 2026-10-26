@@ -15,10 +15,12 @@ clipboard-manager plugin, so the frontend can use
 tokra-clipboard is pure Ruby. Its clipboard comes from ferro-arboard, which
 compiles a Rust extension when it installs (its README names the Rust
 versions). ferro-arboard is not on RubyGems.org yet, so name its release tag
-in your Gemfile beside this gem:
+in your Gemfile beside this gem, with a glob for its own folder only: a
+wider one lets Bundler take other Ferro gems from this tag instead of
+their own:
 
   gem "ferro-arboard", git: "https://github.com/setdef/Ferro",
-    tag: "ferro-arboard/v0.1.0.pre.2", glob: "gems/*/*.gemspec"
+    tag: "ferro-arboard/v0.1.0.pre.2", glob: "gems/arboard/*.gemspec"
   gem "tokra-clipboard"
 
 == Usage

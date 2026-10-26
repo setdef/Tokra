@@ -45,6 +45,25 @@ PACKAGES = [
       puts "tokra-clipboard \#{Tokra::Plugins::Clipboard::VERSION} round-trips text through ferro-arboard"
     RUBY
   PackageCheck::Target.new(
+    name: "tokra-dialog",
+    dir: "plugins/dialog",
+    packaged: %w[lib sig README.rdoc],
+    generated: [],
+    crate: nil,
+    extension: nil,
+    smoke: <<~RUBY),
+      require "tokra-dialog"
+      require "tokra/plugins/dialog/version"
+      # ferro-rfd comes from its own installed gem, extension and all; the
+      # init script is a packaged file the plugin reads at load.
+      script = Tokra::Plugins::Dialog::Plugin::INIT_SCRIPT
+      abort "the init script lost alert" unless script.include?("plugin:dialog|message")
+      handle = Tokra::Builder.default.build.handle
+      builder = Tokra::Plugins::Dialog::Dialog.new(handle).file.set_title("smoke")
+      abort "ferro-rfd lost the title" unless builder.to_async_file_dialog.inspect.include?(%(title: Some("smoke")))
+      puts "tokra-dialog \#{Tokra::Plugins::Dialog::VERSION} builds an rfd dialog through ferro-rfd"
+    RUBY
+  PackageCheck::Target.new(
     name: "tokra-log",
     dir: "plugins/log",
     packaged: %w[lib sig README.rdoc],

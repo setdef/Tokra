@@ -75,14 +75,16 @@ module RealApp
 
   # Launches fixture +name+ with +args+ and waits for it to end. +on_line+,
   # when given, sees each stdout line with the child's pid as it arrives and
-  # returns +true+ when it signalled the child.
-  def self.launch(name, *, on_line: nil)
+  # returns +true+ when it signalled the child. A plugin passes +fixtures+,
+  # its own fixture directory, and +env+, variables to add to the child's
+  # environment.
+  def self.launch(name, *, on_line: nil, fixtures: FIXTURES, env: {})
     started = now
     signalled_at = nil
     out_reader, out_writer = IO.pipe
     err_reader, err_writer = IO.pipe
     # The child inherits Bundler's environment, so it loads this checkout.
-    pid = Process.spawn(RbConfig.ruby, File.join(FIXTURES, name, "app.rb"), *,
+    pid = Process.spawn(env, RbConfig.ruby, File.join(fixtures, name, "app.rb"), *,
       out: out_writer, err: err_writer, pgroup: true)
     [out_writer, err_writer].each(&:close)
     out_thread = Thread.new do

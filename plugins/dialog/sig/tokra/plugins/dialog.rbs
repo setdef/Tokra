@@ -1,0 +1,365 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Plugins
+    module Dialog
+      VERSION: String
+
+      type path_list = Array[String]
+      type buttons = MessageDialogButtons | MessageDialogButtons::OkCustom | MessageDialogButtons::OkCancelCustom
+                   | MessageDialogButtons::YesNoCancelCustom
+      type result = MessageDialogResult | MessageDialogResult::Custom
+      type rfd_result = Ferro::Rfd::MessageDialogResult | Ferro::Rfd::MessageDialogResult::Custom
+      type failed = ^(Desktop::Failure) -> void
+      type json = Tokra::json_value
+
+      class MessageDialogKind < Data
+        attr_reader name: String
+
+        Info: MessageDialogKind
+        Warning: MessageDialogKind
+        Error: MessageDialogKind
+
+        def self.new: (String name) -> instance
+                    | (name: String) -> instance
+        def self.default: () -> MessageDialogKind
+        def to_s: () -> String
+        def to_message_level: () -> Ferro::Rfd::MessageLevel
+      end
+
+      class MessageDialogButtons < Data
+        attr_reader name: String
+
+        Ok: MessageDialogButtons
+        OkCancel: MessageDialogButtons
+        YesNo: MessageDialogButtons
+        YesNoCancel: MessageDialogButtons
+
+        def self.new: (String name) -> instance
+                    | (name: String) -> instance
+        def self.default: () -> MessageDialogButtons
+        def to_message_buttons: () -> Ferro::Rfd::MessageButtons
+
+        class OkCustom < Data
+          attr_reader ok: String
+
+          def self.new: (String ok) -> instance
+                      | (ok: String) -> instance
+          def to_message_buttons: () -> Ferro::Rfd::MessageButtons::OkCustom
+        end
+
+        class OkCancelCustom < Data
+          attr_reader ok: String
+          attr_reader cancel: String
+
+          def self.new: (String ok, String cancel) -> instance
+                      | (ok: String, cancel: String) -> instance
+          def to_message_buttons: () -> Ferro::Rfd::MessageButtons::OkCancelCustom
+        end
+
+        class YesNoCancelCustom < Data
+          attr_reader yes: String
+          attr_reader no: String
+          attr_reader cancel: String
+
+          def self.new: (String yes, String no, String cancel) -> instance
+                      | (yes: String, no: String, cancel: String) -> instance
+          def to_message_buttons: () -> Ferro::Rfd::MessageButtons::YesNoCancelCustom
+        end
+      end
+
+      class MessageDialogResult < Data
+        attr_reader name: String
+
+        Yes: MessageDialogResult
+        No: MessageDialogResult
+        Ok: MessageDialogResult
+        Cancel: MessageDialogResult
+
+        def self.new: (String name) -> instance
+                    | (name: String) -> instance
+        def self.default: () -> MessageDialogResult
+        def self.from: (String value) -> result
+        def self.from_rfd: (rfd_result result) -> result
+        def to_s: () -> String
+
+        class Custom < Data
+          attr_reader label: String
+
+          def self.new: (String label) -> instance
+                      | (label: String) -> instance
+          def to_s: () -> String
+        end
+      end
+
+      class PickerMode < Data
+        attr_reader name: String
+
+        Document: PickerMode
+        Media: PickerMode
+        Image: PickerMode
+        Video: PickerMode
+
+        def self.new: (String name) -> instance
+                    | (name: String) -> instance
+      end
+
+      class FileAccessMode < Data
+        attr_reader name: String
+
+        Copy: FileAccessMode
+        Scoped: FileAccessMode
+
+        def self.new: (String name) -> instance
+                    | (name: String) -> instance
+      end
+
+      class Dialog
+        @app_handle: Tokra::AppHandle
+
+        attr_reader app_handle: Tokra::AppHandle
+
+        def initialize: (Tokra::AppHandle app_handle) -> void
+        def message: (String message) -> MessageDialogBuilder
+        def file: () -> FileDialogBuilder
+      end
+
+      module DialogExt
+        def dialog: () -> Dialog
+      end
+
+      module Desktop
+        class Failure < Data
+          attr_reader error: Exception
+
+          def self.new: (Exception error) -> instance
+                      | (error: Exception) -> instance
+        end
+
+        class WindowHandle < Data
+          attr_reader window_handle: Ferro::Rfd::window_handle
+          attr_reader display_handle: Ferro::Rfd::display_handle
+
+          def self.new: (Ferro::Rfd::window_handle window_handle, Ferro::Rfd::display_handle display_handle) -> instance
+                      | (window_handle: Ferro::Rfd::window_handle, display_handle: Ferro::Rfd::display_handle) -> instance
+        end
+
+        def self.pick_file: (FileDialogBuilder builder, ?failed? failed) { (String?) -> void } -> nil
+        def self.pick_files: (FileDialogBuilder builder, ?failed? failed) { (path_list?) -> void } -> nil
+        def self.pick_folder: (FileDialogBuilder builder, ?failed? failed) { (String?) -> void } -> nil
+        def self.pick_folders: (FileDialogBuilder builder, ?failed? failed) { (path_list?) -> void } -> nil
+        def self.save_file: (FileDialogBuilder builder, ?failed? failed) { (String?) -> void } -> nil
+        def self.show_message_dialog: (MessageDialogBuilder builder, buttons buttons, ?failed? failed) { (result) -> void } -> nil
+        def self.message_dialog_result: (rfd_result result, buttons buttons) -> result
+        def self.blocking: [T] () { (^(T | Failure) -> void) -> void } -> T
+
+        private
+
+        def self.start: [T] (Dialog dialog, failed? failed, ^() -> Ferro::Rfd::Future open) { (T) -> void } -> nil
+        def self.await: [T] (Ferro::Rfd::Future future, failed? failed) { (T) -> void } -> void
+      end
+
+      class MessageDialogBuilder
+        @dialog: Dialog
+        @title: String
+        @message: String
+        @kind: MessageDialogKind
+        @buttons: buttons
+        @parent: Desktop::WindowHandle?
+
+        attr_reader dialog: Dialog
+
+        def initialize: (Dialog dialog, String title, String message) -> void
+        def title: (String title) -> self
+        def parent: (Ferro::Rfd::_Parent parent) -> self
+        def buttons: (buttons buttons) -> self
+        def kind: (MessageDialogKind kind) -> self
+        def show: () { (bool) -> void } -> nil
+        def show_with_result: () { (result) -> void } -> nil
+        def blocking_show: () -> bool
+        def blocking_show_with_result: () -> result
+        def to_async_message_dialog: () -> Ferro::Rfd::AsyncMessageDialog
+
+        private
+
+        def self.success?: (result result, buttons buttons) -> bool
+      end
+
+      class FileDialogBuilder
+        class Filter < Data
+          attr_reader name: String
+          attr_reader extensions: Array[String]
+
+          def self.new: (String name, Array[String] extensions) -> instance
+                      | (name: String, extensions: Array[String]) -> instance
+        end
+
+        @dialog: Dialog
+        @filters: Array[Filter]
+        @starting_directory: String?
+        @file_name: String?
+        @title: String?
+        @can_create_directories: bool?
+        @picker_mode: PickerMode?
+        @file_access_mode: FileAccessMode?
+        @parent: Desktop::WindowHandle?
+
+        attr_reader dialog: Dialog
+
+        def initialize: (Dialog dialog) -> void
+        def add_filter: (String name, Array[_ToS] extensions) -> self
+        def set_directory: (_ToS directory) -> self
+        def set_file_name: (String file_name) -> self
+        def set_parent: (Ferro::Rfd::_Parent parent) -> self
+        def set_title: (String title) -> self
+        def set_can_create_directories: (bool can) -> self
+        def set_picker_mode: (PickerMode mode) -> self
+        def set_file_access_mode: (FileAccessMode mode) -> self
+        def pick_file: () { (String?) -> void } -> nil
+        def pick_files: () { (path_list?) -> void } -> nil
+        def pick_folder: () { (String?) -> void } -> nil
+        def pick_folders: () { (path_list?) -> void } -> nil
+        def save_file: () { (String?) -> void } -> nil
+        def blocking_pick_file: () -> String?
+        def blocking_pick_files: () -> path_list?
+        def blocking_pick_folder: () -> String?
+        def blocking_pick_folders: () -> path_list?
+        def blocking_save_file: () -> String?
+        def to_async_file_dialog: () -> Ferro::Rfd::AsyncFileDialog
+      end
+
+module Dunce
+  RESERVED_NAMES: Array[String]
+
+  def self.safe_to_strip_unc?: (String path) -> bool
+
+  private
+
+  def self.valid_filename?: (String name) -> bool
+  def self.reserved?: (String name) -> bool
+  def self.windows_length: (String string) -> Integer
+end
+
+module Commands
+        class DialogFilter < Data
+          attr_reader name: String
+          attr_reader extensions: Array[String]
+
+          def self.new: (String name, Array[String] extensions) -> instance
+                      | (name: String, extensions: Array[String]) -> instance
+        end
+
+        class OpenDialogOptions < Data
+          attr_reader title: String?
+          attr_reader filters: Array[DialogFilter]
+          attr_reader multiple: bool
+          attr_reader directory: bool
+          attr_reader default_path: String?
+          attr_reader recursive: bool
+          attr_reader can_create_directories: bool?
+          attr_reader picker_mode: PickerMode?
+          attr_reader file_access_mode: FileAccessMode?
+
+          def self.new: (String? title, Array[DialogFilter] filters, bool multiple, bool directory, String? default_path,
+                         bool recursive, bool? can_create_directories, PickerMode? picker_mode,
+                         FileAccessMode? file_access_mode) -> instance
+                      | (title: String?, filters: Array[DialogFilter], multiple: bool, directory: bool,
+                         default_path: String?, recursive: bool, can_create_directories: bool?,
+                         picker_mode: PickerMode?, file_access_mode: FileAccessMode?) -> instance
+        end
+
+        class SaveDialogOptions < Data
+          attr_reader title: String?
+          attr_reader filters: Array[DialogFilter]
+          attr_reader default_path: String?
+          attr_reader can_create_directories: bool?
+
+          def self.new: (String? title, Array[DialogFilter] filters, String? default_path, bool? can_create_directories) -> instance
+                      | (title: String?, filters: Array[DialogFilter], default_path: String?,
+                         can_create_directories: bool?) -> instance
+        end
+
+        def self.open: (Tokra::Ipc::Invoke invoke, Dialog dialog) -> bool
+        def self.save: (Tokra::Ipc::Invoke invoke, Dialog dialog) -> bool
+        def self.message: (Tokra::Ipc::Invoke invoke, Dialog dialog) -> bool
+        def self.ask: (Tokra::Ipc::Invoke invoke, Dialog dialog) -> bool
+        def self.confirm: (Tokra::Ipc::Invoke invoke, Dialog dialog) -> bool
+        def self.message_buttons: (buttons? buttons, String? ok_button_label) -> buttons
+        def self.ask_buttons: (String? yes_button_label, String? no_button_label) -> buttons
+        def self.confirm_buttons: (String? ok_button_label, String? cancel_button_label) -> buttons
+        def self.set_default_path: (FileDialogBuilder builder, String default_path) -> FileDialogBuilder
+        def self.simplified: (String path) -> String
+                           | (nil path) -> nil
+
+        private
+
+        def self.arguments: (Hash[String, json]? payload, String command) -> Arguments
+        def self.spawn: (Tokra::Ipc::Invoke invoke) { () -> json } -> true
+        def self.open_dialog: (Dialog dialog, OpenDialogOptions options) -> (String | path_list | nil)
+        def self.save_dialog: (Dialog dialog, SaveDialogOptions options) -> String?
+        def self.message_dialog: (Dialog dialog, String? title, String message, MessageDialogKind? kind, buttons buttons) -> MessageDialogBuilder
+        def self.simplify_all: (path_list? paths) -> path_list?
+        def self.components: (String path) -> [String, Array[String]]
+        def self.join: (String root, Array[String] parts) -> String
+
+        class Arguments
+          type field = [Object, ^(json) -> Object]
+
+          BUTTONS: Array[String]
+          TUPLES: Hash[String, Integer]
+          PICKER_MODES: Array[String]
+          FILE_ACCESS_MODES: Array[String]
+
+          class Mismatch < StandardError
+          end
+
+          @payload: Hash[String, json]
+          @command: String
+
+          def initialize: (Hash[String, json]? payload, String command) -> void
+          def optional: (String key) -> json
+          def string: (String key) -> String
+          def optional_string: (String key) -> String?
+          def kind: (String key, json value) -> MessageDialogKind?
+          def buttons: (String key, json value) -> buttons?
+          def open_options: () -> OpenDialogOptions
+          def save_options: () -> SaveDialogOptions
+
+          private
+
+          def argument: [T] (String key) { () -> T } -> T
+          def required: (String key) -> json
+          def mismatch: (json value, String expected) -> bot
+          def unexpected: (json value) -> String
+          def debug: (String string) -> String
+          def string_value: (json value) -> String
+          def bool: (json value) -> bool
+          def path: (json value) -> String
+          def option: [T] (json value) { () -> T } -> T?
+          def filters: (json value) -> Array[DialogFilter]
+          def sequence: [T] (json value) { (json) -> T } -> Array[T]
+          def struct_value: (json value, String name, Hash[String, field] fields) -> Array[Object]
+          def enum_value: (json value, Array[String] variants) -> [String, Array[json]?]
+          def one_of: (Array[String] variants) -> String
+          def unit: (Array[json]? content) -> void
+          def newtype: [T] (Array[json]? content) { (json) -> T } -> T
+          def tuple: (Array[json]? content, String variant) -> Array[String]
+          def picker_mode: (json value) -> PickerMode?
+          def file_access_mode: (json value) -> FileAccessMode?
+        end
+      end
+
+      class Plugin < Tokra::Plugin
+        INIT_SCRIPT: String
+        COMMANDS: Array[String]
+
+        def name: () -> String
+        def initialize: (Tokra::AppHandle app, ?Hash[Symbol, Object] config) -> void
+        def initialization_script: () -> String
+        def extend_api: (Tokra::Ipc::Invoke invoke) -> bool
+      end
+    end
+  end
+
+end

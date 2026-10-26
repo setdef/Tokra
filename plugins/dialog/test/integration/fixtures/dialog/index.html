@@ -1,0 +1,109 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>dialog plugin</title>
+  <script src="/harness.js"></script>
+  <script src="/api-iife.js"></script>
+</head>
+<body>
+  <ol id="checks"></ol>
+  <script>
+    const { open, save, message, ask, confirm } = window.__TAURI__.dialog;
+    const { invoke } = window.__TAURI__.core;
+    const { check, finish } = window.fixture;
+    const next = (answer) => invoke('plugin:answer|next', answer);
+    const zenity = () => invoke('plugin:answer|zenity');
+    // Polls +probe+ every 100 ms until it answers truthy, for at most 5 s.
+    const until = async (probe) => {
+      for (let i = 0; i < 50; i++) {
+        const value = await probe();
+        if (value) return value;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      return null;
+    };
+
+    (async () => {
+      const { platform, dir } = await (await fetch('/dialog.json')).json();
+
+      await check('save resolves the chosen path', async () => {
+        await next({ accept: true, output: `${dir}/out.txt\n` });
+        const path = await save({ defaultPath: `${dir}/out.txt`, filters: [{ name: 'Text', extensions: ['txt'] }] });
+        return { pass: path === `${dir}/out.txt`, detail: { path, zenity: await zenity() } };
+      });
+
+      await check('a cancelled open resolves null', async () => {
+        await next({ accept: false });
+        const path = await open({ title: 'tokra-dialog: this closes itself' });
+        return { pass: path === null, detail: { path } };
+      });
+
+      await check('a cancelled multiple open resolves null or an empty list', async () => {
+        await next({ accept: false });
+        const paths = await open({ multiple: true });
+        return { pass: paths === null || (Array.isArray(paths) && paths.length === 0), detail: { paths } };
+      });
+
+      await check('the event loop answers while a dialog is open', async () => {
+        await next({ accept: false, delay: 1 });
+        let settled = false;
+        const dialog = open({ directory: true }).then((value) => { settled = true; return value; });
+        const started = performance.now();
+        const dialogOpen = await until(() => invoke('plugin:answer|open'));
+        const reply = await invoke('plugin:answer|ping');
+        const answeredWhileOpen = !settled;
+        const folder = await dialog;
+        return {
+          pass: dialogOpen === true && reply === 'pong' && answeredWhileOpen && folder === null,
+          detail: { dialogOpen, reply, answeredWhileOpen, folder, ms: Math.round(performance.now() - started) },
+        };
+      });
+
+      await check('a bad argument rejects with Tauri\'s message', async () => {
+        try {
+          return { pass: false, detail: { resolved: await open({ title: 1 }) } };
+        } catch (error) {
+          return { pass: true, detail: { rejected: error } };
+        }
+      });
+
+      if (platform === 'linux') {
+        await check('message resolves the custom label pressed', async () => {
+          await next({ accept: false });
+          const result = await message('Keep the draft?', { title: 'Draft', kind: 'warning', buttons: { ok: 'Keep', cancel: 'Drop' } });
+          return { pass: result === 'Drop', detail: { result, zenity: await zenity() } };
+        });
+
+        await check('ask and confirm resolve booleans', async () => {
+          await next({ accept: true });
+          const yes = await ask('Sure?', { title: 'Ask', okLabel: 'Sure' });
+          await next({ accept: false });
+          const ok = await confirm('Go?', 'Confirm');
+          return { pass: yes === true && ok === false, detail: { yes, ok } };
+        });
+
+        await check('window.alert and window.confirm show the plugin\'s dialogs', async () => {
+          await next({ accept: true });
+          const confirmed = await window.confirm('Really?');
+          const confirmArgs = await zenity();
+          await next({ accept: true });
+          window.alert('Hello');
+          const alertArgs = await until(async () => {
+            const args = await zenity();
+            return args && args.includes('Hello') ? args : null;
+          });
+          return { pass: confirmed === true, detail: { confirmed, confirmArgs, alertArgs } };
+        });
+      }
+
+      await finish();
+    })();
+  </script>
+</body>
+</html>
