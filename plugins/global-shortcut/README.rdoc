@@ -1,0 +1,108 @@
+= tokra-global-shortcut
+
+{rdoc-image:https://justin.searls.co/img/shovelware.svg}[https://justin.searls.co/shovelware/]
+{rdoc-image:https://github.com/setdef/Tokra/actions/workflows/ci.yml/badge.svg?branch=trunk}[https://github.com/setdef/Tokra/actions/workflows/ci.yml]
+
+Global keyboard shortcuts for Tokra applications.
+
+A keyboard shortcut normally reaches only the window that has focus. A
+launcher's summon key, a push-to-talk button, or a screenshot tool's
+capture key has to work while another app is in front. This gem registers
+such shortcuts through ferro-global-hotkey, a one-to-one Ruby binding of
+global-hotkey, Tauri's hotkey crate, and serves the commands of Tauri's
+global-shortcut plugin, so the frontend can use
+<tt>@tauri-apps/plugin-global-shortcut</tt> unchanged.
+
+== Installation
+
+tokra-global-shortcut is pure Ruby. Its hotkeys come from
+ferro-global-hotkey, which compiles a Rust extension when it installs (its
+README names the Rust versions). ferro-global-hotkey is not on RubyGems.org
+yet, so name its release tag in your Gemfile beside this gem. Keep the glob to
+ferro-global-hotkey's own folder: a wider one lets Bundler take other Ferro
+gems, such as ferro-arboard, from this source instead of their own:
+
+  gem "ferro-global-hotkey", git: "https://github.com/setdef/Ferro",
+    tag: "ferro-global-hotkey/v0.1.0.pre.1", glob: "gems/global-hotkey/*.gemspec"
+  gem "tokra-global-shortcut"
+
+On Linux the shortcuts are X11 key grabs, so they work under X11 and
+XWayland. Building needs no system libraries.
+
+== Usage
+
+Register the plugin once, on the app handle, for example in the setup
+hook. It manages a Tokra::Plugins::GlobalShortcut::GlobalShortcut,
+reachable from any manager as +global_shortcut+:
+
+  Tokra::Builder.default
+    .setup(&Ractor.shareable_proc { |app| app.handle.plugin(Tokra::Plugins::GlobalShortcut::Plugin.new(app.handle)) })
+    .run
+
+In the frontend:
+
+  import { register, isRegistered, unregister } from '@tauri-apps/plugin-global-shortcut';
+
+  await register('CommandOrControl+Shift+C', (event) => {
+    if (event.state === 'Pressed') console.log(`${event.shortcut} triggered`);
+  });
+  await isRegistered('CommandOrControl+Shift+C');  // true
+  await unregister('CommandOrControl+Shift+C');
+
+In Ruby:
+
+  pressed = Tokra::Plugins::GlobalShortcut::ShortcutState::Pressed
+  handle.global_shortcut.on_shortcut("Alt+Space") do |app, shortcut, event|
+    app.emit("summon", shortcut.to_s) if event.state == pressed
+  end
+  handle.global_shortcut.unregister("Alt+Space")
+
+To register shortcuts as the app starts, with one handler for all of them,
+build the plugin:
+
+  plugin = Tokra::Plugins::GlobalShortcut::Builder.new
+    .with_shortcuts(["CmdOrCtrl+Shift+D", "Alt+Space"])
+    .with_handler { |app, shortcut, event| app.emit("shortcut", shortcut.to_s) }
+    .build(app.handle)
+  app.handle.plugin(plugin)
+
+If another application already holds a shortcut, its handler is not
+triggered, so choose combinations that are unlikely to clash.
+
+== Threads
+
+macOS and Windows tie the hotkey manager to the main thread, so the plugin
+makes it there and sends every call there: from the main thread a call
+runs at once, and from another thread it waits for the event loop. Each
+press reaches your handler on a thread of its own, never the main thread,
+so the window keeps running while the handler works.
+
+global-hotkey keeps one event handler for the whole process, set by the
+first plugin, so only the first plugin in a process hears its shortcuts,
+as in Tauri. On macOS only one hotkey manager can live at a time, so a
+second plugin fails its setup. Register the plugin once. No other library
+in the same process may link global-hotkey.
+
+== Differences from Tauri
+
+- <tt>Builder#build</tt> takes the app handle, since a Tokra plugin sets up
+  when it is made.
+- A handler runs after the plugin's lock is released, so it may register
+  and unregister shortcuts, where Tauri's deadlocks. A handler that raises
+  is reported with +warn+, and the next one still runs.
+- Shortcuts follow global-hotkey 0.9.0, which Ferro binds, not the 0.7.0
+  that Tauri locks: an event's +shortcut+ says <tt>meta+</tt> where
+  Tauri's says <tt>super+</tt>, ids of Command and Windows-key shortcuts
+  differ, and more keys work, such as F13 to F24 on Linux.
+- <tt>window.__TAURI__.globalShortcut</tt> is not defined; import the
+  package through your bundler.
+
+== Features
+
+- Tauri-compatible IPC commands: register, unregister, unregister_all,
+  is_registered, with events through the page's Channel
+- Tauri's Ruby API: register, on_shortcut, register_multiple,
+  on_shortcuts, unregister, unregister_multiple, unregister_all,
+  is_registered, and the Builder
+- Tauri's error messages, word for word
+- macOS, Windows, and Linux (X11)

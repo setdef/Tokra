@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Ipc
+    module Unexpected
+      JSON_INTEGERS: Range[Integer]
+      UNPRINTABLE: Regexp
+
+      def self.describe: (json_value value) -> String
+      def self.debug: (String string) -> String
+
+      private def self.float_text: (Float float) -> String
+      private def self.shortest_digits: (Float float) -> [String, Integer]
+    end
+  end
+end

@@ -22,12 +22,17 @@ require "tokra-dialog"
 require "tmpdir"
 require "fileutils"
 
+# Each line goes out as it is printed, so a run the test kills for hanging
+# still shows how far it got. Only here: exit_paths relies on the buffered
+# output that Ruby's own exit flushes (Plan 018, decision 4).
+$stdout.sync = true
+
 module DialogFixture
   # A folder to save into, with its real path, as the dialogs report it.
   DIR = File.realpath(Dir.mktmpdir("tokra-dialog-fixture")).freeze
   File.write(File.join(DIR, "existing.txt"), "")
 
-  # Ends the main window's sheet through AppKit, on the main thread.
+  # Ends a window's sheet through AppKit, on the main thread.
   module Sheet
     def self.load
       require "fiddle"
@@ -38,12 +43,26 @@ module DialogFixture
       @get = Fiddle::Function.new(objc["objc_msgSend"], [Fiddle::TYPE_VOIDP, Fiddle::TYPE_VOIDP], Fiddle::TYPE_VOIDP)
       @end = Fiddle::Function.new(objc["objc_msgSend"],
         [Fiddle::TYPE_VOIDP, Fiddle::TYPE_VOIDP, Fiddle::TYPE_VOIDP, Fiddle::TYPE_LONG], Fiddle::TYPE_VOIDP)
+      @count = Fiddle::Function.new(objc["objc_msgSend"], [Fiddle::TYPE_VOIDP, Fiddle::TYPE_VOIDP], Fiddle::TYPE_LONG)
+      @at = Fiddle::Function.new(objc["objc_msgSend"], [Fiddle::TYPE_VOIDP, Fiddle::TYPE_VOIDP, Fiddle::TYPE_LONG], Fiddle::TYPE_VOIDP)
     end
 
-    # Whether the main window has a sheet open.
+    # The first of the app's windows with a sheet attached, and the sheet,
+    # or +nil+. NSApp.windows, not mainWindow: AppKit reports no main
+    # window while the app is not active, as under a loaded test run.
+    def self.sheet
+      windows = @get.call(@app.ptr, @sel.call("windows"))
+      @count.call(windows, @sel.call("count")).times do |index|
+        window = @at.call(windows, @sel.call("objectAtIndex:"), index)
+        sheet = @get.call(window, @sel.call("attachedSheet"))
+        return [window, sheet] unless sheet.null?
+      end
+      nil
+    end
+
+    # Whether a window has a sheet open.
     def self.open?
-      window = @get.call(@app.ptr, @sel.call("mainWindow"))
-      !window.null? && !@get.call(window, @sel.call("attachedSheet")).null?
+      !sheet.nil?
     end
 
     # Ends the sheet with NSModalResponseOK (1) or Cancel (0); +false+
@@ -51,11 +70,8 @@ module DialogFixture
     # the out-of-process panels of recent macOS, so this ends the sheet as
     # its window would.
     def self.finish(accept)
-      window = @get.call(@app.ptr, @sel.call("mainWindow"))
-      return false if window.null?
-
-      sheet = @get.call(window, @sel.call("attachedSheet"))
-      return false if sheet.null?
+      window, sheet = self.sheet
+      return false unless window
 
       @end.call(window, @sel.call("endSheet:returnCode:"), sheet, accept ? 1 : 0)
       true

@@ -113,6 +113,24 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   4.18.2), which apps take from its git tag until it is on RubyGems.org
 - `Tokra::PermissionState` (`Granted`, `Denied`, `Prompt`,
   `PromptWithRationale`), Tauri's `tauri::plugin::PermissionState`
+- `tokra-global-shortcut` gem: `Tokra::Plugins::GlobalShortcut::Plugin.new(app)`
+  (or `Builder` with `with_shortcut`, `with_shortcuts`, `with_handler`, and
+  `build(app)`) manages a `GlobalShortcut` (reachable as
+  `app.global_shortcut`) with Tauri's `register`, `on_shortcut`,
+  `register_multiple`, `on_shortcuts`, `unregister`, `unregister_multiple`,
+  `unregister_all`, and `is_registered`, and serves Tauri's commands for
+  `@tauri-apps/plugin-global-shortcut`, sending each press through the
+  page's Channel; handlers run on a thread of their own; it is pure Ruby and
+  depends on `ferro-global-hotkey` 0.1.0.pre.1 (global-hotkey 0.9.0), which
+  apps take from Ferro's git repository until it is on RubyGems.org
+- `Tokra::Ipc::Channel` and `Tokra::Ipc::JavaScriptChannelId`, Tauri's
+  `ipc::Channel`: read a page's Channel argument with
+  `Channel.from_command(invoke, key)` and `send` it JSON values
+- `Tokra::Ipc::CommandItem` reads a command's `String` and `Vec<String>`
+  arguments with Tauri's argument errors, and `Tokra::Ipc::Unexpected`
+  describes a JSON value as serde_json's errors do
+- `Tokra::Error::PluginInitialization`, Tauri's `failed to initialize plugin`
+  error
 - `tokra-log` gem: `Tokra::Plugins::Log::Builder` builds a logging plugin
   with Tauri's log targets (standard output, files, the app log directory,
   the webview), rotation and timezone strategies, and RBS signatures

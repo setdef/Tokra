@@ -77,6 +77,19 @@ module Tokra
         "window.__TAURI_INTERNALS__.runCallback(#{callback_id}, #{arg})"
       end
 
+      # Formats a callback ID and a JavaScript expression as an eval-ready
+      # script, with no JSON handling: +js+ goes in as it is. Channels use
+      # it for their <tt>{ message, index }</tt> objects. Matches
+      # format_callback.rs +format_raw_js+ (format_callback.rs:100-106).
+      #
+      # === Example
+      #
+      #   Tokra::Ipc::FormatCallback.format_raw_js(7, "{ end: true, index: 0 }")
+      #   #=> "window.__TAURI_INTERNALS__.runCallback(7, { end: true, index: 0 })"
+      def self.format_raw_js(callback_id, js)
+        "window.__TAURI_INTERNALS__.runCallback(#{callback_id}, #{js})"
+      end
+
       # Escapes a JSON string for a single-quoted JavaScript literal.
       #
       # Backslashes first, then single quotes — the same two characters

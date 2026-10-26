@@ -299,7 +299,6 @@ module Tokra
           AT: Array[field]
           INTERVAL: Array[field]
           EVERY_FIELDS: Array[field]
-          UNPRINTABLE: Regexp
 
           @payload: Hash[String, json]
           @command: String
@@ -313,8 +312,6 @@ module Tokra
           def required: (String key) -> json
           def mismatch: (json value, String expected) -> bot
           def unexpected: (json value) -> String
-          def float_text: (Float float) -> String
-          def shortest_digits: (Float float) -> [String, Integer]
           def debug: (String string) -> String
           def string: (json value) -> String
           def optional_string: (json value) -> String?

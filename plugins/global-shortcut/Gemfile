@@ -1,0 +1,23 @@
+# frozen_string_literal: true
+
+#--
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#++
+
+source "https://rubygems.org"
+
+gemspec
+
+gem "tokra", path: "../.."
+
+# ferro-global-hotkey is not on RubyGems.org yet, so Bundler takes it from
+# Ferro's repository (ADR 011), at its release tag (Plan 025).
+gem "ferro-global-hotkey", git: "https://github.com/setdef/Ferro", tag: "ferro-global-hotkey/v0.1.0.pre.1",
+  glob: "gems/global-hotkey/*.gemspec"
+
+group :development, :test do
+  gem "minitest"
+  gem "minitest-mock"
+  gem "rake"
+end

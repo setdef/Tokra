@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Ipc
+    class CommandItem < Data
+      class Mismatch < StandardError
+      end
+
+      attr_reader name: String
+      attr_reader key: String
+      attr_reader payload: Hash[String, json_value]
+
+      def self.new: (name: String, key: String, payload: Hash[String, json_value]) -> CommandItem
+
+      def string: () -> String
+      def strings: () -> Array[String]
+
+      private
+
+      def deserialize: [T] () { () -> T } -> T
+      def value: () -> json_value
+      def string_value: (json_value item) -> String
+      def invalid_type: (json_value item, String expected) -> bot
+    end
+  end
+end

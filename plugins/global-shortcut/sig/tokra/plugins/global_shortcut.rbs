@@ -1,0 +1,122 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Plugins
+    module GlobalShortcut
+      VERSION: String
+
+      Shortcut: singleton(Ferro::GlobalHotkey::Hotkey::HotKey)
+      Code: singleton(Ferro::GlobalHotkey::Hotkey::Code)
+      Modifiers: singleton(Ferro::GlobalHotkey::Hotkey::Modifiers)
+      ShortcutEvent: singleton(Ferro::GlobalHotkey::GlobalHotKeyEvent)
+      ShortcutState: singleton(Ferro::GlobalHotkey::HotKeyState)
+
+      type shortcut = Ferro::GlobalHotkey::Hotkey::HotKey
+      type event = Ferro::GlobalHotkey::GlobalHotKeyEvent
+      type shortcut_like = shortcut | String
+
+      interface _Handler
+        def call: (Tokra::AppHandle app, shortcut shortcut, event event) -> void
+      end
+
+      def self.try_into_shortcut: (Object shortcut) -> shortcut
+      def self.parse_shortcut: (String string) -> shortcut
+
+      class Error < Tokra::Error
+        class GlobalHotkey < Error
+        end
+
+        class RecvError < Error
+          MESSAGE: String
+
+          def initialize: (?String message) -> void
+        end
+
+        class Tauri < Error
+        end
+      end
+
+      class GlobalShortcut
+        class RegisteredShortcut < Data
+          attr_reader shortcut: Ferro::GlobalHotkey::Hotkey::HotKey
+          attr_reader handler: _Handler?
+
+          def self.new: (shortcut: Ferro::GlobalHotkey::Hotkey::HotKey, handler: _Handler?) -> instance
+        end
+
+        @app: Tokra::AppHandle
+        @manager: Ferro::GlobalHotkey::GlobalHotKeyManager
+        @shortcuts: Hash[Integer, RegisteredShortcut]
+        @lock: Thread::Mutex
+
+        def initialize: (Tokra::AppHandle app, Ferro::GlobalHotkey::GlobalHotKeyManager manager,
+                         Hash[Integer, RegisteredShortcut] shortcuts) -> void
+        def register: (shortcut_like shortcut) -> nil
+        def on_shortcut: (shortcut_like shortcut) { (Tokra::AppHandle app, shortcut shortcut, event event) -> void } -> nil
+        def register_multiple: (Array[shortcut_like] shortcuts) -> nil
+        def on_shortcuts: (Array[shortcut_like] shortcuts) { (Tokra::AppHandle app, shortcut shortcut, event event) -> void } -> nil
+        def unregister: (shortcut_like shortcut) -> nil
+        def unregister_multiple: (Array[shortcut_like] shortcuts) -> nil
+        def unregister_all: () -> nil
+        def is_registered: (shortcut_like shortcut) -> bool
+        def handle_event: (event event, _Handler? global) -> nil
+        def register_multiple_internal: (Array[shortcut] shortcuts, _Handler? handler) -> nil
+
+        private
+
+        def register_internal: (shortcut shortcut, _Handler? handler) -> nil
+        def run_main_thread: [T] () { (Ferro::GlobalHotkey::GlobalHotKeyManager manager) -> T } -> T
+        def release: (Array[_Handler?] handlers) -> nil
+      end
+
+      module GlobalShortcutExt : Tokra::Manager
+        def global_shortcut: () -> GlobalShortcut
+      end
+
+      module Commands
+        class ChannelHandler
+          @channel: Tokra::Ipc::Channel
+
+          def initialize: (Tokra::Ipc::Channel channel) -> void
+          def call: (Tokra::AppHandle _app, shortcut shortcut, event event) -> void
+          def drop: () -> nil
+        end
+
+        def self.register: (Tokra::Ipc::Invoke invoke, GlobalShortcut global_shortcut) -> void
+        def self.unregister: (Tokra::Ipc::Invoke invoke, GlobalShortcut global_shortcut) -> void
+        def self.unregister_all: (Tokra::Ipc::Invoke invoke, GlobalShortcut global_shortcut) -> void
+        def self.is_registered: (Tokra::Ipc::Invoke invoke, GlobalShortcut global_shortcut) -> void
+      end
+
+      class Builder
+        @shortcuts: Array[shortcut]
+        @handler: _Handler?
+
+        attr_reader shortcuts: Array[shortcut]
+        attr_reader handler: _Handler?
+
+        def initialize: () -> void
+        def with_shortcut: (shortcut_like shortcut) -> self
+        def with_shortcuts: (Array[shortcut_like] shortcuts) -> self
+        def with_handler: () { (Tokra::AppHandle app, shortcut shortcut, event event) -> void } -> self
+        def build: (Tokra::AppHandle app) -> Plugin
+      end
+
+      class Plugin < Tokra::Plugin
+        COMMANDS: Array[String]
+
+        def name: () -> String
+        def initialize: (Tokra::AppHandle app, ?Builder builder) -> void
+        def extend_api: (Tokra::Ipc::Invoke invoke) -> bool
+
+        private
+
+        def register_at_setup: (Tokra::RuntimeContext context, Ferro::GlobalHotkey::GlobalHotKeyManager manager,
+                                Array[shortcut] shortcuts) -> Hash[Integer, GlobalShortcut::RegisteredShortcut]
+        def release_at_setup: (Tokra::RuntimeContext context, Ferro::GlobalHotkey::GlobalHotKeyManager manager,
+                               Array[shortcut] shortcuts) -> void
+      end
+    end
+  end
+end

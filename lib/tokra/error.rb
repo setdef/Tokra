@@ -66,6 +66,35 @@ module Tokra
       end
     end
 
+    # Raised when a plugin's setup fails.
+    #
+    # A plugin may need something from the system before it can work: a
+    # hotkey manager, a connection, a file. When it cannot get one, the app
+    # should hear which plugin failed and why, not a bare error from deep
+    # inside it.
+    #
+    # A plugin raises this from its constructor, which is its setup, with
+    # its name and the reason. Mirrors
+    # <tt>tauri::Error::PluginInitialization</tt> (error.rs:64-66), which
+    # Tauri builds from the plugin's name and its setup error
+    # (plugin.rs:1009).
+    #
+    # === Example
+    #
+    #   raise Tokra::Error::PluginInitialization.new("global-shortcut", e.message)
+    #   # message: "failed to initialize plugin `global-shortcut`: ..."
+    class PluginInitialization < Error
+      # The name of the plugin that failed.
+      attr_reader :plugin
+
+      # Creates the error for +plugin+, a plugin name, and +message+, the
+      # reason its setup failed.
+      def initialize(plugin, message)
+        @plugin = plugin
+        super("failed to initialize plugin `#{plugin}`: #{message}")
+      end
+    end
+
     # SPDX-SnippetEnd
 
     # Raised when a resource ID is not found in a ResourceTable.

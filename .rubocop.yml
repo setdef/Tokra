@@ -34,3 +34,9 @@ Style/EndlessMethod:
     - "plugins/*/lib/**/*.rb"
     - "ext/**/*.rb"
     - "examples/**/*.rb"
+# Tauri's ipc::Channel names its method send (channel.rs:291-297), which this
+# cop reads as Object#send. The Channel tests call it throughout; other
+# callers disable the cop at the call.
+Style/Send:
+  Exclude:
+    - "test/ipc/test_channel.rb"

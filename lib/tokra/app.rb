@@ -451,8 +451,8 @@ module Tokra
     #
     # Deviation: on platforms other than macOS, Tauri sends object and
     # array results over a Channel instead of eval (ipc/protocol.rs:
-    # 371-388). Tokra has no Channels yet and always evaluates
-    # runCallback, which the frontend handles identically.
+    # 371-388). Tokra's Ipc::Channel carries no invoke results, so this
+    # always evaluates runCallback, which the frontend handles identically.
     #
     # The responder runs synchronously on the Main Ractor and captures
     # the webview, so it must never cross a Ractor boundary. The Worker

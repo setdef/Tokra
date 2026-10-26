@@ -24,4 +24,14 @@ class TestError < Minitest::Test
     error = Tokra::Error::BadResourceId.new(1)
     assert_kind_of Tokra::Error, error, "BadResourceId should inherit from Tokra::Error"
   end
+
+  # tauri::Error::PluginInitialization (error.rs:64-66), which plugin.rs:1009
+  # builds from the plugin name and its setup error.
+  def test_plugin_initialization_names_the_plugin_and_its_error
+    error = Tokra::Error::PluginInitialization.new("global-shortcut", "Undefined error: 0 (os error 0)")
+
+    assert_equal "failed to initialize plugin `global-shortcut`: Undefined error: 0 (os error 0)", error.message
+    assert_equal "global-shortcut", error.plugin
+    assert_kind_of Tokra::Error, error
+  end
 end

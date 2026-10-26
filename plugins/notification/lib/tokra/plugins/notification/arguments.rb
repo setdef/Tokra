@@ -63,7 +63,7 @@ module Tokra
 
           # The range of integers serde_json reads as integers; others it
           # reads as floats (serde_json de.rs, parse_integer).
-          JSON_INTEGERS = -(2 ** 63)...(2 ** 64)
+          JSON_INTEGERS = Tokra::Ipc::Unexpected::JSON_INTEGERS
 
           # Fields of a derived struct: the wire name, the Ruby name, the
           # default (+:required+, +:option+ for an <tt>Option</tt> without
@@ -160,111 +160,16 @@ module Tokra
             raise Mismatch, "invalid type: #{unexpected(value)}, expected #{expected}"
           end
 
-          # serde_json's description of a JSON value (value/de.rs:1395-1404,
-          # serde de/mod.rs Unexpected).
+          # serde_json's description of a JSON value (Tokra::Ipc::Unexpected).
           private def unexpected(value)
-            case value
-            when nil then "null"
-            when true, false then "boolean `#{value}`"
-            when Integer then JSON_INTEGERS.cover?(value) ? "integer `#{value}`" : "floating point `#{float_text(value.to_f)}`"
-            when Float then "floating point `#{float_text(value)}`"
-            when String then "string #{debug(value)}"
-            when Array then "sequence"
-            else "map"
-            end
+            Tokra::Ipc::Unexpected.describe(value)
           end
 
-          #--
-          # SPDX-SnippetEnd
-          # SPDX-SnippetBegin
-          # SPDX-License-Identifier: Apache-2.0
-          # SPDX-SnippetCopyrightText: David Tolnay (ryu)
-          # SPDX-SnippetComment: float_text adapted from ryu 1.0 src/pretty/mod.rs
-          #   format64, licensed Apache-2.0 OR BSL-1.0, used here under Apache-2.0
-          #++
-
-          # A float as serde_json shows one, through ryu: the shortest
-          # digits, as a decimal from 1e-5 to below 1e16 and with an
-          # exponent otherwise, written <tt>1e16</tt> and <tt>1.5e-7</tt>
-          # (serde_json error.rs JsonUnexpected, ryu 1.0 pretty/mod.rs
-          # format64).
-          private def float_text(float)
-            return float.to_s if float.zero?
-
-            digits, point = shortest_digits(float.abs)
-            length = digits.length
-            text = if point >= length && point <= 16
-              "#{digits}#{'0' * (point - length)}.0"
-            elsif point.positive? && point <= 16
-              "#{digits[0, point]}.#{digits[point..]}"
-            elsif point > -5 && point <= 0
-              "0.#{'0' * -point}#{digits}"
-            elsif length == 1
-              "#{digits}e#{point - 1}"
-            else
-              "#{digits[0]}.#{digits[1..]}e#{point - 1}"
-            end
-            float.negative? ? "-#{text}" : text
-          end
-
-          #--
-          # SPDX-SnippetEnd
-          #++
-
-          # The shortest digits of positive +float+ and where its decimal
-          # point falls: the value is 0.DIGITS times ten to that power.
-          private def shortest_digits(float)
-            mantissa, exponent = float.to_s.split("e")
-            whole, fraction = mantissa.split(".")
-            digits = "#{whole}#{fraction}"
-            point = whole.length + exponent.to_i
-            stripped = digits.sub(/\A0+/, "")
-            point -= digits.length - stripped.length
-            [stripped.sub(/0+\z/, ""), point]
-          end
-
-          #--
-          # SPDX-SnippetBegin
-          # SPDX-License-Identifier: MIT OR Apache-2.0
-          # SPDX-SnippetCopyrightText: The Rust Project Developers
-          # SPDX-SnippetComment: debug follows the rules of Rust's str Debug,
-          #   char::escape_debug_ext and core/src/unicode/printable.py
-          #++
-
-          # Characters Rust's Debug escapes as <tt>\u{..}</tt>: grapheme
-          # extenders, and what it does not print: controls, format
-          # characters, surrogates, private use, unassigned code points,
-          # and every separator but the space.
-          UNPRINTABLE = /\p{Grapheme_Extend}|[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}[\p{Zs}&&[^ ]]]/
-
-          # +string+ quoted as Rust's Debug quotes a str: escapes for
-          # quotes, backslashes, tabs, returns, newlines, and NUL, and
-          # <tt>\u{..}</tt> for UNPRINTABLE characters (char::escape_debug).
-          # Ruby's Unicode tables stand in for Rust's, which may be a
-          # version apart.
+          # +string+ quoted as Rust's Debug quotes a str
+          # (Tokra::Ipc::Unexpected.debug).
           private def debug(string)
-            escaped = string.each_char.map do |char|
-              case char
-              when "\t" then "\\t"
-              when "\r" then "\\r"
-              when "\n" then "\\n"
-              when "\\" then "\\\\"
-              when '"' then "\\\""
-              when "\0" then "\\0"
-              else char.match?(UNPRINTABLE) ? format("\\u{%x}", char.ord) : char
-              end
-            end
-            "\"#{escaped.join}\""
+            Tokra::Ipc::Unexpected.debug(string)
           end
-
-          #--
-          # SPDX-SnippetEnd
-          # SPDX-SnippetBegin
-          # SPDX-License-Identifier: Apache-2.0 OR MIT
-          # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
-          # SPDX-SnippetCopyrightText: Erick Tryzelaar and David Tolnay (serde, serde_json)
-          # SPDX-SnippetComment: the rest of Arguments, as above
-          #++
 
           private def string(value)
             value.is_a?(String) ? value : mismatch(value, "a string")

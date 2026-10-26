@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Ipc
+    class Channel
+      type on_message = ^(String json) -> void
+      type on_drop = ^() -> void
+
+      IPC_PAYLOAD_PREFIX: String
+      CHANNEL_PLUGIN_NAME: String
+
+      self.@counter: Integer
+      self.@counter_lock: Thread::Mutex
+
+      @id: Integer
+      @on_message: on_message
+      @on_drop: on_drop?
+      @dropped: bool
+      @mutex: Thread::Mutex
+
+      def self.from_command: (Invoke invoke, String key) -> Channel
+      def self.new_with_id: (Integer id, on_message on_message, on_drop? on_drop) -> Channel
+      private def self.next_id: () -> Integer
+
+      attr_reader id: Integer
+
+      def initialize: () { (String json) -> void } -> void
+      def send: (json_value data) -> nil
+      def drop: () -> nil
+      def to_json: (*JSON::State | Hash[Symbol, Object] args) -> String
+
+      private
+
+      def setup: (Integer id, on_message on_message, on_drop? on_drop) -> void
+      def serialize: (json_value data) -> String
+      def without_non_finite_floats: (json_value data) -> json_value
+    end
+
+    class JavaScriptChannelId < Data
+      attr_reader callback: Integer
+
+      def self.new: (callback: Integer) -> JavaScriptChannelId
+      def self.from_str: (String string) -> JavaScriptChannelId
+
+      def channel_on: (Webview webview) -> Channel
+    end
+  end
+end

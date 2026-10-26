@@ -1,0 +1,80 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>global-shortcut plugin</title>
+  <script src="/harness.js"></script>
+  <script src="/api-iife.js"></script>
+</head>
+<body>
+  <ol id="checks"></ol>
+  <script>
+    const { register, isRegistered, unregister, unregisterAll } = window.__TAURI__.globalShortcut;
+    const { invoke } = window.__TAURI__.core;
+    const { check, finish, withTimeout } = window.fixture;
+    const rejection = async (promise) => {
+      try { return { resolved: await promise }; } catch (error) { return { rejected: String(error) }; }
+    };
+
+    (async () => {
+      const { presses, shortcut } = await (await fetch('/global-shortcut.json')).json();
+      const events = [];
+      let heard = null;
+      const twoEvents = new Promise((resolve) => { heard = resolve; });
+
+      await check('nothing is registered at first', async () => {
+        const registered = await isRegistered(shortcut);
+        return { pass: registered === false, detail: { registered } };
+      });
+
+      await check('a shortcut that does not parse rejects with its message', async () => {
+        const result = await rejection(register('ctrl+bogus', () => {}));
+        return { pass: 'rejected' in result, detail: result };
+      });
+
+      await check('a bad argument rejects with Tauri\'s message', async () => {
+        const result = await rejection(invoke('plugin:global-shortcut|is_registered', { shortcut: 1 }));
+        return { pass: 'rejected' in result, detail: result };
+      });
+
+      await check('register registers', async () => {
+        const result = await register(shortcut, (event) => {
+          events.push(event);
+          if (events.length === 2) heard(events);
+        });
+        const registered = await isRegistered(shortcut);
+        return { pass: result === null && registered === true, detail: { result, registered } };
+      });
+
+      if (presses) {
+        await check('each press reaches the handler through its channel', async () => {
+          await fetch('/registered', { method: 'POST' });
+          const received = await withTimeout(twoEvents, 15000, 'the key presses');
+          return { pass: received.length === 2, detail: { events: received } };
+        });
+      }
+
+      await check('unregister unregisters', async () => {
+        await unregister([shortcut]);
+        const registered = await isRegistered(shortcut);
+        return { pass: registered === false, detail: { registered } };
+      });
+
+      await check('unregisterAll unregisters every shortcut', async () => {
+        await register(shortcut, () => {});
+        const before = await isRegistered(shortcut);
+        await unregisterAll();
+        const after = await isRegistered(shortcut);
+        return { pass: before === true && after === false, detail: { before, after } };
+      });
+
+      await finish();
+    })();
+  </script>
+</body>
+</html>

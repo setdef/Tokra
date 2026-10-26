@@ -86,6 +86,25 @@ PACKAGES = [
       puts "tokra-notification \#{Tokra::Plugins::Notification::VERSION} builds a notification through ferro-notify-rust"
     RUBY
   PackageCheck::Target.new(
+    name: "tokra-global-shortcut",
+    dir: "plugins/global-shortcut",
+    packaged: %w[lib sig README.rdoc],
+    generated: [],
+    crate: nil,
+    extension: nil,
+    smoke: <<~RUBY),
+      require "tokra-global-shortcut"
+      require "tokra/plugins/global_shortcut/version"
+      # ferro-global-hotkey comes from its own installed gem, extension and
+      # all. Nothing is registered: a manager would take the keys from the
+      # whole desktop.
+      plugin = Tokra::Plugins::GlobalShortcut
+      builder = plugin::Builder.new.with_shortcut("ctrl+alt+shift+super+F19")
+      abort "ferro-global-hotkey lost the shortcut" unless builder.shortcuts.first.into_string == "shift+control+alt+meta+F19"
+      abort "the plugin lost its commands" unless plugin::Plugin::COMMANDS.include?("register")
+      puts "tokra-global-shortcut \#{plugin::VERSION} parses a shortcut through ferro-global-hotkey"
+    RUBY
+  PackageCheck::Target.new(
     name: "tokra-log",
     dir: "plugins/log",
     packaged: %w[lib sig README.rdoc],
