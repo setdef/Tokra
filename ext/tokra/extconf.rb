@@ -42,7 +42,7 @@ if RbConfig::CONFIG["host_os"].match?(/mingw|mswin/)
       install: install-webview2-loader
       install-webview2-loader: $(DLLIB) $(TIMESTAMP_DIR)/.sitearchdir.time
       \t$(Q) $(MAKEDIRS) $(RUBYARCHDIR)
-      \t$(INSTALL_PROG) "$$(ls $(RUSTLIBDIR)/build/webview2-com-sys-*/out/#{arch}/WebView2Loader.dll | head -n 1)" $(RUBYARCHDIR)
+      \t$(INSTALL_PROG) "$$(ls $(subst \\,/,$(RUSTLIBDIR))/build/webview2-com-sys-*/out/#{arch}/WebView2Loader.dll | head -n 1)" $(RUBYARCHDIR)
     MAKE
   end
 end
