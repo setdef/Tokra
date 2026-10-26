@@ -550,8 +550,10 @@ module Tokra
     # A malformed request replies 500 text/plain with the parse error
     # (ipc/protocol.rs:143-151). A well-formed request with a mismatched key
     # logs Tauri's exact message and drops the responder with no reply
-    # (webview/mod.rs:1730-1744); dropping makes the client fetch reject and
-    # fall back to postMessage.
+    # (webview/mod.rs:1728-1744). wry's responder has no Drop (wry
+    # src/lib.rs:440-455), so nothing answers the request: the page's fetch
+    # stays pending and the invoke never settles, as in Tauri. The client
+    # does not fall back to postMessage, because its fetch never rejects.
     private def dispatch_ipc_protocol_post(event, proxy)
       cmd, invoke_key, origin, payload = parse_ipc_protocol_request(event)
 

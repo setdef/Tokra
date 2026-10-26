@@ -158,10 +158,12 @@ impl RbProxy {
     /// Drop a pending async protocol responder without replying.
     ///
     /// On an `ipc://` invoke-key mismatch, Tauri drops the owned responder by
-    /// returning from `on_message`, which closes the response and makes the
-    /// client `fetch` reject (webview/mod.rs). Tokra's responder lives in a map
-    /// keyed by `request_id`, so the faithful equivalent is to remove and drop
-    /// it. Unlike `respond`, a missing `request_id` is not an error: the drop is
+    /// returning from `on_message` (webview/mod.rs:1728-1744). wry's
+    /// `RequestAsyncResponder` has no `Drop` (src/lib.rs:440-455), so nothing
+    /// answers the platform's request and the client `fetch` stays pending,
+    /// in Tauri as here. Tokra's responder lives in a map keyed by
+    /// `request_id`, so the faithful equivalent is to remove and drop it.
+    /// Unlike `respond`, a missing `request_id` is not an error: the drop is
     /// idempotent.
     ///
     /// # Panics

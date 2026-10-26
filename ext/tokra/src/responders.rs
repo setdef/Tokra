@@ -40,9 +40,10 @@ pub fn get_responders() -> &'static Mutex<HashMap<u64, RequestAsyncResponder>> {
 /// Remove the responder stored under `request_id`, returning it if present.
 ///
 /// `Proxy#respond` replies with the returned responder; `Proxy#drop_response`
-/// lets it fall out of scope, which closes the request without a reply, the
-/// way Tauri drops its owned responder (`webview/mod.rs` `on_message`). A
-/// missing id returns `None`: the request was already answered or dropped.
+/// lets it fall out of scope, leaving the request unanswered and the page's
+/// `fetch` pending, the way Tauri drops its owned responder (`webview/mod.rs`
+/// `on_message`). A missing id returns `None`: the request was already
+/// answered or dropped.
 ///
 /// # Panics
 ///
@@ -104,7 +105,7 @@ mod tests {
     }
 
     #[test]
-    fn test_take_responder_removes_and_dropping_it_releases_the_request() {
+    fn test_take_responder_removes_the_responder_and_hands_it_over_to_drop() {
         let dropped = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let responders = Mutex::new(HashMap::new());
         responders

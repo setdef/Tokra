@@ -6,7 +6,8 @@
 #++
 
 # Fixture for ipc_transport_test.rb: the real @tauri-apps/api invoke over
-# ipc://, resolving and rejecting. Run by hand to watch it:
+# ipc://, resolving and rejecting, and a mismatched invoke key left
+# unanswered. Run by hand to watch it:
 #
 #   bundle exec ruby test/integration/fixtures/ipc_transport/app.rb --wait
 

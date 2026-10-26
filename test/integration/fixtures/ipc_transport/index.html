@@ -63,6 +63,30 @@ SPDX-License-Identifier: AGPL-3.0-or-later
         },
       }));
 
+      // Tauri drops the responder of a request whose invoke key does not
+      // match, unanswered (webview/mod.rs:1728-1744), and wry gives its
+      // responder no Drop, so the fetch stays pending. A correct invoke
+      // sent afterwards still resolves.
+      await check('mismatched key is never answered', async () => {
+        let settled = null;
+        fetch('ipc://localhost/ping', {
+          method: 'POST',
+          body: JSON.stringify({ message: 'PING' }),
+          headers: {
+            'Content-Type': 'application/json',
+            'Tauri-Callback': '1',
+            'Tauri-Error': '2',
+            'Tauri-Invoke-Key': 'not-the-key',
+          },
+        }).then(
+          (response) => { settled = `answered ${response.status}`; },
+          (error) => { settled = `rejected ${error}`; },
+        );
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        const reply = await invoke('ping', { message: 'PING' });
+        return { pass: settled === null && reply === 'PINGPONG', detail: { settled, reply } };
+      });
+
       await finish();
     })();
   </script>

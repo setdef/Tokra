@@ -9,7 +9,8 @@
 require_relative "support/real_app"
 
 # The real @tauri-apps/api invoke, loaded with with_global_tauri, rides the
-# ipc:// custom protocol (ADR 010) and never falls back to postMessage.
+# ipc:// custom protocol (ADR 010) and never falls back to postMessage. A
+# request with the wrong invoke key is left unanswered, as in Tauri.
 class IpcTransportTest < RealApp::TestCase
   def setup
     super
@@ -31,6 +32,16 @@ class IpcTransportTest < RealApp::TestCase
     detail = check_detail(@run, "unknown command rejects")
     assert_equal "Command no_such_command not found", detail["rejected"]
     assert_equal "error", detail.dig("fetch", "tauriResponse")
+  end
+
+  # Tauri logs a mismatched invoke key and drops the request unanswered
+  # (webview/mod.rs:1728-1744); the page's fetch neither resolves nor
+  # rejects, so the client never falls back to postMessage either.
+  def test_a_mismatched_invoke_key_is_logged_and_never_answered
+    detail = check_detail(@run, "mismatched key is never answered")
+    assert_nil detail["settled"], "the ipc:// fetch should stay pending"
+    assert_equal "PINGPONG", detail["reply"]
+    assert_match(/__TAURI_INVOKE_KEY__ expected \S+ but received not-the-key/, @run.stderr)
   end
 
   def test_the_client_never_falls_back_to_post_message
