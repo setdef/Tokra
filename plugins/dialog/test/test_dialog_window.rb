@@ -96,9 +96,12 @@ class TestDialogWindow < RealApp::TestCase
     skip "macOS message dialogs are system alerts only a person can dismiss" unless RUBY_PLATFORM.include?("linux")
 
     message = check_detail(@run, "message resolves the custom label pressed")
+    # Two custom buttons make rfd ask zenity a --question, which takes no
+    # level, so the warning kind does not reach it (rfd 0.17.2
+    # src/backend/linux/zenity.rs:189-205).
     assert_equal [
       "--no-markup",
-      "--warning",
+      "--question",
       "--title",
       "Draft",
       "--text",
