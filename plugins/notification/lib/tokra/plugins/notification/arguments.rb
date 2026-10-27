@@ -59,13 +59,6 @@ module Tokra
             [unit.name.downcase, unit]
           end.freeze
 
-          # The integer ranges serde checks (serde_core de/impls.rs).
-          RANGES = { "i32" => -(2 ** 31)...(2 ** 31), "u8" => 0..255 }.freeze
-
-          # The range of integers serde_json reads as integers; others it
-          # reads as floats (serde_json de.rs, parse_integer).
-          JSON_INTEGERS = Tokra::Ipc::Unexpected::JSON_INTEGERS
-
           # Fields of a derived struct: the wire name, the Ruby name, the
           # default (+:required+, +:option+ for an <tt>Option</tt> without
           # a default, or a value or Proc), and the reader.
@@ -175,14 +168,10 @@ module Tokra
             value.nil? ? nil : u8(value)
           end
 
-          # An integer of +type+'s range, or serde's message: a value out
-          # of range is invalid, anything else the wrong type
-          # (serde_core de/impls.rs, primitive visitors).
+          # An integer of +type+'s range, or serde's message
+          # (Tokra::Ipc::CommandItem.integer).
           private def integer(value, type)
-            mismatch(value, type) unless value.is_a?(Integer) && JSON_INTEGERS.cover?(value)
-            raise Mismatch, "invalid value: integer `#{value}`, expected #{type}" unless RANGES.fetch(type).cover?(value)
-
-            value
+            Tokra::Ipc::CommandItem.integer(value, type)
           end
 
           private def strings(value)

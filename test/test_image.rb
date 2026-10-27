@@ -38,8 +38,23 @@ class TestImage < Minitest::Test
     assert_equal 2, image.height, "should decode the file at path"
   end
 
-  def test_from_path_raises_for_missing_file
-    assert_raises(Errno::ENOENT) { Tokra::Image.from_path(fixture_path("missing.png")) }
+  # Tauri's from_path returns Error::Io, whose message is the io::Error's.
+  def test_from_path_raises_error_io_for_missing_file
+    path = fixture_path("missing.png")
+    error = assert_raises(Tokra::Error::Io) { Tokra::Image.from_path(path) }
+
+    assert_equal "No such file or directory @ rb_sysopen - #{path}", error.message
+  end
+
+  # Rust cannot hand a path with a NUL byte to the OS, so std::fs::read
+  # fails with an io::Error where Ruby's File.binread raises ArgumentError
+  # (std sys/helpers/small_c_string.rs:13-14; on Windows,
+  # sys/pal/windows/mod.rs:99-104).
+  def test_from_path_raises_error_io_for_a_nul_byte
+    error = assert_raises(Tokra::Error::Io) { Tokra::Image.from_path("a\0b.png") }
+
+    expected = Gem.win_platform? ? "strings passed to WinAPI cannot contain NULs" : "file name contained an unexpected NUL byte"
+    assert_equal expected, error.message
   end
 
   def test_stores_rgba_data

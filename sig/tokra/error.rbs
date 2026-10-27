@@ -8,6 +8,9 @@ module Tokra
     class Image < Error
     end
 
+    class Io < Error
+    end
+
     # Raised when a call cannot reach the main thread, or its answer never comes back.
     class Runtime < Error
       FAILED_TO_SEND_MESSAGE: String

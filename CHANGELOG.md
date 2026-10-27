@@ -40,19 +40,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Plugin `extend_api` receives the bare command name (prefix stripped)
 - Unhandled IPC commands are rejected with `Command <name> not found`
 - Core `resources` plugin, registered automatically:
-  - `plugin:resources|close` closes a resource (webview, then window, then app)
+  - `plugin:resources|close` closes a resource (webview, then window, then app),
+    rejecting a `rid` that is not a u32 with Tauri's `invalid args` message
 - Core `image` plugin, registered automatically:
   - `plugin:image|new` stores an RGBA image and resolves its resource ID
   - `plugin:image|rgba` resolves the stored image's bytes
   - `plugin:image|size` resolves the stored image's width and height
   - `plugin:image|from_bytes` decodes PNG or ICO bytes into a stored image
   - `plugin:image|from_path` decodes a PNG or ICO file into a stored image
+  - each argument reads as its Rust type, so one that does not (a byte
+    outside 0 to 255, or a size or ID outside u32) rejects with Tauri's
+    `invalid args` message
 - `Tokra::Image.from_bytes` decodes PNG or ICO bytes to raw RGBA
-- `Tokra::Image.from_path` decodes a PNG or ICO file to raw RGBA
+- `Tokra::Image.from_path` decodes a PNG or ICO file to raw RGBA, raising
+  `Tokra::Error::Io` (Tauri's `Error::Io`) when the file cannot be read,
+  with Rust's message for a path holding a NUL byte
 - `Tokra::Error::Image` raised when image bytes cannot be decoded
-- `Tokra::JsImage#into_img` resolves a frontend image payload (resource ID,
-  byte array, file path, or RGBA hash) into a `Tokra::Image`, accepting the
-  same u8 bytes and u32 IDs and dimensions as Tauri
+- `Tokra::JsImage.deserialize` reads a frontend image payload (file path,
+  byte array, resource ID, or RGBA hash) as Tauri does, raising
+  `CommandItem::Mismatch` for any other value, and `JsImage#into_img`
+  resolves it into a `Tokra::Image`
 - Registered plugins receive `RunEvent::Ready`, `RunEvent::WindowEvent`
   (close requested), and `RunEvent::Exit` through `Plugin#on_event`, before
   the run callback; `Exit` is emitted from the native loop's
@@ -127,16 +134,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `ipc::Channel`: read a page's Channel argument with
   `Channel.from_command(invoke, key)` and `send` it JSON values
 - `Tokra::Ipc::CommandItem` reads one argument of a command as Tauri's
-  `CommandItem` does: `string` and `strings`, or any type through
+  `CommandItem` does: `string`, `strings`, and `u32`, or any type through
   `deserialize` and `deserialize_option` with a block that raises
-  `CommandItem::Mismatch`; `Tokra::Ipc::Unexpected` describes a JSON value
+  `CommandItem::Mismatch`, and `CommandItem.integer` reads a u8, u32, or
+  i32 with serde's messages; `Tokra::Ipc::Unexpected` describes a JSON value
   as serde_json's errors do
 - `Tokra::Error::InvalidArgs`, Tauri's `invalid args` error, which
   `CommandItem` and `Channel.from_command` raise for an argument that does
   not read, and `Tokra::Ipc::InvokeError`, which `Channel.from_command`
   raises for a string that is not a channel; plugins reject the invoke for
-  these and let any other `ArgumentError` reach the router, except an
-  image that does not read, which still rejects
+  these and let any other `ArgumentError` reach the router
 - `Tokra::Error::PluginInitialization`, Tauri's `failed to initialize plugin`
   error
 - `tokra-log` gem: `Tokra::Plugins::Log::Builder` builds a logging plugin

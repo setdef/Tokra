@@ -24,6 +24,87 @@ class TestCommandItem < Minitest::Test
     assert_raises(Tokra::Error::InvalidArgs, &).message
   end
 
+  # serde's primitive visitors, through serde_json (serde_core de/impls.rs):
+  # an integer out of the type's range is an invalid value, anything else
+  # the wrong type, and an integer past serde_json's range a float. Each
+  # answer is the locked serde 1.0.228 and serde_json 1.0.145's, +nil+
+  # where the value reads.
+  INTEGERS = {
+      ["u8", 0] => nil,
+      ["u8", 255] => nil,
+      ["u8", 256] => "invalid value: integer `256`, expected u8",
+      ["u8", -1] => "invalid value: integer `-1`, expected u8",
+      ["u8", 4294967295] => "invalid value: integer `4294967295`, expected u8",
+      ["u8", 4294967296] => "invalid value: integer `4294967296`, expected u8",
+      ["u8", 2147483647] => "invalid value: integer `2147483647`, expected u8",
+      ["u8", 2147483648] => "invalid value: integer `2147483648`, expected u8",
+      ["u8", -2147483648] => "invalid value: integer `-2147483648`, expected u8",
+      ["u8", -2147483649] => "invalid value: integer `-2147483649`, expected u8",
+      ["u8", 1.0] => "invalid type: floating point `1.0`, expected u8",
+      ["u8", "1"] => "invalid type: string \"1\", expected u8",
+      ["u8", nil] => "invalid type: null, expected u8",
+      ["u8", true] => "invalid type: boolean `true`, expected u8",
+      ["u8", []] => "invalid type: sequence, expected u8",
+      ["u8", {}] => "invalid type: map, expected u8",
+      ["u8", 18446744073709551615] => "invalid value: integer `18446744073709551615`, expected u8",
+      ["u8", 18446744073709551616] => "invalid type: floating point `1.8446744073709552e19`, expected u8",
+      ["u8", -9223372036854775809] => "invalid type: floating point `-9.223372036854776e18`, expected u8",
+      ["u32", 0] => nil,
+      ["u32", 255] => nil,
+      ["u32", 256] => nil,
+      ["u32", -1] => "invalid value: integer `-1`, expected u32",
+      ["u32", 4294967295] => nil,
+      ["u32", 4294967296] => "invalid value: integer `4294967296`, expected u32",
+      ["u32", 2147483647] => nil,
+      ["u32", 2147483648] => nil,
+      ["u32", -2147483648] => "invalid value: integer `-2147483648`, expected u32",
+      ["u32", -2147483649] => "invalid value: integer `-2147483649`, expected u32",
+      ["u32", 1.0] => "invalid type: floating point `1.0`, expected u32",
+      ["u32", "1"] => "invalid type: string \"1\", expected u32",
+      ["u32", nil] => "invalid type: null, expected u32",
+      ["u32", true] => "invalid type: boolean `true`, expected u32",
+      ["u32", []] => "invalid type: sequence, expected u32",
+      ["u32", {}] => "invalid type: map, expected u32",
+      ["u32", 18446744073709551615] => "invalid value: integer `18446744073709551615`, expected u32",
+      ["u32", 18446744073709551616] => "invalid type: floating point `1.8446744073709552e19`, expected u32",
+      ["u32", -9223372036854775809] => "invalid type: floating point `-9.223372036854776e18`, expected u32",
+      ["i32", 0] => nil,
+      ["i32", 255] => nil,
+      ["i32", 256] => nil,
+      ["i32", -1] => nil,
+      ["i32", 4294967295] => "invalid value: integer `4294967295`, expected i32",
+      ["i32", 4294967296] => "invalid value: integer `4294967296`, expected i32",
+      ["i32", 2147483647] => nil,
+      ["i32", 2147483648] => "invalid value: integer `2147483648`, expected i32",
+      ["i32", -2147483648] => nil,
+      ["i32", -2147483649] => "invalid value: integer `-2147483649`, expected i32",
+      ["i32", 1.0] => "invalid type: floating point `1.0`, expected i32",
+      ["i32", "1"] => "invalid type: string \"1\", expected i32",
+      ["i32", nil] => "invalid type: null, expected i32",
+      ["i32", true] => "invalid type: boolean `true`, expected i32",
+      ["i32", []] => "invalid type: sequence, expected i32",
+      ["i32", {}] => "invalid type: map, expected i32",
+      ["i32", 18446744073709551615] => "invalid value: integer `18446744073709551615`, expected i32",
+      ["i32", 18446744073709551616] => "invalid type: floating point `1.8446744073709552e19`, expected i32",
+      ["i32", -9223372036854775809] => "invalid type: floating point `-9.223372036854776e18`, expected i32",
+  }.freeze
+
+  def test_integer_reads_as_serde_reads_each_rust_integer
+    INTEGERS.each do |(type, value), reason|
+      if reason
+        assert_equal reason, assert_raises(CommandItem::Mismatch, [type, value].inspect) { CommandItem.integer(value, type) }.message
+      else
+        assert_equal value, CommandItem.integer(value, type)
+      end
+    end
+  end
+
+  def test_u32_reads_the_argument_as_a_u32
+    assert_equal 4_294_967_295, item({ "rid" => 4_294_967_295 }, "rid").u32
+    assert_equal "invalid args `rid` for command `register`: invalid value: integer `-1`, expected u32",
+      error { item({ "rid" => -1 }, "rid").u32 }
+  end
+
   def test_a_string_reads_as_it_is
     assert_equal "F19", item({ "shortcut" => "F19" }, "shortcut").string
   end

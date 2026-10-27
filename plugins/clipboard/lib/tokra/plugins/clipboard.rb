@@ -396,7 +396,7 @@ module Tokra
           Tokra::Error::BadResourceId,
           Tokra::Error::Image,
           Tokra::Error::InvalidArgs,
-          SystemCallError => e
+          Tokra::Error::Io => e
 
           invoke.reject(e.message)
           true
@@ -440,17 +440,13 @@ module Tokra
           true
         end
 
-        # Resolves the JsImage payload against the calling webview's
-        # resource table and writes it (commands.rs:43-50). JsImage reports
-        # serde's untagged-enum mismatch as an ArgumentError, which is the
-        # argument's InvalidArgs.
+        # Reads the JsImage argument, resolves it against the calling
+        # webview's resource table, and writes it (commands.rs:43-50): a
+        # payload of the wrong shape is the argument's InvalidArgs, and one
+        # that names no image is into_img's error.
         private def handle_write_image(invoke)
-          image = argument(invoke, "image").deserialize do |value|
-            Tokra::JsImage.new(value).into_img(invoke.webview.resources_table)
-          rescue ArgumentError => e
-            raise Tokra::Ipc::CommandItem::Mismatch, e.message
-          end
-          write_image(image)
+          js_image = argument(invoke, "image").deserialize { |value| Tokra::JsImage.deserialize(value) }
+          write_image(js_image.into_img(invoke.webview.resources_table))
           invoke.resolve(nil)
           true
         end

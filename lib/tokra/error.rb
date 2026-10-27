@@ -29,8 +29,25 @@ module Tokra
     # SPDX-SnippetBegin
     # SPDX-License-Identifier: Apache-2.0 OR MIT
     # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
-    # SPDX-SnippetComment: Runtime, PluginInitialization, and InvalidArgs and their
+    # SPDX-SnippetComment: Io, Runtime, PluginInitialization, and InvalidArgs and their
     # messages from tauri/src/error.rs and tauri-runtime/src/lib.rs
+
+    # Raised when a file cannot be read.
+    #
+    # An image loaded from a path can fail before any decoding starts: the
+    # file is missing, is a directory, or its name holds a NUL byte no
+    # operating system accepts. The frontend gets the I/O error's own words,
+    # with no prefix, so its message reads as the cause.
+    #
+    # Mirrors <tt>tauri::Error::Io(std::io::Error)</tt>, displayed as the
+    # io::Error alone (error.rs:53-54). Image.from_path raises it.
+    #
+    # === Example
+    #
+    #   Tokra::Image.from_path("a\0b.png")
+    #   # raises Tokra::Error::Io: file name contained an unexpected NUL byte
+    class Io < Error
+    end
 
     # Raised when a call cannot reach the main thread, or its answer never
     # comes back.

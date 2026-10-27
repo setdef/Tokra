@@ -124,22 +124,40 @@ class TestResourcesPlugin < Minitest::Test
       "should reject with error mentioning the bad rid")
   end
 
-  def test_close_rejects_non_integer_rid
-    plugin = Tokra::Resources::Plugin.new(nil, {})
+  # Tauri's close reads rid as a ResourceId, a u32, through CommandItem
+  # (resources/plugin.rs:13-23). The messages are the locked serde 1.0.228
+  # and serde_json 1.0.145's.
+  INVALID_RIDS = {
+    { "rid" => "42" } => "invalid args `rid` for command `close`: invalid type: string \"42\", expected u32",
+    {} => "invalid args `rid` for command `close`: command close missing required key rid",
+    { "rid" => -1 } => "invalid args `rid` for command `close`: invalid value: integer `-1`, expected u32",
+    { "rid" => 2 ** 32 } => "invalid args `rid` for command `close`: invalid value: integer `4294967296`, expected u32",
+    { "rid" => 1.5 } => "invalid args `rid` for command `close`: invalid type: floating point `1.5`, expected u32",
+    { "rid" => nil } => "invalid args `rid` for command `close`: invalid type: null, expected u32",
+  }.freeze
+
+  def test_close_rejects_a_rid_that_is_not_a_u32_with_tauris_message
+    INVALID_RIDS.each do |payload, message|
+      rejected_message = nil
+      invoke = Tokra::Ipc::Invoke.new(
+        command: "close",
+        payload:,
+        webview: build_webview_chain,
+        responder: -> (success, value) { rejected_message = JSON.parse(value) unless success }
+      )
+
+      assert Tokra::Resources::Plugin.new(nil, {}).extend_api(invoke), "#{payload} is handled"
+      assert_equal message, rejected_message
+    end
+  end
+
+  def test_an_argument_error_from_a_bug_is_not_taken_for_a_bad_argument
     webview = build_webview_chain
+    webview.resources_table.define_singleton_method(:close) { |_rid| raise ArgumentError, "a bug" }
+    invoke = Tokra::Ipc::Invoke.new(command: "close", payload: { "rid" => 1 }, webview:, responder: -> (_s, _v) {})
 
-    rejected_message = nil
-    invoke = Tokra::Ipc::Invoke.new(
-      command: "close",
-      payload: { "rid" => "42" },
-      webview:,
-      responder: -> (success, value) { rejected_message = JSON.parse(value) unless success }
-    )
-
-    result = plugin.extend_api(invoke)
-
-    assert result, "extend_api should return true (command was handled)"
-    assert_equal "invalid args: rid must be an integer", rejected_message
+    error = assert_raises(ArgumentError) { Tokra::Resources::Plugin.new(nil, {}).extend_api(invoke) }
+    assert_equal "a bug", error.message
   end
 
   def test_returns_false_for_other_commands

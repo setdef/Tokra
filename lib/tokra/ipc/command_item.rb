@@ -68,6 +68,32 @@ module Tokra
         end
       end
 
+      # The range of each Rust integer type an argument reads as.
+      INTEGERS = { "u8" => 0..255, "u32" => 0..((2 ** 32) - 1), "i32" => -(2 ** 31)..((2 ** 31) - 1) }.freeze
+
+      # +value+, a JSON value, as the Rust integer +type+ (<tt>"u8"</tt>,
+      # <tt>"u32"</tt>, or <tt>"i32"</tt>), raising Mismatch with serde's
+      # message where it does not fit: an integer out of range is an
+      # invalid value, and anything else the wrong type, an integer too
+      # large for serde_json, which reads it as a float, among them (serde
+      # de/impls.rs, the primitive visitors).
+      #
+      # Call it inside #deserialize, for a field or an element; #u32 reads
+      # a whole argument.
+      #
+      # === Example
+      #
+      #   Tokra::Ipc::CommandItem.integer(256, "u8")
+      #   # raises Mismatch: invalid value: integer `256`, expected u8
+      def self.integer(value, type)
+        unless value.is_a?(Integer) && Unexpected::JSON_INTEGERS.cover?(value)
+          raise Mismatch.invalid_type(value, type)
+        end
+        raise Mismatch, "invalid value: integer `#{value}`, expected #{type}" unless INTEGERS.fetch(type).cover?(value)
+
+        value
+      end
+
       # :attr_reader: name
       # The command's name, as Tauri's <tt>CommandItem::name</tt>.
 
@@ -84,6 +110,15 @@ module Tokra
       #   Tokra::Ipc::CommandItem.new(name: "is_registered", key: "shortcut", payload: { "shortcut" => "F19" }).string  #=> "F19"
       def string
         deserialize { |value| string_value(value) }
+      end
+
+      # The argument as a Rust +u32+, such as a ResourceId.
+      #
+      # === Example
+      #
+      #   Tokra::Ipc::CommandItem.new(name: "close", key: "rid", payload: { "rid" => 7 }).u32  #=> 7
+      def u32
+        deserialize { |value| CommandItem.integer(value, "u32") }
       end
 
       # The argument as a Rust <tt>Vec<String></tt>.

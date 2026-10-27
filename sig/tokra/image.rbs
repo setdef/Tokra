@@ -14,24 +14,31 @@ module Tokra
                   | (String rgba, Integer width, Integer height) -> void
 
     def self.from_bytes: (String bytes) -> Image
+    NUL_IN_PATH: String
+
     def self.from_path: (String path) -> Image
+
+    private def self.read: (String path) -> String
   end
 
   class JsImage
     MISMATCH: String
     U32_MAX: Integer
 
-    @value: json_value
+    @variant: String | Array[Integer] | Integer | Image
 
-    def initialize: (json_value value) -> void
+    def self.deserialize: (json_value value) -> JsImage
+
+    private def self.new: (String | Array[Integer] | Integer | Image variant) -> JsImage
+    private def self.rgba: (Hash[String, json_value] hash) -> Image?
+    private def self.bytes: (Array[json_value] array) -> Array[Integer]?
+    private def self.u32: (json_value value) -> Integer?
+
+    def initialize: (String | Array[Integer] | Integer | Image variant) -> void
     def into_img: (ResourceTable resources_table) -> Image
 
     private
 
     def image_resource: (Integer rid, ResourceTable resources_table) -> Image
-    def array_image: (Array[json_value] array) -> Image
-    def rgba_image: (Hash[String, json_value] hash) -> Image
-    def pack_bytes: (Array[json_value] array) -> String
-    def u32: (json_value value) -> Integer
   end
 end

@@ -35,6 +35,14 @@ class TestError < Minitest::Test
     assert_kind_of Tokra::Error, error
   end
 
+  # Tauri's Error::Io displays the io::Error alone (error.rs:53-54).
+  def test_io_is_a_tokra_error_with_the_io_message
+    error = Tokra::Error::Io.new("file name contained an unexpected NUL byte")
+
+    assert_kind_of Tokra::Error, error
+    assert_equal "file name contained an unexpected NUL byte", error.message
+  end
+
   # tauri::Error::InvalidArgs (error.rs:58-60): the command, the key, and
   # serde_json's error.
   def test_invalid_args_names_the_command_and_the_key

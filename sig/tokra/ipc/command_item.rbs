@@ -8,6 +8,10 @@ module Tokra
         def self.invalid_type: (json_value value, String expected) -> Mismatch
       end
 
+      INTEGERS: Hash[String, Range[Integer]]
+
+      def self.integer: (json_value value, String type) -> Integer
+
       attr_reader name: String
       attr_reader key: String
       attr_reader payload: Hash[String, json_value]
@@ -15,6 +19,7 @@ module Tokra
       def self.new: (name: String, key: String, payload: Hash[String, json_value]) -> CommandItem
 
       def string: () -> String
+      def u32: () -> Integer
       def strings: () -> Array[String]
       def deserialize: [T] () { (json_value value) -> T } -> T
       def deserialize_option: [T] () { (json_value value) -> T } -> T?

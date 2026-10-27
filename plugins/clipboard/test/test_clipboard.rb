@@ -306,6 +306,18 @@ class TestClipboard < Minitest::Test
     assert_equal "The resource id 999 is invalid.", message
   end
 
+  # Tauri reads "a\0b.png" as JsImage::Path, and into_img's std::fs::read
+  # fails with Error::Io, which the plugin's Error::Tauri sends as is.
+  def test_extend_api_write_image_with_a_nul_byte_in_the_path_rejects
+    plugin = build_plugin
+
+    invoke, responses = build_invoke("write_image", { "image" => "a\0b.png" })
+
+    assert plugin.extend_api(invoke)
+    expected = Gem.win_platform? ? "strings passed to WinAPI cannot contain NULs" : "file name contained an unexpected NUL byte"
+    assert_equal [[false, expected]], responses
+  end
+
   def test_extend_api_write_image_with_invalid_type_rejects
     plugin = build_plugin
 
@@ -534,6 +546,17 @@ class TestClipboard < Minitest::Test
     plugin = build_plugin
     plugin.define_singleton_method(:write_text) { |_text| raise ArgumentError, "a bug" }
     invoke, = build_invoke("write_text", { "text" => "x" })
+
+    assert_equal "a bug", assert_raises(ArgumentError) { plugin.extend_api(invoke) }.message
+  end
+
+  # Tauri reads the image argument before write_image runs and resolves it
+  # inside the command, so only the reading is an InvalidArgs.
+  def test_an_argument_error_resolving_an_image_is_not_taken_for_a_bad_argument
+    plugin = build_plugin
+    webview = stub_webview
+    webview.resources_table.define_singleton_method(:get) { |_rid| raise ArgumentError, "a bug" }
+    invoke, = build_invoke("write_image", { "image" => 1 }, webview:)
 
     assert_equal "a bug", assert_raises(ArgumentError) { plugin.extend_api(invoke) }.message
   end

@@ -144,19 +144,19 @@ class TestImagePlugin < Minitest::Test
   def test_new_rejects_non_array_rgba
     assert_rejects_invalid_args("new",
       { "rgba" => "not-an-array", "width" => 1, "height" => 1 },
-      "invalid args: rgba must be an array")
+      "invalid args `rgba` for command `new`: invalid type: string \"not-an-array\", expected a sequence")
   end
 
   def test_new_rejects_non_integer_width
     assert_rejects_invalid_args("new",
       { "rgba" => [0, 0, 0, 0], "width" => "1", "height" => 1 },
-      "invalid args: width must be an integer")
+      "invalid args `width` for command `new`: invalid type: string \"1\", expected u32")
   end
 
   def test_new_rejects_non_integer_height
     assert_rejects_invalid_args("new",
       { "rgba" => [0, 0, 0, 0], "width" => 1, "height" => nil },
-      "invalid args: height must be an integer")
+      "invalid args `height` for command `new`: invalid type: null, expected u32")
   end
 
   def test_from_bytes_decodes_and_stores_image
@@ -234,10 +234,96 @@ class TestImagePlugin < Minitest::Test
     assert rejected, "unreadable path should reject the invoke"
   end
 
+  def test_from_path_rejects_a_path_with_a_nul_byte_as_tauri_does
+    expected = Gem.win_platform? ? "strings passed to WinAPI cannot contain NULs" : "file name contained an unexpected NUL byte"
+    assert_rejects_invalid_args("from_path", { "path" => "a\0b.png" }, expected)
+  end
+
   def test_from_path_rejects_non_string_path
     assert_rejects_invalid_args("from_path",
       { "path" => 42 },
-      "invalid args: path must be a string")
+      "invalid args `path` for command `from_path`: invalid type: integer `42`, expected path string")
+  end
+
+  # Each argument reads as its Rust type does (image/plugin.rs): rgba and
+  # bytes as Vec<u8>, width, height, and rid as u32, and path as a
+  # PathBuf. The messages are what the locked serde 1.0.228 and
+  # serde_json 1.0.145 give through Tauri's CommandItem.
+  INVALID_ARGS = {
+    ["new", { "width" => 1, "height" => 1 }] =>
+      "invalid args `rgba` for command `new`: command new missing required key rgba",
+    ["new", { "rgba" => [256, 0, 0, 0], "width" => 1, "height" => 1 }] =>
+      "invalid args `rgba` for command `new`: invalid value: integer `256`, expected u8",
+    ["new", { "rgba" => [-1], "width" => 1, "height" => 1 }] =>
+      "invalid args `rgba` for command `new`: invalid value: integer `-1`, expected u8",
+    ["new", { "rgba" => [1.5], "width" => 1, "height" => 1 }] =>
+      "invalid args `rgba` for command `new`: invalid type: floating point `1.5`, expected u8",
+    ["new", { "rgba" => ["a"], "width" => 1, "height" => 1 }] =>
+      "invalid args `rgba` for command `new`: invalid type: string \"a\", expected u8",
+    ["new", { "rgba" => [0, 0, 0, 0], "width" => -1, "height" => 1 }] =>
+      "invalid args `width` for command `new`: invalid value: integer `-1`, expected u32",
+    ["new", { "rgba" => [0, 0, 0, 0], "width" => 2 ** 32, "height" => 1 }] =>
+      "invalid args `width` for command `new`: invalid value: integer `4294967296`, expected u32",
+    ["new", { "rgba" => [0, 0, 0, 0], "width" => 2 ** 64, "height" => 1 }] =>
+      "invalid args `width` for command `new`: invalid type: floating point `1.8446744073709552e19`, expected u32",
+    ["new", { "rgba" => [0, 0, 0, 0], "width" => 1.0, "height" => 1 }] =>
+      "invalid args `width` for command `new`: invalid type: floating point `1.0`, expected u32",
+    ["new", { "rgba" => "x", "width" => "y", "height" => 1 }] =>
+      "invalid args `rgba` for command `new`: invalid type: string \"x\", expected a sequence",
+    ["from_bytes", { "bytes" => "x" }] =>
+      "invalid args `bytes` for command `from_bytes`: invalid type: string \"x\", expected a sequence",
+    ["from_bytes", { "bytes" => {} }] =>
+      "invalid args `bytes` for command `from_bytes`: invalid type: map, expected a sequence",
+    ["from_bytes", {}] =>
+      "invalid args `bytes` for command `from_bytes`: command from_bytes missing required key bytes",
+    ["from_path", { "path" => ["a"] }] =>
+      "invalid args `path` for command `from_path`: invalid type: sequence, expected path string",
+    ["from_path", {}] =>
+      "invalid args `path` for command `from_path`: command from_path missing required key path",
+    ["rgba", { "rid" => "x" }] =>
+      "invalid args `rid` for command `rgba`: invalid type: string \"x\", expected u32",
+    ["rgba", {}] =>
+      "invalid args `rid` for command `rgba`: command rgba missing required key rid",
+    ["size", { "rid" => 2 ** 32 }] =>
+      "invalid args `rid` for command `size`: invalid value: integer `4294967296`, expected u32",
+    ["size", { "rid" => -1 }] =>
+      "invalid args `rid` for command `size`: invalid value: integer `-1`, expected u32",
+    ["size", { "rid" => nil }] =>
+      "invalid args `rid` for command `size`: invalid type: null, expected u32",
+  }.freeze
+
+  def test_bad_arguments_reject_with_tauris_messages
+    INVALID_ARGS.each do |(command, payload), message|
+      assert_rejects_invalid_args(command, payload, message)
+    end
+  end
+
+  def test_the_largest_u32_is_a_valid_dimension
+    webview = build_webview
+    resolved = nil
+    invoke = Tokra::Ipc::Invoke.new(
+      command: "new",
+      payload: { "rgba" => [], "width" => (2 ** 32) - 1, "height" => 0 },
+      webview:,
+      responder: -> (success, value) { resolved = JSON.parse(value) if success }
+    )
+
+    assert Tokra::Image::Plugin.new(nil, {}).extend_api(invoke)
+    assert_equal (2 ** 32) - 1, webview.resources_table.get(resolved).width
+  end
+
+  def test_an_argument_error_from_a_bug_is_not_taken_for_a_bad_argument
+    webview = build_webview
+    webview.resources_table.define_singleton_method(:add) { |_resource| raise ArgumentError, "a bug" }
+    invoke = Tokra::Ipc::Invoke.new(
+      command: "new",
+      payload: { "rgba" => [0, 0, 0, 0], "width" => 1, "height" => 1 },
+      webview:,
+      responder: -> (_success, _value) {}
+    )
+
+    error = assert_raises(ArgumentError) { Tokra::Image::Plugin.new(nil, {}).extend_api(invoke) }
+    assert_equal "a bug", error.message
   end
 
   private def build_webview

@@ -38,13 +38,19 @@ module Tokra
       # <tt>plugin:resources|</tt> prefix before routing, exactly as Tauri
       # rewrites +invoke.message.command+ in webview/mod.rs.
       #
+      # Reads +rid+ as Tauri's ResourceId, a u32, so a missing or non-u32
+      # rid rejects with Tauri's <tt>invalid args `rid` for command
+      # `close`</tt> message; any other error is a bug, and reaches the
+      # router.
+      #
       # Returns +true+ if the command was handled, +false+ otherwise.
       def extend_api(invoke)
         return false unless invoke.command == "close"
 
-        rid = invoke.payload["rid"]
-        unless rid.is_a?(Integer)
-          invoke.reject("invalid args: rid must be an integer")
+        begin
+          rid = Ipc::CommandItem.new(name: invoke.command, key: "rid", payload: invoke.payload).u32
+        rescue Error::InvalidArgs => e
+          invoke.reject(e.message)
           return true
         end
 

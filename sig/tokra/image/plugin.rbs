@@ -15,9 +15,10 @@ module Tokra
       def handle_from_bytes: (Ipc::Invoke invoke) -> bool
       def handle_from_path: (Ipc::Invoke invoke) -> bool
       def image_arg: (Ipc::Invoke invoke) -> Image
-      def integer_arg: (Ipc::Invoke invoke, String key) -> Integer
-      def array_arg: (Ipc::Invoke invoke, String key) -> Array[json_value]
-      def string_arg: (Ipc::Invoke invoke, String key) -> String
+      def bytes_arg: (Ipc::Invoke invoke, String key) -> String
+      def u32_arg: (Ipc::Invoke invoke, String key) -> Integer
+      def path_arg: (Ipc::Invoke invoke, String key) -> String
+      def argument: (Ipc::Invoke invoke, String key) -> Ipc::CommandItem
     end
   end
 end

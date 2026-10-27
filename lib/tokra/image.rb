@@ -8,7 +8,10 @@
 # SPDX-SnippetBegin
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
-# SPDX-SnippetComment: Image structure adapted from tauri/crates/tauri/src/image/mod.rs
+# SPDX-SnippetCopyrightText: Erick Tryzelaar and David Tolnay (serde, serde_json)
+# SPDX-SnippetCopyrightText: The Rust Project Developers (std's NUL path messages)
+# SPDX-SnippetComment: Image structure adapted from tauri/crates/tauri/src/image/mod.rs;
+#                      JsImage's message is serde's for an untagged enum
 
 module Tokra
   # An RGBA image in row-major order from top to bottom.
@@ -49,35 +52,64 @@ module Tokra
       raise Error::Image, e.message
     end
 
+    # Rust's io::Error for a path with a NUL byte: Unix hands paths to the
+    # OS as C strings (std sys/helpers/small_c_string.rs:13-14), and
+    # Windows as wide strings (std sys/pal/windows/mod.rs:99-104).
+    NUL_IN_PATH = if Gem.win_platform?
+      "strings passed to WinAPI cannot contain NULs"
+    else
+      "file name contained an unexpected NUL byte"
+    end
+
     # Creates an Image by decoding the PNG or ICO file at +path+.
     #
     # Matches Tauri's Image::from_path (image/mod.rs).
     #
-    # Raises Error::Image when the file cannot be decoded, or a
-    # SystemCallError when it cannot be read.
+    # Raises Error::Image when the file cannot be decoded, or Error::Io
+    # when it cannot be read, with the reason Ruby gives. A path holding a
+    # NUL byte is a file Rust's std::fs::read cannot open either, and
+    # raises Error::Io with Rust's words, where Ruby's File.binread would
+    # raise ArgumentError.
     #
     # === Example
     #
     #   image = Tokra::Image.from_path("assets/icon.ico")
     def self.from_path(path)
-      from_bytes(File.binread(path))
+      raise Error::Io, NUL_IN_PATH if path.include?("\0")
+
+      from_bytes(read(path))
+    end
+
+    # The file at +path+, or Error::Io with Ruby's reason.
+    private_class_method def self.read(path)
+      File.binread(path)
+    rescue SystemCallError => e
+      raise Error::Io, e.message
     end
   end
 
-  # Intermediate image payload from frontend JavaScript.
+  # An image argument from frontend JavaScript.
   #
-  # Frontend code refers to an image four ways: a resource ID from a
-  # prior <tt>Image.new</tt> call, encoded bytes, a file path, or an
-  # inline RGBA hash. Every IPC command that accepts an image must
-  # resolve all four.
+  # Frontend code refers to an image four ways: a file path, encoded
+  # bytes, a resource ID from a prior <tt>Image.new</tt> call, or an
+  # inline RGBA hash. A command that takes an image reads all four, and
+  # rejects anything else in serde's words. Reading the
+  # argument and resolving it fail differently: a value of the wrong
+  # shape is the frontend's bad argument, while a resource ID that names
+  # nothing, or bytes that do not decode, is the command's error.
   #
-  # This class wraps the raw payload value and resolves it with
-  # into_img. Mirrors Tauri's JsImage enum (image/mod.rs:169-229), the
-  # server side of the frontend transformImage API.
+  # deserialize reads the payload value as Tauri's untagged JsImage enum
+  # deserializes (image/mod.rs:158-189), raising
+  # Ipc::CommandItem::Mismatch, so CommandItem#deserialize reports it as
+  # the argument's Error::InvalidArgs. into_img then resolves it as
+  # Tauri's <tt>JsImage::into_img</tt> does (image/mod.rs:191-230),
+  # raising Tauri's errors. Like Tauri's non-exhaustive variants, a
+  # JsImage cannot be built any other way.
   #
   # === Example
   #
-  #   js_image = Tokra::JsImage.new(invoke.payload["image"])
+  #   js_image = Tokra::Ipc::CommandItem.new(name: "write_image", key: "image", payload: invoke.payload)
+  #     .deserialize { |value| Tokra::JsImage.deserialize(value) }
   #   image = js_image.into_img(invoke.webview.resources_table)
   #
   class JsImage
@@ -88,48 +120,93 @@ module Tokra
     # The largest u32, the type of Tauri's ResourceId and image dimensions.
     U32_MAX = (2 ** 32) - 1
 
-    # Wraps a raw payload value (Integer, Array, String, or Hash).
-    def initialize(value)
-      @value = value
+    private_class_method :new
+
+    # Reads +value+, a JSON value, as one of Tauri's four variants, tried
+    # in serde's order:
+    #
+    # [String]  +Path+, a file path.
+    # [Array]   +Bytes+, when every element is an integer from 0 to 255.
+    # [Integer] +Resource+, an ID from 0 to 4294967295.
+    # [Hash]    +Rgba+, from its <tt>"rgba"</tt> bytes and its
+    #           <tt>"width"</tt> and <tt>"height"</tt> u32s. Only a map:
+    #           serde_derive gives an untagged enum's struct variant no
+    #           sequence form (serde_derive 1.0.228 de/struct_.rs:70-73),
+    #           so <tt>[rgba, width, height]</tt> is not an image.
+    #
+    # A value that fits no variant raises Ipc::CommandItem::Mismatch with
+    # serde's message, <tt>data did not match any variant of untagged enum
+    # JsImage</tt>.
+    #
+    # === Example
+    #
+    #   Tokra::JsImage.deserialize({ "rgba" => [0, 0, 0, 0], "width" => 1, "height" => 1 })
+    def self.deserialize(value)
+      variant = case value
+      when String then value
+      when Array then bytes(value)
+      when Integer then u32(value)
+      when Hash then rgba(value)
+      end
+      variant ? new(variant) : raise(Ipc::CommandItem::Mismatch, MISMATCH)
     end
 
-    # Resolves the payload to an Image.
+    # The Rgba variant from a hash, or +nil+ when it does not read.
+    private_class_method def self.rgba(hash)
+      rgba = hash["rgba"]
+      pixels = bytes(rgba)&.pack("C*") if rgba.is_a?(Array)
+      width = u32(hash["width"])
+      height = u32(hash["height"])
+      Image.new(rgba: pixels, width:, height:) if pixels && width && height
+    end
+
+    # A JSON array as a Vec<u8>, or +nil+ unless every element is a u8, so
+    # 256 cannot wrap to 0 and 1.5 cannot truncate to 1 when it is packed.
+    private_class_method def self.bytes(array)
+      array.map do |byte|
+        return nil unless byte.is_a?(Integer) && byte.between?(0, 255)
+
+        byte
+      end
+    end
+
+    # +value+ if it is a u32, or +nil+.
+    private_class_method def self.u32(value)
+      value if value.is_a?(Integer) && value.between?(0, U32_MAX)
+    end
+
+    # Holds one variant: a String (Path, any string, as a PathBuf takes
+    # it), an Array of u8 (Bytes), an Integer (Resource), or an Image
+    # (Rgba).
+    def initialize(variant)
+      @variant = variant
+    end
+
+    # Resolves the image.
     #
-    # [Integer] fetched from +resources_table+; the resource must be an
-    #           Image.
-    # [Array]   decoded with Image.from_bytes.
-    # [String]  decoded with Image.from_path.
-    # [Hash]    built from its <tt>"rgba"</tt>, <tt>"width"</tt>, and
-    #           <tt>"height"</tt> keys.
-    # [Array of three] <tt>[rgba, width, height]</tt>, the sequence form
-    #           serde's derived struct visitor also accepts for Tauri's
-    #           Rgba variant, when the array is not a byte array.
+    # A resource ID is fetched from +resources_table+, raising
+    # Error::BadResourceId when it names nothing or a resource that is not
+    # an Image. A path is read and decoded with Image.from_path, and bytes
+    # with Image.from_bytes, raising Error::Image when they do not decode
+    # (and Error::Io when the file cannot be read). An RGBA image
+    # is returned as it is.
     #
-    # Each shape is checked the way Tauri deserializes it: bytes are
-    # integers from 0 to 255, and resource IDs, widths, and heights are
-    # integers from 0 to 4294967295. A value that fits no shape raises
-    # ArgumentError with serde's message,
-    # <tt>data did not match any variant of untagged enum JsImage</tt>.
-    # An unknown resource ID, or one that does not hold an Image, raises
-    # Error::BadResourceId; bytes that cannot be decoded raise Error::Image.
-    #
-    # Matches Tauri's JsImage enum and JsImage#into_img
-    # (image/mod.rs:166-229). Pass the webview's resources_table so
-    # resource IDs resolve against the same table that stored them.
+    # Matches Tauri's JsImage#into_img (image/mod.rs:191-230). Pass the
+    # webview's resources_table so resource IDs resolve against the same
+    # table that stored them.
     #
     # === Example
     #
     #   table = Tokra::ResourceTable.new
     #   rid = table.add(Tokra::Image.new(rgba: "\0\0\0\0".b, width: 1, height: 1))
-    #   Tokra::JsImage.new(rid).into_img(table)  #=> the stored Image
+    #   Tokra::JsImage.deserialize(rid).into_img(table)  #=> the stored Image
     def into_img(resources_table)
-      value = @value
-      case value
-      when Integer then image_resource(u32(value), resources_table)
-      when Array then array_image(value)
-      when String then Image.from_path(value)
-      when Hash then rgba_image(value)
-      else raise ArgumentError, MISMATCH
+      variant = @variant
+      case variant
+      when Integer then image_resource(variant, resources_table)
+      when String then Image.from_path(variant)
+      when Array then Image.from_bytes(variant.pack("C*"))
+      else variant
       end
     end
 
@@ -138,40 +215,6 @@ module Tokra
       raise Error::BadResourceId, rid unless resource.is_a?(Image)
 
       resource
-    end
-
-    # An array is Tauri's Bytes variant when every element is a u8, and
-    # otherwise its Rgba variant in sequence form: serde's untagged enum
-    # tries Bytes first, then the struct visitor, which reads exactly
-    # three elements in field order (rgba, width, height).
-    private def array_image(array)
-      return Image.from_bytes(pack_bytes(array)) unless array.size == 3 && array.first.is_a?(Array)
-
-      rgba, width, height = array
-      rgba_image({ "rgba" => rgba, "width" => width, "height" => height })
-    end
-
-    # Builds an Image from an inline RGBA hash.
-    private def rgba_image(hash)
-      rgba = hash["rgba"]
-      raise ArgumentError, MISMATCH unless rgba.is_a?(Array)
-
-      Image.new(rgba: pack_bytes(rgba), width: u32(hash["width"]), height: u32(hash["height"]))
-    end
-
-    # Packs a JSON byte array into a binary string, accepting only u8
-    # values, so 256 cannot wrap to 0 and 1.5 cannot truncate to 1.
-    private def pack_bytes(array)
-      raise ArgumentError, MISMATCH unless array.all? { |byte| byte.is_a?(Integer) && byte.between?(0, 255) }
-
-      array.pack("C*")
-    end
-
-    # Returns +value+ if it is a u32.
-    private def u32(value)
-      raise ArgumentError, MISMATCH unless value.is_a?(Integer) && value.between?(0, U32_MAX)
-
-      value
     end
   end
 end

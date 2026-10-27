@@ -290,8 +290,6 @@ module Tokra
 
           SCHEDULES: Array[String]
           EVERY: Hash[String, ScheduleEvery]
-          RANGES: Hash[String, Range[Integer]]
-          JSON_INTEGERS: Range[Integer]
           NOTIFICATION_DATA: Array[field]
           ATTACHMENT: Array[field]
           SCHEDULE_INTERVAL: Array[field]

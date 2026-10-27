@@ -8,7 +8,9 @@
 # SPDX-SnippetBegin
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
-# SPDX-SnippetComment: Image plugin adapted from tauri/crates/tauri/src/image/plugin.rs
+# SPDX-SnippetCopyrightText: Erick Tryzelaar and David Tolnay (serde, serde_json)
+# SPDX-SnippetComment: Image plugin adapted from tauri/crates/tauri/src/image/plugin.rs;
+#                      the argument messages are serde's as serde_json produces them
 
 module Tokra
   class Image
@@ -40,7 +42,9 @@ module Tokra
       # Returns +true+ if the command was handled, +false+ otherwise.
       #
       # Command errors reject the invoke rather than raise, mirroring
-      # Tauri's Result-to-InvokeError propagation in the command layer.
+      # Tauri's Result-to-InvokeError propagation in the command layer, as
+      # does an argument that does not read (Error::InvalidArgs). Anything
+      # else is a bug, and reaches the router.
       def extend_api(invoke)
         case invoke.command
         when "new"        then handle_new(invoke)
@@ -50,7 +54,7 @@ module Tokra
         when "from_path"  then handle_from_path(invoke)
         else false
         end
-      rescue Error::BadResourceId, Error::Image, ArgumentError, SystemCallError => e
+      rescue Error::BadResourceId, Error::Image, Error::InvalidArgs, Error::Io => e
         invoke.reject(e.message)
         true
       end
@@ -59,9 +63,9 @@ module Tokra
       #
       # Matches Tauri image/plugin.rs:12-22.
       private def handle_new(invoke)
-        rgba = array_arg(invoke, "rgba").pack("C*")
-        width = integer_arg(invoke, "width")
-        height = integer_arg(invoke, "height")
+        rgba = bytes_arg(invoke, "rgba")
+        width = u32_arg(invoke, "width")
+        height = u32_arg(invoke, "height")
         image = Image.new(rgba:, width:, height:)
         rid = invoke.webview.resources_table.add(image)
         invoke.resolve(rid)
@@ -92,7 +96,7 @@ module Tokra
       # it behind Cargo features; Ruby has no build flags, so Tokra
       # supports it unconditionally.
       private def handle_from_bytes(invoke)
-        bytes = array_arg(invoke, "bytes").pack("C*")
+        bytes = bytes_arg(invoke, "bytes")
         rid = invoke.webview.resources_table.add(Image.from_bytes(bytes))
         invoke.resolve(rid)
         true
@@ -102,7 +106,7 @@ module Tokra
       #
       # Matches Tauri's from_path command (image/plugin.rs).
       private def handle_from_path(invoke)
-        path = string_arg(invoke, "path")
+        path = path_arg(invoke, "path")
         rid = invoke.webview.resources_table.add(Image.from_path(path))
         invoke.resolve(rid)
         true
@@ -114,44 +118,39 @@ module Tokra
       # resource is not an Image, mirroring Tauri's ResourceTable::get,
       # which downcasts to the requested type or fails.
       private def image_arg(invoke)
-        rid = integer_arg(invoke, "rid")
+        rid = u32_arg(invoke, "rid")
         image = invoke.webview.resources_table.get(rid)
         raise Error::BadResourceId, rid unless image.is_a?(Image)
 
         image
       end
 
-      # Returns the Integer payload value for +key+.
-      #
-      # Raises ArgumentError when the value is not an Integer, standing in
-      # for the serde deserialization Tauri performs on command arguments.
-      private def integer_arg(invoke, key)
-        value = invoke.payload[key]
-        raise ArgumentError, "invalid args: #{key} must be an integer" unless value.is_a?(Integer)
+      # The argument at +key+ as a Rust <tt>Vec<u8></tt>, packed into a
+      # binary String.
+      private def bytes_arg(invoke, key)
+        argument(invoke, key).deserialize do |value|
+          raise Ipc::CommandItem::Mismatch.invalid_type(value, "a sequence") unless value.is_a?(Array)
 
-        value
+          value.map { |byte| Ipc::CommandItem.integer(byte, "u8") }.pack("C*")
+        end
       end
 
-      # Returns the Array payload value for +key+.
-      #
-      # Raises ArgumentError when the value is not an Array, standing in
-      # for the serde deserialization Tauri performs on command arguments.
-      private def array_arg(invoke, key)
-        value = invoke.payload[key]
-        raise ArgumentError, "invalid args: #{key} must be an array" unless value.is_a?(Array)
-
-        value
+      # The argument at +key+ as a Rust +u32+ (a dimension, or a
+      # ResourceId).
+      private def u32_arg(invoke, key)
+        argument(invoke, key).u32
       end
 
-      # Returns the String payload value for +key+.
-      #
-      # Raises ArgumentError when the value is not a String, standing in
-      # for the serde deserialization Tauri performs on command arguments.
-      private def string_arg(invoke, key)
-        value = invoke.payload[key]
-        raise ArgumentError, "invalid args: #{key} must be a string" unless value.is_a?(String)
+      # The argument at +key+ as a Rust +PathBuf+: any string, which serde's
+      # PathBuf visitor expects as a <tt>path string</tt>.
+      private def path_arg(invoke, key)
+        argument(invoke, key).deserialize do |value|
+          value.is_a?(String) ? value : raise(Ipc::CommandItem::Mismatch.invalid_type(value, "path string"))
+        end
+      end
 
-        value
+      private def argument(invoke, key)
+        Ipc::CommandItem.new(name: invoke.command, key:, payload: invoke.payload)
       end
     end
   end
