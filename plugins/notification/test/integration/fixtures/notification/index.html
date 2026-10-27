@@ -22,6 +22,17 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     const rejection = async (promise) => {
       try { return { resolved: await promise }; } catch (error) { return { rejected: String(error) }; }
     };
+    // The summaries of those sent that have not reached the test's server
+    // after reading its log for up to 15 seconds; none once all have.
+    const unreceived = async (summaries) => {
+      let missing = summaries;
+      for (let i = 0; i < 150 && missing.length > 0; i++) {
+        if (i > 0) await new Promise((resolve) => setTimeout(resolve, 100));
+        const log = await (await fetch('/server.log')).text();
+        missing = summaries.filter((summary) => !log.includes(`string "${summary}"`));
+      }
+      return missing;
+    };
 
     (async () => {
       const { sends } = await (await fetch('/notification.json')).json();
@@ -62,7 +73,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
           });
           sendNotification({ title: `${TITLE}: send`, body: 'from sendNotification' });
           new window.Notification(`${TITLE}: web`, { body: 'from window.Notification' });
-          return { pass: notified === null, detail: { notified } };
+          const missing = await unreceived([`${TITLE}: notify`, `${TITLE}: send`, `${TITLE}: web`]);
+          return { pass: notified === null && missing.length === 0, detail: { notified, missing } };
         });
       }
 

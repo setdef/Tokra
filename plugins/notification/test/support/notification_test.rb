@@ -170,6 +170,10 @@ module NotificationTest
       # The bus address, once the bus and dunst run.
       attr_reader :address
 
+      # The file dbus-monitor writes each Notify call to as it reaches
+      # the bus, once the bus and dunst run.
+      attr_reader :log
+
       # Starts the bus, dunst, and the monitor, once. Returns why it
       # cannot, or nil.
       def start

@@ -24,7 +24,7 @@ class TestNotificationWindow < RealApp::TestCase
   def setup
     super
     @sends = PLATFORM == :linux && Server.start.nil?
-    env = @sends ? { "DBUS_SESSION_BUS_ADDRESS" => Server.address, "FIXTURE_SENDS" => "1" } : {}
+    env = @sends ? { "DBUS_SESSION_BUS_ADDRESS" => Server.address, "FIXTURE_SERVER_LOG" => Server.log } : {}
     @run = self.class.fixture_run { RealApp.launch("notification", fixtures: FIXTURES, env:) }
     assert_finished @run
   end

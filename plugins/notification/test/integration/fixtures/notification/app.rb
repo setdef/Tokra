@@ -12,19 +12,28 @@
 #
 #   cd plugins/notification && bundle exec ruby test/integration/fixtures/notification/app.rb --wait
 #
-# The page sends notifications only when FIXTURE_SENDS is set, which the
-# Linux test does once it has pointed D-Bus at its own dunst; elsewhere it
-# checks everything short of a send, so no notification reaches a
-# person's screen.
+# The page sends notifications only when FIXTURE_SERVER_LOG names the
+# log of the Linux test's own dunst, which the test sets once it has
+# pointed D-Bus at that dunst; elsewhere it checks everything short of a
+# send, so no notification reaches a person's screen.
+#
+# A send goes out on a thread of its own, and the app's exit ends one
+# still under way, as Tauri's exit drops the task its send spawned
+# (desktop.rs:217-219). So before it finishes, the page reads that log
+# until every notification it sent has reached the server.
 
 require_relative "../../../../../../test/integration/support/fixture_app"
 require "tokra-notification"
 
 module NotificationFixture
-  # The page's facts: whether it may send, and Tauri's api-iife.js.
+  # The page's facts: whether it may send, what has reached the test's
+  # server, and Tauri's api-iife.js.
   ROUTES = {
     "/notification.json" => lambda { |_env|
-      [200, { "content-type" => "application/json" }, [JSON.generate(sends: ENV.key?("FIXTURE_SENDS"))]]
+      [200, { "content-type" => "application/json" }, [JSON.generate(sends: ENV.key?("FIXTURE_SERVER_LOG"))]]
+    },
+    "/server.log" => lambda { |_env|
+      [200, { "content-type" => "text/plain; charset=utf-8" }, [File.read(ENV.fetch("FIXTURE_SERVER_LOG"))]]
     },
     "/api-iife.js" => lambda { |_env|
       [200, { "content-type" => "text/javascript" }, [File.read(File.join(__dir__, "api-iife.js"))]]
