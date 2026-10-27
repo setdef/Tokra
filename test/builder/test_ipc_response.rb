@@ -310,4 +310,126 @@ class TestBuilderIpcResponse < Minitest::Test
   ensure
     StubNative.clear_event
   end
+
+  # Records what a command saw over postMessage.
+  private def recording_app
+    Thread.current[:seen] = nil
+    handler = Ractor.shareable_proc { |invoke|
+      request = Tokra::Ipc::Request.from_command(invoke)
+      Thread.current[:seen] = { body: request.body, payload: invoke.payload, headers: request.headers }
+      invoke.resolve(nil)
+      true
+    }
+    Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+  end
+
+  # Over postMessage the client JSON-encodes a Uint8Array as a number
+  # array (process-ipc-message-fn.js:26-29), and Tauri's body is that
+  # JSON value (ipc/protocol.rs:236, 295), which the fs plugin's
+  # write_file accepts beside raw bytes.
+  def test_post_message_byte_array_is_a_json_body
+    app = recording_app
+    inject_ipc(app, "cmd" => "ping", "callback" => 1, "error" => 2, "payload" => [1, 2, 255])
+    app.run
+
+    assert_equal [1, 2, 255], Thread.current[:seen][:body]
+    assert_equal [1, 2, 255], Thread.current[:seen][:payload]
+  ensure
+    StubNative.clear_event
+  end
+
+  # Tauri reads options.headers into a HeaderMap, names lowercased by the
+  # http crate (ipc/protocol.rs:197-229, 297).
+  def test_post_message_headers_come_from_options
+    app = recording_app
+    inject_ipc(app, "cmd" => "ping", "callback" => 1, "error" => 2, "payload" => {},
+      "options" => { "headers" => { "Path" => "%2Ftmp", "x-n" => "1" }, "customProtocolIpcBlocked" => true })
+    app.run
+
+    assert_equal({ "path" => "%2Ftmp", "x-n" => "1" }, Thread.current[:seen][:headers])
+    assert_predicate Thread.current[:seen][:headers], :frozen?
+
+    app = recording_app
+    inject_ipc(app, "cmd" => "ping", "callback" => 1, "error" => 2, "payload" => {})
+    app.run
+    assert_equal({}, Thread.current[:seen][:headers], "no options means no headers")
+  ensure
+    StubNative.clear_event
+  end
+
+  # A header the http crate refuses fails the whole message as a serde
+  # error, reported in the page before the key check (ipc/protocol.rs:
+  # 206-218; http name.rs:1009-1100, value.rs:585-587).
+  def test_post_message_invalid_header_is_reported_in_the_page
+    {
+      { "bad name" => "v" } => "invalid header `bad name` `v`",
+      { "" => "v" } => "invalid header `` `v`",
+      { "x" => "line\nbreak" } => "invalid header `x` `line\nbreak`",
+      { "x" => "\u007F" } => "invalid header `x` `\u007F`",
+      { "x" => 1 } => "invalid type: integer `1`, expected a string",
+      "nope" => 'invalid type: string "nope", expected a map',
+    }.each do |headers, message|
+      Thread.current[:seen] = nil
+      app = recording_app
+      StubNative.inject_event(Tokra::Native::IpcEvent.new(
+        JSON.generate("cmd" => "ping", "callback" => 1, "error" => 2, "payload" => {},
+          "options" => { "headers" => headers }, "__TAURI_INVOKE_KEY__" => "wrong"),
+        LocalOrigin.url(app:)
+      ))
+      _out, err = capture_subprocess_io { app.run }
+
+      assert_nil Thread.current[:seen], "#{headers.inspect} must not dispatch"
+      assert_equal ["console.error(#{JSON.generate("JSON error: #{message}")})"], webview_evals(app)
+      assert_empty err, "the header error comes before the key check"
+    end
+  ensure
+    StubNative.clear_event
+  end
+
+  # Header values may hold tabs and bytes past ASCII (value.rs:585-587).
+  def test_post_message_header_values_allow_tab_and_non_ascii
+    app = recording_app
+    inject_ipc(app, "cmd" => "ping", "callback" => 1, "error" => 2, "payload" => {},
+      "options" => { "headers" => { "x" => "a\tb é" } })
+    app.run
+
+    assert_equal({ "x" => "a\tb é" }, Thread.current[:seen][:headers])
+  ensure
+    StubNative.clear_event
+  end
+
+  # Over postMessage on macOS, and whenever the client fell back from
+  # ipc://, Tauri evaluates a raw response with format_result, which
+  # serializes the bytes as a JSON number array (ipc/protocol.rs:390-402).
+  def test_raw_response_over_post_message_is_a_number_array
+    handler = Ractor.shareable_proc { |invoke|
+      invoke.resolve(Tokra::Ipc::Response.new("\x03\x02\xFF".b))
+      true
+    }
+    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    inject_ipc(app, "cmd" => "ping", "callback" => 100, "error" => 200)
+    app.run
+
+    assert_equal ["window.__TAURI_INTERNALS__.runCallback(100, [3,2,255])"], webview_evals(app)
+  ensure
+    StubNative.clear_event
+  end
+
+  # responder_eval answers the error callback when the reply cannot be
+  # formatted (ipc/protocol.rs:313-325), so the invoke still settles.
+  def test_a_reply_that_cannot_be_formatted_rejects_with_the_error
+    handler = Ractor.shareable_proc { |invoke|
+      invoke.resolve("pong")
+      true
+    }
+    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    inject_ipc(app, "cmd" => "ping", "callback" => 100, "error" => 200)
+    format_raw = Tokra::Ipc::FormatCallback.method(:format_raw)
+    failing = -> (id, json) { (id == 100) ? raise(ArgumentError, "cannot format") : format_raw.call(id, json) }
+    Tokra::Ipc::FormatCallback.stub(:format_raw, failing) { app.run }
+
+    assert_equal ['window.__TAURI_INTERNALS__.runCallback(200, "cannot format")'], webview_evals(app)
+  ensure
+    StubNative.clear_event
+  end
 end

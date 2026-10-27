@@ -20,7 +20,7 @@ allow "ext/tokra/src/window.rs", line: 106, reason: <<~END
   the Ruby GC cycle.
 END
 
-allow "ext/tokra/src/webview.rs", line: 176, reason: <<~END
+allow "ext/tokra/src/webview.rs", line: 185, reason: <<~END
   Magnus FFI requires owned types at the Ruby-Rust boundary. RbWebView::new
   receives a URL from Ruby that must be converted to an owned Rust String.
 
@@ -29,7 +29,7 @@ allow "ext/tokra/src/webview.rs", line: 176, reason: <<~END
   cannot be safely borrowed across the FFI boundary.
 END
 
-allow "ext/tokra/src/webview.rs", line: 331, reason: <<~END
+allow "ext/tokra/src/webview.rs", line: 340, reason: <<~END
   Magnus FFI requires owned types at the Ruby-Rust boundary. RbWebView::eval
   receives JavaScript code from Ruby that must be converted to an owned String.
 

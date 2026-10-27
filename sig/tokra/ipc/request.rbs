@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Ipc
+    class Request < Data
+      attr_reader body: invoke_body
+      attr_reader headers: Hash[String, String]
+
+      def self.new: (body: invoke_body, headers: Hash[String, String]) -> Request
+      def self.from_command: (Invoke invoke) -> Request
+    end
+  end
+end

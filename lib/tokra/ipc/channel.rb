@@ -34,8 +34,9 @@ module Tokra
     # Mirrors Tauri's <tt>ipc::Channel</tt> (channel.rs:48-298). Tauri
     # fetches messages of 8 KiB or more through a command of its own; Tokra
     # evaluates every message, and the page receives the same value
-    # (Plan 025, decision 5). Raw byte messages are not ported, since
-    # Tokra's IPC bodies are JSON only (ADR 010).
+    # (Plan 025, decision 5). Raw byte messages are not ported: Tauri
+    # fetches those of 1 KiB or more through the same command, which
+    # Tokra lacks (Plan 033).
     #
     # === Examples
     #
@@ -73,7 +74,7 @@ module Tokra
         #
         #   channel = Tokra::Ipc::Channel.from_command(invoke, "handler")
         def from_command(invoke, key)
-          value = CommandItem.new(name: invoke.command, key:, payload: invoke.payload).string
+          value = CommandItem.new(name: invoke.command, key:, payload: invoke.body).string
           id = begin
             JavaScriptChannelId.from_str(value)
           rescue ArgumentError

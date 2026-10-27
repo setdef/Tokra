@@ -81,6 +81,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   500, `postMessage` evaluates `console.error("JSON error: ...")`); payloads
   hold serde_json's values, so `-0` and integers outside 64 bits are floats
   and object keys come in byte order
+- An `ArrayBuffer` or typed array invoke reaches the command over `ipc://`
+  as a binary String, unparsed
+- `Invoke#payload` is the body as sent, any JSON value or bytes;
+  `Invoke#body` is the same value
+- `Invoke#headers`: every `ipc://` request header, or a `postMessage`'s
+  `options.headers`, with lowercase names
+- `Tokra::Ipc::Request.from_command(invoke)`, Tauri's `ipc::Request`, with
+  `body` and `headers`
+- `Tokra::Ipc::Response.new(string)`, Tauri's `ipc::Response`: a binary
+  String resolves the invoke with an `ArrayBuffer` (a number array over
+  `postMessage`), other text is sent as JSON text in UTF-8
+- `Tokra::Ipc::InvokeBody.raw?` tells raw bytes from JSON
+- A `postMessage` whose `options.headers` the http crate refuses is
+  reported with `console.error("JSON error: ...")` and not dispatched
 - `Builder#with_global_tauri` injects the vendored `@tauri-apps/api` bundle as
   `window.__TAURI__`, so a page with no frontend bundler calls
   `window.__TAURI__.core.invoke(...)` directly (mirrors Tauri's
@@ -150,8 +164,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `CommandItem` does: `string`, `strings`, and `u32`, or any type through
   `deserialize` and `deserialize_option` with a block that raises
   `CommandItem::Mismatch`, and `CommandItem.integer` reads a u8, u32, or
-  i32 with serde's messages; `Tokra::Ipc::Unexpected` describes a JSON value
-  as serde_json's errors do
+  i32 with serde's messages, and fails every argument of a raw body with
+  Tauri's `bytes payload` message; `Tokra::Ipc::Unexpected` describes a JSON
+  value as serde_json's errors do
 - `Tokra::Error::InvalidArgs`, Tauri's `invalid args` error, which
   `CommandItem` and `Channel.from_command` raise for an argument that does
   not read, and `Tokra::Ipc::InvokeError`, which `Channel.from_command`

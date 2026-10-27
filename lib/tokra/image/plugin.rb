@@ -150,7 +150,7 @@ module Tokra
       end
 
       private def argument(invoke, key)
-        Ipc::CommandItem.new(name: invoke.command, key:, payload: invoke.payload)
+        Ipc::CommandItem.new(name: invoke.command, key:, payload: invoke.body)
       end
     end
   end

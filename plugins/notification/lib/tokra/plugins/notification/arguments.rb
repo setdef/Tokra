@@ -134,10 +134,10 @@ module Tokra
           # Creates a reader for +payload+, the invoke's arguments, of
           # +command+.
           #
-          # [payload] the invoke's payload Hash.
+          # [payload] the invoke's body (Invoke#body).
           # [command] the command name, for the messages.
           def initialize(payload, command)
-            @payload = payload || {}
+            @payload = payload
             @command = command
           end
 

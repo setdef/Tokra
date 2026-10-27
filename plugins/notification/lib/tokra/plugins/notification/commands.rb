@@ -60,7 +60,7 @@ module Tokra
         #
         #   Commands.notify(invoke, handle.notification)
         def self.notify(invoke, notification)
-          options = Arguments.new(invoke.payload, "notify").notification_data
+          options = Arguments.new(invoke.body, "notify").notification_data
           builder = notification.builder
           builder.data = options
           builder.show

@@ -62,7 +62,7 @@ module Tokra
         #
         #   Commands.register(invoke, handle.global_shortcut)
         def self.register(invoke, global_shortcut)
-          shortcuts = Tokra::Ipc::CommandItem.new(name: "register", key: "shortcuts", payload: invoke.payload).strings
+          shortcuts = Tokra::Ipc::CommandItem.new(name: "register", key: "shortcuts", payload: invoke.body).strings
           handler = ChannelHandler.new(Tokra::Ipc::Channel.from_command(invoke, "handler"))
           hotkeys = begin
             shortcuts.map { |shortcut| Plugins::GlobalShortcut.parse_shortcut(shortcut) }
@@ -81,7 +81,7 @@ module Tokra
         #
         #   Commands.unregister(invoke, handle.global_shortcut)
         def self.unregister(invoke, global_shortcut)
-          shortcuts = Tokra::Ipc::CommandItem.new(name: "unregister", key: "shortcuts", payload: invoke.payload).strings
+          shortcuts = Tokra::Ipc::CommandItem.new(name: "unregister", key: "shortcuts", payload: invoke.body).strings
           hotkeys = shortcuts.map { |shortcut| Plugins::GlobalShortcut.parse_shortcut(shortcut) }
           global_shortcut.unregister_multiple(hotkeys)
           invoke.resolve(nil)
@@ -106,7 +106,7 @@ module Tokra
         #
         #   Commands.is_registered(invoke, handle.global_shortcut)
         def self.is_registered(invoke, global_shortcut)
-          shortcut = Tokra::Ipc::CommandItem.new(name: "is_registered", key: "shortcut", payload: invoke.payload).string
+          shortcut = Tokra::Ipc::CommandItem.new(name: "is_registered", key: "shortcut", payload: invoke.body).string
           invoke.resolve(global_shortcut.is_registered(Plugins::GlobalShortcut.parse_shortcut(shortcut)))
         end
       end

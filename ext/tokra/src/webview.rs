@@ -52,14 +52,23 @@ fn forward_request_to_ruby(
 /// Build the `UserEvent::HttpRequest` Ruby receives for one protocol request.
 ///
 /// Headers carry cookies (ADR 002) and, on the ipc:// path, the Tauri-*
-/// invoke headers and Origin that Ruby parses per ipc/protocol.rs. The body
+/// invoke headers and Origin that Ruby parses per ipc/protocol.rs. Values
+/// keep their bytes, as Tauri hands `parts.headers` to the command
+/// (ipc/protocol.rs:546); wry builds them from Rust Strings, so they are
+/// UTF-8 and the lossy conversion never replaces anything. Ruby applies
+/// `to_str`'s visible-ASCII rule where Tauri does. The body
 /// travels as its exact bytes: a lossy UTF-8 conversion would corrupt binary
 /// uploads.
 fn http_request_event(request_id: u64, request: &wry::http::Request<Vec<u8>>) -> UserEvent {
     let headers: Vec<(String, String)> = request
         .headers()
         .iter()
-        .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
+        .map(|(name, value)| {
+            (
+                name.to_string(),
+                String::from_utf8_lossy(value.as_bytes()).into_owned(),
+            )
+        })
         .collect();
 
     UserEvent::HttpRequest {
@@ -390,6 +399,23 @@ mod tests {
                     "the http crate lowercases header names"
                 );
                 assert_eq!(forwarded, body, "the body must arrive byte for byte");
+            }
+            other => panic!("expected HttpRequest, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn http_request_event_keeps_non_ascii_header_values() {
+        let request = wry::http::Request::builder()
+            .method("POST")
+            .uri("ipc://localhost/upload")
+            .header("x-probe", wry::http::HeaderValue::from_str("café").unwrap())
+            .body(Vec::new())
+            .unwrap();
+
+        match http_request_event(1, &request) {
+            UserEvent::HttpRequest { headers, .. } => {
+                assert_eq!(headers, vec![("x-probe".to_string(), "café".to_string())]);
             }
             other => panic!("expected HttpRequest, got {other:?}"),
         }

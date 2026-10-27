@@ -120,6 +120,25 @@ class TestCommandItem < Minitest::Test
       error { item({}).strings }
   end
 
+  # A raw body has no keys: Tauri fails every named argument, an optional
+  # one too, with its bytes message (command.rs:92-96, 135-139).
+  def test_a_raw_body_rejects_with_tauris_bytes_message
+    message = "invalid args `shortcuts` for command `register`: command register expected a value " \
+      "for key shortcuts but the IPC call used a bytes payload"
+    assert_equal message, error { item("\x01".b).strings }
+    assert_equal message, error { item("".b).deserialize_option { flunk "a raw body has no value" } }
+  end
+
+  # A JSON body that is not an object has no keys either: serde_json's
+  # Value::get answers None (command.rs:97-102, 140-143). A UTF-8 String
+  # body is JSON text, not bytes.
+  def test_a_non_object_json_body_is_missing_every_key
+    missing = "invalid args `shortcuts` for command `register`: command register missing required key shortcuts"
+    assert_equal missing, error { item([1, 2]).strings }
+    assert_equal missing, error { item("F19").strings }
+    assert_nil item(nil).deserialize_option { flunk "a non-object body has no value" }
+  end
+
   def test_a_wrong_type_names_what_arrived
     prefix = "invalid args `shortcuts` for command `register`: invalid type:"
     assert_equal "#{prefix} string \"F19\", expected a sequence", error { item({ "shortcuts" => "F19" }).strings }

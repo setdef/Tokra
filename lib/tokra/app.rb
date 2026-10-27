@@ -409,6 +409,12 @@ module Tokra
     # calls keep working. A +cmd+ that is present but not a string fails
     # with Tauri's <tt>invalid type: ..., expected a string</tt>, without the
     # line and column serde gives it, which a parsed Value no longer knows.
+    #
+    # The command's body is the +payload+ member as sent, any JSON value,
+    # so a typed array arrives as an Array of numbers, and its headers are
+    # +options.headers+ (post_message_headers), read before the key check
+    # as serde reads them (ipc/protocol.rs:233-242, 291-298). A missing
+    # +payload+ is the empty object.
     private def dispatch_ipc(event)
       parsed = Ipc::Json.parse(event.message)
       return warn("failed to parse IPC message: not a JSON object") unless parsed.is_a?(Hash)
@@ -420,6 +426,8 @@ module Tokra
         )
       end
 
+      headers = post_message_headers(parsed["options"])
+
       received_key = parsed["__TAURI_INVOKE_KEY__"]
       unless received_key == @manager.invoke_key
         # Log and drop, exactly as Tauri does (webview/mod.rs on_message):
@@ -429,14 +437,65 @@ module Tokra
         )
       end
 
-      raw_payload = parsed["payload"]
       empty_payload = {} #: Hash[String, json_value]
-      payload = raw_payload.is_a?(Hash) ? raw_payload : empty_payload
+      body = parsed.fetch("payload", empty_payload)
       responder = build_ipc_responder(parsed["callback"], parsed["error"])
 
-      route_invoke(cmd, payload, responder, event.url)
-    rescue Ipc::Json::Error => e
+      route_invoke(cmd, body, headers, responder, event.url)
+    rescue Ipc::Json::Error, IpcMessageError => e
       report_ipc_message_error("JSON error: #{e.message}")
+    end
+
+    # Raised internally when a postMessage's options.headers cannot become
+    # a HeaderMap, the serde error Tauri reports as a JSON error
+    # (ipc/protocol.rs:197-229). It never escapes App.
+    class IpcMessageError < Error # :nodoc:
+    end
+
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2017 http-rs authors
+    # SPDX-SnippetComment: Header name and value rules adapted from the http
+    #                      crate 1.3.1, src/header/name.rs and value.rs
+
+    # A header name the http crate accepts: 1 to 65535 RFC 9110 token
+    # characters (http 1.3.1 header/name.rs:1009-1100, mod.rs:176).
+    HEADER_NAME = /\A[!\#$%&'*+\-.^_`|~0-9A-Za-z]{1,65535}\z/n
+
+    # A header value the http crate accepts from a str: no control
+    # character but tab, and no DEL (header/value.rs:240-253, 585-587).
+    HEADER_VALUE = /\A[^\x00-\x08\x0A-\x1F\x7F]*\z/n
+
+    # A header value HeaderValue::to_str accepts: tab and visible ASCII
+    # (header/value.rs:580-582).
+    VISIBLE_ASCII = /\A[\t\x20-\x7E]*\z/n
+
+    # SPDX-SnippetEnd
+
+    # The headers of a postMessage invoke: its options.headers, read as
+    # Tauri's RequestOptions reads them into a HeaderMap
+    # (ipc/protocol.rs:197-229, 297). Names are lowercased as the http
+    # crate stores them. A name or value it refuses, a value that is not a
+    # string, or headers that are not an object raise IpcMessageError with
+    # serde's message, without the line and column (Plan 033). Options
+    # that are not an object, and a customProtocolIpcBlocked that is not a
+    # bool, are ignored where serde would fail, as ADR 009 tolerates a
+    # loose message shape.
+    private def post_message_headers(options)
+      empty = {} #: Hash[String, String]
+      return empty.freeze unless options.is_a?(Hash) && options.key?("headers")
+
+      headers = options["headers"]
+      raise IpcMessageError, "invalid type: #{Ipc::Unexpected.describe(headers)}, expected a map" unless headers.is_a?(Hash)
+
+      headers.each_with_object(empty) do |(name, value), map|
+        raise IpcMessageError, "invalid type: #{Ipc::Unexpected.describe(value)}, expected a string" unless value.is_a?(String)
+        unless HEADER_NAME.match?(name.b) && HEADER_VALUE.match?(value.b)
+          raise IpcMessageError, "invalid header `#{name}` `#{value}`"
+        end
+
+        map[name.downcase] = value
+      end.freeze
     end
 
     # Reports a postMessage Tauri could not read the way Tauri does: the
@@ -471,11 +530,12 @@ module Tokra
     # A handler that raises does not leave the frontend waiting: the error
     # is logged and, if the invoke has not responded yet, it rejects with
     # the exception message, the way a Tauri command returning Err does.
-    private def route_invoke(cmd, payload, responder, origin)
+    private def route_invoke(cmd, body, headers, responder, origin)
       plugin_name, command = plugin_command(cmd)
       invoke = Ipc::Invoke.new(
         command: command || cmd,
-        payload:,
+        payload: body,
+        headers:,
         responder:,
         webview: @webview # steep:ignore ArgumentTypeMismatch
       )
@@ -498,10 +558,21 @@ module Tokra
     # without integer callback IDs (hand-rolled postMessage calls)
     # get no responder: fire and forget.
     #
+    # A raw body is evaluated as a JSON number array, as Tauri's
+    # format_result serializes a Vec<u8> on macOS and whenever the client
+    # fell back from ipc:// (ipc/protocol.rs:390-402).
+    #
     # Deviation: on platforms other than macOS, Tauri sends object and
-    # array results over a Channel instead of eval (ipc/protocol.rs:
-    # 371-388). Tokra's Ipc::Channel carries no invoke results, so this
-    # always evaluates runCallback, which the frontend handles identically.
+    # array results, and raw bodies, over a Channel instead of eval
+    # (ipc/protocol.rs:371-407), unless the client reports
+    # customProtocolIpcBlocked, as it does after ipc:// failed. Tokra's
+    # Ipc::Channel carries no invoke results, so this always evaluates
+    # runCallback; a hand-rolled postMessage on Linux or Windows gets an
+    # Array of numbers where Tauri gives an ArrayBuffer.
+    #
+    # As responder_eval does, a reply that cannot be built rejects with the
+    # error's message instead, so the invoke still settles, and a failed
+    # eval is ignored (<tt>let _ = webview.eval(...)</tt>).
     #
     # The responder runs synchronously on the Main Ractor and captures
     # the webview, so it must never cross a Ractor boundary. The Worker
@@ -513,9 +584,16 @@ module Tokra
       webview = @webview
       return nil unless webview
 
-      lambda do |success, json|
-        id = success ? callback : error
-        webview.eval(Ipc::FormatCallback.format_raw(id, json))
+      lambda do |success, body|
+        script = begin
+          json = Ipc::InvokeBody.raw?(body) ? JSON.generate(body.bytes) : body
+          Ipc::FormatCallback.format_raw(success ? callback : error, json)
+        rescue => e
+          Ipc::FormatCallback.format(error, e.message.dup.force_encoding(Encoding::UTF_8).scrub)
+        end
+        webview.eval(script)
+      rescue Tokra::Error
+        nil
       end
     end
 
@@ -604,7 +682,7 @@ module Tokra
     # stays pending and the invoke never settles, as in Tauri. The client
     # does not fall back to postMessage, because its fetch never rejects.
     private def dispatch_ipc_protocol_post(event, proxy)
-      cmd, invoke_key, origin, payload = parse_ipc_protocol_request(event)
+      cmd, invoke_key, origin, body = parse_ipc_protocol_request(event)
 
       unless invoke_key == @manager.invoke_key
         proxy.drop_response(event.request_id)
@@ -614,12 +692,12 @@ module Tokra
       end
 
       responder = build_ipc_protocol_responder(proxy, event.request_id)
-      route_invoke(cmd, payload, responder, origin)
+      route_invoke(cmd, body, request_headers(event.headers), responder, origin)
     rescue IpcProtocolError => e
       respond_ipc_error(proxy, event.request_id, 500, e.message)
     end
 
-    # Parses an ipc:// POST into [cmd, invoke_key, origin, payload], raising
+    # Parses an ipc:// POST into [cmd, invoke_key, origin, body], raising
     # IpcProtocolError on any malformed part, in Tauri's order
     # (ipc/protocol.rs:435-538): the content type, Tauri-Invoke-Key, Origin
     # (present and a valid URL), Tauri-Callback and Tauri-Error (present
@@ -633,6 +711,7 @@ module Tokra
 
       invoke_key = http_header(headers, "Tauri-Invoke-Key")
       raise IpcProtocolError, "missing Tauri-Invoke-Key header" unless invoke_key
+      raise IpcProtocolError, "Tauri invoke key header value must be a string" unless visible_ascii?(invoke_key)
 
       origin = ipc_origin(headers)
       validate_ipc_callback_id(headers, "Tauri-Callback", "callback")
@@ -653,13 +732,14 @@ module Tokra
     end
 
     # The request content type, defaulting to application/octet-stream
-    # when absent (ipc/protocol.rs:452-458). Like Tauri's Mime comparison,
+    # when absent or not visible ASCII, which HeaderValue::to_str refuses
+    # (ipc/protocol.rs:452-458). Like Tauri's Mime comparison,
     # parameters count: <tt>application/json; charset=utf-8</tt> is not
     # <tt>application/json</tt>. A value that is not a media type raises
     # <tt>unknown content type</tt>.
     private def ipc_content_type(headers)
       raw = http_header(headers, "Content-Type")
-      return "application/octet-stream" unless raw
+      return "application/octet-stream" unless raw && visible_ascii?(raw)
 
       essence, parameters = raw.split(";", 2)
       essence = essence.to_s.strip.downcase
@@ -675,6 +755,7 @@ module Tokra
     private def ipc_origin(headers)
       origin = http_header(headers, "Origin")
       raise IpcProtocolError, "missing Origin header" unless origin
+      raise IpcProtocolError, "Origin header value must be a string" unless visible_ascii?(origin)
       raise IpcProtocolError, "Origin header is not a valid URL" unless absolute_url?(origin)
 
       origin
@@ -686,28 +767,20 @@ module Tokra
       false
     end
 
-    # Parses the request body by content type. JSON parses as serde_json
-    # parses it (Ipc::Json), so a body Tauri rejects, such as invalid UTF-8
-    # in a string, fails with serde_json's message before any command
-    # runs, and an empty body is the empty object (ipc/protocol.rs:525-538).
-    # A non-object JSON value also becomes the empty object: Ruby handlers
-    # index the payload by key, and Tauri's own key lookup on a non-object
-    # reports a missing key, which is what the empty object produces
-    # (Plan 016 #15).
-    # An empty octet-stream body is the payload-less invoke; raw bodies are
-    # unimplemented (Plan 015 Out of Scope).
+    # Parses the request body by content type into an InvokeBody
+    # (ipc/protocol.rs:525-538). An octet-stream body is the raw bytes, an
+    # empty one too, as a binary String, and never meets the JSON parser,
+    # so a large binary argument costs no parsing. JSON parses as
+    # serde_json parses it (Ipc::Json), so a body Tauri rejects, such as
+    # invalid UTF-8 in a string, fails with serde_json's message before
+    # any command runs, and an empty body is the empty object.
     private def parse_ipc_payload(content_type, body)
-      empty = {} #: Hash[String, json_value]
       case content_type
       when "application/json"
-        return empty if body.empty?
-
-        parsed = Ipc::Json.parse(body)
-        parsed.is_a?(Hash) ? parsed : empty
+        empty = {} #: Hash[String, json_value]
+        body.empty? ? empty : Ipc::Json.parse(body)
       when "application/octet-stream"
-        return empty if body.empty?
-
-        raise IpcProtocolError, "raw request bodies are not implemented"
+        body.b
       else
         raise IpcProtocolError, "content type #{content_type} is not implemented"
       end
@@ -721,9 +794,28 @@ module Tokra
     private def validate_ipc_callback_id(headers, header_name, kind)
       value = http_header(headers, header_name)
       raise IpcProtocolError, "missing #{header_name} header" unless value
+      raise IpcProtocolError, "Tauri #{kind} header value must be a string" unless visible_ascii?(value)
       return if value.match?(/\A\+?[0-9]+\z/) && value.to_i <= MAX_CALLBACK_ID
 
       raise IpcProtocolError, "Tauri #{kind} header value must be a numeric string"
+    end
+
+    # The request's headers as a command sees them (ipc/protocol.rs:
+    # 540-548): every header, its name lowercased as the http crate stores
+    # it, the first value of a repeated name winning as HeaderMap::get
+    # returns the first.
+    private def request_headers(pairs)
+      headers = {} #: Hash[String, String]
+      pairs.each { |(name, value)| headers[name.downcase] ||= value }
+      headers.freeze
+    end
+
+    # Whether HeaderValue::to_str accepts +value+: visible ASCII and tab
+    # only (http 1.3.1 header/value.rs:580-582). The command still gets
+    # every value whole (request_headers); Tauri applies this only to the
+    # headers it reads itself.
+    private def visible_ascii?(value)
+      value.b.match?(VISIBLE_ASCII)
     end
 
     # A case-insensitive header lookup over the [name, value] pairs the
@@ -737,16 +829,19 @@ module Tokra
 
     # Builds the ipc:// responder: it answers the HTTP request rather than
     # evaluating runCallback, since the client reads the response and calls
-    # runCallback itself (ipc-protocol.js). Success and error both serialize
-    # as application/json, distinguished by the Tauri-Response header, and
-    # both reply 200 (ipc/protocol.rs:107-139).
+    # runCallback itself (ipc-protocol.js). A raw body answers as
+    # application/octet-stream, which the client reads as an ArrayBuffer;
+    # JSON values and errors answer as application/json. The Tauri-Response
+    # header tells success from error, and both reply 200
+    # (ipc/protocol.rs:107-139).
     private def build_ipc_protocol_responder(proxy, request_id)
-      lambda do |success, json|
+      lambda do |success, body|
+        content_type = Ipc::InvokeBody.raw?(body) ? "application/octet-stream" : "application/json"
         headers = [
           ["Tauri-Response", success ? "ok" : "error"],
-          ["Content-Type", "application/json"],
+          ["Content-Type", content_type],
         ] #: Array[[String, String]]
-        proxy.respond(request_id, 200, headers + IPC_CORS_HEADERS, json)
+        proxy.respond(request_id, 200, headers + IPC_CORS_HEADERS, body)
       end
     end
 

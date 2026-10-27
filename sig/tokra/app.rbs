@@ -12,6 +12,12 @@ module Tokra
     IPC_CORS_HEADERS: Array[[String, String]]
     MAX_CALLBACK_ID: Integer
     MEDIA_TYPE: Regexp
+    HEADER_NAME: Regexp
+    HEADER_VALUE: Regexp
+    VISIBLE_ASCII: Regexp
+
+    class IpcMessageError < Error
+    end
 
     class IpcProtocolError < Error
     end
@@ -57,19 +63,22 @@ module Tokra
     def dispatch_event: (native_event event, (^(AppHandle, run_event) -> void)? callback, Native::Window window, Native::Proxy proxy) -> void
     def dispatch_http_request: (Native::HttpRequestEvent event, Native::Proxy proxy) -> void
     def dispatch_ipc: (Native::IpcEvent event) -> void
-    def route_invoke: (String cmd, Hash[String, json_value] payload, ipc_responder? responder, String origin) -> void
+    def post_message_headers: (json_value options) -> Hash[String, String]
+    def route_invoke: (String cmd, invoke_body body, Hash[String, String] headers, ipc_responder? responder, String origin) -> void
     def plugin_command: (String cmd) -> [String, String]?
     def tokra_protocol_url: () -> URI::Generic
     def local_url?: (String url) -> bool
     def dispatch_ipc_protocol: (Native::HttpRequestEvent event, Native::Proxy proxy) -> void
     def dispatch_ipc_protocol_post: (Native::HttpRequestEvent event, Native::Proxy proxy) -> void
-    def parse_ipc_protocol_request: (Native::HttpRequestEvent event) -> [String, String, String, Hash[String, json_value]]
+    def parse_ipc_protocol_request: (Native::HttpRequestEvent event) -> [String, String, String, invoke_body]
     def decode_ipc_command: (String uri) -> String
     def ipc_content_type: (Array[[String, String]] headers) -> String
     def ipc_origin: (Array[[String, String]] headers) -> String
     def absolute_url?: (String value) -> bool
-    def parse_ipc_payload: (String content_type, String body) -> Hash[String, json_value]
+    def parse_ipc_payload: (String content_type, String body) -> invoke_body
     def validate_ipc_callback_id: (Array[[String, String]] headers, String header_name, String kind) -> void
+    def request_headers: (Array[[String, String]] pairs) -> Hash[String, String]
+    def visible_ascii?: (String value) -> bool
     def http_header: (Array[[String, String]] headers, String name) -> String?
     def build_ipc_protocol_responder: (Native::Proxy proxy, Integer request_id) -> ipc_responder
     def respond_ipc_error: (Native::Proxy proxy, Integer request_id, Integer status, String message) -> void

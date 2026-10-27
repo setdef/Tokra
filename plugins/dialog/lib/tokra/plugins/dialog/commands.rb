@@ -58,7 +58,7 @@ module Tokra
         #
         #   Commands.open(invoke, handle.dialog)
         def self.open(invoke, dialog)
-          options = arguments(invoke.payload, "open").open_options
+          options = arguments(invoke.body, "open").open_options
           window = invoke.webview.window
           spawn(invoke) { open_dialog(dialog, window, options) }
         end
@@ -70,7 +70,7 @@ module Tokra
         #
         #   Commands.save(invoke, handle.dialog)
         def self.save(invoke, dialog)
-          options = arguments(invoke.payload, "save").save_options
+          options = arguments(invoke.body, "save").save_options
           window = invoke.webview.window
           spawn(invoke) { save_dialog(dialog, window, options) }
         end
@@ -82,7 +82,7 @@ module Tokra
         #
         #   Commands.message(invoke, handle.dialog)
         def self.message(invoke, dialog)
-          args = arguments(invoke.payload, "message")
+          args = arguments(invoke.body, "message")
           title = args.optional_string("title")
           message = args.string("message")
           kind = args.kind("kind")
@@ -101,7 +101,7 @@ module Tokra
         #
         #   Commands.ask(invoke, handle.dialog)
         def self.ask(invoke, dialog)
-          args = arguments(invoke.payload, "ask")
+          args = arguments(invoke.body, "ask")
           title = args.optional_string("title")
           message = args.string("message")
           kind = args.kind("kind")
@@ -117,7 +117,7 @@ module Tokra
         #
         #   Commands.confirm(invoke, handle.dialog)
         def self.confirm(invoke, dialog)
-          args = arguments(invoke.payload, "confirm")
+          args = arguments(invoke.body, "confirm")
           title = args.optional_string("title")
           message = args.string("message")
           kind = args.kind("kind")

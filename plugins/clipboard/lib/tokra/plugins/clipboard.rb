@@ -468,7 +468,7 @@ module Tokra
 
         # Argument +key+ of +invoke+, read as Tauri's CommandItem reads it.
         private def argument(invoke, key)
-          Tokra::Ipc::CommandItem.new(name: invoke.command, key:, payload: invoke.payload)
+          Tokra::Ipc::CommandItem.new(name: invoke.command, key:, payload: invoke.body)
         end
 
         # A required string argument (a Rust &str), or InvalidArgs.

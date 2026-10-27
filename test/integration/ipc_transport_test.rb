@@ -56,6 +56,36 @@ class IpcTransportTest < RealApp::TestCase
     refute_includes @run.stderr, "received post-message-probe"
   end
 
+  # A Uint8Array invoke reaches the command as raw bytes and a
+  # Response.new(bytes) reply reaches the page as an ArrayBuffer, over
+  # ipc:// (ipc/protocol.rs:117-120, 525-526; Plan 033).
+  def test_raw_bytes_round_trip_as_an_array_buffer
+    detail = check_detail(@run, "raw bytes round trip")
+    assert_equal "[object ArrayBuffer]", detail["type"]
+    assert_equal 1024 * 1024, detail["size"]
+    assert_equal 0, detail["mismatches"]
+  end
+
+  # The command sees options.headers, lowercased, and every request
+  # header; a plain Array payload is octet-stream text, as Tauri's client
+  # sends it.
+  def test_raw_request_carries_the_page_headers
+    detail = check_detail(@run, "raw request headers")
+    assert_equal({ "raw" => true, "body" => [1, 2, 255], "probe" => "café", "contentType" => "application/octet-stream" },
+      detail["typed"])
+    assert_equal({ "raw" => true, "body" => "1,2,255".bytes, "probe" => nil, "contentType" => "application/octet-stream" },
+      detail["array"])
+  end
+
+  # After ipc:// fails, the same invoke over postMessage reaches the
+  # command as a JSON number array with the same non-ASCII header, and a
+  # raw reply is a number array (ipc/protocol.rs:297, 390-402).
+  def test_the_post_message_fallback_agrees_with_ipc_protocol
+    detail = check_detail(@run, "postMessage fallback")
+    assert_equal({ "raw" => false, "body" => [1, 2, 255], "probe" => "café", "contentType" => nil }, detail["described"])
+    assert_equal [3, 2, 1], detail["reversed"]
+  end
+
   def test_the_client_never_falls_back_to_post_message
     detail = check_detail(@run, "transport")
     assert_empty detail["fallbackWarnings"]

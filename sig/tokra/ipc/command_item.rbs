@@ -14,9 +14,9 @@ module Tokra
 
       attr_reader name: String
       attr_reader key: String
-      attr_reader payload: Hash[String, json_value]
+      attr_reader payload: invoke_body
 
-      def self.new: (name: String, key: String, payload: Hash[String, json_value]) -> CommandItem
+      def self.new: (name: String, key: String, payload: invoke_body) -> CommandItem
 
       def string: () -> String
       def u32: () -> Integer
@@ -26,6 +26,7 @@ module Tokra
 
       private
 
+      def arguments: () -> Hash[String, json_value]
       def string_value: (json_value item) -> String
     end
   end

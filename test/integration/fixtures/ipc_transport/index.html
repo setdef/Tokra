@@ -27,6 +27,9 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input, init) => {
       const url = String(input instanceof Request ? input.url : input);
+      // The last check makes ipc:// fail, so the client falls back to
+      // postMessage as it does when a CSP blocks the custom protocol.
+      if (window.blockIpcProtocol && url.startsWith('ipc:')) throw new TypeError('ipc:// blocked by the fixture');
       const response = await originalFetch(input, init);
       if (url.startsWith('ipc:')) {
         window.observed.ipcFetches.push({
@@ -67,6 +70,39 @@ SPDX-License-Identifier: AGPL-3.0-or-later
           ipcFetches: window.observed.ipcFetches.length,
         },
       }));
+
+      // A top-level Uint8Array rides ipc:// as application/octet-stream
+      // (process-ipc-message-fn.js), the command answers with
+      // Response.new(bytes), and the client resolves the
+      // application/octet-stream reply as an ArrayBuffer (Plan 033).
+      await check('raw bytes round trip', async () => {
+        const size = 1024 * 1024;
+        const sent = new Uint8Array(size);
+        for (let i = 0; i < size; i += 1) sent[i] = (i * 31 + 7) % 256;
+        const started = performance.now();
+        const reply = await invoke('reverse_bytes', sent);
+        const elapsedMs = performance.now() - started;
+        const received = reply instanceof ArrayBuffer ? new Uint8Array(reply) : null;
+        let mismatches = received && received.length === size ? 0 : -1;
+        if (mismatches === 0) {
+          for (let i = 0; i < size; i += 1) if (received[i] !== sent[size - 1 - i]) mismatches += 1;
+        }
+        return {
+          pass: mismatches === 0,
+          detail: {
+            type: Object.prototype.toString.call(reply), size: received && received.length, mismatches, elapsedMs,
+          },
+        };
+      });
+
+      // The command reads the page's options.headers beside the body. A
+      // plain Array is octet-stream too, and fetch sends it as its text,
+      // "1,2,255", as Tauri's own client does.
+      await check('raw request headers', async () => {
+        const typed = await invoke('describe_request', new Uint8Array([1, 2, 255]), { headers: { 'X-Probe': 'café' } });
+        const array = await invoke('describe_request', [1, 2, 255]);
+        return { pass: typed.raw === true, detail: { typed, array } };
+      });
 
       // serde_json rejects a lone trailing surrogate escape before any
       // command runs (Plan 032). JSON.stringify writes the lone surrogate
@@ -114,6 +150,18 @@ SPDX-License-Identifier: AGPL-3.0-or-later
         await new Promise((resolve) => setTimeout(resolve, 1000));
         const reply = await invoke('ping', { message: 'PING' });
         return { pass: settled === null && reply === 'PINGPONG', detail: { settled, reply } };
+      });
+
+      // Once ipc:// fails the client sends every invoke by postMessage with
+      // customProtocolIpcBlocked (ipc-protocol.js:57-79). The same typed
+      // array arrives as a number array with the same headers, and a raw
+      // reply comes back as a number array (ipc/protocol.rs:390-402).
+      await check('postMessage fallback', async () => {
+        window.blockIpcProtocol = true;
+        const described = await invoke('describe_request', new Uint8Array([1, 2, 255]), { headers: { 'X-Probe': 'café' } });
+        const reversed = await invoke('reverse_bytes', new Uint8Array([1, 2, 3]));
+        const fellBack = window.observed.warnings.some((w) => w.includes('IPC custom protocol failed'));
+        return { pass: fellBack, detail: { described, reversed } };
       });
 
       await finish();

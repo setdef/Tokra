@@ -108,7 +108,7 @@ module Tokra
   #
   # === Example
   #
-  #   js_image = Tokra::Ipc::CommandItem.new(name: "write_image", key: "image", payload: invoke.payload)
+  #   js_image = Tokra::Ipc::CommandItem.new(name: "write_image", key: "image", payload: invoke.body)
   #     .deserialize { |value| Tokra::JsImage.deserialize(value) }
   #   image = js_image.into_img(invoke.webview.resources_table)
   #

@@ -8,7 +8,9 @@ module Tokra
 
   type native_event = Native::HttpRequestEvent | Native::IpcEvent | Native::PageLoadEvent | Native::WindowCloseEvent | Native::WakeUpEvent | Native::DragDropEvent | Native::LoopDestroyedEvent | Native::TaskEvent
 
-  type ipc_responder = ^(bool success, String json) -> void
+  type invoke_body = json_value
+
+  type ipc_responder = ^(bool success, String body) -> void
 
   def self.generate_invoke_key: () -> String
 

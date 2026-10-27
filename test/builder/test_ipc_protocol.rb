@@ -298,38 +298,176 @@ class TestBuilderIpcProtocol < Minitest::Test
     StubNative.clear_event
   end
 
-  def test_non_empty_octet_stream_body_is_malformed_500
-    app = Tokra::Builder.default.build(native: StubNative)
-    run_with(app, ipc_request(app, cmd: "ping", content_type: "application/octet-stream",
-      body: "\x00\x01".b))
+  # Records what a command saw: the body, the argument Hash, and the
+  # headers, the three views Tauri's InvokeMessage and Request give.
+  private def recording_app
+    Thread.current[:seen] = nil
+    handler = Ractor.shareable_proc { |invoke|
+      Thread.current[:seen] = { body: invoke.body, payload: invoke.payload, headers: invoke.headers }
+      invoke.resolve(nil)
+      true
+    }
+    Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+  end
 
-    _id, status, _headers, body = last_response
-    assert_equal 500, status
-    assert_equal "raw request bodies are not implemented", body
+  # ipc-protocol.js sends a top-level ArrayBuffer or typed array as an
+  # application/octet-stream body, and Tauri hands it to the command as
+  # InvokeBody::Raw without parsing it (ipc/protocol.rs:525-526).
+  def test_octet_stream_body_is_the_raw_bytes
+    app = recording_app
+    bytes = "\x00\xFF{not json".b
+    run_with(app, ipc_request(app, cmd: "ping", content_type: "application/octet-stream", body: bytes))
+
+    assert_equal 200, last_response[1]
+    seen = Thread.current[:seen]
+    assert_equal bytes, seen[:body]
+    assert_equal Encoding::BINARY, seen[:body].encoding, "a raw body is a binary String, Rust's Vec<u8>"
+    assert_same seen[:body], seen[:payload], "payload and body are one InvokeBody"
   ensure
     StubNative.clear_event
   end
 
+  # Tauri makes every octet-stream body InvokeBody::Raw, an empty one
+  # too; only an empty JSON body becomes the empty object.
+  def test_empty_octet_stream_body_is_empty_bytes
+    app = recording_app
+    run_with(app, ipc_request(app, cmd: "ping", content_type: "application/octet-stream", body: ""))
+
+    assert_equal "".b, Thread.current[:seen][:body]
+    assert_equal Encoding::BINARY, Thread.current[:seen][:body].encoding
+  ensure
+    StubNative.clear_event
+  end
+
+  # A request without Content-Type is octet-stream (ipc/protocol.rs:
+  # 452-458), so its body arrives as bytes, even when they look like JSON.
   def test_missing_content_type_defaults_to_octet_stream
-    Thread.current[:payload] = nil
+    app = recording_app
+    run_with(app, ipc_request(app, cmd: "ping", body: "{}", omit: [:content_type]))
+
+    assert_equal 200, last_response[1]
+    assert_equal "{}".b, Thread.current[:seen][:body]
+    assert_equal Encoding::BINARY, Thread.current[:seen][:body].encoding
+  ensure
+    StubNative.clear_event
+  end
+
+  # The command sees every request header (ipc/protocol.rs:540-548), the
+  # page's options.headers among Tauri's own, with names lowercased as the
+  # http crate stores them. A repeated name keeps its first value, which
+  # HeaderMap::get returns.
+  def test_request_headers_reach_the_command_lowercased
+    app = recording_app
+    event = ipc_request(app, cmd: "ping", content_type: "application/octet-stream", body: "x")
+    headers = event.headers + [["Path", "%2Ftmp%2Fa"], ["x-dup", "first"], ["X-Dup", "second"]]
+    run_with(app, event.with(headers:))
+
+    seen = Thread.current[:seen][:headers]
+    assert_equal "%2Ftmp%2Fa", seen["path"]
+    assert_equal "first", seen["x-dup"]
+    assert_equal "application/octet-stream", seen["content-type"]
+    assert_equal app.invoke_key, seen["tauri-invoke-key"]
+    assert_predicate seen, :frozen?
+  ensure
+    StubNative.clear_event
+  end
+
+  # Tauri hands the command every header whole, non-ASCII bytes included,
+  # and applies HeaderValue::to_str's visible-ASCII rule only to the
+  # headers it reads itself (ipc/protocol.rs:452-520, 546).
+  def test_non_ascii_header_values_follow_tauris_to_str_rule
+    app = recording_app
+    event = ipc_request(app, cmd: "ping", body: "{}", content_type: "application/jsoné")
+    run_with(app, event.with(headers: event.headers + [["x-probe", "café"]]))
+    assert_equal 200, last_response[1], "a Content-Type to_str refuses falls back to octet-stream"
+    assert_equal "{}".b, Thread.current[:seen][:body]
+    assert_equal "café", Thread.current[:seen][:headers]["x-probe"]
+
+    {
+      { key: "kéy" } => "Tauri invoke key header value must be a string",
+      { origin: "tokra://localhost/café" } => "Origin header value must be a string",
+      { callback: "１" } => "Tauri callback header value must be a string",
+      { error: "２" } => "Tauri error header value must be a string",
+    }.each do |overrides, message|
+      run_with(app, ipc_request(app, cmd: "ping", **overrides))
+      assert_equal [500, message], [last_response[1], last_response[3]], overrides.inspect
+    end
+  ensure
+    StubNative.clear_event
+  end
+
+  # tauri::ipc::Response::new(Vec<u8>) answers with the bytes as
+  # application/octet-stream (ipc/protocol.rs:117-120), which the client
+  # resolves as an ArrayBuffer (ipc-protocol.js:47-56).
+  def test_raw_response_is_octet_stream
     handler = Ractor.shareable_proc { |invoke|
-      Thread.current[:payload] = invoke.payload
-      invoke.resolve(nil)
+      request = Tokra::Ipc::Request.from_command(invoke)
+      invoke.resolve(Tokra::Ipc::Response.new(request.body.reverse))
       true
     }
     app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
-    # A non-empty body proves the default is octet-stream, not JSON.
-    run_with(app, ipc_request(app, cmd: "ping", body: "{}", omit: [:content_type]))
-    _id, status, _headers, body = last_response
-    assert_equal 500, status
-    assert_equal "raw request bodies are not implemented", body
+    run_with(app, ipc_request(app, cmd: "ping", content_type: "application/octet-stream", body: "\x01\x02\xFF".b))
 
-    # An empty body is the payload-less invoke.
-    run_with(app, ipc_request(app, cmd: "ping", body: "", omit: [:content_type]))
-    _id, status, headers, = last_response
+    _id, status, headers, body = last_response
+    h = headers.to_h
     assert_equal 200, status
-    assert_equal "ok", headers.to_h["Tauri-Response"]
-    assert_equal({}, Thread.current[:payload])
+    assert_equal "ok", h["Tauri-Response"]
+    assert_equal "application/octet-stream", h["Content-Type"]
+    assert_equal "*", h["Access-Control-Allow-Origin"]
+    assert_equal "\xFF\x02\x01".b, body.b
+  ensure
+    StubNative.clear_event
+  end
+
+  # Response::new(String) carries JSON text, sent as it is
+  # (ipc/mod.rs:106-110, ipc/protocol.rs:113-116).
+  def test_text_response_is_json_sent_verbatim
+    handler = Ractor.shareable_proc { |invoke|
+      invoke.resolve(Tokra::Ipc::Response.new('{"b":1,"a":2}'))
+      true
+    }
+    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    run_with(app, ipc_request(app, cmd: "ping"))
+
+    _id, _status, headers, body = last_response
+    assert_equal "application/json", headers.to_h["Content-Type"]
+    assert_equal '{"b":1,"a":2}', body
+  ensure
+    StubNative.clear_event
+  end
+
+  # A named argument read from a raw body fails with Tauri's bytes message
+  # (ipc/command.rs:92-96), here through a core plugin command.
+  def test_named_argument_of_a_raw_body_rejects_with_the_bytes_message
+    app = Tokra::Builder.default.build(native: StubNative)
+    run_with(app, ipc_request(app, cmd: "plugin%3Aresources%7Cclose",
+      content_type: "application/octet-stream", body: "\x01".b))
+
+    _id, _status, headers, body = last_response
+    assert_equal "error", headers.to_h["Tauri-Response"]
+    assert_equal "invalid args `rid` for command `close`: command close expected a value for key rid " \
+      "but the IPC call used a bytes payload", JSON.parse(body)
+  ensure
+    StubNative.clear_event
+  end
+
+  # Plan 032's escape hatch (a): a large binary argument skips the
+  # pure-Ruby JSON parser both ways.
+  def test_megabyte_raw_round_trip_skips_json
+    handler = Ractor.shareable_proc { |invoke|
+      invoke.resolve(Tokra::Ipc::Response.new(invoke.body))
+      true
+    }
+    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    bytes = Random.new(1).bytes(1024 * 1024)
+    parses = 0
+    counter = TracePoint.new(:call) { |tp| parses += 1 if tp.defined_class == Tokra::Ipc::Json.singleton_class }
+    counter.enable do
+      run_with(app, ipc_request(app, cmd: "ping", content_type: "application/octet-stream", body: bytes))
+    end
+
+    assert_equal bytes, last_response[3].b
+    assert_equal 0, parses, "a raw body never reaches Ipc::Json"
   ensure
     StubNative.clear_event
   end
@@ -350,17 +488,15 @@ class TestBuilderIpcProtocol < Minitest::Test
     StubNative.clear_event
   end
 
-  def test_non_object_json_payload_is_the_empty_object
-    Thread.current[:payload] = nil
-    handler = Ractor.shareable_proc { |invoke|
-      Thread.current[:payload] = invoke.payload
-      invoke.resolve(nil)
-      true
-    }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+  # Tauri keeps a non-object JSON body as the value it is
+  # (InvokeBody::Json, ipc/protocol.rs:527-532); Plan 033 overturned
+  # Plan 016 #15's mapping to the empty object.
+  def test_non_object_json_payload_is_the_value_sent
+    app = recording_app
     run_with(app, ipc_request(app, cmd: "ping", body: "[1, 2]"))
 
-    assert_equal({}, Thread.current[:payload], "handlers index payloads by key (Plan 016 #15)")
+    assert_equal [1, 2], Thread.current[:seen][:payload]
+    assert_equal [1, 2], Thread.current[:seen][:body]
   ensure
     StubNative.clear_event
   end

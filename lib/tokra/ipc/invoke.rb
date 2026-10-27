@@ -29,30 +29,50 @@ module Tokra
       # <tt>plugin:NAME|</tt> prefix before the plugin sees it.
       attr_reader :command
 
-      # The command arguments from the frontend (Hash with String keys).
-      #
-      # This is the +payload+ member of the wire message, matching
-      # Tauri's <tt>InvokeRequest#body</tt> (ipc/protocol.rs): the
-      # message envelope's +cmd+, +callback+, and +error+ members stay
-      # with the dispatcher. Access values via string keys:
+      # What the frontend sent, as Tauri's <tt>InvokeMessage::payload</tt>
+      # gives it (ipc/mod.rs:559-563): an InvokeBody. For the usual
+      # <tt>invoke(cmd, { ... })</tt> it is a Hash with String keys:
       #
       #   invoke.payload["text"]  # => String
       #   invoke.payload["count"] # => Integer
       #
+      # For an <tt>ArrayBuffer</tt> or typed array over <tt>ipc://</tt> it
+      # is the bytes as a binary String, and for any other JSON value that
+      # value, so check its type before indexing it, or read arguments with
+      # CommandItem, which fails on such a body as Tauri does. The message
+      # envelope's +cmd+, +callback+, and +error+ members stay with the
+      # dispatcher.
       attr_reader :payload
+
+      # The same InvokeBody as #payload, under the name Request gives it
+      # (<tt>Request::body</tt>, ipc/mod.rs:154-157).
+      def body
+        @payload
+      end
+
+      # The request headers, as <tt>InvokeMessage::headers</tt>
+      # (ipc/mod.rs:577-581): a frozen Hash of lowercase names to values.
+      # Over <tt>ipc://</tt> they are all the request's headers, the page's
+      # <tt>options.headers</tt> among them; over <tt>postMessage</tt> only
+      # those.
+      attr_reader :headers
 
       # The webview that made this IPC call.
       attr_reader :webview
 
-      # Creates a new Invoke with command, payload, webview, and responder callback.
+      # Creates a new Invoke with command, payload, headers, webview, and
+      # responder callback.
       #
-      # This is called internally when dispatching IPC messages. The
-      # responder receives <tt>(success, json)</tt>: whether the invoke
-      # resolved, and the response already serialized as JSON text, which
-      # is what each transport puts on the wire.
-      def initialize(command:, payload:, responder:, webview:)
+      # This is called internally when dispatching IPC messages. +payload+
+      # is the body, an InvokeBody, as <tt>InvokeMessage::new</tt> takes it
+      # (ipc/mod.rs:526-541). The responder receives <tt>(success,
+      # body)</tt>: whether the invoke resolved, and what each transport
+      # puts on the wire, a binary String for raw bytes and JSON text
+      # otherwise.
+      def initialize(command:, payload:, responder:, webview:, headers: {})
         @command = command
         @payload = payload
+        @headers = headers.frozen? ? headers : headers.dup.freeze
         @responder = responder
         @webview = webview
         @responded = false
@@ -60,7 +80,9 @@ module Tokra
 
       # Resolves the invocation with a success value.
       #
-      # The value is serialized with JSON.generate. Non-finite floats
+      # An Ipc::Response sends its body as it is: raw bytes, or JSON text
+      # (ipc/mod.rs:194-198). Any other value is serialized with
+      # JSON.generate. Non-finite floats
       # (+NaN+, +Infinity+) become +null+, as serde_json writes them
       # (ser.rs:157-174). A value that still cannot be serialized, such as
       # a String holding invalid UTF-8 or an object whose +to_json+ raises,
@@ -72,6 +94,7 @@ module Tokra
       # === Example
       #
       #   invoke.resolve({ "greeting" => "Hello, #{invoke.payload['name']}!" })
+      #   invoke.resolve(Tokra::Ipc::Response.new(File.binread(path)))
       def resolve(value)
         respond(true, value)
       end
@@ -81,24 +104,29 @@ module Tokra
       # The frontend promise rejects with the value, usually a message
       # String. An unserializable value rejects with the serializer's
       # message instead, as Tauri's InvokeError conversion does
-      # (ipc/mod.rs:240-247, 409-418).
+      # (ipc/mod.rs:240-247, 409-418). An Ipc::Response raises TypeError
+      # and leaves the invoke unanswered: Tauri's reject takes a
+      # <tt>T: Serialize</tt>, which Response is not, so Rust refuses it at
+      # compile time.
       #
       # === Example
       #
       #   invoke.reject("Command greet needs a name")
       def reject(error)
+        raise TypeError, "Tokra::Ipc::Response is not an invoke error" if error.is_a?(Response)
+
         respond(false, error)
       end
 
-      # Serializes once and hands the JSON to the responder. The invoke is
-      # marked responded only once the JSON exists, and any serialization
+      # Serializes once and hands the body to the responder. The invoke is
+      # marked responded only once the body exists, and any serialization
       # failure becomes a rejection, so every invoke settles exactly once.
       private def respond(success, value)
         return if @responded
 
         responder = @responder
         json = begin
-          serialize(value)
+          value.is_a?(Response) ? value.body : serialize(value)
         rescue => e
           success = false
           JSON.generate(e.message.dup.force_encoding(Encoding::UTF_8).scrub)

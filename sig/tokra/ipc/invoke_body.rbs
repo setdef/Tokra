@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Ipc
+    module InvokeBody
+      def self.raw?: (invoke_body body) -> bool
+    end
+  end
+end

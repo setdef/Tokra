@@ -194,10 +194,10 @@ module Tokra
           INTERVAL: Array[field]
           EVERY_FIELDS: Array[field]
 
-          @payload: Hash[String, json]
+          @payload: json
           @command: String
 
-          def initialize: (Hash[String, json]? payload, String command) -> void
+          def initialize: (json payload, String command) -> void
           def notification_data: () -> NotificationData
 
           private

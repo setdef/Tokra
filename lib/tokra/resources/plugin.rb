@@ -48,7 +48,7 @@ module Tokra
         return false unless invoke.command == "close"
 
         begin
-          rid = Ipc::CommandItem.new(name: invoke.command, key: "rid", payload: invoke.payload).u32
+          rid = Ipc::CommandItem.new(name: invoke.command, key: "rid", payload: invoke.body).u32
         rescue Error::InvalidArgs => e
           invoke.reject(e.message)
           return true

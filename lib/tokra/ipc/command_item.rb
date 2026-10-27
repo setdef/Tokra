@@ -34,11 +34,12 @@ module Tokra
     #
     # Mirrors Tauri's +CommandItem+ deserializer (ipc/command.rs:60-130) and
     # <tt>Error::InvalidArgs</tt> (error.rs:59-60). +name+ is the command's
-    # name, +key+ the argument's, and +payload+ the invoke's payload.
+    # name, +key+ the argument's, and +payload+ the invoke's body
+    # (Invoke#body).
     #
     # === Examples
     #
-    #   item = Tokra::Ipc::CommandItem.new(name: "register", key: "shortcuts", payload: invoke.payload)
+    #   item = Tokra::Ipc::CommandItem.new(name: "register", key: "shortcuts", payload: invoke.body)
     #   item.strings  #=> ["CmdOrCtrl+Shift+K"]
     #
     #   Tokra::Ipc::CommandItem.new(name: "register", key: "shortcuts", payload: {}).strings
@@ -101,7 +102,8 @@ module Tokra
       # The argument's key in the payload, as <tt>CommandItem::key</tt>.
 
       # :attr_reader: payload
-      # The invoke's payload, a Hash with String keys.
+      # The invoke's body, an InvokeBody: pass Invoke#body, so a raw body
+      # fails with Tauri's message. Invoke#payload works too.
 
       # The argument as a Rust +String+.
       #
@@ -145,10 +147,10 @@ module Tokra
       #
       #   item.deserialize { |value| value.is_a?(Hash) ? value : raise(Mismatch.invalid_type(value, "a map")) }
       def deserialize
-        arguments = payload
-        raise Mismatch, "command #{name} missing required key #{key}" unless arguments.key?(key)
+        object = arguments
+        raise Mismatch, "command #{name} missing required key #{key}" unless object.key?(key)
 
-        yield arguments[key]
+        yield object[key]
       rescue Mismatch => e
         raise Error::InvalidArgs.new(name, key, e.message)
       end
@@ -162,9 +164,22 @@ module Tokra
       #
       #   Tokra::Ipc::CommandItem.new(name: "write_text", key: "label", payload: {}).deserialize_option { |value| value }  #=> nil
       def deserialize_option
-        return nil if payload[key].nil?
+        return nil if arguments[key].nil?
 
         deserialize { |value| yield value }
+      end
+
+      # The payload as an object to look keys up in. A raw body has none,
+      # and Tauri fails any named argument of it, an optional one too
+      # (command.rs:92-96, 135-139). A JSON value that is not an object has
+      # no keys, as serde_json's <tt>Value::get</tt> finds none.
+      private def arguments
+        body = payload
+        if InvokeBody.raw?(body)
+          raise Error::InvalidArgs.new(name, key,
+            "command #{name} expected a value for key #{key} but the IPC call used a bytes payload")
+        end
+        body.is_a?(Hash) ? body : {}
       end
 
       private def string_value(item)

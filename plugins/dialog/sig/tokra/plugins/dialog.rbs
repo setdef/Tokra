@@ -310,7 +310,7 @@ module Commands
 
         private
 
-        def self.arguments: (Hash[String, json]? payload, String command) -> Arguments
+        def self.arguments: (json payload, String command) -> Arguments
         def self.spawn: (Tokra::Ipc::Invoke invoke) { () -> json } -> true
         def self.open_dialog: (Dialog dialog, Tokra::Window window, OpenDialogOptions options) -> (String | path_list | nil)
         def self.save_dialog: (Dialog dialog, Tokra::Window window, SaveDialogOptions options) -> String?
@@ -330,10 +330,10 @@ module Commands
 
           class Mismatch = Tokra::Ipc::CommandItem::Mismatch
 
-          @payload: Hash[String, json]
+          @payload: json
           @command: String
 
-          def initialize: (Hash[String, json]? payload, String command) -> void
+          def initialize: (json payload, String command) -> void
           def string: (String key) -> String
           def optional_string: (String key) -> String?
           def kind: (String key) -> MessageDialogKind?
