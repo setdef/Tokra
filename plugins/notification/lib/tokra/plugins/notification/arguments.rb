@@ -10,12 +10,15 @@
 # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
 # SPDX-SnippetCopyrightText: Erick Tryzelaar and David Tolnay (serde, serde_json)
 # SPDX-SnippetCopyrightText: 2013-2025 The rust-url developers (url)
+# SPDX-SnippetCopyrightText: Jacob Pratt et al. (time)
 # SPDX-SnippetComment: Argument errors from tauri ipc/command.rs and error.rs;
 #                      the shapes of tauri-plugin-notification src/models.rs;
 #                      the messages are serde's (serde_core 1.0.228
 #                      de/mod.rs, serde_derive 1.0.228 de.rs) as
 #                      serde_json 1.0.140 src/value/de.rs produces them,
-#                      and url's for a URL (url 2.5.8 src/lib.rs:2916-2942)
+#                      url's for a URL (url 2.5.8 src/lib.rs:2916-2942),
+#                      and time's ISO 8601 serde for a date (time 0.3.55
+#                      src/serde/iso8601.rs:24-48, src/serde/visitor.rs:432-502)
 
 require "json"
 
@@ -54,6 +57,19 @@ module Tokra
           # The variants of Schedule, in declaration order, camelCased by
           # serde (models.rs:96-124).
           SCHEDULES = %w[at interval every].freeze
+
+          # The ISO 8601 description time's serde reads a date with:
+          # time's default configuration with six-digit years
+          # (serde/iso8601.rs:24-26). The configuration shapes only
+          # formatting: time's parser reads every one alike
+          # (parsing/parsable.rs:894-954).
+          ISO8601 = Ferro::Time::FormatDescription::WellKnown::Iso8601.new(
+            Ferro::Time::FormatDescription::WellKnown::Iso8601::Config::DEFAULT.set_year_is_six_digits(true)
+          )
+
+          # What time's serde visitor expects of a date
+          # (serde/visitor.rs:440-442, 497-502).
+          ISO8601_EXPECTING = "an ISO 8601-formatted `OffsetDateTime`"
 
           # The units of ScheduleEvery, read lowercased (models.rs:76-94).
           EVERY = ScheduleEvery.constants.to_h do |name|
@@ -204,12 +220,13 @@ module Tokra
             raise Mismatch, "#{e.message}: #{debug(value)}"
           end
 
-          # A date as time 0.3.41's ISO 8601 visitor reads one
-          # (serde/visitor.rs:300-313).
+          # A date as time's ISO 8601 visitor reads one: the
+          # OffsetDateTime time parses, or time's message
+          # (serde/iso8601.rs:43-48, serde/visitor.rs:445-450).
           private def date(value)
-            mismatch(value, Iso8601::EXPECTING) unless value.is_a?(String)
-            Iso8601.parse(value)
-          rescue Iso8601::Error => e
+            mismatch(value, ISO8601_EXPECTING) unless value.is_a?(String)
+            Ferro::Time::OffsetDateTime.parse(value, ISO8601)
+          rescue Ferro::Time::Error::Parse => e
             raise Mismatch, e.message
           end
 

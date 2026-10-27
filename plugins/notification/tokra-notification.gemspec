@@ -27,7 +27,8 @@ Gem::Specification.new do |spec|
 
   # Ship what an installed app loads. The plugin is pure Ruby: the
   # notifications go out through ferro-notify-rust, and attachment URLs
-  # are read with ferro-url (ADR 011, plans 024 and 030).
+  # are read with ferro-url and scheduled dates with ferro-time (ADR 011,
+  # plans 024, 030, and 031).
   packaged = %w[lib sig README.rdoc]
   spec.files = IO.popen(["git", "ls-files", "-z", "--", *packaged], chdir: __dir__, err: IO::NULL) do |ls|
     ls.readlines("\x0", chomp: true)
@@ -36,7 +37,8 @@ Gem::Specification.new do |spec|
 
   # An exact pin: a prerelease promises no API between prereleases, and
   # RubyGems considers prereleases only for a requirement that names one.
-  spec.add_dependency "ferro-notify-rust", "= 0.1.0.pre.2"
+  spec.add_dependency "ferro-notify-rust", "= 0.1.0.pre.3"
+  spec.add_dependency "ferro-time", "= 0.1.0.pre.1"
   spec.add_dependency "ferro-url", "= 0.1.0.pre.1"
   spec.add_dependency "tokra", "~> 0.0"
 end

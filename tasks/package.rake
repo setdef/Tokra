@@ -87,7 +87,11 @@ PACKAGES = [
       options = { "options" => { "attachments" => [{ "id" => "a", "url" => "HTTP://EXAMPLE.com:80/a/../b" }] } }
       data = Tokra::Plugins::Notification::Commands::Arguments.new(options, "notify").notification_data
       abort "ferro-url did not parse the attachment" unless data.attachments.first.url.as_str == "http://example.com/b"
-      puts "tokra-notification \#{Tokra::Plugins::Notification::VERSION} builds a notification and reads a URL through Ferro"
+      # ferro-time reads a scheduled date.
+      options = { "options" => { "schedule" => { "at" => { "date" => "2026-10-26T14:00+02:00" } } } }
+      date = Tokra::Plugins::Notification::Commands::Arguments.new(options, "notify").notification_data.schedule.date
+      abort "ferro-time did not parse the date" unless date.unix_timestamp == 1_793_016_000 && date.offset.whole_hours == 2
+      puts "tokra-notification \#{Tokra::Plugins::Notification::VERSION} builds a notification and reads a URL and a date through Ferro"
     RUBY
   PackageCheck::Target.new(
     name: "tokra-global-shortcut",

@@ -98,7 +98,7 @@ module Tokra
         #
         # === Example
         #
-        #   builder.schedule(Schedule::At.new(date: Time.now + 60))
+        #   builder.schedule(Schedule::At.new(date: Ferro::Time::OffsetDateTime.from(Time.now + 60)))
         def schedule(schedule)
           update(schedule:)
         end

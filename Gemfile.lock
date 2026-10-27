@@ -18,11 +18,11 @@ GIT
 
 GIT
   remote: https://github.com/setdef/Ferro
-  revision: d53594d8fae885fd73bbba3351c5a60961c90888
-  tag: ferro-notify-rust/v0.1.0.pre.2
+  revision: 38dcdcb35402b0fac0d645da6f3de4f4c4be82f2
+  tag: ferro-notify-rust/v0.1.0.pre.3
   glob: gems/notify-rust/*.gemspec
   specs:
-    ferro-notify-rust (0.1.0.pre.2)
+    ferro-notify-rust (0.1.0.pre.3)
       rb_sys (~> 0.9.129)
 
 GIT
@@ -32,6 +32,15 @@ GIT
   glob: gems/rfd/*.gemspec
   specs:
     ferro-rfd (0.1.0.pre.2)
+      rb_sys (~> 0.9.129)
+
+GIT
+  remote: https://github.com/setdef/Ferro
+  revision: dac0c6104362cadd5dca4d1fc6dcbdf003b0cc80
+  tag: ferro-time/v0.1.0.pre.1
+  glob: gems/time/*.gemspec
+  specs:
+    ferro-time (0.1.0.pre.1)
       rb_sys (~> 0.9.129)
 
 GIT
@@ -325,6 +334,7 @@ DEPENDENCIES
   ferro-global-hotkey!
   ferro-notify-rust!
   ferro-rfd!
+  ferro-time!
   ferro-url!
   fiddle
   flog (= 4.8.0)
@@ -372,8 +382,9 @@ CHECKSUMS
   erubi (1.13.1) sha256=a082103b0885dbc5ecf1172fede897f9ebdb745a4b97a5e8dc63953db1ee4ad9
   ferro-arboard (0.1.0.pre.2)
   ferro-global-hotkey (0.1.0.pre.1)
-  ferro-notify-rust (0.1.0.pre.2)
+  ferro-notify-rust (0.1.0.pre.3)
   ferro-rfd (0.1.0.pre.2)
+  ferro-time (0.1.0.pre.1)
   ferro-url (0.1.0.pre.1)
   ffi (1.17.3) sha256=0e9f39f7bb3934f77ad6feab49662be77e87eedcdeb2a3f5c0234c2938563d4c
   ffi (1.17.3-aarch64-linux-gnu) sha256=28ad573df26560f0aedd8a90c3371279a0b2bd0b4e834b16a2baa10bd7a97068

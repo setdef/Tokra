@@ -16,7 +16,9 @@ require_relative "support/notification_test"
 # nil expectation means Tauri accepted the value. Each date's expectation
 # is the moment Tauri parsed, as nanoseconds since the epoch and the
 # offset in seconds, and each accepted URL's is the serialization Tauri
-# parsed it to.
+# parsed it to. Tokra reads dates with time 0.3.55 through ferro-time;
+# the dates where its answer differs from 0.3.41's are in
+# NEWER_TIME_DATES, with both answers (Plan 031).
 class TestArguments < Minitest::Test
   include NotificationTest
 
@@ -104,13 +106,10 @@ class TestArguments < Minitest::Test
   ].freeze
 
   DATE_CASES = [
-    ["2026-10-26T12:00:60Z", "second must be in the range 0..=59 because leap seconds are not supported"],
     ["2026-10-26T12:00:00.000Z", [1793016000000000000, 0]],
     ["2026-10-26T12:00:00Z", [1793016000000000000, 0]],
     ["2026-13-01T00:00:00Z", "unexpected trailing characters; the end of input was expected"],
-    ["2026-02-30T00:00:00Z", "day must be in the range 1..=28 for the given month and year"],
     ["2024-02-29T00:00:00Z", [1709164800000000000, 0]],
-    ["2023-02-29T00:00:00Z", "day must be in the range 1..=28 for the given month and year"],
     ["20261026T120000Z", [1793016000000000000, 0]],
     ["2026-10-26T12:00Z", [1793016000000000000, 0]],
     ["2026-10-26T12Z", "unexpected trailing characters; the end of input was expected"],
@@ -121,7 +120,6 @@ class TestArguments < Minitest::Test
     ["2026-10-26T1230+01:00", [1793014200000000000, 3600]],
     ["20261026T12:30Z", "unexpected trailing characters; the end of input was expected"],
     ["2026-299T12:00Z", [1793016000000000000, 0]],
-    ["2025-366T12:00Z", "ordinal must be in the range 1..=365 for the given year"],
     ["2024-366T12:00Z", [1735646400000000000, 0]],
     ["2026-W01-1T09+01", "unexpected trailing characters; the end of input was expected"],
     ["2026W011T09Z", [1766998800000000000, 0]],
@@ -132,7 +130,6 @@ class TestArguments < Minitest::Test
     ["+010000-01-01T00:00:00Z", "unexpected trailing characters; the end of input was expected"],
     ["2026-10-26", "the `Parsed` struct did not include enough information to construct the type"],
     ["2026-10-26T", "unexpected trailing characters; the end of input was expected"],
-    ["T12:00Z", "the 'year' component could not be parsed"],
     ["12:00:00Z", "the `Parsed` struct did not include enough information to construct the type"],
     ["Z", "the `Parsed` struct did not include enough information to construct the type"],
     ["garbage", "the 'year' component could not be parsed"],
@@ -143,7 +140,6 @@ class TestArguments < Minitest::Test
     ["2026-10-31T23:59:60Z", [1793491199999999999, 0]],
     ["2026-12-31T23:59:60.5Z", [1798761599999999999, 0]],
     ["2027-01-01T00:59:60+01:00", [1798761599999999999, 3600]],
-    ["2026-10-26T12:00:00+24:00", "unexpected trailing characters; the end of input was expected"],
     ["2026-10-26T12:00:00-00:30", [1793017800000000000, -1800]],
     ["2026-10-26T12:00:00+05:60", "unexpected trailing characters; the end of input was expected"],
     ["2026-10-26T12:00:00.9999999999Z", "unexpected trailing characters; the end of input was expected"],
@@ -171,6 +167,47 @@ class TestArguments < Minitest::Test
     ["2026-10-26T12:00:0Z", "unexpected trailing characters; the end of input was expected"],
     ["2026-10-26T12:00:00+1", "unexpected trailing characters; the end of input was expected"],
     ["2026-10-26T12:00:00+1:00", "unexpected trailing characters; the end of input was expected"],
+    ["2026-10-26T12:00:00+26:00", "unexpected trailing characters; the end of input was expected"],
+    ["2026-W53-1T00:00Z", [1798416000000000000, 0]],
+  ].freeze
+
+  # Each date's answer from time 0.3.41, the version Tauri's lockfile
+  # pins, and from time 0.3.55, the version ferro-time binds. By 0.3.55,
+  # time writes a component out of range as "was not in range", parses
+  # offsets of 24 and 25 hours, and reads a leading "T" without a date as
+  # the start of the time; no one release between them made all three.
+  NEWER_TIME_DATES = [
+    [
+      "2026-10-26T12:00:60Z",
+      "second must be in the range 0..=59 because leap seconds are not supported",
+      "second was not in range",
+],
+    ["2026-02-30T00:00:00Z", "day must be in the range 1..=28 for the given month and year", "day was not in range"],
+    ["2023-02-29T00:00:00Z", "day must be in the range 1..=28 for the given month and year", "day was not in range"],
+    ["2026-04-31T00:00Z", "day must be in the range 1..=30 for the given month and year", "day was not in range"],
+    ["2025-366T12:00Z", "ordinal must be in the range 1..=365 for the given year", "ordinal was not in range"],
+    ["9405W532T1839+16", "week must be in the range 1..=52 for the given year", "week was not in range"],
+    [
+      "2026-10-26T12:00:00+24:00",
+      "unexpected trailing characters; the end of input was expected",
+      [1792929600000000000, 86400],
+],
+    [
+      "2026-10-26T12:00:00-25:59",
+      "unexpected trailing characters; the end of input was expected",
+      [1793109540000000000, -93540],
+],
+    ["-000153-09-31T07:49-24:09", "unexpected trailing characters; the end of input was expected", "day was not in range"],
+    [
+      "T12:00Z",
+      "the 'year' component could not be parsed",
+      "the `Parsed` struct did not include enough information to construct the type",
+],
+    [
+      "T2026-10-26T12:00Z",
+      "the 'year' component could not be parsed",
+      "unexpected trailing characters; the end of input was expected",
+],
   ].freeze
 
   URL_CASES = [
@@ -267,8 +304,21 @@ class TestArguments < Minitest::Test
       if expected.is_a?(String)
         assert_reading({ "options" => options }, expected, text)
       else
-        date = read(options).schedule.date
-        assert_equal expected, [(date.to_r * 1_000_000_000).to_i, date.utc_offset], text
+        assert_parsed_date expected, read(options).schedule.date, text
+      end
+    end
+  end
+
+  # Deviation (Plan 031): ferro-time binds time 0.3.55, where Tauri's
+  # lockfile has time 0.3.41, so these dates read as 0.3.55 reads them.
+  def test_a_date_reads_as_time_0_3_55_reads_it
+    NEWER_TIME_DATES.each do |text, tauri, tokra|
+      refute_equal tauri, tokra, text
+      options = { "schedule" => { "at" => { "date" => text } } }
+      if tokra.is_a?(String)
+        assert_reading({ "options" => options }, tokra, text)
+      else
+        assert_parsed_date tokra, read(options).schedule.date, text
       end
     end
   end
@@ -357,7 +407,8 @@ class TestArguments < Minitest::Test
 
   def test_schedules_read_into_their_variants
     at = read({ "schedule" => { "at" => { "date" => "2026-10-26T12:00:00.000Z", "repeating" => true } } }).schedule
-    assert_equal Notification::Schedule::At.new(date: Time.utc(2026, 10, 26, 12), repeating: true), at
+    assert_equal Notification::Schedule::At.new(date: Ferro::Time::OffsetDateTime.from(Time.utc(2026, 10, 26, 12)),
+      repeating: true), at
 
     interval = read({ "schedule" => { "interval" => { "interval" => { "hour" => 9, "minute" => 0 } } } }).schedule
     assert_equal Notification::Schedule::Interval.new(interval: Notification::ScheduleInterval.new(hour: 9, minute: 0)),
@@ -375,5 +426,12 @@ class TestArguments < Minitest::Test
     else
       assert_kind_of Notification::NotificationData, Arguments.new(payload, "notify").notification_data, label
     end
+  end
+
+  # A date is held as time parsed it, an OffsetDateTime, as Tauri's
+  # time::OffsetDateTime field holds it.
+  private def assert_parsed_date(expected, date, label)
+    assert_instance_of Ferro::Time::OffsetDateTime, date, label
+    assert_equal expected, [date.unix_timestamp_nanos, date.offset.whole_seconds], label
   end
 end

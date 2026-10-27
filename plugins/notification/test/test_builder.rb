@@ -38,6 +38,11 @@ class TestBuilder < Minitest::Test
     assert_equal "wrong argument type String (expected Ferro::Url::Url)", error.message
   end
 
+  def test_a_schedule_refuses_a_date_that_is_not_parsed
+    error = assert_raises(TypeError) { Notification::Schedule::At.new(date: Time.utc(2026, 10, 26, 12)) }
+    assert_equal "wrong argument type Time (expected Ferro::Time::OffsetDateTime)", error.message
+  end
+
   # serde_json::to_value stores NaN and Infinity as null (lib.rs:179-185).
   def test_extra_stores_non_finite_floats_as_null
     builder = builder_for(configured_handle).extra("nan", Float::NAN).extra(:list, [Float::INFINITY, 1.5])

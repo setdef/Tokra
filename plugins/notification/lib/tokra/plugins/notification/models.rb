@@ -121,22 +121,34 @@ module Tokra
       #
       # === Examples
       #
-      #   Schedule::At.new(date: Time.now + 3600)
+      #   Schedule::At.new(date: Ferro::Time::OffsetDateTime.from(Time.now + 3600))
       #   Schedule::Every.new(interval: ScheduleEvery::Day, count: 1)
       module Schedule
-        # At +date+, a Time, once or every year after.
+        # At +date+, once or every year after.
+        #
+        # The date is a Ferro::Time::OffsetDateTime, time's
+        # <tt>time::OffsetDateTime</tt>, as in Tauri.
         #
         # === Example
         #
-        #   Schedule::At.new(date: Time.utc(2026, 12, 24, 18), repeating: true)
+        #   christmas_eve = Ferro::Time::OffsetDateTime.from(Time.utc(2026, 12, 24, 18))
+        #   Schedule::At.new(date: christmas_eve, repeating: true)
         class At < Data.define(:date, :repeating, :allow_while_idle)
           # Creates the schedule; +repeating+ and +allow_while_idle+
           # default to +false+, as serde's defaults do (models.rs:100-110).
+          # A +date+ that is not a Ferro::Time::OffsetDateTime raises
+          # +TypeError+, as Rust's types refuse it.
           #
-          # === Example
+          # === Examples
           #
-          #   Schedule::At.new(date: Time.now).repeating  #=> false
+          #   Schedule::At.new(date: Ferro::Time::OffsetDateTime.now_utc).repeating  #=> false
+          #   Schedule::At.new(date: Time.now)
+          #   # raises TypeError: wrong argument type Time (expected Ferro::Time::OffsetDateTime)
           def initialize(date:, repeating: false, allow_while_idle: false)
+            unless date.is_a?(Ferro::Time::OffsetDateTime)
+              raise TypeError, "wrong argument type #{date.class} (expected #{Ferro::Time::OffsetDateTime})"
+            end
+
             super
           end
         end

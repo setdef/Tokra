@@ -33,9 +33,10 @@ namespace :rbs do
     # ferro-url's signatures name IPAddr and Addrinfo.
     libraries = %w[logger pathname json uri erb securerandom stringio fileutils date timeout ipaddr socket]
     # The clipboard, dialog, notification, and global-shortcut plugins name
-    # ferro-arboard's, ferro-rfd's, ferro-notify-rust's, ferro-url's, and
-    # ferro-global-hotkey's types, from the signatures each gem ships.
-    ferro = %w[ferro-arboard ferro-rfd ferro-notify-rust ferro-url ferro-global-hotkey].map do |name|
+    # ferro-arboard's, ferro-rfd's, ferro-notify-rust's, ferro-url's,
+    # ferro-time's, and ferro-global-hotkey's types, from the signatures
+    # each gem ships.
+    ferro = %w[ferro-arboard ferro-rfd ferro-notify-rust ferro-url ferro-time ferro-global-hotkey].map do |name|
       File.join(Gem::Specification.find_by_name(name).full_gem_path, "sig")
     end
     dirs = ["sig"] + Dir.glob("plugins/*/sig") + ferro

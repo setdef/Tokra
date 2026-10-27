@@ -50,11 +50,11 @@ module Tokra
 
       module Schedule
         class At < Data
-          attr_reader date: Time
+          attr_reader date: Ferro::Time::OffsetDateTime
           attr_reader repeating: bool
           attr_reader allow_while_idle: bool
 
-          def self.new: (date: Time, ?repeating: bool, ?allow_while_idle: bool) -> instance
+          def self.new: (date: Ferro::Time::OffsetDateTime, ?repeating: bool, ?allow_while_idle: bool) -> instance
         end
 
         class Interval < Data
@@ -175,76 +175,6 @@ module Tokra
         end
       end
 
-      module Iso8601
-        class Error < StandardError
-        end
-
-        class Failure < StandardError
-        end
-
-        MIN_YEAR: Integer
-        MAX_YEAR: Integer
-        RANGES: Hash[Symbol, Range[Integer]]
-        FIELDS: Array[Symbol]
-        MONTHS: Hash[String, Integer]
-        WEEKDAYS: Hash[String, Integer]
-        INVALID_LITERAL: String
-        INVALID_COMPONENT: String
-        TRAILING: String
-        INSUFFICIENT: String
-        EXPECTING: String
-
-        type kind = Hash[Symbol, Symbol]
-
-        class Parsed
-          attr_reader year: Integer?
-          attr_reader iso_year: Integer?
-          attr_reader iso_week_number: Integer?
-          attr_reader ordinal: Integer?
-          attr_reader day: Integer?
-          attr_reader hour_24: Integer?
-          attr_reader minute: Integer?
-          attr_reader second: Integer?
-          attr_reader subsecond: Integer?
-          attr_reader offset_hour: Integer?
-          attr_reader offset_minute: Integer?
-          attr_reader offset_second: Integer?
-          attr_reader month: Integer?
-          attr_reader weekday: Integer?
-          attr_accessor leap_second_allowed: bool
-
-          def set: (Symbol field, Integer value) -> true?
-          def with: (Symbol field, Integer value) -> Parsed?
-          def replace: (Parsed other) -> self
-        end
-
-        def self.parse: (String string) -> Time
-
-        private
-
-        def self.parse_into: (String input, Parsed parsed) -> String
-        def self.attempt: (^() -> String step) { (String) -> void } -> (true | Failure)
-        def self.fail_component: (String name) -> bot
-        def self.fail_literal: () -> bot
-        def self.parse_date: (String input, Parsed parsed, kind kind) -> String
-        def self.parse_time: (String input, Parsed parsed, kind kind, bool date_present) -> String
-        def self.parse_offset: (String input, Parsed parsed, kind kind) -> String
-        def self.year: (String input) -> [Integer, String]?
-        def self.digits: (String input, Integer count, ?nonzero: bool) -> [Integer, String]?
-        def self.float: (String input) -> [[Integer, Float?], String]?
-        def self.offset_date_time: (Parsed parsed) -> Time
-        def self.date: (Parsed parsed) -> [Integer, Integer]
-        def self.time_of_day: (Parsed parsed) -> [Integer, Integer, Integer, Integer]
-        def self.leap_year?: (Integer year) -> bool
-        def self.days_in_year: (Integer year) -> Integer
-        def self.weeks_in_year: (Integer year) -> Integer
-        def self.out_of_range: (String name, Integer maximum, String condition) -> bot
-        def self.from_ordinal_date: (Integer year, Integer ordinal) -> [Integer, Integer]
-        def self.from_calendar_date: (Integer year, Integer month, Integer day) -> [Integer, Integer]
-        def self.from_iso_week_date: (Integer year, Integer week, Integer weekday) -> [Integer, Integer]
-        def self.leap_second_stand_in?: (Time local) -> bool
-      end
-
       module Commands
         def self.is_permission_granted: (Tokra::Ipc::Invoke invoke, Notification notification) -> void
         def self.request_permission: (Tokra::Ipc::Invoke invoke, Notification notification) -> void
@@ -253,6 +183,8 @@ module Tokra
         class Arguments
           class Mismatch = Tokra::Ipc::CommandItem::Mismatch
 
+          ISO8601: Ferro::Time::FormatDescription::WellKnown::Iso8601
+          ISO8601_EXPECTING: String
           SCHEDULES: Array[String]
           EVERY: Hash[String, ScheduleEvery]
           NOTIFICATION_DATA: Array[field]
@@ -284,7 +216,7 @@ module Tokra
           def map: (json value) -> Hash[String, json]
           def attachments: (json value) -> Array[Attachment]
           def url: (json value) -> Ferro::Url::Url
-          def date: (json value) -> Time
+          def date: (json value) -> Ferro::Time::OffsetDateTime
           def schedule_interval: (json value) -> ScheduleInterval
           def every: (json value) -> ScheduleEvery
           def optional_schedule: (json value) -> schedule?

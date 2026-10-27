@@ -15,17 +15,19 @@ Tauri.
 == Installation
 
 tokra-notification is pure Ruby. Its notifications go out through
-ferro-notify-rust, and it reads attachment URLs with ferro-url; each
-compiles a Rust extension when it installs (their READMEs name the Rust
-versions). Neither is on RubyGems.org yet, so name their release tags in
-your Gemfile beside this gem. Keep each glob to its gem's own folder: a
-wider one lets Bundler take other Ferro gems, such as ferro-arboard, from
-that source instead of their own:
+ferro-notify-rust, it reads attachment URLs with ferro-url, and it reads
+scheduled dates with ferro-time; each compiles a Rust extension when it
+installs (their READMEs name the Rust versions). None is on RubyGems.org
+yet, so name their release tags in your Gemfile beside this gem. Keep
+each glob to its gem's own folder: a wider one lets Bundler take other
+Ferro gems, such as ferro-arboard, from that source instead of their own:
 
   gem "ferro-notify-rust", git: "https://github.com/setdef/Ferro",
-    tag: "ferro-notify-rust/v0.1.0.pre.2", glob: "gems/notify-rust/*.gemspec"
+    tag: "ferro-notify-rust/v0.1.0.pre.3", glob: "gems/notify-rust/*.gemspec"
   gem "ferro-url", git: "https://github.com/setdef/Ferro",
     tag: "ferro-url/v0.1.0.pre.1", glob: "gems/url/*.gemspec"
+  gem "ferro-time", git: "https://github.com/setdef/Ferro",
+    tag: "ferro-time/v0.1.0.pre.1", glob: "gems/time/*.gemspec"
   gem "tokra-notification"
 
 On Linux and the BSDs, notifications travel over D-Bus to the desktop's
@@ -101,6 +103,14 @@ registers a Tokra app yet.
   error such as "invalid IPv4 address", where Tauri answers "invalid
   international domain name". Some newly assigned characters still fail
   in both.
+- A scheduled date is read by time 0.3.55, where Tauri's lockfile has
+  time 0.3.41. A date component out of range reads "day was not in
+  range" where Tauri gives the range ("day must be in the range 1..=28
+  for the given month and year"), and likewise for the second, week, and
+  ordinal day; an offset of 24 or 25 hours, such as "+24:00", parses
+  where Tauri refuses it; and a date that starts with "T" reads that as
+  the start of the time, so its message differs from Tauri's
+  "the 'year' component could not be parsed".
 - <tt>window.__TAURI__.notification</tt> is not defined; import the
   package through your bundler.
 

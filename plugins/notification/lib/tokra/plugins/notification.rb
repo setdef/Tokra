@@ -12,15 +12,15 @@
 
 require "tokra"
 
-# Desktop notifications, through notify-rust, and attachment URLs, through
-# url (ADR 011). A failure to load either is a real installation problem,
-# so its LoadError propagates as-is.
+# Desktop notifications, through notify-rust; attachment URLs, through url;
+# and scheduled dates, through time (ADR 011). A failure to load any of
+# them is a real installation problem, so its LoadError propagates as-is.
 require "ferro/notify_rust"
+require "ferro/time"
 require "ferro/url"
 
 require_relative "notification/version"
 require_relative "notification/models"
-require_relative "notification/iso8601"
 require_relative "notification/notification_builder"
 require_relative "notification/desktop"
 require_relative "notification/commands"
@@ -125,11 +125,15 @@ module Tokra
       #   letters, U+10A0 to U+10C5, and the Hangul fillers), can parse, or
       #   fail later with another error such as "invalid IPv4 address",
       #   where Tauri answers "invalid international domain name", though
-      #   some newly assigned characters still fail in both; that
-      #   <tt>-0</tt> reads as the integer 0 (serde_json reads a float, so
-      #   Tauri rejects it as an +id+); and that a float with more digits
-      #   than a double holds may print differently in its last digit in a
-      #   type error.
+      #   some newly assigned characters still fail in both; that a
+      #   scheduled date is read by time 0.3.55, where Tauri's is 0.3.41, so
+      #   a date component out of range reads "day was not in range" where
+      #   Tauri gives the range, an offset of 24 or 25 hours parses where
+      #   Tauri refuses it, and a date starting with "T" fails with another
+      #   message; that <tt>-0</tt> reads as the integer 0 (serde_json
+      #   reads a float, so Tauri rejects it as an +id+); and that a float
+      #   with more digits than a double holds may print differently in its
+      #   last digit in a type error.
       # * <tt>window.__TAURI__.notification</tt> is not defined.
       #
       # Mirrors Tauri's notification plugin (lib.rs:221-242).
