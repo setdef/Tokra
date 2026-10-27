@@ -12,14 +12,15 @@
 
 require "tokra"
 
-# Desktop notifications, through notify-rust (ADR 011). A failure to load
-# it is a real installation problem, so its LoadError propagates as-is.
+# Desktop notifications, through notify-rust, and attachment URLs, through
+# url (ADR 011). A failure to load either is a real installation problem,
+# so its LoadError propagates as-is.
 require "ferro/notify_rust"
+require "ferro/url"
 
 require_relative "notification/version"
 require_relative "notification/models"
 require_relative "notification/iso8601"
-require_relative "notification/url_check"
 require_relative "notification/notification_builder"
 require_relative "notification/desktop"
 require_relative "notification/commands"
@@ -117,12 +118,18 @@ module Tokra
       # * Without a configured identifier, macOS notifications come from
       #   Terminal.
       # * A notification's options are checked as Tauri checks them, except
-      #   that an attachment URL whose host has non-ASCII characters or an
-      #   <tt>xn--</tt> label is not run through international domain name
-      #   rules, that <tt>-0</tt> reads as the integer 0 (serde_json reads a
-      #   float, so Tauri rejects it as an +id+), and that a float with more
-      #   digits than a double holds may print differently in its last
-      #   digit in a type error.
+      #   that an attachment URL's domain meets Unicode 18.0's international
+      #   domain name tables, where Tauri's are Unicode 15.1's: a domain
+      #   holding a character Unicode assigned since 15.1, or one of 66
+      #   older ones the newer tables accept (such as Georgian capital
+      #   letters, U+10A0 to U+10C5, and the Hangul fillers), can parse, or
+      #   fail later with another error such as "invalid IPv4 address",
+      #   where Tauri answers "invalid international domain name", though
+      #   some newly assigned characters still fail in both; that
+      #   <tt>-0</tt> reads as the integer 0 (serde_json reads a float, so
+      #   Tauri rejects it as an +id+); and that a float with more digits
+      #   than a double holds may print differently in its last digit in a
+      #   type error.
       # * <tt>window.__TAURI__.notification</tt> is not defined.
       #
       # Mirrors Tauri's notification plugin (lib.rs:221-242).

@@ -20,8 +20,10 @@ gem "ferro-arboard", git: "https://github.com/setdef/Ferro", tag: "ferro-arboard
 gem "ferro-rfd", git: "https://github.com/setdef/Ferro", tag: "ferro-rfd/v0.1.0.pre.2", glob: "gems/rfd/*.gemspec"
 # tokra-notification builds on ferro-notify-rust (Plan 024). Its glob names
 # only ferro-notify-rust, so the other Ferro gems keep their own tags.
-gem "ferro-notify-rust", git: "https://github.com/setdef/Ferro", tag: "ferro-notify-rust/v0.1.0.pre.1",
+gem "ferro-notify-rust", git: "https://github.com/setdef/Ferro", tag: "ferro-notify-rust/v0.1.0.pre.2",
   glob: "gems/notify-rust/*.gemspec"
+# tokra-notification reads attachment URLs with ferro-url (Plan 030).
+gem "ferro-url", git: "https://github.com/setdef/Ferro", tag: "ferro-url/v0.1.0.pre.1", glob: "gems/url/*.gemspec"
 # tokra-global-shortcut builds on ferro-global-hotkey (Plan 025). Its glob
 # names only ferro-global-hotkey, so the other Ferro gems keep their own tags.
 gem "ferro-global-hotkey", git: "https://github.com/setdef/Ferro", tag: "ferro-global-hotkey/v0.1.0.pre.1",

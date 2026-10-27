@@ -206,7 +206,8 @@ module Tokra
         #
         # === Example
         #
-        #   builder.attachment(Attachment.new(id: "photo", url: "asset://localhost/photo.png"))
+        #   url = Ferro::Url::Url.parse("asset://localhost/photo.png")
+        #   builder.attachment(Attachment.new(id: "photo", url:))
         def attachment(attachment)
           update(attachments: [*@data.attachments, attachment])
         end

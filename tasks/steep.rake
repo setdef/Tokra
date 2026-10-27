@@ -30,11 +30,14 @@ namespace :rbs do
   # targets of their own.
   desc "Validate every RBS file, plugins included"
   task :validate do
-    libraries = %w[logger pathname json uri erb securerandom stringio fileutils date timeout]
+    # ferro-url's signatures name IPAddr and Addrinfo.
+    libraries = %w[logger pathname json uri erb securerandom stringio fileutils date timeout ipaddr socket]
     # The clipboard, dialog, notification, and global-shortcut plugins name
-    # ferro-arboard's, ferro-rfd's, ferro-notify-rust's, and
+    # ferro-arboard's, ferro-rfd's, ferro-notify-rust's, ferro-url's, and
     # ferro-global-hotkey's types, from the signatures each gem ships.
-    ferro = %w[ferro-arboard ferro-rfd ferro-notify-rust ferro-global-hotkey].map { |name| File.join(Gem::Specification.find_by_name(name).full_gem_path, "sig") }
+    ferro = %w[ferro-arboard ferro-rfd ferro-notify-rust ferro-url ferro-global-hotkey].map do |name|
+      File.join(Gem::Specification.find_by_name(name).full_gem_path, "sig")
+    end
     dirs = ["sig"] + Dir.glob("plugins/*/sig") + ferro
     sh "bundle", "exec", "rbs", *libraries.flat_map { |name| ["-r", name] }, *dirs.flat_map { |dir| ["-I", dir] }, "validate"
   end

@@ -112,7 +112,8 @@ jobs:
       # dbus-daemon and dunst on a session bus of their own and read the
       # Notify calls with dbus-monitor, from the dbus package; notify-rust
       # speaks D-Bus through zbus, pure Rust, so building ferro-notify-rust
-      # needs nothing more (Plan 024). tokra-global-shortcut's tests start an
+      # needs nothing more (Plan 024), and ferro-url compiles its Unicode
+      # data in (Plan 030). tokra-global-shortcut's tests start an
       # Xvfb of their own, map F17 to F19 and F24 with xmodmap (from
       # x11-xserver-utils), and press shortcuts there with xdotool; global-hotkey
       # speaks X11 through x11rb, pure Rust (Plan 025).

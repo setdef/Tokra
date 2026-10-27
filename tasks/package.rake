@@ -83,7 +83,11 @@ PACKAGES = [
       builder = Tokra::Plugins::Notification::Notification.new(handle).builder.title("smoke")
       notification = builder.__send__(:desktop_notification).to_notify_rust
       abort "ferro-notify-rust lost the summary" unless notification.summary == "smoke"
-      puts "tokra-notification \#{Tokra::Plugins::Notification::VERSION} builds a notification through ferro-notify-rust"
+      # ferro-url, likewise, reads an attachment's URL.
+      options = { "options" => { "attachments" => [{ "id" => "a", "url" => "HTTP://EXAMPLE.com:80/a/../b" }] } }
+      data = Tokra::Plugins::Notification::Commands::Arguments.new(options, "notify").notification_data
+      abort "ferro-url did not parse the attachment" unless data.attachments.first.url.as_str == "http://example.com/b"
+      puts "tokra-notification \#{Tokra::Plugins::Notification::VERSION} builds a notification and reads a URL through Ferro"
     RUBY
   PackageCheck::Target.new(
     name: "tokra-global-shortcut",

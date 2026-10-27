@@ -11,10 +11,12 @@ gemspec
 
 gem "tokra", path: "../.."
 
-# ferro-notify-rust is not on RubyGems.org yet, so Bundler takes it from
-# Ferro's repository (ADR 011), at its release tag (Plan 024).
-gem "ferro-notify-rust", git: "https://github.com/setdef/Ferro", tag: "ferro-notify-rust/v0.1.0.pre.1",
+# ferro-notify-rust and ferro-url are not on RubyGems.org yet, so Bundler
+# takes them from Ferro's repository (ADR 011), each at its release tag
+# (plans 024 and 030).
+gem "ferro-notify-rust", git: "https://github.com/setdef/Ferro", tag: "ferro-notify-rust/v0.1.0.pre.2",
   glob: "gems/notify-rust/*.gemspec"
+gem "ferro-url", git: "https://github.com/setdef/Ferro", tag: "ferro-url/v0.1.0.pre.1", glob: "gems/url/*.gemspec"
 
 group :development, :test do
   # The macOS tests read and sweep the notification center through AppKit.

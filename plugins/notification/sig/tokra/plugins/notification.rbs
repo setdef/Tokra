@@ -14,9 +14,9 @@ module Tokra
 
       class Attachment < Data
         attr_reader id: String
-        attr_reader url: String
+        attr_reader url: Ferro::Url::Url
 
-        def self.new: (id: String, url: String) -> instance
+        def self.new: (id: String, url: Ferro::Url::Url) -> instance
       end
 
       class ScheduleInterval < Data
@@ -245,41 +245,6 @@ module Tokra
         def self.leap_second_stand_in?: (Time local) -> bool
       end
 
-      module UrlCheck
-        class Error < StandardError
-        end
-
-        EMPTY_HOST: String
-        IDNA: String
-        INVALID_PORT: String
-        INVALID_IPV4: String
-        INVALID_IPV6: String
-        INVALID_DOMAIN_CHARACTER: String
-        RELATIVE: String
-        SPECIAL: Array[String]
-        DEFAULT_PORTS: Hash[String, Integer]
-        OPAQUE_FORBIDDEN: String
-        DENIED: Set[Integer]
-
-        def self.check: (String string) -> String
-
-        private
-
-        def self.file: (String rest) -> void
-        def self.authority: (String rest, String scheme, special: bool) -> void
-        def self.userinfo: (String rest, bool special) -> [String, bool]
-        def self.host_text: (String rest, bool special) -> String
-        def self.port: (String rest, Integer? _default) -> void
-        def self.domain: (String text) -> String
-        def self.ascii_domain: (String bytes) -> String
-        def self.opaque: (String text) -> String
-        def self.ends_in_a_number?: (String domain) -> bool
-        def self.ipv4_number: (String text) -> (Integer | :overflow | nil)
-        def self.ipv4: (String domain) -> void
-        def self.ipv6: (String text) -> String
-        def self.ipv6_address: (String input) -> void
-      end
-
       module Commands
         def self.is_permission_granted: (Tokra::Ipc::Invoke invoke, Notification notification) -> void
         def self.request_permission: (Tokra::Ipc::Invoke invoke, Notification notification) -> void
@@ -318,7 +283,7 @@ module Tokra
           def sequence: [T] (json value) { (json) -> T } -> Array[T]
           def map: (json value) -> Hash[String, json]
           def attachments: (json value) -> Array[Attachment]
-          def url: (json value) -> String
+          def url: (json value) -> Ferro::Url::Url
           def date: (json value) -> Time
           def schedule_interval: (json value) -> ScheduleInterval
           def every: (json value) -> ScheduleEvery

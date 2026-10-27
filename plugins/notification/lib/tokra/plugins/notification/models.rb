@@ -24,13 +24,26 @@ module Tokra
       # Pass one to NotificationBuilder#attachment. Desktop systems ignore
       # attachments; Tauri shows them on mobile only.
       #
-      # Mirrors Tauri's <tt>Attachment</tt> (models.rs:11-22). Tauri holds
-      # the URL parsed; this holds the string the URL was given as.
+      # The URL is a Ferro::Url::Url, url's <tt>url::Url</tt>, as in Tauri.
+      #
+      # Mirrors Tauri's <tt>Attachment</tt> (models.rs:11-22).
       #
       # === Example
       #
-      #   Attachment.new(id: "photo", url: "asset://localhost/photo.png")
+      #   Attachment.new(id: "photo", url: Ferro::Url::Url.parse("asset://localhost/photo.png"))
       class Attachment < Data.define(:id, :url)
+        # Creates an attachment. A +url+ that is not a Ferro::Url::Url
+        # raises +TypeError+, as Rust's types refuse it.
+        #
+        # === Example
+        #
+        #   Attachment.new(id: "photo", url: "photo.png")
+        #   # raises TypeError: wrong argument type String (expected Ferro::Url::Url)
+        def initialize(id:, url:)
+          raise TypeError, "wrong argument type #{url.class} (expected #{Ferro::Url::Url})" unless url.is_a?(Ferro::Url::Url)
+
+          super
+        end
       end
 
       # The calendar fields a repeating notification matches.

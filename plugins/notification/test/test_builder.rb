@@ -14,7 +14,7 @@ class TestBuilder < Minitest::Test
   include NotificationTest
 
   def test_each_setter_fills_in_notification_data
-    attachment = Notification::Attachment.new(id: "a", url: "file:///a.png")
+    attachment = Notification::Attachment.new(id: "a", url: Ferro::Url::Url.parse("file:///a.png"))
     schedule = Notification::Schedule::Every.new(interval: Notification::ScheduleEvery::Day, count: 1)
     builder = builder_for(configured_handle)
     returned = builder.id(5).channel_id("c").title("t").body("b").schedule(schedule).large_body("lb").summary("s")
@@ -29,6 +29,13 @@ class TestBuilder < Minitest::Test
       icon_color: "#000", attachments: [attachment], extra: { "k" => { "list" => [1, "two"] } }, ongoing: true,
       auto_cancel: true, silent: true
     ), builder.data
+  end
+
+  # Tauri's url field is a url::Url (models.rs:11-16), so a string there
+  # is a type error, not a URL to check later.
+  def test_an_attachment_refuses_a_url_that_is_not_parsed
+    error = assert_raises(TypeError) { Notification::Attachment.new(id: "a", url: "file:///a.png") }
+    assert_equal "wrong argument type String (expected Ferro::Url::Url)", error.message
   end
 
   # serde_json::to_value stores NaN and Infinity as null (lib.rs:179-185).

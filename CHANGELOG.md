@@ -117,9 +117,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Tauri's argument errors, and backs the page's `window.Notification`;
   permission is always granted, a notification shows its title (or the
   product name), body, icon, and sound, and goes out on its own thread;
-  macOS names the app by its identifier, Windows names none; it is pure
-  Ruby and depends on `ferro-notify-rust` 0.1.0.pre.1 (notify-rust
-  4.18.2), which apps take from its git tag until it is on RubyGems.org
+  macOS names the app by its identifier, Windows names none; an
+  `Attachment` holds its URL as a `Ferro::Url::Url`; it is pure Ruby and
+  depends on `ferro-notify-rust` 0.1.0.pre.2 (notify-rust 4.18.2) and
+  `ferro-url` 0.1.0.pre.1 (url 2.5.8), which apps take from their git tags
+  until they are on RubyGems.org
 - `Tokra::PermissionState` (`Granted`, `Denied`, `Prompt`,
   `PromptWithRationale`), Tauri's `tauri::plugin::PermissionState`
 - `tokra-global-shortcut` gem: `Tokra::Plugins::GlobalShortcut::Plugin.new(app)`

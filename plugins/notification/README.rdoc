@@ -15,14 +15,17 @@ Tauri.
 == Installation
 
 tokra-notification is pure Ruby. Its notifications go out through
-ferro-notify-rust, which compiles a Rust extension when it installs (its
-README names the Rust versions). ferro-notify-rust is not on RubyGems.org
-yet, so name its release tag in your Gemfile beside this gem. Keep the glob to
-ferro-notify-rust's own folder: a wider one lets Bundler take other Ferro
-gems, such as ferro-arboard, from this source instead of their own:
+ferro-notify-rust, and it reads attachment URLs with ferro-url; each
+compiles a Rust extension when it installs (their READMEs name the Rust
+versions). Neither is on RubyGems.org yet, so name their release tags in
+your Gemfile beside this gem. Keep each glob to its gem's own folder: a
+wider one lets Bundler take other Ferro gems, such as ferro-arboard, from
+that source instead of their own:
 
   gem "ferro-notify-rust", git: "https://github.com/setdef/Ferro",
-    tag: "ferro-notify-rust/v0.1.0.pre.1", glob: "gems/notify-rust/*.gemspec"
+    tag: "ferro-notify-rust/v0.1.0.pre.2", glob: "gems/notify-rust/*.gemspec"
+  gem "ferro-url", git: "https://github.com/setdef/Ferro",
+    tag: "ferro-url/v0.1.0.pre.1", glob: "gems/url/*.gemspec"
   gem "tokra-notification"
 
 On Linux and the BSDs, notifications travel over D-Bus to the desktop's
@@ -90,9 +93,14 @@ registers a Tokra app yet.
   longer builds for it.
 - Without a configured identifier, macOS notifications come from
   Terminal.
-- An attachment URL whose host has non-ASCII characters, or a label that
-  starts with <tt>xn--</tt>, is not checked against international domain
-  name rules.
+- An attachment URL's domain meets Unicode 18.0's international domain
+  name tables, where Tauri's are Unicode 15.1's. A domain holding a
+  character Unicode assigned since 15.1, or one of 66 older ones the
+  newer tables accept (such as Georgian capital letters, U+10A0 to
+  U+10C5, and the Hangul fillers), can parse, or fail later with another
+  error such as "invalid IPv4 address", where Tauri answers "invalid
+  international domain name". Some newly assigned characters still fail
+  in both.
 - <tt>window.__TAURI__.notification</tt> is not defined; import the
   package through your bundler.
 

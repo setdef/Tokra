@@ -9,11 +9,13 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
 # SPDX-SnippetCopyrightText: Erick Tryzelaar and David Tolnay (serde, serde_json)
+# SPDX-SnippetCopyrightText: 2013-2025 The rust-url developers (url)
 # SPDX-SnippetComment: Argument errors from tauri ipc/command.rs and error.rs;
 #                      the shapes of tauri-plugin-notification src/models.rs;
 #                      the messages are serde's (serde_core 1.0.228
 #                      de/mod.rs, serde_derive 1.0.228 de.rs) as
-#                      serde_json 1.0.140 src/value/de.rs produces them
+#                      serde_json 1.0.140 src/value/de.rs produces them,
+#                      and url's for a URL (url 2.5.8 src/lib.rs:2916-2942)
 
 require "json"
 
@@ -192,12 +194,13 @@ module Tokra
             sequence(value) { |item| Attachment.new(**struct_value(item, "Attachment", ATTACHMENT)) }
           end
 
-          # A URL as url 2.5.4 deserializes one: a string Url::parse takes,
-          # or its error and the string (url lib.rs:2886-2911).
+          # A URL as url deserializes one: the Url a string parses to, or
+          # url's error and the string as Rust's Debug quotes it (url 2.5.8
+          # lib.rs:2916-2942, unchanged from 2.5.4).
           private def url(value)
             mismatch(value, "a string representing an URL") unless value.is_a?(String)
-            UrlCheck.check(value)
-          rescue UrlCheck::Error => e
+            Ferro::Url::Url.parse(value)
+          rescue Ferro::Url::ParseError => e
             raise Mismatch, "#{e.message}: #{debug(value)}"
           end
 

@@ -15,7 +15,8 @@ require_relative "support/notification_test"
 # 1.0.3), deserializing each JSON value with serde_json::from_value. A
 # nil expectation means Tauri accepted the value. Each date's expectation
 # is the moment Tauri parsed, as nanoseconds since the epoch and the
-# offset in seconds.
+# offset in seconds, and each accepted URL's is the serialization Tauri
+# parsed it to.
 class TestArguments < Minitest::Test
   include NotificationTest
 
@@ -173,63 +174,81 @@ class TestArguments < Minitest::Test
   ].freeze
 
   URL_CASES = [
-    ["file:///tmp/a.png", nil],
-    ["asset://localhost/a.png", nil],
+    ["file:///tmp/a.png", nil, "file:///tmp/a.png"],
+    ["asset://localhost/a.png", nil, "asset://localhost/a.png"],
     ["image.png", "relative URL without a base: \"image.png\""],
     ["", "relative URL without a base: \"\""],
     ["http://", "empty host: \"http://\""],
-    ["http:///x", nil],
-    ["http://example.com:65535/", nil],
+    ["http:///x", nil, "http://x/"],
+    ["http://example.com:65535/", nil, "http://example.com:65535/"],
     ["http://example.com:65536/", "invalid port number: \"http://example.com:65536/\""],
     ["http://example.com:8a/", "invalid port number: \"http://example.com:8a/\""],
-    ["http://example.com:/", nil],
-    ["http://[::1]/", nil],
+    ["http://example.com:/", nil, "http://example.com/"],
+    ["http://[::1]/", nil, "http://[::1]/"],
     ["http://[::1/", "invalid IPv6 address: \"http://[::1/\""],
     ["http://[1:2:3:4:5:6:7:8:9]/", "invalid IPv6 address: \"http://[1:2:3:4:5:6:7:8:9]/\""],
-    ["http://[::ffff:1.2.3.4]/", nil],
+    ["http://[::ffff:1.2.3.4]/", nil, "http://[::ffff:102:304]/"],
     ["http://[::ffff:1.2.3.04]/", "invalid IPv6 address: \"http://[::ffff:1.2.3.04]/\""],
-    ["http://1.2.3.4/", nil],
+    ["http://1.2.3.4/", nil, "http://1.2.3.4/"],
     ["http://1.2.3.256/", "invalid IPv4 address: \"http://1.2.3.256/\""],
-    ["http://0x7f.1/", nil],
+    ["http://0x7f.1/", nil, "http://127.0.0.1/"],
     ["http://999999999999/", "invalid IPv4 address: \"http://999999999999/\""],
     ["http://a.b.1/", "invalid IPv4 address: \"http://a.b.1/\""],
     ["http://a.b.09/", "invalid IPv4 address: \"http://a.b.09/\""],
     ["http://exa mple.com/", "invalid international domain name: \"http://exa mple.com/\""],
     ["http://exa%20mple.com/", "invalid international domain name: \"http://exa%20mple.com/\""],
-    ["http://EXAMPLE.com/", nil],
-    ["http://ex%41mple.com/", nil],
+    ["http://EXAMPLE.com/", nil, "http://example.com/"],
+    ["http://ex%41mple.com/", nil, "http://example.com/"],
     ["http://user@/", "empty host: \"http://user@/\""],
     ["http://@/", "empty host: \"http://@/\""],
-    ["http://@host/", nil],
-    ["http://user:pass@host:80/", nil],
-    ["http://:@host/", nil],
+    ["http://@host/", nil, "http://host/"],
+    ["http://user:pass@host:80/", nil, "http://user:pass@host/"],
+    ["http://:@host/", nil, "http://host/"],
     ["http://xn--abc-.com/", "invalid international domain name: \"http://xn--abc-.com/\""],
-    ["http://xn--nxasmq6b.com/", nil],
-    ["http://bücher.de/", nil],
-    ["foo://", nil],
+    ["http://xn--nxasmq6b.com/", nil, "http://xn--nxasmq6b.com/"],
+    ["http://bücher.de/", nil, "http://xn--bcher-kva.de/"],
+    ["foo://", nil, "foo://"],
     ["foo://:80", "empty host: \"foo://:80\""],
     ["foo://user@", "empty host: \"foo://user@\""],
     ["foo://exa mple/", "invalid domain character: \"foo://exa mple/\""],
-    ["foo://[::1]:5/", nil],
+    ["foo://[::1]:5/", nil, "foo://[::1]:5/"],
     ["foo://h:99999/", "invalid port number: \"foo://h:99999/\""],
-    ["foo:bar", nil],
-    ["mailto:x@y", nil],
-    ["file://host/x", nil],
-    ["file://C:/x", nil],
+    ["foo:bar", nil, "foo:bar"],
+    ["mailto:x@y", nil, "mailto:x@y"],
+    ["file://host/x", nil, "file://host/x"],
+    ["file://C:/x", nil, "file:///C:/x"],
     ["file://exa mple/x", "invalid international domain name: \"file://exa mple/x\""],
     ["file://[::1/x", "invalid IPv6 address: \"file://[::1/x\""],
     ["1http://x", "relative URL without a base: \"1http://x\""],
-    ["  http://x.com  ", nil],
-    ["http\t://x.com", nil],
-    ["data:text/plain,hi", nil],
-    ["http:\\\\example.com\\x", nil],
-    ["ws://a.b", nil],
-    ["http://a..b/", nil],
-    ["http://.example/", nil],
+    ["  http://x.com  ", nil, "http://x.com/"],
+    ["http\t://x.com", nil, "http://x.com/"],
+    ["data:text/plain,hi", nil, "data:text/plain,hi"],
+    ["http:\\\\example.com\\x", nil, "http://example.com/x"],
+    ["ws://a.b", nil, "ws://a.b/"],
+    ["http://a..b/", nil, "http://a..b/"],
+    ["http://.example/", nil, "http://.example/"],
     ["http://%zz.com/", "invalid international domain name: \"http://%zz.com/\""],
     ["http://a%2Fb.com/", "invalid international domain name: \"http://a%2Fb.com/\""],
     ["http://[::1]:80x/", "invalid port number: \"http://[::1]:80x/\""],
-    ["http://host:0080/", nil],
+    ["http://host:0080/", nil, "http://host/"],
+    ["http://xn--a/", "invalid international domain name: \"http://xn--a/\""],
+    ["http://xn--a.xn--b/", "invalid international domain name: \"http://xn--a.xn--b/\""],
+    ["http://xn--Mnchen-3YA.de/", nil, "http://xn--mnchen-3ya.de/"],
+    ["http://faß.de/", nil, "http://xn--fa-hia.de/"],
+    ["http://ｅｘａｍｐｌｅ.com/", nil, "http://example.com/"],
+    ["http://a。b/", nil, "http://a.b/"],
+    ["http://a\u200Cb.com/", "invalid international domain name: \"http://a\\u{200c}b.com/\""],
+    ["http://\u094D\u0915.in/", "invalid international domain name: \"http://\\u{94d}\u0915.in/\""],
+    ["http://אב.com/", nil, "http://xn--4dbc.com/"],
+    ["http://%C3%BC.de/", nil, "http://xn--tda.de/"],
+    ["http://x%80y/", "invalid international domain name: \"http://x%80y/\""],
+    ["http://１.２.３.４/", nil, "http://1.2.3.4/"],
+    ["http://a\u00ADb/", nil, "http://ab/"],
+    ["http://\uFFFD.com/", "invalid international domain name: \"http://\uFFFD.com/\""],
+    ["http://\u2488.com/", "invalid international domain name: \"http://\u2488.com/\""],
+    ["file://bücher/x", nil, "file://xn--bcher-kva/x"],
+    ["foo://bücher/", nil, "foo://b%C3%BCcher/"],
+    ["HTTP://ｅｘａｍｐｌｅ.com:80/a/../b", nil, "http://example.com/b"],
   ].freeze
 
   # Every value reads as Tauri reads it, or rejects with Tauri's message
@@ -256,10 +275,30 @@ class TestArguments < Minitest::Test
 
   # url's parser, through Attachment's url (models.rs:11-16), with url's
   # message and the string as Rust's Debug quotes it
-  # (url lib.rs:2902-2907).
+  # (url lib.rs:2936). An accepted URL is held parsed, as Tauri's
+  # url::Url field holds it.
   def test_each_url_parses_as_url_parses_it
-    URL_CASES.each do |url, expected|
-      assert_reading({ "options" => { "attachments" => [{ "id" => "a", "url" => url }] } }, expected, url.inspect)
+    URL_CASES.each do |url, expected, serialized|
+      options = { "attachments" => [{ "id" => "a", "url" => url }] }
+      if expected
+        assert_reading({ "options" => options }, expected, url.inspect)
+      else
+        parsed = read(options).attachments.first.url
+        assert_instance_of Ferro::Url::Url, parsed, url.inspect
+        assert_equal serialized, parsed.as_str, url.inspect
+      end
+    end
+  end
+
+  # Deviation (Plan 030): ferro-url's idna reads Unicode 18.0's UTS 46
+  # tables, where Tauri's lockfile has Unicode 15.1's (ICU4X 1.5), so a
+  # domain with a character Unicode 16.0 or later assigned, or one of the
+  # 66 older ones UTS 46 16.0 no longer refuses, such as Georgian
+  # capital letters, parses where Tauri answers "invalid international
+  # domain name".
+  def test_a_domain_in_newer_unicode_parses
+    { "http://\u10A0.ge/" => "http://xn--rkj.ge/", "http://\u{10D50}.com/" => "http://xn--dh0d.com/" }.each do |url, serialized|
+      assert_equal serialized, read({ "attachments" => [{ "id" => "a", "url" => url }] }).attachments.first.url.as_str
     end
   end
 
@@ -300,7 +339,7 @@ class TestArguments < Minitest::Test
     assert_equal [7, "c", "t", "b", "lb", "s", "a", "g", true, "Ping", ["1", "2"], "i", "li", "#fff"],
       data.to_h.values_at(:id, :channel_id, :title, :body, :large_body, :summary, :action_type_id, :group,
         :group_summary, :sound, :inbox_lines, :icon, :large_icon, :icon_color)
-    assert_equal [Notification::Attachment.new(id: "x", url: "file:///x")], data.attachments
+    assert_equal [Notification::Attachment.new(id: "x", url: Ferro::Url::Url.parse("file:///x"))], data.attachments
     assert_equal({ "k" => [1, nil] }, data.extra)
     assert_equal [true, true, true], [data.ongoing, data.auto_cancel, data.silent]
     assert_equal Notification::Schedule::Every.new(interval: Notification::ScheduleEvery::TwoWeeks, count: 2), data.schedule
