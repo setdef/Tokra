@@ -44,6 +44,18 @@ class IpcTransportTest < RealApp::TestCase
     assert_match(/__TAURI_INVOKE_KEY__ expected \S+ but received not-the-key/, @run.stderr)
   end
 
+  # Tauri parses the body with serde_json before routing
+  # (ipc/protocol.rs:287-291, 525-532), so a lone surrogate escape is
+  # rejected with serde_json's message instead of reaching the handler;
+  # a postMessage failure is console.error'd in the page (protocol.rs:422-430,
+  # Plan 032).
+  def test_a_body_serde_json_rejects_never_reaches_a_command
+    detail = check_detail(@run, "a body serde_json rejects never reaches a command")
+    assert_equal "lone leading surrogate in hex escape at line 1 column 18", detail["rejected"]
+    assert_equal ["JSON error: lone leading surrogate in hex escape at line 1 column 65"], detail["consoleErrors"]
+    refute_includes @run.stderr, "received post-message-probe"
+  end
+
   def test_the_client_never_falls_back_to_post_message
     detail = check_detail(@run, "transport")
     assert_empty detail["fallbackWarnings"]

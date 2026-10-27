@@ -240,7 +240,60 @@ class TestBuilderIpcProtocol < Minitest::Test
     _id, status, headers, body = last_response
     assert_equal 500, status
     assert_equal "text/plain", headers.to_h["Content-Type"]
-    refute_empty body, "the parser message is the body"
+    assert_equal "key must be a string at line 1 column 2", body,
+      "the body is serde_json's message (ipc/protocol.rs:525-532)"
+  ensure
+    StubNative.clear_event
+  end
+
+  # serde_json::from_slice rejects a body Ruby's JSON accepts, before any
+  # command runs (Plan 032). Each message here is the one serde_json
+  # 1.0.145 gives for the same bytes.
+  def test_body_serde_json_rejects_is_malformed_500_before_dispatch
+    Thread.current[:payload] = :untouched
+    handler = Ractor.shareable_proc { |invoke|
+      Thread.current[:payload] = invoke.payload
+      invoke.resolve(nil)
+      true
+    }
+    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    {
+      "{\"text\":\"\xff\"}".b => "invalid unicode code point at line 1 column 11",
+      '{"text":"\udc00"}' => "lone leading surrogate in hex escape at line 1 column 15",
+      '{"text":"\ud800"}' => "unexpected end of hex escape at line 1 column 16",
+      "/*c*/{}" => "expected value at line 1 column 1",
+      '{"a":1e400}' => "number out of range at line 1 column 10",
+      "{\"a\":#{'[' * 127}#{']' * 127}}" => "recursion limit exceeded at line 1 column 132",
+    }.each do |body, message|
+      run_with(app, ipc_request(app, cmd: "echo", body:))
+
+      _id, status, headers, response = last_response
+      assert_equal [500, "text/plain", message], [status, headers.to_h["Content-Type"], response],
+        "#{body.inspect} is rejected with serde_json's message"
+    end
+    assert_equal :untouched, Thread.current[:payload], "no rejected body reaches the handler"
+  ensure
+    StubNative.clear_event
+  end
+
+  # serde_json's Value reads -0 and integers beyond 64 bits as floats, and
+  # nests 127 levels deep (de.rs:509-528, 677-735, 1370-1385).
+  def test_json_body_values_are_serde_json_values
+    Thread.current[:payload] = nil
+    handler = Ractor.shareable_proc { |invoke|
+      Thread.current[:payload] = invoke.payload
+      invoke.resolve(nil)
+      true
+    }
+    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    deep = "#{'[' * 126}#{']' * 126}"
+    run_with(app, ipc_request(app, cmd: "echo",
+      body: "{\"zero\":-0,\"big\":123456789012345678901234567890,\"deep\":#{deep}}"))
+
+    payload = Thread.current[:payload]
+    assert_equal [Float, "-0.0"], [payload["zero"].class, payload["zero"].to_s]
+    assert_equal 1.2345678901234568e+29, payload["big"]
+    assert_equal JSON.parse(deep, max_nesting: false), payload["deep"]
   ensure
     StubNative.clear_event
   end

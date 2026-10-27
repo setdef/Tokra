@@ -390,14 +390,35 @@ module Tokra
     # Handles a window.ipc.postMessage invoke (ipc/protocol.rs
     # handle_ipc_message).
     #
-    # Deviation: Tauri deserializes a strict message and, on failure, evals
-    # <tt>console.error(...)</tt> in the webview (ipc/protocol.rs:422-430).
-    # Tokra logs unparseable messages to stderr and treats a message
-    # without integer callback ids as fire-and-forget, so hand-rolled
-    # postMessage calls keep working (ADR 009).
+    # The message is read as serde_json reads it (Ipc::Json), so a message
+    # Tauri rejects, such as one whose payload holds a lone surrogate
+    # escape, never reaches a command. As in Tauri the failure is reported
+    # in the page, not answered: the webview evaluates
+    # <tt>console.error("JSON error: ...")</tt> (ipc/protocol.rs:287-291,
+    # 422-430; error.rs:50-51), and the invoke's promise stays pending.
+    #
+    # Deviations (ADR 009): Tauri deserializes the message into a strict
+    # Message struct; Tokra parses it as a whole Value and reads its
+    # members. That is stricter for members Tauri does not know: serde
+    # skips an unknown field with ignore_value, which checks neither its
+    # strings' surrogates nor its numbers' range (serde_json de.rs:1100-1281),
+    # so Tauri accepts a lone surrogate there and Tokra rejects it. It is
+    # looser about shape: a message that is not an object is logged to
+    # stderr, a missing +cmd+ is the empty command, and a message without
+    # integer callback ids is fire-and-forget, so hand-rolled postMessage
+    # calls keep working. A +cmd+ that is present but not a string fails
+    # with Tauri's <tt>invalid type: ..., expected a string</tt>, without the
+    # line and column serde gives it, which a parsed Value no longer knows.
     private def dispatch_ipc(event)
-      parsed = JSON.parse(event.message)
+      parsed = Ipc::Json.parse(event.message)
       return warn("failed to parse IPC message: not a JSON object") unless parsed.is_a?(Hash)
+
+      cmd = parsed.fetch("cmd", "")
+      unless cmd.is_a?(String)
+        return report_ipc_message_error(
+          "JSON error: invalid type: #{Ipc::Unexpected.describe(cmd)}, expected a string"
+        )
+      end
 
       received_key = parsed["__TAURI_INVOKE_KEY__"]
       unless received_key == @manager.invoke_key
@@ -408,15 +429,23 @@ module Tokra
         )
       end
 
-      cmd = parsed["cmd"] || ""
       raw_payload = parsed["payload"]
       empty_payload = {} #: Hash[String, json_value]
       payload = raw_payload.is_a?(Hash) ? raw_payload : empty_payload
       responder = build_ipc_responder(parsed["callback"], parsed["error"])
 
       route_invoke(cmd, payload, responder, event.url)
-    rescue JSON::ParserError => e
-      warn("failed to parse IPC message: #{e.message}")
+    rescue Ipc::Json::Error => e
+      report_ipc_message_error("JSON error: #{e.message}")
+    end
+
+    # Reports a postMessage Tauri could not read the way Tauri does: the
+    # message, as a JSON string literal, logged with console.error in the
+    # webview (ipc/protocol.rs:422-430). serde_json's Value::String and
+    # JSON.generate escape a String alike: quotes, backslashes, and control
+    # characters, nothing else.
+    private def report_ipc_message_error(message)
+      @webview&.eval("console.error(#{JSON.generate(message)})")
     end
 
     # Routes a parsed invoke to its handler, shared by both transports.
@@ -657,11 +686,14 @@ module Tokra
       false
     end
 
-    # Parses the request body by content type. JSON parses as UTF-8, and an
-    # empty body is the empty object (ipc/protocol.rs:525-538). A non-object
-    # JSON value also becomes the empty object: Ruby handlers index the
-    # payload by key, and Tauri's own key lookup on a non-object reports a
-    # missing key, which is what the empty object produces (Plan 016 #15).
+    # Parses the request body by content type. JSON parses as serde_json
+    # parses it (Ipc::Json), so a body Tauri rejects, such as invalid UTF-8
+    # in a string, fails with serde_json's message before any command
+    # runs, and an empty body is the empty object (ipc/protocol.rs:525-538).
+    # A non-object JSON value also becomes the empty object: Ruby handlers
+    # index the payload by key, and Tauri's own key lookup on a non-object
+    # reports a missing key, which is what the empty object produces
+    # (Plan 016 #15).
     # An empty octet-stream body is the payload-less invoke; raw bodies are
     # unimplemented (Plan 015 Out of Scope).
     private def parse_ipc_payload(content_type, body)
@@ -670,7 +702,7 @@ module Tokra
       when "application/json"
         return empty if body.empty?
 
-        parsed = JSON.parse(body.dup.force_encoding(Encoding::UTF_8))
+        parsed = Ipc::Json.parse(body)
         parsed.is_a?(Hash) ? parsed : empty
       when "application/octet-stream"
         return empty if body.empty?
@@ -679,7 +711,7 @@ module Tokra
       else
         raise IpcProtocolError, "content type #{content_type} is not implemented"
       end
-    rescue JSON::ParserError => e
+    rescue Ipc::Json::Error => e
       raise IpcProtocolError, e.message
     end
 

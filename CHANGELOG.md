@@ -74,6 +74,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Builder#title` and `Builder#size` configure the window
 - `ipc://` IPC transport (Tauri's desktop-default invoke channel), served as a
   second custom protocol; `postMessage` is retained as the automatic fallback
+- Both IPC transports read invoke bodies as Tauri's serde_json does: a body it
+  rejects (invalid UTF-8 or a lone surrogate escape in a string, a comment, a
+  number out of range, nesting past 127 levels, a non-string `cmd`) never
+  reaches a command, and fails with serde_json's message (`ipc://` answers
+  500, `postMessage` evaluates `console.error("JSON error: ...")`); payloads
+  hold serde_json's values, so `-0` and integers outside 64 bits are floats
+  and object keys come in byte order
 - `Builder#with_global_tauri` injects the vendored `@tauri-apps/api` bundle as
   `window.__TAURI__`, so a page with no frontend bundler calls
   `window.__TAURI__.core.invoke(...)` directly (mirrors Tauri's

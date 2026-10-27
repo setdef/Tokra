@@ -13,7 +13,12 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     // ipc-protocol.js looks up fetch and console.warn when it sends, so these
     // wrappers see what each ipc:// fetch answered, and the one warning the
     // client prints when it gives up on ipc:// for postMessage.
-    window.observed = { warnings: [], ipcFetches: [] };
+    window.observed = { warnings: [], errors: [], ipcFetches: [] };
+    const originalError = console.error.bind(console);
+    console.error = (...args) => {
+      window.observed.errors.push(args.map(String).join(' '));
+      originalError(...args);
+    };
     const originalWarn = console.warn.bind(console);
     console.warn = (...args) => {
       window.observed.warnings.push(args.map(String).join(' '));
@@ -62,6 +67,30 @@ SPDX-License-Identifier: AGPL-3.0-or-later
           ipcFetches: window.observed.ipcFetches.length,
         },
       }));
+
+      // serde_json rejects a lone trailing surrogate escape before any
+      // command runs (Plan 032). JSON.stringify writes the lone surrogate
+      // as \udc00, so the real client sends exactly that. Over ipc:// the
+      // invoke rejects with serde_json's message; over postMessage Tauri
+      // reads the message before it checks the key, so the page gets the
+      // JSON error through console.error and the key mismatch is never
+      // logged.
+      await check('a body serde_json rejects never reaches a command', async () => {
+        let rejected = null;
+        try {
+          await invoke('ping', { message: '\udc00' });
+        } catch (error) {
+          rejected = error;
+        }
+        window.ipc.postMessage('{"cmd":"ping","callback":1,"error":2,'
+          + '"payload":{"message":"\\udc00"},"__TAURI_INVOKE_KEY__":"post-message-probe"}');
+        const deadline = Date.now() + 5000;
+        while (window.observed.errors.length === 0 && Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        const consoleErrors = window.observed.errors.slice();
+        return { pass: typeof rejected === 'string' && consoleErrors.length > 0, detail: { rejected, consoleErrors } };
+      });
 
       // Tauri drops the responder of a request whose invoke key does not
       // match, unanswered (webview/mod.rs:1728-1744), and wry gives its

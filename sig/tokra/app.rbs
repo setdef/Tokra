@@ -45,6 +45,7 @@ module Tokra
 
     def emit_run_event: (run_event event, (^(AppHandle, run_event) -> void)? callback) -> void
     def build_ipc_responder: (json_value callback, json_value error) -> ipc_responder?
+    def report_ipc_message_error: (String message) -> void
     def initialization_scripts: () -> Array[String]
     def global_api_script: () -> String
     def bootstrap_script: () -> String

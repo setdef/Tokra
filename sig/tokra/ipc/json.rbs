@@ -1,0 +1,89 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Ipc
+    module Json
+      class Error < Tokra::Error
+      end
+
+      EOF_WHILE_PARSING_LIST: String
+      EOF_WHILE_PARSING_OBJECT: String
+      EOF_WHILE_PARSING_STRING: String
+      EOF_WHILE_PARSING_VALUE: String
+      EXPECTED_COLON: String
+      EXPECTED_LIST_COMMA_OR_END: String
+      EXPECTED_OBJECT_COMMA_OR_END: String
+      EXPECTED_SOME_IDENT: String
+      EXPECTED_SOME_VALUE: String
+      INVALID_ESCAPE: String
+      INVALID_NUMBER: String
+      NUMBER_OUT_OF_RANGE: String
+      INVALID_UNICODE_CODE_POINT: String
+      CONTROL_CHARACTER_WHILE_PARSING_STRING: String
+      KEY_MUST_BE_A_STRING: String
+      LONE_LEADING_SURROGATE_IN_HEX_ESCAPE: String
+      TRAILING_COMMA: String
+      TRAILING_CHARACTERS: String
+      UNEXPECTED_END_OF_HEX_ESCAPE: String
+      RECURSION_LIMIT_EXCEEDED: String
+      RECURSION_LIMIT: Integer
+      RAW_VALUE_TOKEN: String
+      POW10: Array[Float]
+      U64_MAX: Integer
+      I32_MAX: Integer
+      STRING_STOP: Regexp
+
+      def self.parse: (String source) -> json_value
+
+      class Parser
+        ESCAPES: Hash[Integer, String]
+
+        @bytes: String
+        @index: Integer
+        @remaining_depth: Integer
+
+        def initialize: (String source) -> void
+        def parse: () -> json_value
+
+        private
+
+        def peek: () -> Integer?
+        def peek_or_null: () -> Integer
+        def eat_char: () -> Integer
+        def next_char: () -> Integer?
+        def position_of: (Integer index) -> [Integer, Integer]
+        def error: (String reason) -> Error
+        def peek_error: (String reason) -> Error
+        def error_at: (String reason, Integer index) -> Error
+        def parse_whitespace: () -> Integer?
+        def parse_value: () -> json_value
+        def parse_keyword: (String rest, bool? value) -> bool?
+        def nested: () { () -> json_value } -> json_value
+        def parse_ident: (String ident) -> void
+        def parse_seq: () -> Array[json_value]
+        def parse_map: () -> json_value
+        def next_key: (bool first) -> String?
+        def parse_object_colon: () -> void
+        def end_map: (json_value value) -> json_value
+        def parse_raw_value: () -> json_value
+        def invalid_raw_value: (Integer byte) -> Error
+        def parse_integer: (bool positive) -> (Integer | Float)
+        def parse_number: (bool positive, Integer significand) -> (Integer | Float)
+        def parse_decimal: (bool positive, Integer significand, Integer exponent_before_decimal_point) -> Float
+        def parse_exponent: (bool positive, Integer significand, Integer starting_exp) -> Float
+        def f64_from_parts: (bool positive, Integer significand, Integer exponent) -> Float
+        def parse_long_integer: (bool positive, Integer significand) -> Float
+        def parse_decimal_overflow: (bool positive, Integer significand, Integer exponent) -> Float
+        def parse_exponent_overflow: (bool positive, bool zero_significand, bool positive_exp) -> Float
+        def overflow?: (Integer value, Integer digit, Integer limit) -> bool
+        def digit?: (Integer byte) -> bool
+        def exponent?: (Integer byte) -> bool
+        def parse_str: () -> String
+        def parse_escape: (String scratch) -> String
+        def parse_unicode_escape: (String scratch) -> String
+        def decode_hex_escape: () -> Integer
+      end
+    end
+  end
+end

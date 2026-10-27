@@ -125,6 +125,68 @@ class TestBuilderIpcResponse < Minitest::Test
     StubNative.clear_event
   end
 
+  # Tauri reads a postMessage with serde_json::from_str and reports a
+  # failure in the page as console.error("JSON error: ...") without
+  # running the command (ipc/protocol.rs:287-291, 422-430; error.rs:50-51).
+  # Ruby's JSON reads the lone trailing surrogate into a broken string
+  # (Plan 032).
+  def test_message_serde_json_rejects_is_reported_in_the_page
+    Thread.current[:handler_called] = false
+    handler = Ractor.shareable_proc { |_invoke| Thread.current[:handler_called] = true }
+    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    StubNative.inject_event(Tokra::Native::IpcEvent.new(
+      '{"cmd":"ping","callback":1,"error":2,"payload":{"text":"\udc00"},' \
+        "\"__TAURI_INVOKE_KEY__\":\"#{app.invoke_key}\"}",
+      LocalOrigin.url(app:)
+    ))
+
+    _out, err = capture_subprocess_io { app.run }
+
+    refute Thread.current[:handler_called], "a rejected message must not dispatch the command"
+    assert_equal ['console.error("JSON error: lone leading surrogate in hex escape at line 1 column 62")'],
+      webview_evals(app)
+    assert_empty err
+  ensure
+    StubNative.clear_event
+  end
+
+  # Tauri's Message needs a string cmd (ipc/protocol.rs:233-242), and
+  # serde reads the message before on_message checks the key, so a wrong
+  # cmd is reported even from a frame with the wrong key.
+  def test_message_whose_cmd_is_not_a_string_is_reported_before_the_key_check
+    Thread.current[:handler_called] = false
+    handler = Ractor.shareable_proc { |_invoke| Thread.current[:handler_called] = true }
+    { 5 => "integer `5`", nil => "null" }.each do |cmd, described|
+      app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+      StubNative.inject_event(Tokra::Native::IpcEvent.new(JSON.generate(
+        { "cmd" => cmd, "callback" => 1, "error" => 2, "__TAURI_INVOKE_KEY__" => "wrong" }
+      ), LocalOrigin.url(app:)))
+      _out, err = capture_subprocess_io { app.run }
+
+      assert_empty err, "no key mismatch is logged for cmd #{cmd.inspect}"
+      assert_equal ["console.error(\"JSON error: invalid type: #{described}, expected a string\")"],
+        webview_evals(app)
+    end
+    refute Thread.current[:handler_called], "a non-string cmd must not dispatch"
+  ensure
+    StubNative.clear_event
+  end
+
+  # The report is the message as serde_json writes a string value, so the
+  # backslashes in serde_json's control-character message are escaped.
+  def test_message_error_report_is_a_json_string_literal
+    app = Tokra::Builder.default.build(native: StubNative)
+    StubNative.inject_event(Tokra::Native::IpcEvent.new("{\"cmd\":\"a\tb\"}", LocalOrigin.url(app:)))
+    app.run
+
+    assert_equal [
+'console.error("JSON error: control character (\\\\u0000-\\\\u001F) found ' \
+  'while parsing a string at line 1 column 10")',
+], webview_evals(app)
+  ensure
+    StubNative.clear_event
+  end
+
   # wry passes the posting frame's URL; Tauri uses it as the invoke origin.
   # Until capabilities land, a foreign page is denied (Plan 016 #10).
   def test_foreign_page_is_rejected_through_error_id
