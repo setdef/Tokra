@@ -62,4 +62,36 @@ class TestWindow < Minitest::Test
 
     assert_nil window.set_title("My App")
   end
+
+  def test_set_always_on_top_delegates_to_native
+    native = Minitest::Mock.new
+    native.expect :set_always_on_top, nil, [true]
+    window = Tokra::Window.new(label: "win", native:, app_handle:)
+
+    window.set_always_on_top(true)
+
+    native.verify
+  end
+
+  def test_set_always_on_top_returns_nil
+    window = Tokra::Window.new(label: "win", native: StubNative::Window.new(nil), app_handle:)
+
+    assert_nil window.set_always_on_top(false)
+  end
+
+  def test_set_ignore_cursor_events_delegates_to_native
+    native = Minitest::Mock.new
+    native.expect :set_ignore_cursor_events, nil, [true]
+    window = Tokra::Window.new(label: "win", native:, app_handle:)
+
+    window.set_ignore_cursor_events(true)
+
+    native.verify
+  end
+
+  def test_set_ignore_cursor_events_returns_nil
+    window = Tokra::Window.new(label: "win", native: StubNative::Window.new(nil), app_handle:)
+
+    assert_nil window.set_ignore_cursor_events(false)
+  end
 end

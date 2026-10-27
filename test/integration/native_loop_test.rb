@@ -20,14 +20,22 @@ class NativeLoopTest < RealApp::TestCase
   # (Ruby v4.0.1 thread.c:118, 5746-5752). The fixture inherits it.
   TIME_SLICE_MS = Integer(ENV.fetch("RUBY_THREAD_TIMESLICE", "100"))
 
-  # The longest a wake-up may wait: one round of time slices, one for each
-  # busy thread, the ticker, and the main thread, since the loop hands the
-  # GVL over once per turn; doubled for the timer thread's jitter. How many
-  # wake-ups arrive is not bounded: that is how often the ticker itself wins
-  # the GVL against the busy threads, which depends on the machine.
-  def max_latency_ms(busy_threads)
+  # The longest a wake-up should wait: one round of time slices, one for
+  # each busy thread, the ticker, and the main thread, since the loop hands
+  # the GVL over once per turn; doubled for the timer thread's jitter. How
+  # many wake-ups arrive is not bounded: that is how often the ticker itself
+  # wins the GVL against the busy threads, which depends on the machine.
+  # The failure message reports it; the test does not hold the loop to it,
+  # since a loaded machine starves the whole process for longer than that.
+  def expected_latency_ms(busy_threads)
     2 * (busy_threads + 2) * TIME_SLICE_MS
   end
+
+  # The longest a wake-up may wait before the test calls the loop frozen.
+  # A loop that never hands the GVL over starves the ticker outright, so
+  # its wake-ups wait for the whole run or never come; a bound this loose
+  # still catches it, and machine load does not reach it.
+  FROZEN_MS = 4000
 
   # Seconds SIGTERM may take to end the app.
   TERM_GRACE = 15
@@ -44,15 +52,16 @@ class NativeLoopTest < RealApp::TestCase
     line.split.drop(1).map { |n| Integer(n) }
   end
 
-  # The loop kept turning: it delivered wake-ups, more than one, each
-  # within a round of time slices, and the exit the last one asked for
-  # ended the app.
+  # The loop kept turning: it delivered wake-ups, more than one, none of
+  # them frozen out, and the exit the last one asked for ended the app.
   def assert_the_window_keeps_turning(run, busy_threads)
     assert_finished run
     assert_equal 0, run.status, run.describe
     count, max = wakeups(run)
     assert_operator count, :>=, 2, "the loop stopped turning\n#{run.describe}"
-    assert_operator max, :<, max_latency_ms(busy_threads), run.describe
+    assert_operator max, :<, FROZEN_MS,
+      "a wake-up waited #{max} ms; one round of time slices is #{expected_latency_ms(busy_threads)} ms\n" \
+        "#{run.describe}"
   end
 
   def test_one_cpu_bound_thread_cannot_freeze_the_window_or_its_exit

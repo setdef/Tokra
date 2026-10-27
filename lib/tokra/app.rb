@@ -108,6 +108,8 @@ module Tokra
       @handle = AppHandle.new(@manager, state_manager: builder.__send__(:state_manager),
         runtime_context: @runtime_context)
       @builder = builder
+      # Set by App#set_activation_policy, on macOS (activation_policy.rb).
+      @activation_policy = nil
       @with_global_tauri = builder.__send__(:with_global_tauri?)
 
       # Register core plugins, mirroring Tauri app.rs (App::build)
@@ -146,6 +148,12 @@ module Tokra
 
       # Create native components via injected factory
       event_loop = @event_loop_class.new
+      # Before the loop runs, Tauri's App hands the policy to the runtime,
+      # which sets it on tao's loop (app.rs:1160-1162, tauri-runtime-wry
+      # lib.rs:3031-3036); this App builds the loop here, so it hands the
+      # policy over now.
+      activation_policy = @activation_policy
+      event_loop.set_activation_policy(activation_policy.name) if activation_policy
       proxy = event_loop.create_proxy
       @runtime_context.attach(proxy)
 

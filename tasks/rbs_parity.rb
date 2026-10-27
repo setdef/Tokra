@@ -71,11 +71,14 @@ class RbsParity
   # [native_namespaces] Name prefixes of modules a native extension defines;
   #   their methods have no Ruby source location.
   # [allowed] Exception keys (<tt>"Tokra::Foo#bar"</tt>, <tt>"Tokra::Foo.baz"</tt>).
-  def initialize(sig_dirs:, lib_dirs:, native_namespaces: [], allowed: [])
+  # [excluded_sigs] Signature files to skip: those of another platform,
+  #   whose implementation does not load here.
+  def initialize(sig_dirs:, lib_dirs:, native_namespaces: [], allowed: [], excluded_sigs: [])
     @sig_dirs = sig_dirs.map { |dir| File.expand_path(dir) }
     @lib_dirs = lib_dirs.map { |dir| File.expand_path(dir) }
     @native_namespaces = native_namespaces
     @allowed = allowed
+    @excluded_sigs = excluded_sigs.map { |file| File.expand_path(file) }
   end
 
   # The text the gate prints for +found+ violations: each one, and how to
@@ -416,6 +419,12 @@ class RbsParity
     methods[[kind, :"#{member.name}="]] = declaration unless member.is_a?(RBS::AST::Members::AttrReader)
   end
 
+  # Every .rbs file under the signature directories, less the excluded.
+  private def signature_files
+    @sig_dirs.flat_map { |dir| Dir.glob("**/*.rbs", base: dir).sort.map { |file| File.join(dir, file) } }
+      .reject { |file| @excluded_sigs.include?(file) }
+  end
+
   private def environment
     @environment ||= load_environment
   end
@@ -423,24 +432,25 @@ class RbsParity
   private def load_environment
     # Only our own declarations matter, so skip RBS core and stdlib.
     loader = RBS::EnvironmentLoader.new(core_root: nil)
-    @sig_dirs.each { |dir| loader.add(path: Pathname(dir)) }
+    signature_files.each { |file| loader.add(path: Pathname(file)) }
     RBS::Environment.from_loader(loader).resolve_type_names
   end
 end
 
 # Run as a script: load every file in the lib dirs, then report.
 #   ruby tasks/rbs_parity.rb --sig sig --lib lib --native Tokra::Native \
-#     --allow rbs_exceptions.rb
+#     --allow rbs_exceptions.rb --exclude-sig sig/tokra/activation_policy.rbs
 if $PROGRAM_NAME == __FILE__
   require "optparse"
   require_relative "lint"
 
-  options = { sig: [], lib: [], native: [], allow: nil }
+  options = { sig: [], lib: [], native: [], allow: nil, exclude: [] }
   OptionParser.new do |parser|
     parser.on("--sig DIR") { |dir| options[:sig] << dir }
     parser.on("--lib DIR") { |dir| options[:lib] << dir }
     parser.on("--native PREFIX") { |prefix| options[:native] << prefix }
     parser.on("--allow FILE") { |file| options[:allow] = file }
+    parser.on("--exclude-sig FILE") { |file| options[:exclude] << file }
   end.parse!
 
   options[:lib].each { |dir| $LOAD_PATH.unshift(File.expand_path(dir)) }
@@ -450,7 +460,7 @@ if $PROGRAM_NAME == __FILE__
 
   allowed = options[:allow] ? Lint.load(options[:allow]).keys(lint: :rbs_parity) : []
   found = RbsParity.new(sig_dirs: options[:sig], lib_dirs: options[:lib],
-    native_namespaces: options[:native], allowed:).violations
+    native_namespaces: options[:native], allowed:, excluded_sigs: options[:exclude]).violations
   abort RbsParity.failure_message(found, options[:allow]) if found.any?
 
   puts "✅ Every signature has an implementation and every public method a signature"

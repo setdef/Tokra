@@ -98,6 +98,10 @@ class ThreadSafetyInvariantTest < Minitest::Test
     # These operations should not raise
     window.set_title("Test Title")
     window.set_size(800.0, 600.0)
+    window.set_always_on_top(true)
+    window.set_always_on_top(false)
+    window.set_ignore_cursor_events(true)
+    window.set_ignore_cursor_events(false)
     id = window.id
 
     assert_kind_of String, id
@@ -165,6 +169,8 @@ class ThreadSafetyInvariantTest < Minitest::Test
 
     assert_refused("Tokra::Native::Window") { window.set_title("from a thread") }
     assert_refused("Tokra::Native::Window") { window.set_size(1.0, 1.0) }
+    assert_refused("Tokra::Native::Window") { window.set_always_on_top(true) }
+    assert_refused("Tokra::Native::Window") { window.set_ignore_cursor_events(true) }
     assert_refused("Tokra::Native::Window") { window.title }
     assert_refused("Tokra::Native::Window") { window.id }
     assert_refused("Tokra::Native::Window") { window.raw_window_handle }

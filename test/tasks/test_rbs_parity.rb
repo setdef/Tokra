@@ -425,4 +425,18 @@ class TestRbsParity < Minitest::Test
 
     assert_empty violations(rbs, allowed: ["RbsParityFixture::Handle#label"])
   end
+
+  # A platform's signature file, such as sig/tokra/activation_policy.rbs
+  # on macOS, is left out where its implementation does not load.
+  def test_an_excluded_signature_file_is_not_read
+    Dir.mktmpdir do |sig|
+      File.write(File.join(sig, "fixture.rbs"), FAITHFUL)
+      ghost = File.join(sig, "ghost.rbs")
+      File.write(ghost, "class RbsParityGhost\nend\n")
+      parity = -> (excluded) { RbsParity.new(sig_dirs: [sig], lib_dirs: [LIB], excluded_sigs: excluded).violations }
+
+      assert_equal ["RbsParityGhost: declared in sig/ but not defined in lib/"], parity.call([])
+      assert_empty parity.call([ghost])
+    end
+  end
 end

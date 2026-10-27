@@ -46,6 +46,9 @@ namespace :rbs do
     libs = ["lib"] + plugins.map { |dir| File.join(dir, "lib") }
     args = sigs.flat_map { |dir| ["--sig", dir] } + libs.flat_map { |dir| ["--lib", dir] }
     args += %w[--native Tokra::Native --allow rbs_exceptions.rb]
+    # Tauri and tao define the activation policy only on macOS, and so
+    # does Tokra (lib/tokra/activation_policy.rb).
+    args += %w[--exclude-sig sig/tokra/activation_policy.rbs] unless RbConfig::CONFIG["host_os"].include?("darwin")
     ruby File.expand_path("rbs_parity.rb", __dir__), *args
   end
 end

@@ -17,6 +17,9 @@ gem "ferro-global-hotkey", git: "https://github.com/setdef/Ferro", tag: "ferro-g
   glob: "gems/global-hotkey/*.gemspec"
 
 group :development, :test do
+  # RealApp watches the frontmost app through AppKit while the window
+  # test runs (test/integration/support/frontmost.rb).
+  gem "fiddle"
   gem "minitest"
   gem "minitest-mock"
   gem "rake"

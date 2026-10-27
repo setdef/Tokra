@@ -83,9 +83,11 @@ module FixtureApp
       "fixture"
     end
 
-    def on_event(_app, event)
+    def on_event(app, event)
       case event
-      when Tokra::RunEvent::Ready then puts "EVENT ready"
+      when Tokra::RunEvent::Ready
+        FixtureApp.keep_in_sight(app.get_window("main"))
+        puts "EVENT ready"
       when Tokra::RunEvent::WindowEvent then puts "EVENT window #{event.event.class.name}"
       when Tokra::RunEvent::Exit then puts "EVENT exit"
       end
@@ -99,13 +101,47 @@ module FixtureApp
   end
 
   # A Builder serving +site+ with the fixture plugin registered, and one
-  # instance of each class in +plugins+ beside it.
+  # instance of each class in +plugins+ beside it. On macOS the app runs
+  # in the background, so it never takes the keyboard from the person at
+  # the machine (FixtureApp.background).
   def self.builder(site, title, plugins: [])
     classes = Ractor.make_shareable([FixtureApp::Plugin, *plugins])
     Tokra::Builder.default
       .title("Tokra integration: #{title}")
       .size(480, 360)
       .app(site)
-      .setup(&Ractor.shareable_proc { |app| classes.each { |plugin| app.handle.plugin(plugin.new(app.handle)) } })
+      .setup(&Ractor.shareable_proc { |app|
+        FixtureApp.background(app)
+        classes.each { |plugin| app.handle.plugin(plugin.new(app.handle)) }
+      })
+  end
+
+  # Keeps +app+ from ever becoming the active app on macOS. tao activates
+  # an app as it finishes launching (tao 0.34.5
+  # platform_impl/macos/app_state.rs:285-295), which brings its window to
+  # the front and takes keyboard focus. With the Prohibited policy AppKit
+  # refuses the activation, and the window still opens, draws, and runs
+  # its page. Elsewhere it does nothing: Tauri defines activation policies
+  # only on macOS.
+  def self.background(app)
+    return unless app.respond_to?(:set_activation_policy)
+
+    app.set_activation_policy(Tokra::ActivationPolicy::Prohibited)
+  end
+
+  # Keeps a background app's +window+ in sight on macOS, without letting
+  # it catch a click. A window that never comes to the front opens behind
+  # whatever window is there. WebKit treats a page whose window is covered
+  # as a background page and lowers its processes to background priority,
+  # and on a busy machine such a page stalls mid-check. Kept above other
+  # windows it stays visible and runs, the app still never takes the
+  # keyboard, and clicks meant for the app beneath pass through it.
+  # Elsewhere the window came to the front on its own, so this does
+  # nothing.
+  def self.keep_in_sight(window)
+    return unless Tokra.const_defined?(:ActivationPolicy)
+
+    window.set_always_on_top(true)
+    window.set_ignore_cursor_events(true)
   end
 end

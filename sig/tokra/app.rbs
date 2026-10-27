@@ -22,6 +22,7 @@ module Tokra
     @runtime_context: RuntimeContext
     @builder: Builder
     @with_global_tauri: bool
+    @activation_policy: ActivationPolicy?
     @event_loop_class: singleton(Native::EventLoop)
     @window_class: singleton(Native::Window)
     @webview_class: singleton(Native::WebView)

@@ -23,6 +23,13 @@ module StubNative
     Thread.current[:stub_native_windows] = nil
     Thread.current[:stub_native_webviews] = nil
     Thread.current[:stub_native_task_wake_ups] = nil
+    Thread.current[:stub_native_event_loop_calls] = nil
+  end
+
+  # The calls the event loops received across the run, in order:
+  # <tt>[:set_activation_policy, name]</tt> and <tt>[:run]</tt>.
+  def self.event_loop_calls
+    Thread.current[:stub_native_event_loop_calls] ||= []
   end
 
   # How many times Proxy#send_task woke the loop across the run.
@@ -74,6 +81,8 @@ module StubNative
 
     def set_title(title) = @title = title
     def set_size(width, height) = @size = [width, height]
+    def set_always_on_top(always_on_top) = @always_on_top = always_on_top
+    def set_ignore_cursor_events(ignore) = @ignore_cursor_events = ignore
 
     # The tagged Arrays the native window answers for its raw handles
     # (ext/tokra/src/raw_handle.rs). A stub window has no native one, so
@@ -115,7 +124,18 @@ module StubNative
   class EventLoop
     def create_proxy = Proxy.new
 
+    # Records the policy's name, as tao's macOS loop keeps it for launch.
+    # Defined only where the real loop has it, so the stub answers
+    # respond_to? as Native::EventLoop does.
+    if Tokra::Native::EventLoop.method_defined?(:set_activation_policy)
+      def set_activation_policy(name)
+        StubNative.event_loop_calls << [:set_activation_policy, name]
+        nil
+      end
+    end
+
     def run(callback)
+      StubNative.event_loop_calls << [:run]
       injected = Thread.current[:stub_native_event]
       events = injected.is_a?(Array) ? injected : [injected].compact
       events.each { |event| callback.call(event) }

@@ -8,6 +8,7 @@
 require "test_helper"
 require "json"
 require "rbconfig"
+require_relative "frontmost"
 
 # Runs a fixture app (test/integration/fixtures/*/app.rb) in a real window.
 #
@@ -16,6 +17,10 @@ require "rbconfig"
 # the process, so the app runs in a child process, in its own process group,
 # under a timeout: a hang kills the group and fails the test instead of
 # blocking the suite. Without a window server the tests skip and say why.
+#
+# On macOS every fixture runs in the background (FixtureApp.background), so
+# the suite never takes the keyboard from the person at the machine, and
+# RealApp watches the frontmost app to hold every fixture to that.
 module RealApp
   FIXTURES = File.expand_path("../fixtures", __dir__)
 
@@ -27,10 +32,15 @@ module RealApp
   # Seconds the reader threads get to drain the pipes once the child is gone.
   DRAIN = 5
 
+  # Seconds between looks at the frontmost app.
+  WATCH = 0.05
+
   # What one run of a fixture app left behind. +termsig+ is the signal
   # that ended it, if one did. +exit_after_signal+ is how long the app lived
-  # after the +on_line+ hook last signalled it.
-  Run = Data.define(:status, :termsig, :stdout, :stderr, :timed_out, :seconds, :exit_after_signal) do
+  # after the +on_line+ hook last signalled it. +activated+ is whether the
+  # app was ever the frontmost app, or +nil+ where Frontmost cannot tell.
+  Run = Data.define(:status, :termsig, :stdout, :stderr, :timed_out, :seconds, :exit_after_signal,
+    :activated) do
     def lines
       stdout.lines(chomp: true)
     end
@@ -51,7 +61,7 @@ module RealApp
 
     def describe
       "status=#{status.inspect} termsig=#{termsig.inspect} timed_out=#{timed_out} seconds=#{seconds.round(2)} " \
-        "exit_after_signal=#{exit_after_signal&.round(2).inspect}\n" \
+        "exit_after_signal=#{exit_after_signal&.round(2).inspect} activated=#{activated.inspect}\n" \
         "--- stdout\n#{stdout}\n--- stderr\n#{stderr}"
     end
   end
@@ -100,6 +110,7 @@ module RealApp
     err_thread = Thread.new { err_reader.read }
 
     waiter = Process.detach(pid)
+    watcher = watch_front(pid, waiter)
     timed_out = waiter.join(TIMEOUT).nil?
     ended = now
     if timed_out
@@ -114,12 +125,28 @@ module RealApp
       stderr: drain(err_thread),
       timed_out:,
       seconds: ended - started,
-      exit_after_signal: signalled_at && (ended - signalled_at)
+      exit_after_signal: signalled_at && (ended - signalled_at),
+      activated: watcher&.value
     )
   ensure
     # Whatever happened above, leave no window behind.
     kill_group(pid) if pid && waiter&.alive?
     waiter&.join(DRAIN)
+  end
+
+  # A thread that answers whether +pid+ was ever the frontmost app while
+  # +waiter+ was alive, or +nil+ where Frontmost cannot tell.
+  def self.watch_front(pid, waiter)
+    return nil unless Frontmost.available?
+
+    Thread.new do
+      activated = false
+      while waiter.alive?
+        activated ||= Frontmost.pid == pid
+        sleep WATCH
+      end
+      activated
+    end
   end
 
   # Sends +signal+ to +pid+, ignoring a process that already ended.
@@ -167,9 +194,12 @@ module RealApp
       skip "real-window tests cannot run here: #{reason}" if reason
     end
 
-    # Fails with the app's output unless it ended on its own.
+    # Fails with the app's output unless it ended on its own, and on macOS
+    # if it ever came to the front, taking the keyboard from whoever was
+    # typing.
     def assert_finished(run)
       refute run.timed_out, "the app hung and was killed\n#{run.describe}"
+      refute run.activated, "the app came to the front instead of running in the background\n#{run.describe}"
     end
 
     # The detail of check +name+, failing when the page never reported it.

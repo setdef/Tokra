@@ -13,7 +13,8 @@
 # reads them too and follows them to the window system: the window's title
 # through the handle (AppKit's -[NSView window], Win32's GetWindowTextW,
 # or xdotool for an X11 window ID) and, on X11, the display's name through
-# Xlib. It prints REPORT <json> and exits; at_exit then prints LATE <json>,
+# Xlib. It also asks the window to stay on top and to let the cursor's
+# events through, and reads back what the window system made of each. It prints REPORT <json> and exits; at_exit then prints LATE <json>,
 # what a thread's window_handle raises once the loop is gone.
 #
 #   bundle exec ruby test/integration/fixtures/window_handle/app.rb
@@ -77,6 +78,76 @@ module WindowHandleFixture
     buffer.to_str(length * 2).force_encoding(Encoding::UTF_16LE).encode(Encoding::UTF_8)
   end
 
+  # Whether the window system keeps the window +handle+ names above other
+  # windows: on macOS, whether -[[NSView window] level] is above the
+  # normal level, 0 (tao 0.34.5 sets the value of kCGFloatingWindowLevelKey,
+  # 5, platform_impl/macos/ffi.rs:68-71); on Windows, whether
+  # GetWindowLongPtrW gives it the WS_EX_TOPMOST extended style. +nil+
+  # elsewhere.
+  def self.native_on_top(handle)
+    case handle
+    in Tokra::RawWindowHandle::AppKitWindowHandle(ns_view:)
+      objc = Fiddle.dlopen("/usr/lib/libobjc.A.dylib")
+      sel = Fiddle::Function.new(objc["sel_registerName"], [Fiddle::TYPE_VOIDP], Fiddle::TYPE_VOIDP)
+      send = Fiddle::Function.new(objc["objc_msgSend"], [Fiddle::TYPE_VOIDP, Fiddle::TYPE_VOIDP], Fiddle::TYPE_VOIDP)
+      level = Fiddle::Function.new(objc["objc_msgSend"], [Fiddle::TYPE_VOIDP, Fiddle::TYPE_VOIDP], Fiddle::TYPE_LONG)
+      level.call(send.call(ns_view, sel.call("window")), sel.call("level")).positive?
+    in Tokra::RawWindowHandle::Win32WindowHandle(hwnd:)
+      user32 = Fiddle.dlopen("user32")
+      style = Fiddle::Function.new(user32["GetWindowLongPtrW"], [Fiddle::TYPE_INTPTR_T, Fiddle::TYPE_INT],
+        Fiddle::TYPE_INTPTR_T)
+      style.call(hwnd, -20).anybits?(0x8)
+    else nil
+    end
+  end
+
+  # Whether the window system passes the cursor's events through the
+  # window +handle+ names: on macOS, -[[NSView window] ignoresMouseEvents];
+  # on Windows, whether GetWindowLongPtrW gives it the WS_EX_TRANSPARENT
+  # extended style tao sets for it (tao 0.34.5
+  # platform_impl/windows/window_state.rs:285-287). +nil+ elsewhere.
+  def self.native_ignores_cursor(handle)
+    case handle
+    in Tokra::RawWindowHandle::AppKitWindowHandle(ns_view:)
+      objc = Fiddle.dlopen("/usr/lib/libobjc.A.dylib")
+      sel = Fiddle::Function.new(objc["sel_registerName"], [Fiddle::TYPE_VOIDP], Fiddle::TYPE_VOIDP)
+      send = Fiddle::Function.new(objc["objc_msgSend"], [Fiddle::TYPE_VOIDP, Fiddle::TYPE_VOIDP], Fiddle::TYPE_VOIDP)
+      ignores = Fiddle::Function.new(objc["objc_msgSend"], [Fiddle::TYPE_VOIDP, Fiddle::TYPE_VOIDP], Fiddle::TYPE_CHAR)
+      ignores.call(send.call(ns_view, sel.call("window")), sel.call("ignoresMouseEvents")) != 0
+    in Tokra::RawWindowHandle::Win32WindowHandle(hwnd:)
+      user32 = Fiddle.dlopen("user32")
+      style = Fiddle::Function.new(user32["GetWindowLongPtrW"], [Fiddle::TYPE_INTPTR_T, Fiddle::TYPE_INT],
+        Fiddle::TYPE_INTPTR_T)
+      style.call(hwnd, -20).anybits?(0x20)
+    else nil
+    end
+  end
+
+  # What the window system made of set_always_on_top and
+  # set_ignore_cursor_events, read on the main thread. On macOS tao applies
+  # both with dispatch_async to the main queue (util/async.rs:104-109,
+  # 252-257), and nothing orders that queue against the user event that
+  # brings a run_on_main_thread block, so this reads again until both
+  # show, or two seconds pass; a setter that never reached the window
+  # still reads false.
+  def self.settled(handle, window)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2
+    loop do
+      answers = Thread::Queue.new
+      handle.run_on_main_thread do
+        native = window.window_handle
+        answers << { "native_on_top" => native_on_top(native), "native_ignores_cursor" => native_ignores_cursor(native) }
+      rescue => e
+        answers << { "error" => "#{e.class}: #{e.message}" }
+      end
+      read = answers.pop
+      # +nil+ is a platform with no reader: nothing to wait for.
+      return read if read.values.none?(false) || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+
+      sleep 0.05
+    end
+  end
+
   # What xdotool reports as the name of the X11 window +id+, or +nil+
   # without xdotool.
   def self.xdotool_title(id)
@@ -88,6 +159,7 @@ module WindowHandleFixture
 end
 
 app = Tokra::Builder.default.title(WindowHandleFixture::TITLE).size(320, 240).build
+FixtureApp.background(app)
 window = nil
 
 at_exit do
@@ -99,6 +171,8 @@ app.run do |handle, event|
   next unless event.is_a?(Tokra::RunEvent::Ready)
 
   window = handle.get_window("main")
+  window.set_always_on_top(true)
+  window.set_ignore_cursor_events(true)
   Thread.new do
     report = {
       "title" => WindowHandleFixture::TITLE,
@@ -124,6 +198,7 @@ app.run do |handle, event|
       answers << { "error" => "#{e.class}: #{e.message}" }
     end
     report.merge!(answers.pop)
+    report.merge!(WindowHandleFixture.settled(handle, window))
     puts "REPORT #{JSON.generate(report)}"
     handle.run_on_main_thread { handle.exit(0) }
   end

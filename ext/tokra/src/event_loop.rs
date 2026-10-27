@@ -31,6 +31,9 @@ use crate::user_event::UserEvent;
 /// The Ruby class name, for the wrong-thread error.
 const CLASS: &str = "Tokra::Native::EventLoop";
 
+/// The error for a loop that `run()` already took.
+const CONSUMED: &str = "EventLoop has already been consumed by run()";
+
 /// Ruby wrapper for `tao::event_loop::EventLoop<UserEvent>`.
 ///
 /// The `EventLoop` owns the OS main thread and runs the window event pump.
@@ -90,6 +93,57 @@ impl RbEventLoop {
         RbProxy::new(self.proxy.clone(), self.inner.owner())
     }
 
+    // SPDX-SnippetBegin
+    // SPDX-License-Identifier: Apache-2.0 OR MIT
+    // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    // SPDX-SnippetComment: Mapping adapted from tauri-runtime-wry/src/lib.rs tao_activation_policy
+
+    /// Set the activation policy the app takes when the loop starts.
+    ///
+    /// tao keeps the policy and applies it once `AppKit` has finished
+    /// launching, just before it activates the app
+    /// (`platform/macos.rs:310-319`, `341-345`; `platform_impl/macos/app_state.rs:285-295`,
+    /// `456-469`). `policy` names a variant, as tauri-runtime-wry maps
+    /// Tauri's `ActivationPolicy` onto tao's (`src/lib.rs:586-593`).
+    /// macOS only, as tao defines it.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ThreadError` off the loop's thread, `ArgumentError` for a
+    /// name that is not `Regular`, `Accessory`, or `Prohibited`, and an
+    /// error once `run()` has consumed the loop, when the policy could no
+    /// longer take effect.
+    #[cfg(target_os = "macos")]
+    pub fn set_activation_policy(
+        ruby: &Ruby,
+        rb_self: &Self,
+        policy: magnus::RString,
+    ) -> Result<(), Error> {
+        use tao::platform::macos::{ActivationPolicy, EventLoopExtMacOS};
+
+        let policy = policy.to_string()?;
+        let policy = match policy.as_str() {
+            "Regular" => ActivationPolicy::Regular,
+            "Accessory" => ActivationPolicy::Accessory,
+            "Prohibited" => ActivationPolicy::Prohibited,
+            _ => {
+                return Err(Error::new(
+                    ruby.exception_arg_error(),
+                    format!("unknown activation policy: {policy:?}"),
+                ))
+            }
+        };
+        rb_self
+            .loop_cell()?
+            .borrow_mut()
+            .as_mut()
+            .ok_or_else(|| Error::new(runtime_error(), CONSUMED))?
+            .set_activation_policy(policy);
+        Ok(())
+    }
+
+    // SPDX-SnippetEnd
+
     /// Run the event loop. It never returns: it ends the process.
     ///
     /// The callback Proc is invoked for each event.
@@ -111,12 +165,11 @@ impl RbEventLoop {
     /// has already been called, consuming the event loop. Otherwise always
     /// returns `SystemExit` carrying the loop's exit code.
     pub fn run(&self, callback: Value) -> Result<(), Error> {
-        let mut event_loop = self.loop_cell()?.borrow_mut().take().ok_or_else(|| {
-            Error::new(
-                runtime_error(),
-                "EventLoop has already been consumed by run()",
-            )
-        })?;
+        let mut event_loop = self
+            .loop_cell()?
+            .borrow_mut()
+            .take()
+            .ok_or_else(|| Error::new(runtime_error(), CONSUMED))?;
         let ruby = Ruby::get_with(callback);
 
         // Setup ctrlc handler to send Exit event
@@ -459,6 +512,11 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
     event_loop_class.define_singleton_method("new", function!(RbEventLoop::new, 0))?;
     event_loop_class.define_method("create_proxy", method!(RbEventLoop::create_proxy, 0))?;
     event_loop_class.define_method("run", method!(RbEventLoop::run, 1))?;
+    #[cfg(target_os = "macos")]
+    event_loop_class.define_method(
+        "set_activation_policy",
+        method!(RbEventLoop::set_activation_policy, 1),
+    )?;
     Ok(())
 }
 

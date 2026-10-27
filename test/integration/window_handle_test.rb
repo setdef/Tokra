@@ -72,6 +72,25 @@ class WindowHandleTest < RealApp::TestCase
     assert_equal @report["title"], @report["native_title"]
   end
 
+  # Window#set_always_on_top reaches the window system, as Tauri's does
+  # through tao (tauri-runtime-wry lib.rs:3390; tao 0.34.5
+  # platform_impl/macos/window.rs:1386-1393).
+  def test_always_on_top_reaches_the_window_system
+    skip "nothing here reads whether a #{@report['main_window']['kind']} is on top" if @report["native_on_top"].nil?
+
+    assert @report["native_on_top"], @report.inspect
+  end
+
+  # Window#set_ignore_cursor_events reaches the window system, as Tauri's
+  # does through tao (tauri-runtime-wry lib.rs:3461-3463; tao 0.34.5
+  # platform_impl/macos/window.rs:969-975).
+  def test_ignoring_cursor_events_reaches_the_window_system
+    kind = @report["main_window"]["kind"]
+    skip "nothing here reads whether a #{kind} lets the cursor through" if @report["native_ignores_cursor"].nil?
+
+    assert @report["native_ignores_cursor"], @report.inspect
+  end
+
   # On X11 every display handle is the first one tao opened, so each answer
   # names the same live connection, which Xlib reads its display name from
   # (ADR 013, decision 4).

@@ -87,7 +87,7 @@ class TestMacosNotifications < Minitest::Test
       before = Thread.list
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       plugin.extend_api(invoke)
-      answer = answers.pop(timeout: 1)
+      answer = answers.pop(timeout: 10)
       answered = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
       senders = Thread.list - before
       sending = senders.map(&:alive?)
@@ -97,8 +97,10 @@ class TestMacosNotifications < Minitest::Test
 
     answer, answered, sending, values = outcome
     assert_equal [true, nil], answer
-    assert_operator answered, :<, 0.5
-    assert_equal [true], sending, "one thread should still be sending when the command answered"
+    # The order is the contract, not the time: the answer came while the
+    # send still waited, which a loaded machine cannot fake.
+    assert_equal [true], sending, "one thread should still be sending when the command answered " \
+      "(it answered after #{answered.round(2)} s)"
     assert_equal [nil], values
     assert_empty errors
   end

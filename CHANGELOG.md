@@ -166,6 +166,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   thread, raising `RawWindowHandle::HandleError::Unavailable` from another
   thread once the event loop has ended; on X11 every display handle is the first one tao opened
 - `Native::Window#raw_window_handle` and `Native::Window#raw_display_handle`
+- `App#set_activation_policy` and `Tokra::ActivationPolicy` (`Regular`,
+  `Accessory`, `Prohibited`), on macOS only, as in Tauri: set before the
+  event loop runs, such as in the setup hook; a `Prohibited` app never
+  becomes the active app or takes the keyboard
+- `Native::EventLoop#set_activation_policy`, on macOS only
+- `Window#set_always_on_top` and `Window#set_ignore_cursor_events`, with
+  `Native::Window#set_always_on_top` and `Native::Window#set_ignore_cursor_events`
 
 ### Changed
 

@@ -66,6 +66,7 @@ if RUBY_PLATFORM.match?(/mingw|mswin/)
   end
 end
 require_relative "tokra/tokra"
+require_relative "tokra/activation_policy"
 require_relative "tokra/rack/handler"
 
 # Tokra is a port of Tauri to Ruby.

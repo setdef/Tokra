@@ -20,6 +20,8 @@ module Tokra
     def resources_table: () -> ResourceTable
     def set_title: (String title) -> nil
     def set_size: (Float width, Float height) -> nil
+    def set_always_on_top: (bool always_on_top) -> nil
+    def set_ignore_cursor_events: (bool ignore) -> nil
     def title: () -> String
     def window_handle: () -> RawWindowHandle::window_handle
     def display_handle: () -> RawWindowHandle::display_handle

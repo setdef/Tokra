@@ -74,6 +74,52 @@ module Tokra
       dispatch { native.set_size(width, height) }
     end
 
+    # Keeps the window above every other window, or lets it go back
+    # among them, and returns +nil+.
+    #
+    # A palette, a timer, or a video you watch while you work stays in
+    # sight when another app comes to the front. On macOS the window
+    # floats above other apps' windows without taking the keyboard from
+    # them. On Linux the window manager may ignore the request, and on
+    # Wayland it does nothing.
+    #
+    # From another thread the change travels to the main thread and this
+    # method returns without waiting for it, as Tauri's
+    # Window::set_always_on_top does (window/mod.rs:1866-1873,
+    # tauri-runtime-wry lib.rs:2184-2189, 3390). Raises Error::Runtime when
+    # the event loop has ended.
+    #
+    # === Example
+    #
+    #   window.set_always_on_top(true)
+    def set_always_on_top(always_on_top)
+      native = @native
+      dispatch { native.set_always_on_top(always_on_top) }
+    end
+
+    # Lets the cursor's clicks and moves pass through the window to
+    # whatever is behind it, or catches them again, and returns +nil+.
+    #
+    # An overlay that shows something over your work, such as a heads-up
+    # display or a floating clock, should not swallow the clicks meant for
+    # the app underneath. Pass +true+ and the window ignores the cursor;
+    # pass +false+ to catch its events again, as every window does at
+    # first.
+    #
+    # From another thread the change travels to the main thread and this
+    # method returns without waiting for it, as Tauri's
+    # Window::set_ignore_cursor_events does (window/mod.rs:2087-2094,
+    # tauri-runtime-wry lib.rs:2326-2331, 3461-3463). Raises Error::Runtime
+    # when the event loop has ended.
+    #
+    # === Example
+    #
+    #   window.set_ignore_cursor_events(true)
+    def set_ignore_cursor_events(ignore)
+      native = @native
+      dispatch { native.set_ignore_cursor_events(ignore) }
+    end
+
     # The window title.
     #
     # From another thread this asks the main thread and waits for its

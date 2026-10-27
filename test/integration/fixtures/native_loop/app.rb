@@ -50,8 +50,19 @@ def page(script)
 end
 
 event_loop = Tokra::Native::EventLoop.new
+# On macOS, never become the active app, and keep each window with a page
+# in sight, and out of the cursor's way, so WebKit does not throttle it, as
+# FixtureApp.background and FixtureApp.keep_in_sight do for the other
+# fixtures
+# (support/fixture_app.rb); tao defines set_activation_policy only there.
+BACKGROUND = event_loop.respond_to?(:set_activation_policy)
+event_loop.set_activation_policy("Prohibited") if BACKGROUND
 main_window = Tokra::Native::Window.new(event_loop)
 main_window.set_size(320.0, 240.0)
+if BACKGROUND
+  main_window.set_always_on_top(true)
+  main_window.set_ignore_cursor_events(true)
+end
 proxy = event_loop.create_proxy
 
 # Spins forever, holding the GVL for every time slice it gets.
@@ -70,6 +81,10 @@ def heartbeats(event_loop, proxy)
   3.times do |id|
     window = Tokra::Native::Window.new(event_loop)
     window.set_size(160.0, 120.0)
+    if BACKGROUND
+      window.set_always_on_top(true)
+      window.set_ignore_cursor_events(true)
+    end
     KEPT_WINDOWS << window
     Tokra::Native::WebView.new_with_protocol(window, proxy, ["window.BEAT_ID = #{id};"])
   end

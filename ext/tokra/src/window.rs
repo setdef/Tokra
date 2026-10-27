@@ -130,6 +130,35 @@ impl RbWindow {
         Ok(())
     }
 
+    /// Set whether the window stays above every other window.
+    ///
+    /// tao puts it on `NSFloatingWindowLevel` on macOS, makes it topmost on
+    /// Windows, and asks the X11 window manager to keep it above
+    /// (`src/window.rs:1109-1119`, `platform_impl/macos/window.rs:1386-1393`).
+    ///
+    /// # Errors
+    ///
+    /// Returns `ThreadError` off the window's thread.
+    pub fn set_always_on_top(&self, always_on_top: bool) -> Result<(), Error> {
+        self.window()?.set_always_on_top(always_on_top);
+        Ok(())
+    }
+
+    /// Set whether the cursor's events pass through the window to whatever
+    /// is behind it.
+    ///
+    /// tao answers `NotSupported` only on iOS and Android
+    /// (`src/window.rs:1322-1333`), and tauri-runtime-wry drops its answer
+    /// (`src/lib.rs:3461-3463`), so this has none.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ThreadError` off the window's thread.
+    pub fn set_ignore_cursor_events(&self, ignore: bool) -> Result<(), Error> {
+        let _ = self.window()?.set_ignore_cursor_events(ignore);
+        Ok(())
+    }
+
     /// Get the window ID as a string.
     ///
     /// # Errors
@@ -179,6 +208,11 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
     window_class.define_method("set_title", method!(RbWindow::set_title, 1))?;
     window_class.define_method("title", method!(RbWindow::title, 0))?;
     window_class.define_method("set_size", method!(RbWindow::set_size, 2))?;
+    window_class.define_method("set_always_on_top", method!(RbWindow::set_always_on_top, 1))?;
+    window_class.define_method(
+        "set_ignore_cursor_events",
+        method!(RbWindow::set_ignore_cursor_events, 1),
+    )?;
     window_class.define_method("id", method!(RbWindow::id, 0))?;
     window_class.define_method("raw_window_handle", method!(RbWindow::raw_window_handle, 0))?;
     window_class.define_method(
