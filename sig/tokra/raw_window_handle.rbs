@@ -1,0 +1,82 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module RawWindowHandle
+    type window_handle = Win32WindowHandle | AppKitWindowHandle | XlibWindowHandle | WaylandWindowHandle
+    type display_handle = WindowsDisplayHandle | AppKitDisplayHandle | XlibDisplayHandle | WaylandDisplayHandle
+    type native_error = [:Unavailable] | [:NotSupported]
+    type native_window_handle = [:Win32, Integer, Integer?]
+      | [:AppKit, Integer]
+      | [:Xlib, Integer, Integer]
+      | [:Wayland, Integer]
+      | native_error
+    type native_display_handle = [:Windows]
+      | [:AppKit]
+      | [:Xlib, Integer?, Integer]
+      | [:Wayland, Integer]
+      | native_error
+
+    class Win32WindowHandle < Data
+      attr_reader hwnd: Integer
+      attr_reader hinstance: Integer?
+      def self.new: (hwnd: Integer, hinstance: Integer?) -> Win32WindowHandle
+                  | (Integer hwnd, Integer? hinstance) -> Win32WindowHandle
+    end
+
+    class WindowsDisplayHandle < Data
+      def self.new: () -> WindowsDisplayHandle
+    end
+
+    class AppKitWindowHandle < Data
+      attr_reader ns_view: Integer
+      def self.new: (ns_view: Integer) -> AppKitWindowHandle
+                  | (Integer ns_view) -> AppKitWindowHandle
+    end
+
+    class AppKitDisplayHandle < Data
+      def self.new: () -> AppKitDisplayHandle
+    end
+
+    class XlibWindowHandle < Data
+      attr_reader window: Integer
+      attr_reader visual_id: Integer
+      def self.new: (window: Integer, visual_id: Integer) -> XlibWindowHandle
+                  | (Integer window, Integer visual_id) -> XlibWindowHandle
+    end
+
+    class XlibDisplayHandle < Data
+      attr_reader display: Integer?
+      attr_reader screen: Integer
+      def self.new: (display: Integer?, screen: Integer) -> XlibDisplayHandle
+                  | (Integer? display, Integer screen) -> XlibDisplayHandle
+    end
+
+    class WaylandWindowHandle < Data
+      attr_reader surface: Integer
+      def self.new: (surface: Integer) -> WaylandWindowHandle
+                  | (Integer surface) -> WaylandWindowHandle
+    end
+
+    class WaylandDisplayHandle < Data
+      attr_reader display: Integer
+      def self.new: (display: Integer) -> WaylandDisplayHandle
+                  | (Integer display) -> WaylandDisplayHandle
+    end
+
+    class HandleError < StandardError
+      class NotSupported < HandleError
+        MESSAGE: String
+        def initialize: (?String message) -> void
+      end
+
+      class Unavailable < HandleError
+        MESSAGE: String
+        def initialize: (?String message) -> void
+      end
+    end
+
+    def self.window_handle: (native_window_handle native) -> window_handle
+    def self.display_handle: (native_display_handle native) -> display_handle
+  end
+end

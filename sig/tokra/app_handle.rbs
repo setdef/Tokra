@@ -21,6 +21,7 @@ module Tokra
     def manage: (Object state) -> bool
     def get_window: (String label) -> Window?
     def get_webview: (String label) -> Webview?
+    def display_handle: () -> RawWindowHandle::display_handle
     def resources_table: -> ResourceTable
     def plugin: (_Plugin plugin) -> bool
     def remove_plugin: (String name) -> bool

@@ -29,12 +29,18 @@ module Tokra
       #
       # === Deviations
       #
-      # * No parent window: Tokra's windows cannot name their native handle
-      #   yet (plan 023, decision 3).
+      # * Each dialog's parent is the calling window, as in Tauri, but only
+      #   on Windows and X11: ferro-rfd binds no AppKit or Wayland handle
+      #   (ADR 013). Tauri, too, parents +open+ only on Windows and macOS.
       # * Tauri adds each picked path to the fs plugin's scope and the asset
       #   protocol's scope (commands.rs:156-215, 247-257). Tokra has neither
       #   yet, so a picked path widens nothing.
       module Commands
+        # Whether the open command parents its dialog to the calling window:
+        # on Windows and macOS, as Tauri's <tt>cfg(any(windows, target_os =
+        # "macos"))</tt> decides (commands.rs:129-132).
+        OPEN_HAS_PARENT = Gem.win_platform? || RUBY_PLATFORM.include?("darwin")
+
         # A filter as the frontend sends it (commands.rs:28-34).
         DialogFilter = Data.define(:name, :extensions)
 
@@ -53,7 +59,8 @@ module Tokra
         #   Commands.open(invoke, handle.dialog)
         def self.open(invoke, dialog)
           options = arguments(invoke.payload, "open").open_options
-          spawn(invoke) { open_dialog(dialog, options) }
+          window = invoke.webview.window
+          spawn(invoke) { open_dialog(dialog, window, options) }
         end
 
         # Opens a save dialog and settles +invoke+ with the path or +nil+
@@ -64,7 +71,8 @@ module Tokra
         #   Commands.save(invoke, handle.dialog)
         def self.save(invoke, dialog)
           options = arguments(invoke.payload, "save").save_options
-          spawn(invoke) { save_dialog(dialog, options) }
+          window = invoke.webview.window
+          spawn(invoke) { save_dialog(dialog, window, options) }
         end
 
         # Shows a message dialog and settles +invoke+ with the button
@@ -80,8 +88,9 @@ module Tokra
           kind = args.kind("kind")
           ok_button_label = args.optional_string("okButtonLabel")
           buttons = message_buttons(args.buttons("buttons"), ok_button_label)
+          window = invoke.webview.window
           spawn(invoke) do
-            message_dialog(dialog, title, message, kind, buttons).blocking_show_with_result.to_s
+            message_dialog(dialog, window, title, message, kind, buttons).blocking_show_with_result.to_s
           end
         end
 
@@ -97,7 +106,8 @@ module Tokra
           message = args.string("message")
           kind = args.kind("kind")
           buttons = ask_buttons(args.optional_string("yesButtonLabel"), args.optional_string("noButtonLabel"))
-          spawn(invoke) { message_dialog(dialog, title, message, kind, buttons).blocking_show }
+          window = invoke.webview.window
+          spawn(invoke) { message_dialog(dialog, window, title, message, kind, buttons).blocking_show }
         end
 
         # Shows an Ok and Cancel dialog and settles +invoke+ with whether
@@ -112,7 +122,8 @@ module Tokra
           message = args.string("message")
           kind = args.kind("kind")
           buttons = confirm_buttons(args.optional_string("okButtonLabel"), args.optional_string("cancelButtonLabel"))
-          spawn(invoke) { message_dialog(dialog, title, message, kind, buttons).blocking_show }
+          window = invoke.webview.window
+          spawn(invoke) { message_dialog(dialog, window, title, message, kind, buttons).blocking_show }
         end
 
         # The message command's buttons: the ones given, else a custom Ok
@@ -217,9 +228,11 @@ module Tokra
         end
 
         # The open command's dialog, after Tauri's order of options
-        # (commands.rs:128-217).
-        private_class_method def self.open_dialog(dialog, options)
+        # (commands.rs:128-217). Tauri parents it to the window only on
+        # Windows and macOS (commands.rs:129-132).
+        private_class_method def self.open_dialog(dialog, window, options)
           builder = dialog.file
+          builder.set_parent(window) if OPEN_HAS_PARENT
           title = options.title
           default_path = options.default_path
           can_create_directories = options.can_create_directories
@@ -242,8 +255,9 @@ module Tokra
         end
 
         # The save command's dialog (commands.rs:228-259).
-        private_class_method def self.save_dialog(dialog, options)
+        private_class_method def self.save_dialog(dialog, window, options)
           builder = dialog.file
+          builder.set_parent(window)
           title = options.title
           default_path = options.default_path
           can_create_directories = options.can_create_directories
@@ -255,9 +269,10 @@ module Tokra
         end
 
         # The builder every message command shares (commands.rs:262-288).
-        private_class_method def self.message_dialog(dialog, title, message, kind, buttons)
+        private_class_method def self.message_dialog(dialog, window, title, message, kind, buttons)
           builder = dialog.message(message).buttons(buttons)
           builder.title(title) if title
+          builder.parent(window)
           builder.kind(kind) if kind
           builder
         end

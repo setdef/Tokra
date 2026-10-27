@@ -92,6 +92,58 @@ module Tokra
       @app_handle.runtime_context.getter { native.title }
     end
 
+    # The native name of this window: a RawWindowHandle value.
+    #
+    # A library that opens a dialog in front of your window, or draws into
+    # it, asks for the window's handle. On Windows the answer is a
+    # RawWindowHandle::Win32WindowHandle, on macOS a
+    # RawWindowHandle::AppKitWindowHandle, and on Linux a
+    # RawWindowHandle::XlibWindowHandle under X11 or a
+    # RawWindowHandle::WaylandWindowHandle under Wayland.
+    #
+    # From another thread this asks the main thread and waits for its
+    # answer, as Tauri's does. Called from another thread once the event
+    # loop has ended, it raises RawWindowHandle::HandleError::Unavailable,
+    # where Tauri raises it for a closed window: a Tokra window closes only
+    # when its loop ends. On the main thread, in a RunEvent::Exit handler
+    # or an +at_exit+ hook, it still answers, since the window still
+    # exists.
+    #
+    # The handle names the window only while it is open. RawWindowHandle
+    # says how to use one safely.
+    #
+    # Mirrors Tauri's <tt>HasWindowHandle</tt> for Window
+    # (window/mod.rs:943-949), which asks the runtime's dispatcher, a
+    # getter answered on the main thread, and turns a failed getter into
+    # <tt>HandleError::Unavailable</tt> (tauri-runtime-wry
+    # lib.rs:1852-1856, 2012-2018, 3320-3326).
+    #
+    # === Example
+    #
+    #   window.window_handle  #=> #<data Tokra::RawWindowHandle::AppKitWindowHandle ns_view=105553116266496>
+    def window_handle
+      native = @native
+      RawWindowHandle.window_handle(@app_handle.runtime_context.getter { native.raw_window_handle })
+    rescue Error::Runtime
+      raise RawWindowHandle::HandleError::Unavailable
+    end
+
+    # The native name of the display this window is on: a RawWindowHandle
+    # value, as AppHandle#display_handle answers.
+    #
+    # Pair it with #window_handle when a library asks for both, as a
+    # dialog that names its parent window does.
+    #
+    # Mirrors Tauri's <tt>HasDisplayHandle</tt> for Window
+    # (window/mod.rs:951-957), which asks the app handle.
+    #
+    # === Example
+    #
+    #   window.display_handle  #=> #<data Tokra::RawWindowHandle::AppKitDisplayHandle>
+    def display_handle
+      @app_handle.display_handle
+    end
+
     # Runs the block on the main thread and returns +nil+, as
     # AppHandle#run_on_main_thread does.
     #

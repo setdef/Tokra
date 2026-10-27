@@ -80,11 +80,11 @@ module Tokra
       #
       # == Deviations
       #
-      # * Dialogs have no parent window yet: Tokra's windows cannot name
-      #   their native handle. On macOS, file dialogs still slide out of
-      #   the app's main window, but message dialogs are system alerts of
-      #   their own. On Windows and X11 the window still takes input behind
-      #   a dialog.
+      # * A dialog's parent is the calling window on Windows and X11 only.
+      #   ferro-rfd binds no AppKit or Wayland handle, since rfd follows
+      #   those as pointers (ADR 013). On macOS, file dialogs still slide
+      #   out of the app's main window, but message dialogs are system
+      #   alerts of their own.
       # * Picked paths join no fs or asset protocol scope; Tokra has
       #   neither yet.
       # * On Linux the dialogs come from the XDG desktop portal, with

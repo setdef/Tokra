@@ -129,6 +129,52 @@ module Tokra
       @manager.webviews[label]
     end
 
+    # The native name of the display your windows are on: a
+    # RawWindowHandle value.
+    #
+    # Windows answers with a RawWindowHandle::WindowsDisplayHandle and
+    # macOS with a RawWindowHandle::AppKitDisplayHandle, neither of which
+    # carries anything. Linux answers with the X11 or Wayland display. A
+    # library asks for it beside a window's handle; Window#display_handle
+    # answers the same.
+    #
+    # From another thread this asks the main thread and waits for its
+    # answer. Raises RawWindowHandle::HandleError::Unavailable before the
+    # app has a window, and when called from another thread once the event
+    # loop has ended; on the main thread it still answers then.
+    #
+    # On X11 every caller shares one Xlib connection, and Xlib is not
+    # thread-safe, so use the display only on the main thread.
+    #
+    # On X11, tao opens a new connection to the X server for every display
+    # handle and never closes it. Tokra asks tao once and answers every
+    # later call with that first display, which stays open as long as the
+    # app runs (ADR 013).
+    #
+    # Mirrors Tauri's <tt>HasDisplayHandle</tt> for AppHandle
+    # (app.rs:2353-2359), which reads it from the runtime's event loop
+    # (tauri-runtime-wry lib.rs:2656-2660).
+    #
+    # *Deviations*: Tauri reads the display on the calling thread, from
+    # the event loop; Tokra's event loop is inside its run loop then, and
+    # Tokra's native objects answer only the main thread (ADR 012), so the
+    # app's first window answers, on the main thread. Tauri's event loop
+    # exists before the setup hook runs; Tokra builds its window after it,
+    # so the setup hook gets Unavailable.
+    #
+    # === Example
+    #
+    #   handle.display_handle  #=> #<data Tokra::RawWindowHandle::XlibDisplayHandle display=94500000000, screen=0>
+    def display_handle
+      window = windows.each_value.first
+      raise RawWindowHandle::HandleError::Unavailable unless window
+
+      native = window.native
+      RawWindowHandle.display_handle(@runtime_context.getter { native.raw_display_handle })
+    rescue Error::Runtime
+      raise RawWindowHandle::HandleError::Unavailable
+    end
+
     # Returns the app-level resources table.
     #
     # This is the final fallback in the hierarchy: webview → window → app.

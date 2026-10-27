@@ -53,6 +53,13 @@ never stop the event loop:
   handle.dialog.file.add_filter("Text", ["txt"]).pick_file { |path| puts path.inspect }
   handle.dialog.message("Saved").kind(Tokra::Plugins::Dialog::MessageDialogKind::Info).show { |_ok| }
 
+Give a dialog your window as its parent to keep it in front of the
+window. The frontend's commands pass the calling window themselves:
+
+  window = handle.get_window("main")
+  handle.dialog.file.set_parent(window).save_file { |path| export(path) if path }
+  handle.dialog.message("Saved").parent(window).show { |_ok| }
+
 The +blocking_+ methods wait for the user instead. Call them only off the
 main thread; on the main thread they freeze the app, and on macOS they
 never return:
@@ -61,10 +68,13 @@ never return:
 
 == Differences from Tauri
 
-- Dialogs have no parent window yet: Tokra's windows cannot name their
-  native handle. On macOS, file dialogs still slide out of the app's main
-  window as sheets, but message dialogs are system alerts of their own. On
-  Windows and X11 the window still takes input behind a dialog.
+- A dialog's parent is the calling window on Windows and X11 only. On
+  Windows the window takes no input until the dialog closes; on X11 rfd
+  names it to the desktop portal, and zenity, rfd's fallback, takes no
+  parent. ferro-rfd binds no macOS or Wayland window handle, since rfd
+  follows those as pointers. On macOS, file dialogs still slide out of the
+  app's main window as sheets, but message dialogs are system alerts of
+  their own.
 - Picked paths join no fs or asset protocol scope; Tokra has neither yet.
 - On Linux, dialogs come from the portal and zenity, not GTK. On Windows,
   custom button labels show the standard ones; the commands still answer

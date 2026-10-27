@@ -61,6 +61,7 @@ mod gvl_handoff;
 mod image;
 mod path;
 mod proxy;
+mod raw_handle;
 mod responders;
 mod thread_bound;
 mod user_event;

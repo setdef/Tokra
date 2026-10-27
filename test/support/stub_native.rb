@@ -74,6 +74,14 @@ module StubNative
 
     def set_title(title) = @title = title
     def set_size(width, height) = @size = [width, height]
+
+    # The tagged Arrays the native window answers for its raw handles
+    # (ext/tokra/src/raw_handle.rs). A stub window has no native one, so
+    # by default both name raw-window-handle's Unavailable.
+    attr_writer :raw_window_handle, :raw_display_handle
+
+    def raw_window_handle = @raw_window_handle || [:Unavailable]
+    def raw_display_handle = @raw_display_handle || [:Unavailable]
   end
 
   # Stub WebView factory recording initialization scripts and evals

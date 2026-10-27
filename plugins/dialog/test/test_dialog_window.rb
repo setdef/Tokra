@@ -7,6 +7,7 @@
 
 require_relative "support/dialog_test"
 require "integration/support/real_app"
+require "open3"
 
 # The dialog plugin in a real window, called from the page through Tauri's
 # own api-iife.js (plugins-workspace d4613ff0), the client
@@ -15,8 +16,12 @@ require "integration/support/real_app"
 # On macOS the file dialogs are real sheets on the window, which the
 # fixture ends through AppKit as a click would. Message dialogs there are
 # system alerts only a person can dismiss, so the page leaves them out. On
-# Linux every dialog runs a fake zenity that answers as the page arranged,
-# with D-Bus pointed nowhere so rfd skips the portal.
+# Linux every dialog runs a fake zenity that answers as the page arranged.
+# rfd asks the desktop portal first, over D-Bus, naming the parent window
+# (rfd 0.17.2 src/backend/xdg_desktop_portal.rs:82-113); the app's bus is
+# one of the test's own, where no portal answers, and dbus-monitor records
+# what rfd asked, so the test sees the window the commands passed as
+# parent (ADR 013).
 class TestDialogWindow < RealApp::TestCase
   FIXTURES = File.expand_path("integration/fixtures", __dir__)
 
@@ -34,7 +39,26 @@ class TestDialogWindow < RealApp::TestCase
     assert_finished @run
   end
 
-  # On Linux, a folder whose bin/zenity is the fake, first on PATH.
+  # A session bus with no services, so a portal call fails at once and
+  # rfd falls back to zenity, and one that lets dbus-monitor watch.
+  BUS_CONFIG = <<~XML
+    <!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
+      "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+    <busconfig>
+      <type>session</type>
+      <listen>unix:path=%<path>s</listen>
+      <auth>EXTERNAL</auth>
+      <policy context="default">
+        <allow send_destination="*" eavesdrop="true"/>
+        <allow eavesdrop="true"/>
+        <allow own="*"/>
+      </policy>
+    </busconfig>
+  XML
+
+  # On Linux, a folder whose bin/zenity is the fake, first on PATH, and a
+  # bus of the test's own with dbus-monitor recording the portal calls, or,
+  # without dbus-daemon and dbus-monitor, a bus that does not exist.
   def self.environment
     return {} unless RUBY_PLATFORM.include?("linux")
 
@@ -46,8 +70,46 @@ class TestDialogWindow < RealApp::TestCase
     {
       "PATH" => "#{bin}:#{ENV.fetch('PATH')}",
       "FAKE_ZENITY_DIR" => dir,
-      "DBUS_SESSION_BUS_ADDRESS" => "unix:path=#{File.join(dir, 'no-bus')}",
+      "DBUS_SESSION_BUS_ADDRESS" => start_bus(dir) || "unix:path=#{File.join(dir, 'no-bus')}",
     }
+  end
+
+  # Starts dbus-daemon and dbus-monitor in +dir+ and returns the bus's
+  # address, or +nil+ without them. The monitor writes to +dir+/portal.log.
+  def self.start_bus(dir)
+    return nil unless %w[dbus-daemon dbus-monitor].all? { |program| system("command -v #{program} >/dev/null 2>&1") }
+
+    config = File.join(dir, "bus.conf")
+    File.write(config, format(BUS_CONFIG, path: File.join(dir, "bus")))
+    output, status = Open3.capture2("dbus-daemon", "--config-file=#{config}", "--fork", "--print-address=1",
+      "--print-pid=1")
+    return nil unless status.success?
+
+    address, pid = output.lines.map(&:strip)
+    @portal_log = File.join(dir, "portal.log")
+    monitor = Process.spawn("dbus-monitor", "--address", address, "interface='org.freedesktop.portal.FileChooser'",
+      out: @portal_log, err: File::NULL)
+    50.times { File.size?(@portal_log) ? break : sleep(0.1) }
+    Minitest.after_run do
+      [monitor, Integer(pid)].each { |id| RealApp.signal(id, :TERM) }
+      Process.wait(monitor)
+    end
+    address
+  end
+
+  class << self
+    # Where dbus-monitor recorded the portal calls, or +nil+.
+    attr_reader :portal_log
+  end
+
+  # The parent_window string rfd sent with each FileChooser call, by
+  # method, in order: dbus-monitor prints the method, then its first
+  # argument, the parent (xdg-desktop-portal's FileChooser API).
+  def portal_parents
+    log = self.class.portal_log
+    skip "no dbus-daemon and dbus-monitor to watch the portal calls" unless log
+
+    File.read(log).scan(/member=(\w+)\n\s*string "([^"]*)"/)
   end
 
   def test_exits_cleanly_once_every_check_passed
@@ -71,6 +133,24 @@ class TestDialogWindow < RealApp::TestCase
       "--filename",
       "out.txt",
 ], detail["zenity"]
+  end
+
+  # Tauri parents save and message dialogs to the calling window on every
+  # desktop, and open dialogs only on Windows and macOS
+  # (commands.rs:129-132, 229-232, 281-284). On X11 rfd names the parent to
+  # the portal as <tt>x11:</tt> and the window ID in hex
+  # (window_identifier/mod.rs:70-83).
+  def test_on_x11_save_names_the_window_to_the_portal_and_open_does_not
+    skip "Linux only" unless RUBY_PLATFORM.include?("linux")
+    line = @run.lines.find { |l| l.start_with?("WINDOW_HANDLE ") }
+    refute_nil line, @run.describe
+    handle = JSON.parse(line.delete_prefix("WINDOW_HANDLE "))
+    skip "the window is not on X11: #{handle.inspect}" unless handle["kind"] == "XlibWindowHandle"
+
+    parents = portal_parents
+    assert_includes parents, ["SaveFile", "x11:#{handle['window'].to_s(16)}"], parents.inspect
+    assert_includes parents, ["OpenFile", ""], parents.inspect
+    refute parents.any? { |member, parent| member == "OpenFile" && !parent.empty? }, parents.inspect
   end
 
   def test_a_cancelled_open_resolves_null

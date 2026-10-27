@@ -6,11 +6,13 @@
 //! This module provides the Ruby-facing `Tokra::Native::Window` class,
 //! which wraps `tao::window::Window`.
 
-use magnus::{function, method, prelude::*, Error, Ruby};
+use magnus::{function, method, prelude::*, Error, RArray, Ruby};
 use tao::event_loop::EventLoopProxy;
+use tao::rwh_06::{HasDisplayHandle, HasWindowHandle};
 use tao::window::{Window, WindowBuilder};
 
 use crate::event_loop::RbEventLoop;
+use crate::raw_handle;
 use crate::runtime_error;
 use crate::thread_bound::{wrong_thread, ThreadBound};
 use crate::user_event::{Released, UserEvent};
@@ -136,6 +138,34 @@ impl RbWindow {
     pub fn id(&self) -> Result<String, Error> {
         Ok(format!("{:?}", self.window()?.id()))
     }
+
+    /// The window's raw handle, as a tagged Array (`raw_handle.rs`), from
+    /// tao's `HasWindowHandle` (tao 0.34.5 `src/window.rs:1422-1429`).
+    ///
+    /// # Errors
+    ///
+    /// Returns `ThreadError` off the window's thread.
+    pub fn raw_window_handle(ruby: &Ruby, rb_self: &Self) -> Result<RArray, Error> {
+        let window = rb_self.window()?;
+        Ok(raw_handle::window_handle(
+            ruby,
+            window.window_handle().map(|handle| handle.as_raw()),
+        ))
+    }
+
+    /// The raw handle of the window's display, as a tagged Array
+    /// (`raw_handle.rs`), from tao's `HasDisplayHandle` (tao 0.34.5
+    /// `src/window.rs:1431-1437`).
+    ///
+    /// # Errors
+    ///
+    /// Returns `ThreadError` off the window's thread.
+    pub fn raw_display_handle(ruby: &Ruby, rb_self: &Self) -> Result<RArray, Error> {
+        let window = rb_self.window()?;
+        Ok(raw_handle::display_handle(ruby, || {
+            window.display_handle().map(|handle| handle.as_raw())
+        }))
+    }
 }
 
 /// Define the `Window` class methods on the given Ruby module.
@@ -150,5 +180,10 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
     window_class.define_method("title", method!(RbWindow::title, 0))?;
     window_class.define_method("set_size", method!(RbWindow::set_size, 2))?;
     window_class.define_method("id", method!(RbWindow::id, 0))?;
+    window_class.define_method("raw_window_handle", method!(RbWindow::raw_window_handle, 0))?;
+    window_class.define_method(
+        "raw_display_handle",
+        method!(RbWindow::raw_display_handle, 0),
+    )?;
     Ok(())
 }

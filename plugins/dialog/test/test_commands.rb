@@ -141,15 +141,44 @@ class TestCommands < Minitest::Test
 
   # A start already queued when the loop ends is dropped unanswered; the
   # command still rejects (RuntimeContext#close closes a getter's reply).
+  # The window answers its handle at once here, so the start is the one
+  # task queued; the next test lets the loop end during that read.
   def test_a_command_whose_start_the_ending_loop_drops_rejects
     { "open" => { "options" => {} }, "ask" => { "message" => "m" } }.each do |command, payload|
+      app = build_app
+      plugin = build_plugin(app)
+      invoke, answers = build_invoke(app.handle, command, payload)
+      invoke.webview.window.define_singleton_method(:window_handle) { raise Tokra::RawWindowHandle::HandleError::Unavailable }
+      plugin.extend_api(invoke)
+      sleep 0.2
+      app.handle.runtime_context.close
+      assert_equal [false, Tokra::Error::Runtime.new(Tokra::Error::Runtime::FAILED_TO_RECEIVE_MESSAGE).message], answers.pop(timeout: 2), command
+    end
+  end
+
+  # Tauri parents the open dialog only under cfg(any(windows, target_os =
+  # "macos")) (commands.rs:129-132); save and the message commands always.
+  # On macOS the parent then drops, since ferro-rfd binds no AppKit handle,
+  # so the constant is what a test can see there; Linux's real window
+  # checks the portal call (test_dialog_window.rb).
+  def test_open_has_a_parent_on_windows_and_macos_only
+    assert_equal %i[windows macos].include?(PLATFORM), Dialog::Commands::OPEN_HAS_PARENT
+  end
+
+  # The parent's handle is a getter of its own, ahead of the start. When
+  # the loop ends while it waits, the window is no parent, as Tauri ignores
+  # a parent whose handle fails, and the start that follows cannot reach
+  # the loop, so the command rejects with the runtime's message.
+  def test_a_command_whose_parent_read_the_ending_loop_drops_rejects
+    { "save" => { "options" => {} }, "message" => { "message" => "m" } }.each do |command, payload|
       app = build_app
       plugin = build_plugin(app)
       invoke, answers = build_invoke(app.handle, command, payload)
       plugin.extend_api(invoke)
       sleep 0.2
       app.handle.runtime_context.close
-      assert_equal [false, Tokra::Error::Runtime.new(Tokra::Error::Runtime::FAILED_TO_RECEIVE_MESSAGE).message], answers.pop(timeout: 2), command
+      assert_equal [false, Tokra::Error::Runtime.new(Tokra::Error::Runtime::FAILED_TO_SEND_MESSAGE).message],
+        answers.pop(timeout: 2), command
     end
   end
 

@@ -71,6 +71,18 @@ module Tokra
       @handle.run_on_main_thread(&)
     end
 
+    # The native name of the display your windows are on, as
+    # AppHandle#display_handle answers.
+    #
+    # Mirrors Tauri's <tt>HasDisplayHandle</tt> for App (app.rs:2361-2367).
+    #
+    # === Example
+    #
+    #   app.display_handle  #=> #<data Tokra::RawWindowHandle::WindowsDisplayHandle>
+    def display_handle
+      @handle.display_handle
+    end
+
     # Default window configuration when not specified.
     DEFAULT_CONFIG = {
       title: "Tokra",

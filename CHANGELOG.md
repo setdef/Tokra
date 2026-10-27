@@ -103,10 +103,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   commands (`open`, `save`, `message`, `ask`, `confirm`) for
   `@tauri-apps/plugin-dialog`, and replaces the page's `window.alert` and
   `window.confirm` with them; dialogs start on the main thread and are
-  awaited off it, so the window keeps running; no parent window yet, and
-  picked paths join no scope; it is pure Ruby and depends on `ferro-rfd`
-  0.1.0.pre.2 (rfd 0.17.2), which apps take from its git tag until
-  it is on RubyGems.org
+  awaited off it, so the window keeps running; the builders' `set_parent`
+  and `parent` take a `Tokra::Window`, and the commands parent each dialog
+  to the calling window as Tauri does, on Windows and X11 only (ferro-rfd
+  binds no macOS or Wayland handle); picked paths join no scope; it is pure
+  Ruby and depends on `ferro-rfd` 0.1.0.pre.2 (rfd 0.17.2), which apps
+  take from its git tag until it is on RubyGems.org
 - `tokra-notification` gem: `Tokra::Plugins::Notification::Plugin.new(app)`
   manages a `Tokra::Plugins::Notification::Notification` (reachable as
   `app.notification`) with Tauri's `NotificationBuilder`, serves Tauri's
@@ -156,6 +158,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   webview` / `failed to receive message from webview`), raised when a call
   from another thread cannot reach the main thread or gets no answer
 - `Native::Window#title`, `Native::Proxy#send_task`, and `Native::TaskEvent`
+- `Window#window_handle`, `Window#display_handle`, `AppHandle#display_handle`,
+  and `App#display_handle`, Tauri's `HasWindowHandle` and `HasDisplayHandle`:
+  the window's and display's native handles as `Tokra::RawWindowHandle`
+  values (`Win32WindowHandle`, `AppKitWindowHandle`, `XlibWindowHandle`,
+  `WaylandWindowHandle`, and their display handles), read on the main
+  thread, raising `RawWindowHandle::HandleError::Unavailable` from another
+  thread once the event loop has ended; on X11 every display handle is the first one tao opened
+- `Native::Window#raw_window_handle` and `Native::Window#raw_display_handle`
 
 ### Changed
 

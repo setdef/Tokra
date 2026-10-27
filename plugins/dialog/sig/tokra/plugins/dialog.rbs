@@ -13,6 +13,13 @@ module Tokra
       type rfd_result = Ferro::Rfd::MessageDialogResult | Ferro::Rfd::MessageDialogResult::Custom
       type failed = ^(Desktop::Failure) -> void
       type json = Tokra::json_value
+      type parent_window_handle = Ferro::Rfd::window_handle | Tokra::RawWindowHandle::window_handle
+      type parent_display_handle = Ferro::Rfd::display_handle | Tokra::RawWindowHandle::display_handle
+
+      interface _Parent
+        def window_handle: () -> parent_window_handle?
+        def display_handle: () -> parent_display_handle?
+      end
 
       class MessageDialogKind < Data
         attr_reader name: String
@@ -143,6 +150,13 @@ module Tokra
 
           def self.new: (Ferro::Rfd::window_handle window_handle, Ferro::Rfd::display_handle display_handle) -> instance
                       | (window_handle: Ferro::Rfd::window_handle, display_handle: Ferro::Rfd::display_handle) -> instance
+
+          def self.of: (_Parent parent) -> WindowHandle?
+
+          private
+
+          def self.rfd_window_handle: (parent_window_handle? handle) -> Ferro::Rfd::window_handle?
+          def self.rfd_display_handle: (parent_display_handle? handle) -> Ferro::Rfd::display_handle?
         end
 
         def self.pick_file: (FileDialogBuilder builder, ?failed? failed) { (String?) -> void } -> nil
@@ -172,7 +186,7 @@ module Tokra
 
         def initialize: (Dialog dialog, String title, String message) -> void
         def title: (String title) -> self
-        def parent: (Ferro::Rfd::_Parent parent) -> self
+        def parent: (_Parent parent) -> self
         def buttons: (buttons buttons) -> self
         def kind: (MessageDialogKind kind) -> self
         def show: () { (bool) -> void } -> nil
@@ -211,7 +225,7 @@ module Tokra
         def add_filter: (String name, Array[_ToS] extensions) -> self
         def set_directory: (_ToS directory) -> self
         def set_file_name: (String file_name) -> self
-        def set_parent: (Ferro::Rfd::_Parent parent) -> self
+        def set_parent: (_Parent parent) -> self
         def set_title: (String title) -> self
         def set_can_create_directories: (bool can) -> self
         def set_picker_mode: (PickerMode mode) -> self
@@ -242,6 +256,8 @@ module Dunce
 end
 
 module Commands
+        OPEN_HAS_PARENT: bool
+
         class DialogFilter < Data
           attr_reader name: String
           attr_reader extensions: Array[String]
@@ -296,9 +312,10 @@ module Commands
 
         def self.arguments: (Hash[String, json]? payload, String command) -> Arguments
         def self.spawn: (Tokra::Ipc::Invoke invoke) { () -> json } -> true
-        def self.open_dialog: (Dialog dialog, OpenDialogOptions options) -> (String | path_list | nil)
-        def self.save_dialog: (Dialog dialog, SaveDialogOptions options) -> String?
-        def self.message_dialog: (Dialog dialog, String? title, String message, MessageDialogKind? kind, buttons buttons) -> MessageDialogBuilder
+        def self.open_dialog: (Dialog dialog, Tokra::Window window, OpenDialogOptions options) -> (String | path_list | nil)
+        def self.save_dialog: (Dialog dialog, Tokra::Window window, SaveDialogOptions options) -> String?
+        def self.message_dialog: (Dialog dialog, Tokra::Window window, String? title, String message, MessageDialogKind? kind,
+                                  buttons buttons) -> MessageDialogBuilder
         def self.simplify_all: (path_list? paths) -> path_list?
         def self.components: (String path) -> [String, Array[String]]
         def self.join: (String root, Array[String] parts) -> String

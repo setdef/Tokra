@@ -56,8 +56,9 @@ module RealApp
     end
   end
 
-  # Why a real window cannot open here, or +nil+ when it can.
-  def self.unavailable_reason
+  # Why a real window cannot open here, or +nil+ when it can. A fixture
+  # that loads no page (+page+ false) runs on Windows too.
+  def self.unavailable_reason(page: true)
     case RbConfig::CONFIG["host_os"]
     when /darwin/
       session = IO.popen(["launchctl", "managername"], err: File::NULL, &:read).to_s.strip
@@ -66,6 +67,8 @@ module RealApp
       display = [ENV["DISPLAY"], ENV["WAYLAND_DISPLAY"]].any? { |value| value && !value.empty? }
       "no display server (DISPLAY and WAYLAND_DISPLAY are unset or empty)" unless display
     when /mswin|mingw|cygwin/
+      return nil unless page
+
       "the fixture pages build macOS and Linux URLs by hand (ipc://localhost, tokra://foreign.test); " \
         "WebView2 needs http://<scheme>.<host> forms (Plan 018, Out of scope)"
     else
@@ -84,8 +87,9 @@ module RealApp
     out_reader, out_writer = IO.pipe
     err_reader, err_writer = IO.pipe
     # The child inherits Bundler's environment, so it loads this checkout.
+    group = windows? ? { new_pgroup: true } : { pgroup: true }
     pid = Process.spawn(env, RbConfig.ruby, File.join(fixtures, name, "app.rb"), *,
-      out: out_writer, err: err_writer, pgroup: true)
+      out: out_writer, err: err_writer, **group)
     [out_writer, err_writer].each(&:close)
     out_thread = Thread.new do
       out_reader.each_line.with_object(+"") do |line, stdout|
@@ -126,8 +130,14 @@ module RealApp
     false
   end
 
+  # Kills the child's process group; on Windows, which has no process
+  # groups to signal, the child itself.
   def self.kill_group(pid)
-    signal(-pid, :KILL)
+    signal(windows? ? pid : -pid, :KILL)
+  end
+
+  def self.windows?
+    RbConfig::CONFIG["host_os"].match?(/mswin|mingw|cygwin/)
   end
 
   def self.drain(thread)
@@ -141,13 +151,19 @@ module RealApp
   # A Minitest base class: skips without a display, and runs each fixture
   # once per test class, however many tests read the result.
   class TestCase < Minitest::Test
+    # Whether the fixtures this class launches load a page. Those that do
+    # not run on Windows too.
+    def self.page?
+      true
+    end
+
     def self.fixture_run(key = :default, &launch)
       @fixture_runs ||= {}
       @fixture_runs.fetch(key) { @fixture_runs[key] = launch.call }
     end
 
     def setup
-      reason = RealApp.unavailable_reason
+      reason = RealApp.unavailable_reason(page: self.class.page?)
       skip "real-window tests cannot run here: #{reason}" if reason
     end
 

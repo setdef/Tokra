@@ -110,17 +110,24 @@ module Tokra
           self
         end
 
-        # Sets the parent window: any object whose +window_handle+ and
-        # +display_handle+ return ferro-rfd handle values. Kept only when
-        # both answer (lib.rs:460-478). Returns the builder.
+        # Sets the parent window: a Tokra::Window, or any object whose
+        # +window_handle+ and +display_handle+ return Tokra::RawWindowHandle
+        # or ferro-rfd handle values. Kept only when both answer, as Tauri
+        # keeps a parent only when it has both handles (lib.rs:460-478).
+        # Returns the builder.
+        #
+        # A parent keeps the dialog in front of its window on Windows, and
+        # on X11 rfd names it to the desktop portal. On macOS and Wayland
+        # the dialog has no parent: ferro-rfd binds no handle rfd follows
+        # as a pointer (ADR 013). File dialogs on macOS still slide out of
+        # the app's main window as sheets.
         #
         # === Example
         #
-        #   builder.set_parent(parent)
+        #   handle.dialog.file.set_parent(window).pick_file { |path| p path }
         def set_parent(parent)
-          window_handle = parent.window_handle
-          display_handle = parent.display_handle
-          @parent = Desktop::WindowHandle.new(window_handle:, display_handle:) if window_handle && display_handle
+          handle = Desktop::WindowHandle.of(parent)
+          @parent = handle if handle
           self
         end
 

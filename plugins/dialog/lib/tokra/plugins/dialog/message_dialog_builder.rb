@@ -39,12 +39,15 @@ module Tokra
       #
       # === Parent window
       #
-      # Tauri's commands show their dialog over the calling window. Tokra's
-      # windows cannot name their native handle yet, so the plugin's
-      # commands pass none. On macOS a message dialog without a parent is a
-      # system alert of its own rather than a sheet on the window; on
-      # Windows and X11 the window still takes input behind it. #parent
-      # takes a parent you can name yourself.
+      # #parent keeps the dialog in front of a window, which takes no input
+      # until the dialog closes. The plugin's commands pass the calling
+      # window, as Tauri's do.
+      #
+      # It works on Windows. On Linux, rfd runs message dialogs through
+      # zenity, which takes no parent. On macOS and Wayland the dialog has
+      # no parent: ferro-rfd binds no handle rfd follows as a pointer
+      # (ADR 013), so a message dialog on macOS is a system alert of its
+      # own rather than a sheet on the window.
       #
       # Mirrors Tauri's <tt>MessageDialogBuilder</tt> (lib.rs:214-369).
       #
@@ -88,20 +91,23 @@ module Tokra
           self
         end
 
-        # Sets the parent window: any object whose +window_handle+ and
-        # +display_handle+ return ferro-rfd handle values. Kept only when
-        # both answer, as Tauri keeps a parent only when it has both handles
-        # (lib.rs:287-302). Returns the builder.
+        # Sets the parent window: a Tokra::Window, or any object whose
+        # +window_handle+ and +display_handle+ return Tokra::RawWindowHandle
+        # or ferro-rfd handle values. Kept only when both answer, as Tauri
+        # keeps a parent only when it has both handles (lib.rs:287-302),
+        # and only on Windows and X11 (see Parent window above). Returns
+        # the builder.
         #
-        # === Example
+        # === Examples
+        #
+        #   handle.dialog.message("Saved").parent(window)
         #
         #   Parent = Data.define(:window_handle, :display_handle)
         #   builder.parent(Parent.new(Ferro::Rfd::Win32WindowHandle.new(hwnd: hwnd, hinstance: nil),
         #     Ferro::Rfd::WindowsDisplayHandle.new))
         def parent(parent)
-          window_handle = parent.window_handle
-          display_handle = parent.display_handle
-          @parent = Desktop::WindowHandle.new(window_handle:, display_handle:) if window_handle && display_handle
+          handle = Desktop::WindowHandle.of(parent)
+          @parent = handle if handle
           self
         end
 

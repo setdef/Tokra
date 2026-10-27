@@ -72,6 +72,10 @@ module Tokra
     #   - #set_title(string)
     #   - #set_size(width, height)
     #   - #id -> String
+    #   - #raw_window_handle -> tagged Array, which
+    #     RawWindowHandle.window_handle reads
+    #   - #raw_display_handle -> tagged Array, which
+    #     RawWindowHandle.display_handle reads
     #
     # - WebView: WebKit/WebView2 webview
     #   - .new(window, url, ipc_callback, proxy) -> WebView

@@ -15,7 +15,8 @@
 # end. On macOS a thread finds the sheet on the main window and ends it
 # through AppKit with OK or Cancel, as the user's click would. On Linux
 # the dialogs run a fake zenity (test_dialog_window.rb puts it on PATH),
-# which answers from files this command writes.
+# which answers from files this command writes. On Ready it prints the
+# window's raw handle as WINDOW_HANDLE <json>.
 
 require_relative "../../../../../../test/integration/support/fixture_app"
 require "tokra-dialog"
@@ -89,6 +90,15 @@ module DialogFixture
       super
       @pending = Thread::Queue.new
       start_sheet_thread(app) if RUBY_PLATFORM.include?("darwin")
+    end
+
+    # Prints the window's raw handle once the app is ready, so the test
+    # can match it against the parent rfd names to the portal.
+    def on_event(app, event)
+      return unless event.is_a?(Tokra::RunEvent::Ready)
+
+      handle = app.get_window("main").window_handle
+      puts "WINDOW_HANDLE #{JSON.generate({ 'kind' => handle.class.name.split('::').last, **handle.to_h })}"
     end
 
     def extend_api(invoke)

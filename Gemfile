@@ -32,6 +32,9 @@ gem "rake", "~> 13.0"
 gem "rake-compiler"
 
 gem "minitest", "~> 6.0"
+# The window-handle fixture follows a real window's handles through the
+# window system (test/integration/fixtures/window_handle).
+gem "fiddle"
 gem "minitest-mock"
 
 gem "rubocop", "~> 1.21"

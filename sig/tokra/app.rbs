@@ -38,6 +38,7 @@ module Tokra
     def run: () { (AppHandle, run_event) -> void } -> void
          | () -> void
     def run_on_main_thread: () { () -> void } -> nil
+    def display_handle: () -> RawWindowHandle::display_handle
 
     private
 

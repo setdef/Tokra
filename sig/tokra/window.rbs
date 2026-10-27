@@ -21,6 +21,8 @@ module Tokra
     def set_title: (String title) -> nil
     def set_size: (Float width, Float height) -> nil
     def title: () -> String
+    def window_handle: () -> RawWindowHandle::window_handle
+    def display_handle: () -> RawWindowHandle::display_handle
     def run_on_main_thread: () { () -> void } -> nil
 
     private

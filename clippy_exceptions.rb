@@ -9,7 +9,7 @@
 # Each entry must explain WHY the exception is unavoidable.
 # Review carefully before adding new entries.
 
-allow "ext/tokra/src/window.rs", line: 104, reason: <<~END
+allow "ext/tokra/src/window.rs", line: 106, reason: <<~END
   Magnus FFI requires owned types at the Ruby-Rust boundary. RbWindow::set_title
   receives a Ruby string that must be converted to an owned Rust String because
   Magnus's TryConvert trait only implements String, not &str.

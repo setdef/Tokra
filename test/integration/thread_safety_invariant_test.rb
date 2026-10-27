@@ -167,6 +167,8 @@ class ThreadSafetyInvariantTest < Minitest::Test
     assert_refused("Tokra::Native::Window") { window.set_size(1.0, 1.0) }
     assert_refused("Tokra::Native::Window") { window.title }
     assert_refused("Tokra::Native::Window") { window.id }
+    assert_refused("Tokra::Native::Window") { window.raw_window_handle }
+    assert_refused("Tokra::Native::Window") { window.raw_display_handle }
   end
 
   def test_window_title_answers_its_own_thread
