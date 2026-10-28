@@ -53,11 +53,12 @@ class TestMainThreadDispatch < Minitest::Test
 
   def test_set_size_from_another_thread_waits_for_the_main_thread
     run_app do |handle|
-      Thread.new { handle.get_window("main").set_size(320.0, 240.0) }.join
-      assert_equal [800.0, 600.0], native_window.size
+      size = Tokra::LogicalSize.new(width: 320, height: 240)
+      Thread.new { handle.get_window("main").set_size(size) }.join
+      assert_nil native_window.requests[:set_inner_size]
     end
 
-    assert_equal [320.0, 240.0], native_window.size
+    assert_equal [[false, 320.0, 240.0]], native_window.requests[:set_inner_size]
   end
 
   def test_eval_from_another_thread_waits_for_the_main_thread

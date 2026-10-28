@@ -2430,11 +2430,14 @@ version = "0.1.0"
 dependencies = [
  "ctrlc",
  "dirs",
+ "gtk",
  "image",
  "magnus",
+ "objc2",
  "objc2-app-kit",
  "rb-sys",
  "tao",
+ "windows",
  "wry",
 ]
 

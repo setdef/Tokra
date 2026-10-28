@@ -240,6 +240,36 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Native::Proxy#request_exit` and `#request_close`, `Native::Window#close`,
   `Native::WebView#close`, `Native::WindowDestroyedEvent`, and
   `Native::ExitRequestedEvent`
+- `Window` getters: `scale_factor`, `inner_position`, `outer_position`,
+  `inner_size`, `outer_size`, `is_fullscreen`, `is_minimized`,
+  `is_maximized`, `is_focused`, `is_decorated`, `is_resizable`,
+  `is_always_on_top`, `is_maximizable`, `is_minimizable`, `is_closable`,
+  `is_visible`, `theme`, `current_monitor`, `primary_monitor`,
+  `monitor_from_point`, and `available_monitors`; a closed window raises
+  `Error::Runtime` (`failed to receive message from webview`)
+- `Window` setters: `center`, `request_user_attention`, `set_resizable`,
+  `set_maximizable`, `set_minimizable`, `set_closable`, `maximize`,
+  `unmaximize`, `minimize`, `unminimize`, `show`, `hide`,
+  `set_decorations`, `set_always_on_bottom`,
+  `set_visible_on_all_workspaces`, `set_content_protected`, `set_size`
+  (a `Tokra::LogicalSize` or `Tokra::PhysicalSize`, as Tauri's takes),
+  `set_min_size`, `set_max_size`, `set_position`, `set_fullscreen`,
+  `set_simple_fullscreen`, `set_focus`, `set_focusable`,
+  `set_skip_taskbar`, `set_cursor_grab`, `set_cursor_visible`,
+  `set_cursor_icon`, `set_cursor_position`, `start_dragging`,
+  `start_resize_dragging`, and `set_theme`
+- `Tokra::LogicalPosition`, `Tokra::LogicalSize`, `Tokra::PhysicalSize`,
+  and `Tokra::PhysicalRect`, with dpi's `to_physical`, `to_logical`,
+  `from_physical`, and `from_logical` (also on `Tokra::PhysicalPosition`),
+  and `Tokra::Dpi.validate_scale_factor`
+- `Tokra::Monitor`, `Tokra::Theme`, `Tokra::CursorIcon`,
+  `Tokra::UserAttentionType`, and `Tokra::ResizeDirection`
+- `Native::Window` getters and setters behind them, in tao's names
+  (`set_inner_size`, `set_outer_position`, `set_maximized`, `set_visible`,
+  `drag_window`, and the rest); `Native::Window#set_size(width, height)`
+  is unchanged
+- The native extension depends directly on `objc2` (macOS), `gtk` (Linux),
+  and `windows` (Windows), at the versions tao already locks
 
 ### Changed
 

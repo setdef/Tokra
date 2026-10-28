@@ -285,5 +285,5 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
         "raw_display_handle",
         method!(RbWindow::raw_display_handle, 0),
     )?;
-    Ok(())
+    crate::window_state::define_methods(window_class)
 }

@@ -29,9 +29,23 @@ dirs = "6.0"
 image = { version = "0.25", default-features = false, features = ["ico", "png"] }
 
 # A window's -[NSWindow windowNumber], for its AppKit handle (raw_handle.rs,
-# plan 035). tao already locks this version with these features.
+# plan 035); -[NSWindow center], a screen's visible frame, and a webview's
+# frame (window_state.rs, plan 040). tao already locks these versions with
+# these features.
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSResponder", "NSWindow"] }
+objc2 = "0.6.3"
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSResponder", "NSScreen", "NSView", "NSWindow"] }
+
+# A monitor's work area from GDK (window_state.rs, plan 040), as
+# tauri-runtime-wry reads it. tao already locks this version.
+[target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies]
+gtk = "0.18.2"
+
+# A monitor's work area and a decorated window's frame bounds
+# (window_state.rs, plan 040), as tauri-runtime-wry reads them. tao already
+# locks this version with these features.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi"] }
 
 # Strict linting: deny fails builds but allows targeted #[allow] for FFI
 # constraints. Each crate states its lints itself instead of inheriting them

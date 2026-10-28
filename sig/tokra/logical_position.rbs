@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class LogicalPosition < Data
+    attr_reader x: pixel
+    attr_reader y: pixel
+
+    def self.new: (pixel x, pixel y) -> LogicalPosition
+                | (x: pixel, y: pixel) -> LogicalPosition
+    def self.from_physical: (PhysicalPosition position, Float | Integer scale_factor) -> LogicalPosition
+    def to_physical: (Float | Integer scale_factor) -> PhysicalPosition
+  end
+end

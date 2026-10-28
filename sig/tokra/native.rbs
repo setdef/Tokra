@@ -20,6 +20,62 @@ module Tokra
       def set_ignore_cursor_events: (bool) -> void
       def raw_window_handle: () -> RawWindowHandle::native_window_handle
       def raw_display_handle: () -> RawWindowHandle::native_display_handle
+
+      type dimensions = [bool, Float, Float]
+      type point = [Integer, Integer]
+      type extent = [Integer, Integer]
+      type monitor = [String?, point, extent, [point, extent], Float]
+
+      def scale_factor: () -> Float?
+      def inner_position: () -> [point?]?
+      def outer_position: () -> [point?]?
+      def inner_size: (WebView?) -> extent?
+      def outer_size: () -> extent?
+      def is_fullscreen: () -> bool?
+      def is_minimized: () -> bool?
+      def is_maximized: () -> bool?
+      def is_focused: () -> bool?
+      def is_decorated: () -> bool?
+      def is_resizable: () -> bool?
+      def is_maximizable: () -> bool?
+      def is_minimizable: () -> bool?
+      def is_closable: () -> bool?
+      def is_visible: () -> bool?
+      def is_always_on_top: () -> bool?
+      def theme: () -> String?
+      def current_monitor: () -> [monitor?]?
+      def primary_monitor: () -> [monitor?]?
+      def monitor_from_point: (Float, Float) -> [monitor?]?
+      def available_monitors: () -> Array[monitor]?
+      def center: () -> nil
+      def request_user_attention: (String?) -> nil
+      def set_resizable: (bool) -> nil
+      def set_maximizable: (bool) -> nil
+      def set_minimizable: (bool) -> nil
+      def set_closable: (bool) -> nil
+      def set_maximized: (bool) -> nil
+      def set_minimized: (bool) -> nil
+      def set_visible: (bool) -> nil
+      def set_decorations: (bool) -> nil
+      def set_always_on_bottom: (bool) -> nil
+      def set_visible_on_all_workspaces: (bool) -> nil
+      def set_content_protection: (bool) -> nil
+      def set_focusable: (bool) -> nil
+      def set_cursor_visible: (bool) -> nil
+      def set_inner_size: (dimensions) -> nil
+      def set_min_inner_size: (dimensions?) -> nil
+      def set_max_inner_size: (dimensions?) -> nil
+      def set_outer_position: (dimensions) -> nil
+      def set_fullscreen: (bool) -> nil
+      def set_simple_fullscreen: (bool) -> nil
+      def set_focus: () -> nil
+      def set_skip_taskbar: (bool) -> nil
+      def set_cursor_grab: (bool) -> nil
+      def set_cursor_icon: (String) -> nil
+      def set_cursor_position: (dimensions) -> nil
+      def drag_window: () -> nil
+      def drag_resize_window: (String) -> nil
+      def set_theme: (String?) -> nil
     end
 
     class WebView

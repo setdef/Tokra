@@ -19,10 +19,62 @@ module Tokra
     def initialize: (label: String, native: Native::Window, app_handle: AppHandle) -> void
     def resources_table: () -> ResourceTable
     def set_title: (String title) -> nil
-    def set_size: (Float width, Float height) -> nil
+    def set_size: (LogicalSize | PhysicalSize size) -> nil
     def set_always_on_top: (bool always_on_top) -> nil
     def set_ignore_cursor_events: (bool ignore) -> nil
     def title: () -> String
+    def scale_factor: () -> Float
+    def inner_position: () -> PhysicalPosition
+    def outer_position: () -> PhysicalPosition
+    def inner_size: () -> PhysicalSize
+    def outer_size: () -> PhysicalSize
+    def is_fullscreen: () -> bool
+    def is_minimized: () -> bool
+    def is_maximized: () -> bool
+    def is_focused: () -> bool
+    def is_decorated: () -> bool
+    def is_resizable: () -> bool
+    def is_always_on_top: () -> bool
+    def is_maximizable: () -> bool
+    def is_minimizable: () -> bool
+    def is_closable: () -> bool
+    def is_visible: () -> bool
+    def current_monitor: () -> Monitor?
+    def monitor_from_point: (Float | Integer x, Float | Integer y) -> Monitor?
+    def primary_monitor: () -> Monitor?
+    def available_monitors: () -> Array[Monitor]
+    def theme: () -> Theme
+    def center: () -> nil
+    def request_user_attention: (UserAttentionType? request_type) -> nil
+    def set_resizable: (bool resizable) -> nil
+    def set_maximizable: (bool maximizable) -> nil
+    def set_minimizable: (bool minimizable) -> nil
+    def set_closable: (bool closable) -> nil
+    def maximize: () -> nil
+    def unmaximize: () -> nil
+    def minimize: () -> nil
+    def unminimize: () -> nil
+    def show: () -> nil
+    def hide: () -> nil
+    def set_decorations: (bool decorations) -> nil
+    def set_always_on_bottom: (bool always_on_bottom) -> nil
+    def set_visible_on_all_workspaces: (bool visible_on_all_workspaces) -> nil
+    def set_content_protected: (bool protected) -> nil
+    def set_min_size: (LogicalSize | PhysicalSize | nil size) -> nil
+    def set_max_size: (LogicalSize | PhysicalSize | nil size) -> nil
+    def set_position: (LogicalPosition | PhysicalPosition position) -> nil
+    def set_fullscreen: (bool fullscreen) -> nil
+    def set_simple_fullscreen: (bool enable) -> nil
+    def set_focus: () -> nil
+    def set_focusable: (bool focusable) -> nil
+    def set_skip_taskbar: (bool skip) -> nil
+    def set_cursor_grab: (bool grab) -> nil
+    def set_cursor_visible: (bool visible) -> nil
+    def set_cursor_icon: (CursorIcon icon) -> nil
+    def set_cursor_position: (LogicalPosition | PhysicalPosition position) -> nil
+    def start_dragging: () -> nil
+    def start_resize_dragging: (ResizeDirection direction) -> nil
+    def set_theme: (Theme? theme) -> nil
     def close: () -> nil
     def destroy: () -> nil
     def window_handle: () -> RawWindowHandle::window_handle
@@ -32,5 +84,12 @@ module Tokra
     private
 
     def dispatch: () { () -> void } -> nil
+    def getter: [T < Object] () { () -> T? } -> T
+    def physical_position: ([Native::Window::point?] answer) -> PhysicalPosition
+    def maybe_monitor: ([Native::Window::monitor?] answer) -> Monitor?
+    def monitor: (Native::Window::monitor entry) -> Monitor
+    def size_dimensions: (LogicalSize | PhysicalSize size) -> Native::Window::dimensions
+    def position_dimensions: (LogicalPosition | PhysicalPosition position) -> Native::Window::dimensions
+    def expect: (Object value, Module type) -> nil
   end
 end

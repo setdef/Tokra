@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class Monitor < Data
+    attr_reader name: String?
+    attr_reader size: PhysicalSize
+    attr_reader position: PhysicalPosition
+    attr_reader work_area: PhysicalRect
+    attr_reader scale_factor: Float
+
+    def self.new: (String? name, PhysicalSize size, PhysicalPosition position, PhysicalRect work_area, Float scale_factor) -> Monitor
+                | (name: String?, size: PhysicalSize, position: PhysicalPosition, work_area: PhysicalRect, scale_factor: Float) -> Monitor
+  end
+end

@@ -40,10 +40,10 @@ class TestWindow < Minitest::Test
 
   def test_set_size_delegates_to_native
     native = Minitest::Mock.new
-    native.expect :set_size, nil, [800.0, 600.0]
+    native.expect :set_inner_size, nil, [[false, 800.0, 600.0]]
     window = Tokra::Window.new(label: "win", native:, app_handle:)
 
-    window.set_size(800.0, 600.0)
+    window.set_size(Tokra::LogicalSize.new(width: 800, height: 600))
 
     native.verify
   end

@@ -70,6 +70,7 @@ mod thread_bound;
 mod user_event;
 mod webview;
 mod window;
+mod window_state;
 
 // Re-export for use by other modules
 pub use event_loop::RbEventLoop;

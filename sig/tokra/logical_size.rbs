@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class LogicalSize < Data
+    attr_reader width: pixel
+    attr_reader height: pixel
+
+    def self.new: (pixel width, pixel height) -> LogicalSize
+                | (width: pixel, height: pixel) -> LogicalSize
+    def self.from_physical: (PhysicalSize size, Float | Integer scale_factor) -> LogicalSize
+    def to_physical: (Float | Integer scale_factor) -> PhysicalSize
+  end
+end

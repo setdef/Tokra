@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Dpi
+    INVALID_SCALE_FACTOR: String
+
+    def self.validate_scale_factor: (Float | Integer scale_factor) -> bool
+    def self.assert_scale_factor: (Float | Integer scale_factor) -> Float
+  end
+
+  type pixel = Float | Integer
+end

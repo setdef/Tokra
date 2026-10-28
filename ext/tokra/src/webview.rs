@@ -386,6 +386,26 @@ impl RbWebView {
         Ok(())
     }
     // SPDX-SnippetEnd
+
+    /// The wry webview, on the thread that created it, or `None` once
+    /// `close` has dropped it.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ThreadError` on any other thread, or a `RuntimeError` while
+    /// `close` holds the webview. Only macOS's `Window#inner_size` asks
+    /// (`window_state.rs`).
+    #[cfg(target_os = "macos")]
+    pub(crate) fn open_webview(&self) -> Result<Option<std::cell::Ref<'_, WebView>>, Error> {
+        let inner = self
+            .inner
+            .try_borrow()
+            .map_err(|_| Error::new(runtime_error(), "WebView is closing"))?;
+        if !inner.owner().is_current() {
+            return Err(wrong_thread(CLASS));
+        }
+        Ok(std::cell::Ref::filter_map(inner, ThreadBound::get).ok())
+    }
 }
 
 /// Define the `WebView` class methods on the given Ruby module.

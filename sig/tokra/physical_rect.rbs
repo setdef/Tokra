@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class PhysicalRect < Data
+    attr_reader position: PhysicalPosition
+    attr_reader size: PhysicalSize
+
+    def self.new: (PhysicalPosition position, PhysicalSize size) -> PhysicalRect
+                | (position: PhysicalPosition, size: PhysicalSize) -> PhysicalRect
+  end
+end

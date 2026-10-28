@@ -107,6 +107,8 @@ module StubNative
     def initialize(event_loop)
       @queue = event_loop&.queue || []
       @closed = false
+      @state = STATE.dup
+      @requests = {}
       StubNative.windows << self
     end
 
@@ -125,8 +127,113 @@ module StubNative
 
     def set_title(title) = @closed || @title = title
     def set_size(width, height) = @size = [width, height]
-    def set_always_on_top(always_on_top) = @always_on_top = always_on_top
+    def set_always_on_top(always_on_top) = @closed || @state[:is_always_on_top] = always_on_top
     def set_ignore_cursor_events(ignore) = @ignore_cursor_events = ignore
+
+    # A monitor as Native::Window answers one: name, position, size, work
+    # area, and scale factor (ext/tokra/src/window_state.rs).
+    MONITOR = ["Stub Display", [0, 0], [3024, 1964], [[0, 74], [3024, 1890]], 2.0].freeze
+    # A second monitor, to the right of the first.
+    SIDE_MONITOR = [nil, [3024, 0], [1920, 1080], [[3024, 0], [1920, 1080]], 1.0].freeze
+
+    # What the stub window reports until a setter changes it, in the shapes
+    # Native::Window answers (ext/tokra/src/window_state.rs).
+    STATE = {
+      scale_factor: 2.0,
+      inner_position: [[20, 84]],
+      outer_position: [[20, 28]],
+      inner_size: [1600, 1200],
+      outer_size: [1600, 1256],
+      is_fullscreen: false,
+      is_minimized: false,
+      is_maximized: false,
+      is_focused: false,
+      is_decorated: true,
+      is_resizable: true,
+      is_maximizable: true,
+      is_minimizable: true,
+      is_closable: true,
+      is_visible: true,
+      is_always_on_top: false,
+      theme: "Light",
+      current_monitor: [MONITOR],
+      primary_monitor: [MONITOR],
+      available_monitors: [MONITOR, SIDE_MONITOR].freeze,
+    }.freeze
+
+    # What each setter last asked for, by setter name, and the webview
+    # #inner_size was last given.
+    attr_reader :requests, :inner_size_webview
+
+    # The state a getter answers, for a test to change.
+    attr_reader :state
+
+    (STATE.keys - [:inner_size]).each do |getter|
+      define_method(getter) { @closed ? nil : @state.fetch(getter) }
+    end
+
+    def inner_size(webview)
+      @inner_size_webview = webview
+      @closed ? nil : @state.fetch(:inner_size)
+    end
+
+    def monitor_from_point(x, y)
+      return nil if @closed
+
+      [[MONITOR, SIDE_MONITOR].find { |(_, (left, top), (width, height))| x.between?(left, left + width - 1) && y.between?(top, top + height - 1) }]
+    end
+
+    # Setters that change a flag a getter reads back.
+    {
+set_resizable: :is_resizable,
+set_maximizable: :is_maximizable,
+set_minimizable: :is_minimizable,
+set_closable: :is_closable,
+set_maximized: :is_maximized,
+set_minimized: :is_minimized,
+set_visible: :is_visible,
+set_decorations: :is_decorated,
+set_fullscreen: :is_fullscreen,
+set_simple_fullscreen: :is_fullscreen,
+}.each do |setter, key|
+      define_method(setter) do |value|
+        request(setter, value) { @state[key] = value }
+      end
+    end
+
+    # Setters that only record what they were asked.
+    %i[
+      center
+      request_user_attention
+      set_always_on_bottom
+      set_visible_on_all_workspaces
+      set_content_protection
+      set_inner_size
+      set_min_inner_size
+      set_max_inner_size
+      set_outer_position
+      set_focus
+      set_focusable
+      set_skip_taskbar
+      set_cursor_grab
+      set_cursor_visible
+      set_cursor_icon
+      set_cursor_position
+      drag_window
+      drag_resize_window
+      set_theme
+    ].each do |setter|
+      define_method(setter) { |*args| request(setter, *args) }
+    end
+
+    # Records a setter's arguments, and runs its change, unless closed.
+    private def request(setter, *args)
+      return nil if @closed
+
+      @requests[setter] = args
+      yield if block_given?
+      nil
+    end
 
     # The tagged Arrays the native window answers for its raw handles
     # (ext/tokra/src/raw_handle.rs). A stub window has no native one, so

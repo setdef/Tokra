@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class CursorIcon < Data
+    attr_reader name: String
+
+    private def self.new: (name: String) -> CursorIcon
+
+    Default: CursorIcon
+    Crosshair: CursorIcon
+    Hand: CursorIcon
+    Arrow: CursorIcon
+    Move: CursorIcon
+    Text: CursorIcon
+    Wait: CursorIcon
+    Help: CursorIcon
+    Progress: CursorIcon
+    NotAllowed: CursorIcon
+    ContextMenu: CursorIcon
+    Cell: CursorIcon
+    VerticalText: CursorIcon
+    Alias: CursorIcon
+    Copy: CursorIcon
+    NoDrop: CursorIcon
+    Grab: CursorIcon
+    Grabbing: CursorIcon
+    AllScroll: CursorIcon
+    ZoomIn: CursorIcon
+    ZoomOut: CursorIcon
+    EResize: CursorIcon
+    NResize: CursorIcon
+    NeResize: CursorIcon
+    NwResize: CursorIcon
+    SResize: CursorIcon
+    SeResize: CursorIcon
+    SwResize: CursorIcon
+    WResize: CursorIcon
+    EwResize: CursorIcon
+    NsResize: CursorIcon
+    NeswResize: CursorIcon
+    NwseResize: CursorIcon
+    ColResize: CursorIcon
+    RowResize: CursorIcon
+  end
+end
