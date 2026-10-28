@@ -6,6 +6,7 @@
 #++
 
 require "test_helper"
+require "tmpdir"
 
 # Tests for Tokra::Image.
 class TestImage < Minitest::Test
@@ -38,18 +39,108 @@ class TestImage < Minitest::Test
     assert_equal 2, image.height, "should decode the file at path"
   end
 
-  # Tauri's from_path returns Error::Io, whose message is the io::Error's.
+  # Tauri's from_path returns Error::Io, whose message is the io::Error's
+  # Display: the OS's text for the raw error code, then " (os error N)"
+  # (Rust core io/error.rs:520-526). Windows formats the Win32 code with
+  # FormatMessageW (std sys/io/error/windows.rs:98-143).
   def test_from_path_raises_error_io_for_missing_file
-    path = fixture_path("missing.png")
-    error = assert_raises(Tokra::Error::Io) { Tokra::Image.from_path(path) }
+    error = assert_raises(Tokra::Error::Io) { Tokra::Image.from_path(fixture_path("missing.png")) }
 
-    assert_equal "No such file or directory @ rb_sysopen - #{path}", error.message
+    expected = if Gem.win_platform?
+      "The system cannot find the file specified. (os error 2)"
+    else
+      "No such file or directory (os error 2)"
+    end
+    assert_equal expected, error.message
+  end
+
+  # Unix opens a directory and fails to read it; Windows refuses to open
+  # one without FILE_FLAG_BACKUP_SEMANTICS (std sys/fs/windows.rs:314).
+  def test_from_path_raises_error_io_for_a_directory
+    error = assert_raises(Tokra::Error::Io) { Tokra::Image.from_path(fixture_path("")) }
+
+    expected = Gem.win_platform? ? "Access is denied. (os error 5)" : "Is a directory (os error 21)"
+    assert_equal expected, error.message
+  end
+
+  def test_from_path_raises_error_io_for_an_unreadable_file
+    skip "Windows has no POSIX file modes" if Gem.win_platform?
+    skip "root reads any file" if Process.uid.zero?
+
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "unreadable.png")
+      File.binwrite(path, File.binread(fixture_path("2x2.png")))
+      File.chmod(0o000, path)
+      error = assert_raises(Tokra::Error::Io) { Tokra::Image.from_path(path) }
+
+      assert_equal "Permission denied (os error 13)", error.message
+    end
   end
 
   # Rust cannot hand a path with a NUL byte to the OS, so std::fs::read
   # fails with an io::Error where Ruby's File.binread raises ArgumentError
   # (std sys/helpers/small_c_string.rs:13-14; on Windows,
   # sys/pal/windows/mod.rs:99-104).
+  # Tauri's from_path takes any AsRef<Path>.
+  def test_from_path_reads_a_pathname
+    image = Tokra::Image.from_path(Pathname(fixture_path("2x2.png")))
+
+    assert_equal 2, image.width, "should read the file a Pathname names"
+  end
+
+  # A read that blocks releases the GVL, so it stops only its own thread.
+  # The reader opens a FIFO that only the main thread can write; the main
+  # thread can write it only while the reader blocks without the GVL.
+  # Holding it deadlocks the process, so the scenario runs in a child, and
+  # a child that never finishes is the failure.
+  def test_from_path_releases_the_gvl_while_the_read_blocks
+    skip "Windows has no FIFOs" if Gem.win_platform?
+
+    output = read_fifo_in_child("Tokra::Image.from_path(fifo).width")
+
+    assert_equal "2", output, "the main thread should write the FIFO while the reader waits"
+  end
+
+  # std's read, which from_path makes only after Ruby's fails, releases
+  # the GVL too: a failing open on a slow file system must not stop the
+  # main thread either.
+  def test_std_read_releases_the_gvl_while_the_read_blocks
+    skip "Windows has no FIFOs" if Gem.win_platform?
+
+    output = read_fifo_in_child("Tokra::Native.fs_read(fifo).bytesize")
+
+    assert_equal File.size(fixture_path("2x2.png")).to_s, output,
+      "the main thread should write the FIFO while std's read waits"
+  end
+
+  # Ruby reads the file, so Thread#raise ends a read that blocks, as it
+  # ends any of Ruby's. std's read, which retries interrupted calls, would
+  # run until the FIFO was written, and nothing writes it here: the child
+  # would never finish.
+  def test_from_path_is_ended_by_thread_raise_while_the_read_blocks
+    skip "Windows has no FIFOs" if Gem.win_platform?
+
+    script = <<~RUBY
+      require "tokra"
+      require "tmpdir"
+      Dir.mktmpdir do |dir|
+        fifo = File.join(dir, "image.png")
+        File.mkfifo(fifo)
+        reader = Thread.new do
+          Tokra::Image.from_path(fifo)
+        rescue => e
+          e.message
+        end
+        Thread.pass until reader.status == "sleep"
+        reader.raise("stopped")
+        print reader.value
+      end
+    RUBY
+    output = run_child(script, timeout: 30)
+
+    assert_equal "stopped", output, "Thread#raise should end the blocked read"
+  end
+
   def test_from_path_raises_error_io_for_a_nul_byte
     error = assert_raises(Tokra::Error::Io) { Tokra::Image.from_path("a\0b.png") }
 
@@ -134,6 +225,38 @@ class TestImage < Minitest::Test
   end
 
   # Returns the absolute path of a fixture file.
+  # Runs +read+ in a reader thread of a child Ruby, on a FIFO the child's
+  # main thread then writes the 2x2 PNG into, and returns what +read+
+  # returned, or nil when the child deadlocked.
+  private def read_fifo_in_child(read)
+    script = <<~RUBY
+      require "tokra"
+      require "tmpdir"
+      Dir.mktmpdir do |dir|
+        fifo = File.join(dir, "image.png")
+        File.mkfifo(fifo)
+        reader = Thread.new { #{read} }
+        File.binwrite(fifo, File.binread(#{fixture_path('2x2.png').dump}))
+        print reader.value
+      end
+    RUBY
+    run_child(script, timeout: 30)
+  end
+
+  # Runs +script+ in a child Ruby and returns what it printed, or nil when
+  # it did not finish within +timeout+ seconds (it is then killed).
+  private def run_child(script, timeout:)
+    IO.popen([RbConfig.ruby, "-e", script], err: [:child, :out]) do |child|
+      output = nil
+      collector = Thread.new { output = child.read }
+      next output if collector.join(timeout)
+
+      Process.kill(:KILL, child.pid)
+      collector.join
+      nil
+    end
+  end
+
   private def fixture_path(name)
     File.expand_path("fixtures/#{name}", __dir__)
   end

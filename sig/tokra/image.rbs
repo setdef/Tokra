@@ -14,11 +14,12 @@ module Tokra
                   | (String rgba, Integer width, Integer height) -> void
 
     def self.from_bytes: (String bytes) -> Image
-    NUL_IN_PATH: String
 
-    def self.from_path: (String path) -> Image
+    def self.from_path: (String | _ToPath path) -> Image
 
-    private def self.read: (String path) -> String
+    private def self.read: (String | _ToPath path) -> String
+
+    private def self.std_read: (String path) -> String
   end
 
   class JsImage

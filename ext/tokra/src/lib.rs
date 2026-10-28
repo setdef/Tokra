@@ -18,6 +18,7 @@
 //! - [`proxy`] - Ractor-safe proxy for cross-thread communication (`Tokra::Native::Proxy`)
 //! - [`responders`] - Async protocol responder storage
 //! - [`image`] - PNG/ICO decoding (`Tokra::Native.image_from_bytes`)
+//! - [`fs`] - File reading with std's errors (`Tokra::Native.fs_read`)
 //! - [`thread_bound`] - Values usable only on the thread that created them
 //! - [`gvl_handoff`] - Hands the GVL to other Ruby threads while the loop waits
 //!
@@ -57,6 +58,7 @@
 // SPDX-SnippetEnd
 
 mod event_loop;
+mod fs;
 mod gvl_handoff;
 mod image;
 mod interrupt_check;
@@ -121,6 +123,9 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
 
     // Image decoding functions (thin wrapper around image crate)
     image::define_functions(ruby, native)?;
+
+    // File reading (thin wrapper around std::fs::read)
+    fs::define_functions(ruby, native)?;
 
     // Note: Event classes (IpcEvent, WakeUpEvent, etc.) are now defined in Ruby
     // using Data.define in lib/tokra/native/events.rb

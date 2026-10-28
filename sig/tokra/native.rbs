@@ -91,5 +91,7 @@ module Tokra
     def self.data_local_dir: () -> String
 
     def self.image_from_bytes: (String bytes) -> [String, Integer, Integer]
+
+    def self.fs_read: (String path) -> String
   end
 end

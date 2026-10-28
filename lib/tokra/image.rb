@@ -52,38 +52,50 @@ module Tokra
       raise Error::Image, e.message
     end
 
-    # Rust's io::Error for a path with a NUL byte: Unix hands paths to the
-    # OS as C strings (std sys/helpers/small_c_string.rs:13-14), and
-    # Windows as wide strings (std sys/pal/windows/mod.rs:99-104).
-    NUL_IN_PATH = if Gem.win_platform?
-      "strings passed to WinAPI cannot contain NULs"
-    else
-      "file name contained an unexpected NUL byte"
-    end
-
     # Creates an Image by decoding the PNG or ICO file at +path+.
     #
     # Matches Tauri's Image::from_path (image/mod.rs).
     #
     # Raises Error::Image when the file cannot be decoded, or Error::Io
-    # when it cannot be read, with the reason Ruby gives. A path holding a
-    # NUL byte is a file Rust's std::fs::read cannot open either, and
-    # raises Error::Io with Rust's words, where Ruby's File.binread would
-    # raise ArgumentError.
+    # when it cannot be read. Error::Io carries Rust's std::io::Error text,
+    # as Tauri sends it: the OS's description of the error code, then the
+    # code itself, such as "No such file or directory (os error 2)". On
+    # Windows the description is the Win32 error's, such as "The system
+    # cannot find the file specified. (os error 2)". A path holding a NUL
+    # byte raises Error::Io too, as std::fs::read cannot open it either.
+    #
+    # +path+ is a String or anything with +to_path+, such as a Pathname, as
+    # Tauri's takes any <tt>AsRef<Path></tt>. Ruby reads the file, so a
+    # read that blocks releases the GVL and Thread#raise or Ctrl-C ends it.
+    # Only when Ruby's read fails does Rust's std::fs::read try again, to
+    # give std's text; a file that appeared in between is read.
     #
     # === Example
     #
     #   image = Tokra::Image.from_path("assets/icon.ico")
     def self.from_path(path)
-      raise Error::Io, NUL_IN_PATH if path.include?("\0")
-
       from_bytes(read(path))
     end
 
-    # The file at +path+, or Error::Io with Ruby's reason.
+    # The file at +path+. Ruby's read is interruptible; std's, which only
+    # Rust can format as Tauri does, runs when Ruby's fails.
     private_class_method def self.read(path)
-      File.binread(path)
-    rescue SystemCallError => e
+      file = case path
+      when String then path
+      else path.to_path
+      end
+      begin
+        File.binread(file)
+      rescue SystemCallError, ArgumentError # ArgumentError: a NUL byte
+        std_read(file)
+      end
+    end
+
+    # The file at +path+, read by Rust's std::fs::read as Tauri's
+    # Image::from_path reads it, or Error::Io with std's message.
+    private_class_method def self.std_read(path)
+      Native.fs_read(path)
+    rescue RuntimeError => e
       raise Error::Io, e.message
     end
   end

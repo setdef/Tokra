@@ -40,12 +40,13 @@ module Tokra
     # with no prefix, so its message reads as the cause.
     #
     # Mirrors <tt>tauri::Error::Io(std::io::Error)</tt>, displayed as the
-    # io::Error alone (error.rs:53-54). Image.from_path raises it.
+    # io::Error alone (error.rs:53-54), in Rust's words: the OS's text for
+    # the error code, then <tt>(os error N)</tt>. Image.from_path raises it.
     #
     # === Example
     #
-    #   Tokra::Image.from_path("a\0b.png")
-    #   # raises Tokra::Error::Io: file name contained an unexpected NUL byte
+    #   Tokra::Image.from_path("missing.png")
+    #   # raises Tokra::Error::Io: No such file or directory (os error 2)
     class Io < Error
     end
 

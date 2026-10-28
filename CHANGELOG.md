@@ -52,9 +52,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
     outside 0 to 255, or a size or ID outside u32) rejects with Tauri's
     `invalid args` message
 - `Tokra::Image.from_bytes` decodes PNG or ICO bytes to raw RGBA
-- `Tokra::Image.from_path` decodes a PNG or ICO file to raw RGBA, raising
+- `Tokra::Image.from_path` decodes a PNG or ICO file (a path String or
+  anything with `to_path`) to raw RGBA, raising
   `Tokra::Error::Io` (Tauri's `Error::Io`) when the file cannot be read,
-  with Rust's message for a path holding a NUL byte
+  with Rust's `std::io::Error` message, such as `No such file or directory
+  (os error 2)` (on Windows, the Win32 error's text)
 - `Tokra::Error::Image` raised when image bytes cannot be decoded
 - `Tokra::JsImage.deserialize` reads a frontend image payload (file path,
   byte array, resource ID, or RGBA hash) as Tauri does, raising

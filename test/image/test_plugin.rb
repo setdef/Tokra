@@ -142,19 +142,19 @@ class TestImagePlugin < Minitest::Test
   end
 
   def test_new_rejects_non_array_rgba
-    assert_rejects_invalid_args("new",
+    assert_rejects_with("new",
       { "rgba" => "not-an-array", "width" => 1, "height" => 1 },
       "invalid args `rgba` for command `new`: invalid type: string \"not-an-array\", expected a sequence")
   end
 
   def test_new_rejects_non_integer_width
-    assert_rejects_invalid_args("new",
+    assert_rejects_with("new",
       { "rgba" => [0, 0, 0, 0], "width" => "1", "height" => 1 },
       "invalid args `width` for command `new`: invalid type: string \"1\", expected u32")
   end
 
   def test_new_rejects_non_integer_height
-    assert_rejects_invalid_args("new",
+    assert_rejects_with("new",
       { "rgba" => [0, 0, 0, 0], "width" => 1, "height" => nil },
       "invalid args `height` for command `new`: invalid type: null, expected u32")
   end
@@ -217,30 +217,24 @@ class TestImagePlugin < Minitest::Test
       "should decode the ICO file at path"
   end
 
-  def test_from_path_rejects_missing_file
-    plugin = Tokra::Image::Plugin.new(nil, {})
-
-    rejected = false
-    invoke = Tokra::Ipc::Invoke.new(
-      command: "from_path",
-      payload: { "path" => fixture_path("missing.png") },
-      webview: build_webview,
-      responder: -> (success, _value) { rejected = !success }
-    )
-
-    result = plugin.extend_api(invoke)
-
-    assert result, "extend_api should return true (command was handled)"
-    assert rejected, "unreadable path should reject the invoke"
+  # Image::from_path's Error::Io reaches the frontend as io::Error's
+  # Display (Rust core io/error.rs:520-526).
+  def test_from_path_rejects_missing_file_with_rusts_io_error
+    expected = if Gem.win_platform?
+      "The system cannot find the file specified. (os error 2)"
+    else
+      "No such file or directory (os error 2)"
+    end
+    assert_rejects_with("from_path", { "path" => fixture_path("missing.png") }, expected)
   end
 
   def test_from_path_rejects_a_path_with_a_nul_byte_as_tauri_does
     expected = Gem.win_platform? ? "strings passed to WinAPI cannot contain NULs" : "file name contained an unexpected NUL byte"
-    assert_rejects_invalid_args("from_path", { "path" => "a\0b.png" }, expected)
+    assert_rejects_with("from_path", { "path" => "a\0b.png" }, expected)
   end
 
   def test_from_path_rejects_non_string_path
-    assert_rejects_invalid_args("from_path",
+    assert_rejects_with("from_path",
       { "path" => 42 },
       "invalid args `path` for command `from_path`: invalid type: integer `42`, expected path string")
   end
@@ -294,7 +288,7 @@ class TestImagePlugin < Minitest::Test
 
   def test_bad_arguments_reject_with_tauris_messages
     INVALID_ARGS.each do |(command, payload), message|
-      assert_rejects_invalid_args(command, payload, message)
+      assert_rejects_with(command, payload, message)
     end
   end
 
@@ -336,7 +330,7 @@ class TestImagePlugin < Minitest::Test
   end
 
   # Asserts that the command rejects the payload with the given message.
-  private def assert_rejects_invalid_args(command, payload, expected_message)
+  private def assert_rejects_with(command, payload, expected_message)
     plugin = Tokra::Image::Plugin.new(nil, {})
     rejected_message = nil
     invoke = Tokra::Ipc::Invoke.new(

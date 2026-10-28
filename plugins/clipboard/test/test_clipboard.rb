@@ -503,7 +503,12 @@ class TestClipboard < Minitest::Test
     assert plugin.extend_api(invoke)
     success, message = responses.first
     refute success
-    assert_match(/No such file or directory/, message)
+    expected = if Gem.win_platform?
+      "The system cannot find the file specified. (os error 2)"
+    else
+      "No such file or directory (os error 2)"
+    end
+    assert_equal expected, message
   end
 
   # ==========================================================================
