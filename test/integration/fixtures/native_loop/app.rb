@@ -29,7 +29,9 @@
 #                    from a background thread (DROPPED <what answering it
 #                    afterwards said>), and keeps one unanswered; at_exit
 #                    answers it once the loop is gone and prints
-#                    LATE_RESPONSE <error message>.
+#                    LATE_RESPONSE <error message>, then what an exit
+#                    and a close request say (LATE_REQUEST_EXIT,
+#                    LATE_REQUEST_CLOSE).
 #
 # An ensure around the loop prints ENSURE.
 #
@@ -181,6 +183,16 @@ elsif options[:responses]
       e.message
     end.value
     puts "LATE_RESPONSE #{late}"
+    %i[request_exit request_close].each do |request|
+      args = (request == :request_exit) ? [0] : []
+      outcome = begin
+        proxy.public_send(request, *args)
+        "sent"
+      rescue RuntimeError => e
+        e.message
+      end
+      puts "LATE_#{request.upcase} #{outcome}"
+    end
   end
   Tokra::Native::WebView.new_with_protocol(main_window, proxy, [])
   script = <<~JS

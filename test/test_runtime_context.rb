@@ -16,10 +16,11 @@ class TestRuntimeContext < Minitest::Test
   # Records each wake-up, like Native::Proxy#send_task, and fails like it
   # once the loop is gone.
   class RecordingProxy
-    attr_reader :sent
+    attr_reader :sent, :log
 
     def initialize
       @sent = 0
+      @log = []
       @closed = false
     end
 
@@ -27,6 +28,21 @@ class TestRuntimeContext < Minitest::Test
       raise "Failed to send task event: event loop closed" if @closed
 
       @sent += 1
+      @log << :send_task
+      nil
+    end
+
+    def request_exit(code)
+      raise "Failed to send exit request: event loop closed" if @closed
+
+      @log << [:request_exit, code]
+      nil
+    end
+
+    def request_close
+      raise "Failed to send close request: event loop closed" if @closed
+
+      @log << :request_close
       nil
     end
 
@@ -131,6 +147,38 @@ class TestRuntimeContext < Minitest::Test
 
     2.times { context.handle_task }
     assert_equal [:first, :second], ran
+  end
+
+  # Tauri's proxy carries messages in the order they were sent, before the
+  # loop runs as after (tauri-runtime-wry lib.rs:2623-2629).
+  def test_requests_sent_before_the_loop_exists_reach_it_in_order_once_it_attaches
+    context = Tokra::RuntimeContext.new
+    Thread.new { context.run_on_main_thread { nil } }.join
+    context.request_exit(3)
+    Thread.new { context.run_on_main_thread { nil } }.join
+    context.request_close
+
+    proxy = RecordingProxy.new
+    context.attach(proxy)
+
+    assert_equal [:send_task, [:request_exit, 3], :send_task, :request_close], proxy.log
+  end
+
+  def test_an_exit_request_goes_through_the_proxy_even_on_the_main_thread
+    assert_nil @context.request_exit(4)
+    assert_equal [[:request_exit, 4]], @proxy.log
+  end
+
+  def test_an_exit_request_fails_with_failed_to_send_message_once_the_proxy_is_closed
+    @proxy.close!
+    error = assert_raises(Tokra::Error::Runtime) { @context.request_exit(0) }
+    assert_equal FAILED_TO_SEND, error.message
+  end
+
+  def test_after_close_an_exit_request_fails_with_failed_to_send_message
+    @context.close
+    error = assert_raises(Tokra::Error::Runtime) { @context.request_close }
+    assert_equal FAILED_TO_SEND, error.message
   end
 
   def test_closing_fails_a_waiting_getter_with_failed_to_receive_message

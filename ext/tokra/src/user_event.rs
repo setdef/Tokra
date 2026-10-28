@@ -125,6 +125,24 @@ pub enum UserEvent {
     // SPDX-SnippetBegin
     // SPDX-License-Identifier: Apache-2.0 OR MIT
     // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    // SPDX-SnippetComment: Exit and close requests adapted from tauri-runtime-wry/src/lib.rs Message
+    /// Code asked the app to exit with this code (`Proxy#request_exit`).
+    ///
+    /// Tauri's `Message::RequestExit` (tauri-runtime-wry `src/lib.rs:1488`):
+    /// the loop asks Ruby, which emits `RunEvent::ExitRequested`, and ends
+    /// with the code unless a handler prevented it.
+    RequestExit(i32),
+
+    /// Code asked to close the window (`Proxy#request_close`).
+    ///
+    /// Tauri's `Message::Window(id, WindowMessage::Close)`, which takes the
+    /// close button's path (`src/lib.rs:4229-4231`). Tokra has one window.
+    CloseWindow,
+    // SPDX-SnippetEnd
+
+    // SPDX-SnippetBegin
+    // SPDX-License-Identifier: Apache-2.0 OR MIT
+    // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
     // SPDX-SnippetComment: Task message adapted from tauri-runtime-wry/src/lib.rs Message::Task
     /// A Ruby thread queued a task for the main thread (`Proxy#send_task`).
     ///

@@ -52,14 +52,16 @@ class MainThreadTest < RealApp::TestCase
     assert_equal "set from a thread", detail["title"]
   end
 
-  # Ruby raises a thread's SystemExit in the main thread, where the loop
-  # ends with its code; the thread runs at all only because the loop hands
-  # it the GVL.
+  # AppHandle#exit sends its request through the loop proxy, which the
+  # loop answers on the main thread with ExitRequested and then ends with
+  # its code; the thread runs at all only because the loop hands it the
+  # GVL (Plan 038).
   def test_exit_from_a_background_thread_ends_the_app_with_its_code
     run = exited
     assert_finished run
     assert_equal EXIT_CODE, run.status, run.describe
-    assert_equal ["EVENT ready", "REPORT", "EVENT exit"], run.kinds.first(3), run.describe
+    assert_equal ["EVENT ready", "REPORT", "EVENT exit-requested #{EXIT_CODE}", "EVENT exit"], run.kinds.first(4),
+      run.describe
   end
 
   def test_a_thread_waiting_as_the_loop_ends_gets_failed_to_receive_message

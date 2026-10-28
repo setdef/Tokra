@@ -11,8 +11,9 @@ module Tokra
 
     class Window
       def self.new: (EventLoop) -> Window
-      def id: () -> String
-      def title: () -> String
+      def id: () -> String?
+      def title: () -> String?
+      def close: () -> nil
       def set_title: (String) -> void
       def set_size: (Float, Float) -> void
       def set_always_on_top: (bool) -> void
@@ -25,11 +26,14 @@ module Tokra
       def self.new_with_protocol: (Window, Proxy, Array[String]) -> WebView
       def self.new: (Window, String, ^(String) -> void, Proxy) -> WebView
       def eval: (String) -> void
+      def close: () -> nil
     end
 
     class Proxy
       def wake_up: (String payload) -> void
       def send_task: () -> nil
+      def request_exit: (Integer code) -> nil
+      def request_close: () -> nil
       def respond: (Integer request_id, Integer status, Array[[String, String]] headers, String body) -> void
       def drop_response: (Integer request_id) -> void
     end
@@ -57,6 +61,15 @@ module Tokra
 
     class WindowCloseEvent < Data
       def self.new: () -> WindowCloseEvent
+    end
+
+    class WindowDestroyedEvent < Data
+      def self.new: () -> WindowDestroyedEvent
+    end
+
+    class ExitRequestedEvent < Data
+      attr_reader code: Integer
+      def self.new: (Integer code) -> ExitRequestedEvent
     end
 
     class LoopDestroyedEvent < Data

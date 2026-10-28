@@ -63,10 +63,13 @@ class ExitPathsTest < RealApp::TestCase
     assert_equal EXIT_CODE, run.status, run.describe
   end
 
-  def test_plugins_hear_ready_then_exit_and_ruby_runs_its_own_exit
+  # AppHandle#exit asks first: plugins hear ExitRequested with the code,
+  # then Exit (Plan 038).
+  def test_plugins_hear_ready_then_the_exit_request_then_exit_and_ruby_runs_its_own_exit
     run = exited
     assert_finished run
-    assert_equal ["EVENT ready", "REPORT", "EVENT exit", "AT_EXIT"], run.kinds, run.describe
+    assert_equal ["EVENT ready", "REPORT", "EVENT exit-requested #{EXIT_CODE}", "EVENT exit", "AT_EXIT"], run.kinds,
+      run.describe
   end
 
   def test_an_exception_in_an_event_handler_is_reported_and_the_loop_survives
@@ -78,6 +81,8 @@ class ExitPathsTest < RealApp::TestCase
     assert_equal "PONG", check_detail(run, "loop answers")["reply"]
   end
 
+  # Ctrl-C is no exit request: nothing can prevent it (Plan 038,
+  # decision 7).
   def test_ctrl_c_ends_the_loop_with_status_zero_and_plugins_hear_exit
     run = interrupted
     assert_finished run
@@ -91,6 +96,7 @@ class ExitPathsTest < RealApp::TestCase
   # Ruby's SIGTERM unwinds the loop, so plugins and the run callback hear
   # RunEvent::Exit, the way ensure code runs, where Tauri's process would
   # simply end (Plan 034, decision 1); the process still ends by the signal.
+  # It asks no one first: no ExitRequested (Plan 038, decision 7).
   def test_sigterm_on_an_idle_app_emits_exit_and_ends_by_the_signal
     run = terminated
     assert_finished run

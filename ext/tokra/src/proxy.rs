@@ -90,6 +90,50 @@ impl RbProxy {
         })
     }
 
+    // SPDX-SnippetBegin
+    // SPDX-License-Identifier: Apache-2.0 OR MIT
+    // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    // SPDX-SnippetComment: request_exit and close adapted from tauri-runtime-wry/src/lib.rs
+    /// Ask the loop to exit with `code`.
+    ///
+    /// The loop delivers `Tokra::Native::ExitRequestedEvent` and ends with
+    /// `code` if the callback answers `true`, as Tauri's
+    /// `RuntimeHandle::request_exit` sends `Message::RequestExit` straight
+    /// through the proxy (tauri-runtime-wry `src/lib.rs:2623-2629`).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the event loop has been closed.
+    pub fn request_exit(&self, code: i32) -> Result<(), Error> {
+        self.inner
+            .send_event(UserEvent::RequestExit(code))
+            .map_err(|_| {
+                Error::new(
+                    runtime_error(),
+                    "Failed to send exit request: event loop closed",
+                )
+            })
+    }
+
+    /// Ask the loop to close the window, as its close button does.
+    ///
+    /// The loop delivers `Tokra::Native::WindowCloseEvent`, as Tauri's
+    /// `WindowDispatch::close` sends `WindowMessage::Close` straight through
+    /// the proxy (tauri-runtime-wry `src/lib.rs:2142-2149`).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the event loop has been closed.
+    pub fn request_close(&self) -> Result<(), Error> {
+        self.inner.send_event(UserEvent::CloseWindow).map_err(|_| {
+            Error::new(
+                runtime_error(),
+                "Failed to send close request: event loop closed",
+            )
+        })
+    }
+    // SPDX-SnippetEnd
+
     /// Send an HTTP response for a pending async protocol request.
     ///
     /// This is used by Ruby to respond to `tokra://` requests.
@@ -224,6 +268,8 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
     proxy_class.undef_default_alloc_func();
     proxy_class.define_method("wake_up", method!(RbProxy::wake_up, 1))?;
     proxy_class.define_method("send_task", method!(RbProxy::send_task, 0))?;
+    proxy_class.define_method("request_exit", method!(RbProxy::request_exit, 1))?;
+    proxy_class.define_method("request_close", method!(RbProxy::request_close, 0))?;
     proxy_class.define_method("respond", method!(RbProxy::respond, 4))?;
     proxy_class.define_method("drop_response", method!(RbProxy::drop_response, 1))?;
     Ok(())

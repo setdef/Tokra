@@ -6,7 +6,8 @@ module Tokra
   # Each is a Data.define class.
   module WindowEvent
     class CloseRequested < Data
-      def self.new: () -> CloseRequested
+      attr_reader api: CloseRequestApi
+      def self.new: (api: CloseRequestApi) -> CloseRequested
     end
     class Destroyed < Data
       def self.new: () -> Destroyed

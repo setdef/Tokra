@@ -6,6 +6,8 @@
 //! This module provides the Ruby-facing `Tokra::Native::WebView` class,
 //! which wraps `wry::WebView` and implements the tokra:// custom protocol.
 
+use std::cell::RefCell;
+
 use magnus::{function, method, prelude::*, Error, Ruby, Value};
 use tao::event_loop::EventLoopProxy;
 use wry::{PageLoadEvent, WebView, WebViewBuilder};
@@ -143,7 +145,8 @@ fn build_in(builder: WebViewBuilder<'_>, window: &tao::window::Window) -> wry::R
 /// own main-thread types (tauri-runtime-wry `src/lib.rs:234-254`, `431-454`).
 #[magnus::wrap(class = "Tokra::Native::WebView", free_immediately, size)]
 pub struct RbWebView {
-    inner: ThreadBound<WebView>,
+    /// Empty once `close` has dropped the webview.
+    inner: RefCell<ThreadBound<WebView>>,
     /// Carries the webview back to its thread if Ruby frees this object on
     /// another (see `Drop`).
     proxy: EventLoopProxy<UserEvent>,
@@ -162,11 +165,12 @@ impl Drop for RbWebView {
     /// Ruby API is called, as `free_immediately` requires (magnus
     /// `src/typed_data.rs:310-316`).
     fn drop(&mut self) {
-        if !self.inner.owner().is_current() {
+        let inner = self.inner.get_mut();
+        if !inner.owner().is_current() {
             let _ = self
                 .proxy
                 .send_event(UserEvent::Release(Released::WebView(Box::new(
-                    self.inner.take(),
+                    inner.take(),
                 ))));
         }
     }
@@ -196,11 +200,11 @@ impl RbWebView {
             .with_ipc_handler(move |msg| {
                 forward_ipc_message_to_ruby(&proxy_clone, &msg);
             });
-        let webview = build_in(builder, window.window()?)
+        let webview = build_in(builder, &*window.window()?)
             .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
 
         Ok(Self {
-            inner: ThreadBound::new(webview),
+            inner: RefCell::new(ThreadBound::new(webview)),
             proxy: proxy.inner().clone(),
         })
     }
@@ -320,11 +324,11 @@ impl RbWebView {
             .with_ipc_handler(move |msg| {
                 forward_ipc_message_to_ruby(&proxy_clone, &msg);
             });
-        let webview = build_in(builder, window.window()?)
+        let webview = build_in(builder, &*window.window()?)
             .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
 
         Ok(Self {
-            inner: ThreadBound::new(webview),
+            inner: RefCell::new(ThreadBound::new(webview)),
             proxy: proxy.inner().clone(),
         })
     }
@@ -339,15 +343,49 @@ impl RbWebView {
     // See clippy_exceptions.rb for justification.
     #[allow(clippy::needless_pass_by_value)]
     pub fn eval(&self, js: String) -> Result<(), Error> {
-        self.webview()?
-            .evaluate_script(&js)
-            .map_err(|e| Error::new(runtime_error(), e.to_string()))
+        let inner = self
+            .inner
+            .try_borrow()
+            .map_err(|_| Error::new(runtime_error(), "WebView is closing"))?;
+        if !inner.owner().is_current() {
+            return Err(wrong_thread(CLASS));
+        }
+        // A closed webview ignores the script, as Tauri's runtime ignores
+        // a message for a webview it no longer holds.
+        inner.get().map_or(Ok(()), |webview| {
+            webview
+                .evaluate_script(&js)
+                .map_err(|e| Error::new(runtime_error(), e.to_string()))
+        })
     }
 
-    /// The wry webview, on the thread that built it.
-    fn webview(&self) -> Result<&WebView, Error> {
-        self.inner.get().ok_or_else(|| wrong_thread(CLASS))
+    // SPDX-SnippetBegin
+    // SPDX-License-Identifier: Apache-2.0 OR MIT
+    // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    // SPDX-SnippetComment: Dropping a closed window's webviews adapted from tauri-runtime-wry/src/lib.rs handle_event_loop
+    /// Close the webview by dropping it, as Tauri's runtime drops a
+    /// destroyed window's webviews with its store entry (tauri-runtime-wry
+    /// `src/lib.rs:4171-4172`). Closing twice does nothing.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ThreadError` off the webview's thread.
+    pub fn close(&self) -> Result<(), Error> {
+        let closed = {
+            let mut inner = self
+                .inner
+                .try_borrow_mut()
+                .map_err(|_| Error::new(runtime_error(), "WebView is in use"))?;
+            if !inner.owner().is_current() {
+                return Err(wrong_thread(CLASS));
+            }
+            inner.take()
+        };
+        // Dropped here, on the owner's thread, after the borrow ends.
+        drop(closed);
+        Ok(())
     }
+    // SPDX-SnippetEnd
 }
 
 /// Define the `WebView` class methods on the given Ruby module.
@@ -363,6 +401,7 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
         function!(RbWebView::new_with_protocol, 3),
     )?;
     webview_class.define_method("eval", method!(RbWebView::eval, 1))?;
+    webview_class.define_method("close", method!(RbWebView::close, 0))?;
     Ok(())
 }
 

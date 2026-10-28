@@ -57,6 +57,8 @@ module Tokra
       @mutex = Thread::Mutex.new
       @tasks = [] #: Array[[^() -> void, Thread::Queue[Object]?]]
       @proxy = nil
+      # What was sent before the loop existed, in order, for #attach.
+      @unsent = [] #: Array[^(Native::Proxy) -> void]
       @closed = false
     end
 
@@ -82,8 +84,47 @@ module Tokra
       @mutex.synchronize do
         @main_thread = Thread.current
         @proxy = proxy
-        @tasks.size.times { proxy.send_task }
+        @unsent.each { |send| send.call(proxy) }
+        @unsent.clear
       end
+    end
+
+    # Asks the event loop to exit with +code+ and returns +nil+ without
+    # waiting. The loop emits RunEvent::ExitRequested, and exits unless a
+    # handler prevents it.
+    #
+    # The request always travels through the loop, even from the main
+    # thread, so the handlers never run inside the caller. Before the loop
+    # exists it waits for #attach. Raises Error::Runtime when the event
+    # loop has ended.
+    #
+    # Mirrors the runtime handle's request_exit, which sends
+    # Message::RequestExit straight through the proxy (tauri-runtime-wry
+    # lib.rs:2623-2629).
+    #
+    # === Example
+    #
+    #   context.request_exit(0)
+    def request_exit(code)
+      send_event { |proxy| proxy.request_exit(code) }
+    end
+
+    # Asks the event loop to close the window, as its close button does,
+    # and returns +nil+ without waiting. Handlers hear
+    # WindowEvent::CloseRequested on a later turn of the loop.
+    #
+    # Like #request_exit, the request always travels through the loop.
+    # Raises Error::Runtime when the event loop has ended.
+    #
+    # Mirrors the window dispatcher's close, which sends
+    # WindowMessage::Close straight through the proxy (tauri-runtime-wry
+    # lib.rs:2142-2149).
+    #
+    # === Example
+    #
+    #   context.request_close
+    def request_close
+      send_event(&:request_close)
     end
 
     # Runs +task+ on the main thread and returns +nil+ without waiting for
@@ -197,7 +238,27 @@ module Tokra
     # Wakes the event loop for one more task. Before the loop exists the
     # task waits for attach.
     private def wake(proxy)
-      proxy&.send_task
+      send_through(proxy, &:send_task)
+    end
+
+    # Sends a request straight through the event loop's proxy, from any
+    # thread, the way Tauri's runtime sends the messages that reach its
+    # run callback.
+    private def send_event(&send)
+      @mutex.synchronize do
+        raise Error::Runtime, Error::Runtime::FAILED_TO_SEND_MESSAGE if @closed
+
+        send_through(@proxy, &send)
+      end
+      nil
+    end
+
+    # Calls +send+ with +proxy+, or, before the loop exists, keeps it for
+    # attach, so everything sent early arrives in order.
+    private def send_through(proxy, &send)
+      return @unsent << send unless proxy
+
+      send.call(proxy)
     rescue RuntimeError
       raise Error::Runtime, Error::Runtime::FAILED_TO_SEND_MESSAGE
     end

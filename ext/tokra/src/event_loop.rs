@@ -278,6 +278,7 @@ struct Turn<'a> {
 enum ForRuby {
     User(UserEvent),
     CloseRequested,
+    Destroyed,
 }
 
 /// Whether to hand the GVL over this turn: only when another thread is
@@ -313,6 +314,10 @@ impl Turn<'_> {
                 event: WindowEvent::CloseRequested,
                 ..
             } => self.inbox.push_back(ForRuby::CloseRequested),
+            Event::WindowEvent {
+                event: WindowEvent::Destroyed,
+                ..
+            } => self.inbox.push_back(ForRuby::Destroyed),
             // SPDX-SnippetBegin
             // SPDX-License-Identifier: Apache-2.0 OR MIT
             // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
@@ -359,13 +364,21 @@ impl Turn<'_> {
         for event in batch {
             match event {
                 ForRuby::User(user_event) => self.handle_user_event(user_event),
-                ForRuby::CloseRequested => {
-                    // WindowCloseEvent has no fields
-                    self.deliver("::Tokra::Native::WindowCloseEvent", ());
-                    if !self.exiting() {
-                        *self.control_flow = ControlFlow::Exit;
+                // Ruby asks its handlers and closes the window unless one
+                // prevents it (tauri-runtime-wry lib.rs:4262-4290).
+                ForRuby::CloseRequested => self.deliver("::Tokra::Native::WindowCloseEvent", ()),
+                // SPDX-SnippetBegin
+                // SPDX-License-Identifier: Apache-2.0 OR MIT
+                // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+                // SPDX-SnippetComment: Exit after the last window adapted from tauri-runtime-wry/src/lib.rs handle_event_loop
+                // Ruby drops the window from its store and, with none left,
+                // asks its handlers whether to exit; `true` means no one
+                // prevented it (lib.rs:4168-4185).
+                ForRuby::Destroyed => {
+                    if self.ask("::Tokra::Native::WindowDestroyedEvent", ()) {
+                        self.exit_with(0);
                     }
-                }
+                } // SPDX-SnippetEnd
             }
         }
     }
@@ -407,6 +420,20 @@ impl Turn<'_> {
                 // Data.define; the App runs the oldest queued task.
                 self.deliver("::Tokra::Native::TaskEvent", ());
             }
+            // SPDX-SnippetBegin
+            // SPDX-License-Identifier: Apache-2.0 OR MIT
+            // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+            // SPDX-SnippetComment: RequestExit and Close adapted from tauri-runtime-wry/src/lib.rs handle_event_loop
+            UserEvent::RequestExit(code) => {
+                // Data.define(:code); `true` means no handler prevented the
+                // exit (lib.rs:4215-4227).
+                if self.ask("::Tokra::Native::ExitRequestedEvent", (code,)) {
+                    self.exit_with(code);
+                }
+            }
+            // The close button's path (lib.rs:4229-4231).
+            UserEvent::CloseWindow => self.deliver("::Tokra::Native::WindowCloseEvent", ()),
+            // SPDX-SnippetEnd
             // Handled as they arrive (queue_user_event).
             UserEvent::Yield | UserEvent::Respond(_) | UserEvent::Release(_) | UserEvent::Exit => {}
         }
@@ -417,14 +444,37 @@ impl Turn<'_> {
     /// The callback is the `App` dispatcher, and an exception it raises must
     /// not vanish (see `report`).
     fn deliver<A: ArgList>(&mut self, class_path: &str, args: A) {
+        self.ask(class_path, args);
+    }
+
+    /// Deliver an event as `deliver` does, and answer whether the callback
+    /// returned `true`. An exception counts as any other answer once
+    /// `report` has handled it.
+    ///
+    /// Tauri's runtime passes its callback a channel and reads it once the
+    /// callback returns (tauri-runtime-wry `src/lib.rs:4177-4180`); Tokra's
+    /// App answers with the dispatcher's result instead.
+    fn ask<A: ArgList>(&mut self, class_path: &str, args: A) -> bool {
         let ruby = Ruby::get_with(self.callback);
         let result = ruby
             .eval::<RClass>(class_path)
             .and_then(|klass| klass.funcall::<_, _, Value>("new", args))
             .and_then(|event| self.callback.funcall::<_, _, Value>("call", (event,)));
 
-        if let Err(error) = result {
-            self.report(&ruby, error);
+        match result {
+            Ok(answer) => answer.as_raw() == ruby.qtrue().as_raw(),
+            Err(error) => {
+                self.report(&ruby, error);
+                false
+            }
+        }
+    }
+
+    /// End the loop with `code`, unless an exit is already set: the first
+    /// exit wins, as tao keeps the first `ExitWithCode`.
+    const fn exit_with(&mut self, code: i32) {
+        if !self.exiting() {
+            *self.control_flow = ControlFlow::ExitWithCode(code);
         }
     }
 

@@ -11,7 +11,8 @@
 #
 # The contract between the two halves is a few stdout lines:
 #
-#   EVENT ready | EVENT window <class> | EVENT exit   run events a plugin heard
+#   EVENT ready | EVENT window <class>                run events a plugin heard
+#   EVENT exit-requested <code> | EVENT exit
 #   REPORT <json>                                     the page's check results
 #
 # The page reports over a Rack POST, not IPC, so a broken IPC layer still
@@ -89,6 +90,7 @@ module FixtureApp
         FixtureApp.keep_in_sight(app.get_window("main"))
         puts "EVENT ready"
       when Tokra::RunEvent::WindowEvent then puts "EVENT window #{event.event.class.name}"
+      when Tokra::RunEvent::ExitRequested then puts "EVENT exit-requested #{event.code.inspect}"
       when Tokra::RunEvent::Exit then puts "EVENT exit"
       end
     end
@@ -97,6 +99,8 @@ module FixtureApp
       return false unless invoke.command == "exit"
 
       app.exit(Integer(invoke.payload.fetch("code")))
+      invoke.resolve(nil)
+      true
     end
   end
 

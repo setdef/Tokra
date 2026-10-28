@@ -6,6 +6,8 @@
 //! This module provides the Ruby-facing `Tokra::Native::Window` class,
 //! which wraps `tao::window::Window`.
 
+use std::cell::{Ref, RefCell};
+
 use magnus::{function, method, prelude::*, Error, RArray, Ruby};
 use tao::event_loop::EventLoopProxy;
 use tao::rwh_06::HasDisplayHandle;
@@ -37,7 +39,8 @@ const CLASS: &str = "Tokra::Native::Window";
 /// `Message::Window` arm, tauri-runtime-wry `src/lib.rs:3244`).
 #[magnus::wrap(class = "Tokra::Native::Window", free_immediately, size)]
 pub struct RbWindow {
-    inner: ThreadBound<Window>,
+    /// Empty once `close` has dropped the window.
+    inner: RefCell<ThreadBound<Window>>,
     /// Carries the window back to its thread if Ruby frees this object on
     /// another (see `Drop`).
     proxy: EventLoopProxy<UserEvent>,
@@ -50,12 +53,11 @@ impl Drop for RbWindow {
     /// called, as `free_immediately` requires (magnus
     /// `src/typed_data.rs:310-316`).
     fn drop(&mut self) {
-        if !self.inner.owner().is_current() {
+        let inner = self.inner.get_mut();
+        if !inner.owner().is_current() {
             let _ = self
                 .proxy
-                .send_event(UserEvent::Release(Released::Window(Box::new(
-                    self.inner.take(),
-                ))));
+                .send_event(UserEvent::Release(Released::Window(Box::new(inner.take()))));
         }
     }
 }
@@ -82,19 +84,71 @@ impl RbWindow {
             .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
 
         Ok(Self {
-            inner: ThreadBound::new(window),
+            inner: RefCell::new(ThreadBound::new(window)),
             proxy: event_loop.proxy().clone(),
         })
+    }
+
+    /// The tao window, on the thread that created it, or `None` once
+    /// `close` has dropped it.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ThreadError` on any other thread, or a `RuntimeError` while
+    /// `close` holds the window.
+    pub(crate) fn open_window(&self) -> Result<Option<Ref<'_, Window>>, Error> {
+        let inner = self
+            .inner
+            .try_borrow()
+            .map_err(|_| Error::new(runtime_error(), "Window is closing"))?;
+        if !inner.owner().is_current() {
+            return Err(wrong_thread(CLASS));
+        }
+        Ok(Ref::filter_map(inner, ThreadBound::get).ok())
     }
 
     /// The tao window, on the thread that created it.
     ///
     /// # Errors
     ///
-    /// Returns `ThreadError` on any other thread.
-    pub(crate) fn window(&self) -> Result<&Window, Error> {
-        self.inner.get().ok_or_else(|| wrong_thread(CLASS))
+    /// Returns `ThreadError` on any other thread, or a `RuntimeError` once
+    /// the window is closed.
+    pub(crate) fn window(&self) -> Result<Ref<'_, Window>, Error> {
+        self.open_window()?
+            .ok_or_else(|| Error::new(runtime_error(), "Window is closed"))
     }
+
+    // SPDX-SnippetBegin
+    // SPDX-License-Identifier: Apache-2.0 OR MIT
+    // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    // SPDX-SnippetComment: Closing a window adapted from tauri-runtime-wry/src/lib.rs on_window_close
+    /// Close the window by dropping it, as Tauri's `on_window_close` drops
+    /// its `inner` window (tauri-runtime-wry `src/lib.rs:4293-4298`). tao
+    /// closes a dropped window (`platform_impl/macos/window.rs:1734-1739`)
+    /// and then reports `WindowEvent::Destroyed`. A closed window ignores
+    /// its setters and answers `nil` for its title and id, as Tauri's
+    /// runtime ignores a message for a window it no longer holds
+    /// (`src/lib.rs:3244-3250`). Closing twice does nothing.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ThreadError` off the window's thread.
+    pub fn close(&self) -> Result<(), Error> {
+        let closed = {
+            let mut inner = self
+                .inner
+                .try_borrow_mut()
+                .map_err(|_| Error::new(runtime_error(), "Window is in use"))?;
+            if !inner.owner().is_current() {
+                return Err(wrong_thread(CLASS));
+            }
+            inner.take()
+        };
+        // Dropped here, on the owner's thread, after the borrow ends.
+        drop(closed);
+        Ok(())
+    }
+    // SPDX-SnippetEnd
 
     /// Set the window title.
     ///
@@ -105,7 +159,9 @@ impl RbWindow {
     // See clippy_exceptions.rb for justification.
     #[allow(clippy::needless_pass_by_value)]
     pub fn set_title(&self, title: String) -> Result<(), Error> {
-        self.window()?.set_title(&title);
+        if let Some(window) = self.open_window()? {
+            window.set_title(&title);
+        }
         Ok(())
     }
 
@@ -114,8 +170,8 @@ impl RbWindow {
     /// # Errors
     ///
     /// Returns `ThreadError` off the window's thread.
-    pub fn title(&self) -> Result<String, Error> {
-        Ok(self.window()?.title())
+    pub fn title(&self) -> Result<Option<String>, Error> {
+        Ok(self.open_window()?.map(|window| window.title()))
     }
 
     /// Set the window inner size.
@@ -126,7 +182,9 @@ impl RbWindow {
     pub fn set_size(&self, width: f64, height: f64) -> Result<(), Error> {
         use tao::dpi::LogicalSize;
         let size = LogicalSize::new(width, height);
-        self.window()?.set_inner_size(size);
+        if let Some(window) = self.open_window()? {
+            window.set_inner_size(size);
+        }
         Ok(())
     }
 
@@ -140,7 +198,9 @@ impl RbWindow {
     ///
     /// Returns `ThreadError` off the window's thread.
     pub fn set_always_on_top(&self, always_on_top: bool) -> Result<(), Error> {
-        self.window()?.set_always_on_top(always_on_top);
+        if let Some(window) = self.open_window()? {
+            window.set_always_on_top(always_on_top);
+        }
         Ok(())
     }
 
@@ -155,7 +215,9 @@ impl RbWindow {
     ///
     /// Returns `ThreadError` off the window's thread.
     pub fn set_ignore_cursor_events(&self, ignore: bool) -> Result<(), Error> {
-        let _ = self.window()?.set_ignore_cursor_events(ignore);
+        if let Some(window) = self.open_window()? {
+            let _ = window.set_ignore_cursor_events(ignore);
+        }
         Ok(())
     }
 
@@ -164,8 +226,10 @@ impl RbWindow {
     /// # Errors
     ///
     /// Returns `ThreadError` off the window's thread.
-    pub fn id(&self) -> Result<String, Error> {
-        Ok(format!("{:?}", self.window()?.id()))
+    pub fn id(&self) -> Result<Option<String>, Error> {
+        Ok(self
+            .open_window()?
+            .map(|window| format!("{:?}", window.id())))
     }
 
     /// The window's raw handle, as a tagged Array (`raw_handle.rs`), from
@@ -175,7 +239,10 @@ impl RbWindow {
     ///
     /// Returns `ThreadError` off the window's thread.
     pub fn raw_window_handle(ruby: &Ruby, rb_self: &Self) -> Result<RArray, Error> {
-        Ok(raw_handle::window_handle(ruby, rb_self.window()?))
+        Ok(rb_self.open_window()?.map_or_else(
+            || raw_handle::unavailable(ruby),
+            |window| raw_handle::window_handle(ruby, &window),
+        ))
     }
 
     /// The raw handle of the window's display, as a tagged Array
@@ -186,7 +253,9 @@ impl RbWindow {
     ///
     /// Returns `ThreadError` off the window's thread.
     pub fn raw_display_handle(ruby: &Ruby, rb_self: &Self) -> Result<RArray, Error> {
-        let window = rb_self.window()?;
+        let Some(window) = rb_self.open_window()? else {
+            return Ok(raw_handle::unavailable(ruby));
+        };
         Ok(raw_handle::display_handle(ruby, || {
             window.display_handle().map(|handle| handle.as_raw())
         }))
@@ -210,6 +279,7 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
         method!(RbWindow::set_ignore_cursor_events, 1),
     )?;
     window_class.define_method("id", method!(RbWindow::id, 0))?;
+    window_class.define_method("close", method!(RbWindow::close, 0))?;
     window_class.define_method("raw_window_handle", method!(RbWindow::raw_window_handle, 0))?;
     window_class.define_method(
         "raw_display_handle",

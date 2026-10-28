@@ -135,7 +135,56 @@ module Tokra
     #   window.title  #=> "Tokra"
     def title
       native = @native
-      @app_handle.runtime_context.getter { native.title }
+      title = @app_handle.runtime_context.getter { native.title }
+      # A closed window has no title to give; Tauri's runtime drops the
+      # getter's channel unanswered (lib.rs:3244-3250).
+      raise Error::Runtime, Error::Runtime::FAILED_TO_RECEIVE_MESSAGE unless title
+
+      title
+    end
+
+    # Asks to close this window and returns +nil+.
+    #
+    # Closing works like a click on the close button: your
+    # Builder#on_window_event listeners, plugins, and the App#run callback
+    # hear WindowEvent::CloseRequested on a later turn of the event loop,
+    # and the window closes unless one of them calls
+    # <tt>api.prevent_close</tt>. When the last window closes, the app asks
+    # to exit (RunEvent::ExitRequested). Use #destroy to close without
+    # asking. Raises Error::Runtime when the event loop has ended.
+    #
+    # Mirrors Tauri's Window::close (window/mod.rs:1779-1782), which sends
+    # WindowMessage::Close through the loop (tauri-runtime-wry
+    # lib.rs:2142-2149, 4229-4231).
+    #
+    # === Example
+    #
+    #   window.close
+    def close
+      @app_handle.runtime_context.request_close
+    end
+
+    # Closes this window without asking and returns +nil+.
+    #
+    # Similar to #close, but no WindowEvent::CloseRequested is emitted and
+    # nothing can keep the window open. Handlers still hear
+    # WindowEvent::Destroyed, and when the last window goes the app still
+    # asks to exit. On the main thread the window closes at once, where
+    # Tauri queues the close through the event loop; Destroyed comes later
+    # from the platform either way. From another thread the close travels
+    # to the main thread. Raises Error::Runtime when the event loop has
+    # ended.
+    #
+    # Mirrors Tauri's Window::destroy (window/mod.rs:1784-1787), which
+    # drops the native window (tauri-runtime-wry lib.rs:2151-2160,
+    # 4232-4234, 4293-4298).
+    #
+    # === Example
+    #
+    #   window.destroy
+    def destroy
+      native = @native
+      dispatch { native.close }
     end
 
     # The native name of this window: a RawWindowHandle value.

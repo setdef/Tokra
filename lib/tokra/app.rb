@@ -129,8 +129,14 @@ module Tokra
     # Creates the native window and webview, then runs the event loop.
     # The block receives (handle, event) for each runtime event:
     # RunEvent::Ready before the loop starts, RunEvent::WindowEvent when
-    # the window is asked to close, and RunEvent::Exit as the loop ends.
+    # the window is asked to close and when it is destroyed,
+    # RunEvent::ExitRequested when the last window has closed or code
+    # called AppHandle#exit, and RunEvent::Exit as the loop ends.
     # Registered plugins hear each one first.
+    #
+    # Closing the last window ends the app unless a handler calls
+    # <tt>api.prevent_exit</tt> on the RunEvent::ExitRequested; then it
+    # keeps running with no window until AppHandle#exit.
     #
     # The native loop never returns. When it ends, it raises SystemExit
     # with the loop's exit code, the way Kernel#exit ends a process, so
@@ -346,7 +352,11 @@ module Tokra
       elsif event.is_a?(Native::PageLoadEvent)
         dispatch_page_load(event)
       elsif event.is_a?(Native::WindowCloseEvent)
-        dispatch_window_event(window, WindowEvent::CloseRequested.new, callback)
+        close_requested(window, callback)
+      elsif event.is_a?(Native::WindowDestroyedEvent)
+        window_destroyed(window, callback)
+      elsif event.is_a?(Native::ExitRequestedEvent)
+        exit_requested(event.code, callback)
       elsif event.is_a?(Native::DragDropEvent)
         dispatch_webview_event(event)
       elsif event.is_a?(Native::LoopDestroyedEvent)
@@ -887,6 +897,69 @@ module Tokra
 
       payload = PageLoadPayload.new(url: event.url, started: event.started?)
       hook.call(nil, payload) # webview object not yet wired
+    end
+
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: Close, destroy, and exit requests adapted from
+    # tauri-runtime-wry/src/lib.rs (handle_event_loop, on_close_requested,
+    # on_window_close) and tauri/crates/tauri/src/app.rs (on_event_loop_event)
+
+    # Asks the window's listeners, plugins, and the run callback whether
+    # the window may close, then closes the native window unless one
+    # prevented it (on_close_requested, lib.rs:4262-4290). Its Destroyed
+    # event follows from the platform. A window already closed is no
+    # longer in the store, and the request is dropped, as Tauri's is.
+    private def close_requested(window, callback)
+      return unless @handle.windows.key?("main")
+
+      api = CloseRequestApi.new
+      reporting { dispatch_window_event(window, WindowEvent::CloseRequested.new(api:), callback) }
+      window.close unless api.prevented?
+    end
+
+    # The native window is gone. The manager drops it and its webviews
+    # first (on_window_close, manager/mod.rs:651-658), then the run
+    # callback hears Destroyed, then the window's listeners
+    # (lib.rs:4134-4150), and the runtime drops the webviews
+    # (lib.rs:4172). With no window left the app asks to exit with no code
+    # (lib.rs:4172-4185). Answers the loop: +true+ ends it.
+    private def window_destroyed(window, callback)
+      return false unless @handle.windows.delete("main")
+
+      webviews = @handle.webviews.select { |_label, webview| webview.window.label == "main" }
+      webviews.each_key { |label| @handle.webviews.delete(label) }
+      reporting do
+        event = WindowEvent::Destroyed.new
+        emit_run_event(RunEvent::WindowEvent.new(label: "main", event:), callback)
+        @builder.__send__(:window_event_listeners)&.each { |listener| listener.call(window, event) }
+      end
+      webviews.each_value { |webview| webview.native.close }
+      return false unless @handle.windows.empty?
+
+      exit_requested(nil, callback)
+    end
+
+    # Asks plugins and the run callback whether the app may exit with
+    # +code+, +nil+ when the last window closed (lib.rs:4172-4185,
+    # 4215-4227). Answers the loop: +true+ ends it, with +code+ or 0.
+    private def exit_requested(code, callback)
+      api = ExitRequestApi.new(code)
+      reporting { emit_run_event(RunEvent::ExitRequested.new(code:, api:), callback) }
+      !api.prevented?
+    end
+
+    # SPDX-SnippetEnd
+
+    # Runs the block, reporting a StandardError it raises the way the
+    # native loop reports a failed event (ext/tokra/src/event_loop.rs
+    # Turn#report), so the default that follows still happens: Tauri's
+    # runtime proceeds unless a handler prevented first.
+    private def reporting
+      yield
+    rescue => e
+      warn(e.full_message(highlight: false))
     end
 
     private def dispatch_window_event(window, event, callback)

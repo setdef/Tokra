@@ -63,9 +63,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `CommandItem::Mismatch` for any other value, and `JsImage#into_img`
   resolves it into a `Tokra::Image`
 - Registered plugins receive `RunEvent::Ready`, `RunEvent::WindowEvent`
-  (close requested), and `RunEvent::Exit` through `Plugin#on_event`, before
-  the run callback; `Exit` is emitted from the native loop's
-  `Native::LoopDestroyedEvent`, since tao's event loop never returns
+  (close requested and destroyed), `RunEvent::ExitRequested`, and
+  `RunEvent::Exit` through `Plugin#on_event`, before the run callback;
+  `Exit` is emitted from the native loop's `Native::LoopDestroyedEvent`,
+  since tao's event loop never returns
 - Frontend `invoke` promises now resolve and reject: `App` evaluates Tauri's
   `runCallback` in the WebView, so `@tauri-apps/api` works end to end
 - `Tokra::Ipc::FormatCallback` formats invoke responses as callback scripts
@@ -212,6 +213,22 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Native::EventLoop#set_activation_policy`, on macOS only
 - `Window#set_always_on_top` and `Window#set_ignore_cursor_events`, with
   `Native::Window#set_always_on_top` and `Native::Window#set_ignore_cursor_events`
+- `RunEvent::ExitRequested` is emitted when the last window closes (`code`
+  is `nil`) and for `AppHandle#exit` (`code` is its code), before
+  `RunEvent::Exit`; its `api`, a `Tokra::ExitRequestApi`, has
+  `prevent_exit`, which keeps the app running with no window
+- `AppHandle#exit` asks through the event loop and returns `nil`; the
+  process ends with its code unless a handler prevents the exit, and it
+  falls back to `Kernel.exit` once the loop has ended
+- `Tokra::RESTART_EXIT_CODE`; `prevent_exit` is ignored for it
+- `WindowEvent::CloseRequested#api`, a `Tokra::CloseRequestApi`, whose
+  `prevent_close` keeps the window open
+- `WindowEvent::Destroyed` is emitted once a closed window is gone
+- `Window#close` asks to close the window as its close button does, and
+  `Window#destroy` closes it without asking
+- `Native::Proxy#request_exit` and `#request_close`, `Native::Window#close`,
+  `Native::WebView#close`, `Native::WindowDestroyedEvent`, and
+  `Native::ExitRequestedEvent`
 
 ### Changed
 
@@ -264,6 +281,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   platform's events, instead of one by one as they arrive
 - `tokra`'s native crate now depends on the `rb-sys` crate directly, for Ruby's
   thread-event hooks
+- Closing the window no longer ends the event loop by itself: the window
+  closes, and the app exits unless a handler prevents it (breaking for code
+  that drives `Native::EventLoop` directly, which now closes the window on
+  `WindowCloseEvent` and answers `true` to `WindowDestroyedEvent`)
+- A closed `Native::Window` ignores its setters and answers `nil` for its
+  title and id, and `Window#title` then raises `Error::Runtime` (`failed to
+  receive message from webview`); a closed `Native::WebView` ignores `eval`
+  (breaking)
 
 ### Fixed
 

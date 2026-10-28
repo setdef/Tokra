@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class CloseRequestApi
+    @prevented: bool
+
+    def initialize: () -> void
+    def prevent_close: () -> nil
+    def prevented?: () -> bool
+  end
+end

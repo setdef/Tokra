@@ -227,20 +227,36 @@ module Tokra
       webviews.each_value { |wv| wv.eval(js) }
     end
 
-    # Requests application exit with optional exit code.
+    # Asks the app to exit with +code+ and returns +nil+.
     #
-    # Calls Kernel.exit, which raises SystemExit. Inside a running app the
-    # native event loop catches it and ends with +code+, so plugins still
-    # receive RunEvent::Exit. Called on another thread, it ends that thread,
-    # and Ruby raises the same SystemExit in the main thread
-    # (thread.c:726-732, 772-775 at Ruby v4.0.1), where the loop ends with
-    # +code+ as Tauri's exit request does (app.rs:531-538). Tauri also emits
-    # RunEvent::ExitRequested first; Tokra does not yet.
+    # Exits the app by triggering RunEvent::ExitRequested and
+    # RunEvent::Exit. The request travels through the event loop, from any
+    # thread, so your code after this call runs; the loop then emits
+    # RunEvent::ExitRequested with +code+ to plugins and the App#run
+    # callback. Unless a handler calls <tt>api.prevent_exit</tt>, the loop
+    # ends, plugins hear RunEvent::Exit, and the process ends with +code+.
+    # Called before App#run, the request waits for the loop.
+    #
+    # Once the event loop has ended there is no one left to ask, so this
+    # calls Kernel.exit(+code+), which raises SystemExit, as Tauri falls
+    # back to <tt>process::exit</tt>.
+    #
+    # A plain Kernel#exit in a handler still ends the loop at once without
+    # asking, as <tt>std::process::exit</tt> would in a Tauri app.
+    #
+    # Mirrors Tauri's AppHandle::exit (app.rs:531-538), which sends
+    # Message::RequestExit through the runtime (tauri-runtime-wry
+    # lib.rs:2623-2629, 4215-4227). Tauri's loop then ends with status 0
+    # whatever the code, since tao's ControlFlow::Exit is ExitWithCode(0);
+    # Tokra ends with +code+, as Ruby's own exit does (Plan 038,
+    # decision 5).
     #
     # === Example
     #
     #   handle.exit(0)
     def exit(code = 0)
+      @runtime_context.request_exit(code)
+    rescue Error::Runtime
       Kernel.exit(code)
     end
   end

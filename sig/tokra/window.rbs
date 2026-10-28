@@ -23,6 +23,8 @@ module Tokra
     def set_always_on_top: (bool always_on_top) -> nil
     def set_ignore_cursor_events: (bool ignore) -> nil
     def title: () -> String
+    def close: () -> nil
+    def destroy: () -> nil
     def window_handle: () -> RawWindowHandle::window_handle
     def display_handle: () -> RawWindowHandle::display_handle
     def run_on_main_thread: () { () -> void } -> nil

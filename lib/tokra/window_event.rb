@@ -13,10 +13,16 @@
 module Tokra
   # Window event types dispatched to on_window_event callbacks.
   module WindowEvent
-    # Window close was requested by user.
-    CloseRequested = Data.define
+    # The window has been requested to close, by its close button or by
+    # Window#close. Call <tt>api.prevent_close</tt>, a CloseRequestApi, to
+    # keep it open; otherwise it closes once every handler has returned.
+    # Mirrors Tauri's <tt>WindowEvent::CloseRequested { api }</tt>
+    # (app.rs:114-118).
+    CloseRequested = Data.define(:api)
 
-    # Window was destroyed.
+    # The window has been destroyed. The app no longer lists it when your
+    # handlers hear this. Mirrors Tauri's <tt>WindowEvent::Destroyed</tt>
+    # (app.rs:119-120).
     Destroyed = Data.define
 
     # Window focus changed. +focused+ is true if gained focus.

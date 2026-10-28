@@ -18,11 +18,16 @@ module Tokra
     # Emitted when the event loop is about to start.
     Ready = Data.define
 
-    # Emitted after the event loop exits.
+    # Event loop is exiting.
     Exit = Data.define
 
-    # Emitted when an exit is requested but not yet confirmed.
-    ExitRequested = Data.define(:code)
+    # The app is about to exit. +code+ is +nil+ when the last window
+    # closed, and an Integer when code asked through AppHandle#exit.
+    # Call <tt>api.prevent_exit</tt>, an ExitRequestApi, to keep the app
+    # running. Signals (Ctrl-C, +SIGTERM+) end the app without asking.
+    # Mirrors Tauri's <tt>RunEvent::ExitRequested { code, api }</tt>
+    # (app.rs:200-207).
+    ExitRequested = Data.define(:code, :api)
 
     # Emitted when a window event occurs.
     WindowEvent = Data.define(:label, :event)

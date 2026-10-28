@@ -65,11 +65,15 @@ class TestBuilderPluginRunEvents < Minitest::Test
 
     app.run
 
+    events = plugin.events.map(&:last)
+    close = events[1]
+    assert_instance_of Tokra::WindowEvent::CloseRequested, close.event
     assert_equal [
       Tokra::RunEvent::Ready.new,
-      Tokra::RunEvent::WindowEvent.new(label: "main", event: Tokra::WindowEvent::CloseRequested.new),
-      Tokra::RunEvent::Exit.new,
-    ], plugin.events.map(&:last), "Ready, the close request, then Exit as the loop ends"
+      Tokra::RunEvent::WindowEvent.new(label: "main", event: Tokra::WindowEvent::CloseRequested.new(api: close.event.api)),
+      Tokra::RunEvent::WindowEvent.new(label: "main", event: Tokra::WindowEvent::Destroyed.new),
+    ], events.first(3), "Ready, the close request, then the window's destruction"
+    assert_equal Tokra::RunEvent::Exit.new, events.last, "Exit as the loop ends"
   ensure
     StubNative.clear_event
   end

@@ -9,7 +9,7 @@
 # Each entry must explain WHY the exception is unavoidable.
 # Review carefully before adding new entries.
 
-allow "ext/tokra/src/window.rs", line: 106, reason: <<~END
+allow "ext/tokra/src/window.rs", line: 160, reason: <<~END
   Magnus FFI requires owned types at the Ruby-Rust boundary. RbWindow::set_title
   receives a Ruby string that must be converted to an owned Rust String because
   Magnus's TryConvert trait only implements String, not &str.
@@ -20,7 +20,7 @@ allow "ext/tokra/src/window.rs", line: 106, reason: <<~END
   the Ruby GC cycle.
 END
 
-allow "ext/tokra/src/webview.rs", line: 185, reason: <<~END
+allow "ext/tokra/src/webview.rs", line: 189, reason: <<~END
   Magnus FFI requires owned types at the Ruby-Rust boundary. RbWebView::new
   receives a URL from Ruby that must be converted to an owned Rust String.
 
@@ -29,7 +29,7 @@ allow "ext/tokra/src/webview.rs", line: 185, reason: <<~END
   cannot be safely borrowed across the FFI boundary.
 END
 
-allow "ext/tokra/src/webview.rs", line: 340, reason: <<~END
+allow "ext/tokra/src/webview.rs", line: 344, reason: <<~END
   Magnus FFI requires owned types at the Ruby-Rust boundary. RbWebView::eval
   receives JavaScript code from Ruby that must be converted to an owned String.
 
@@ -52,17 +52,17 @@ allow "ext/tokra/src/thread_bound.rs", line: 125, reason: <<~END
   whose invariant nothing enforced (Plan 019, Plan 020).
 END
 
-allow "ext/tokra/src/proxy.rs", lines: [116, 117], reason: <<~END
+allow "ext/tokra/src/proxy.rs", lines: [160, 161], reason: <<~END
   Proxy#respond method clippy allows for FFI boundary and readability.
 
-  Line 116: #[allow(clippy::needless_pass_by_value)]
+  Line 160: #[allow(clippy::needless_pass_by_value)]
   Magnus FFI requires owned types at the Ruby-Rust boundary. The `headers`
   parameter is received from Ruby as an owned value (the body arrives as an
   RString and is copied out as bytes). Changing to references
   would require an intermediate allocation anyway since TryConvert produces owned
   Strings.
 
-  Line 117: #[allow(clippy::option_if_let_else)]
+  Line 161: #[allow(clippy::option_if_let_else)]
   Using `match` is more readable than `map_or_else` when the branches have
   significantly different complexity. The `Some` branch builds an HTTP response
   while `None` returns a simple error.

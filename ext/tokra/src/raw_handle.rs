@@ -143,6 +143,12 @@ fn xlib_display(ruby: &Ruby, display: Option<usize>, screen: c_int) -> RArray {
     ])
 }
 
+/// The tagged Array for a window that no longer exists: raw-window-handle's
+/// `HandleError::Unavailable`, what Tauri answers for a closed window.
+pub fn unavailable(ruby: &Ruby) -> RArray {
+    ruby.ary_from_iter([error_tag(ruby, &HandleError::Unavailable)])
+}
+
 /// The tag for a `HandleError` variant. The enum is non-exhaustive; a
 /// variant this version does not know reads as `NotSupported`.
 fn error_tag(ruby: &Ruby, error: &HandleError) -> Value {

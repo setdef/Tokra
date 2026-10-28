@@ -13,6 +13,7 @@ module Tokra
     @mutex: Thread::Mutex
     @tasks: Array[[^() -> void, Thread::Queue[Object]?]]
     @proxy: Native::Proxy?
+    @unsent: Array[^(Native::Proxy) -> void]
     @closed: bool
 
     def initialize: (?main_thread: Thread) -> void
@@ -20,6 +21,8 @@ module Tokra
     def attach: (Native::Proxy proxy) -> void
     def run_on_main_thread: () { () -> void } -> nil
     def getter: [T] () { () -> T } -> T
+    def request_exit: (Integer code) -> nil
+    def request_close: () -> nil
     def handle_task: () -> nil
     def close: () -> nil
 
@@ -27,6 +30,8 @@ module Tokra
 
     def send_user_message: (^() -> void task, ?Thread::Queue[Object]? reply) -> nil
     def wake: (Native::Proxy? proxy) -> void
+    def send_event: () { (Native::Proxy proxy) -> void } -> nil
+    def send_through: (Native::Proxy? proxy) { (Native::Proxy proxy) -> void } -> void
     def answer: [T] ([T] | Failure | nil reply) -> T
   end
 end

@@ -211,4 +211,13 @@ class NativeLoopTest < RealApp::TestCase
     assert_finished run
     assert_includes run.lines, "LATE_RESPONSE Failed to send response: event loop closed", run.describe
   end
+
+  # Tauri's request_exit and close fail with FailedToSendMessage once the
+  # proxy is closed (tauri-runtime-wry lib.rs:2142-2149, 2623-2629).
+  def test_exit_and_close_requests_after_the_loop_closes_fail
+    run = responses
+    assert_finished run
+    assert_includes run.lines, "LATE_REQUEST_EXIT Failed to send exit request: event loop closed", run.describe
+    assert_includes run.lines, "LATE_REQUEST_CLOSE Failed to send close request: event loop closed", run.describe
+  end
 end

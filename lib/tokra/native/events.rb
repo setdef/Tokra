@@ -34,9 +34,43 @@ module Tokra
 
     # Window close requested.
     #
-    # Created when the user clicks the window close button.
-    # The event loop will exit after dispatching this event.
+    # Created when the user clicks the window close button, or when
+    # Proxy#request_close asks for the same. The loop keeps running: the
+    # App asks its handlers and closes the native window unless one
+    # prevents it (tauri-runtime-wry lib.rs:4262-4290).
+    #
+    #   case event
+    #   when Tokra::Native::WindowCloseEvent
+    #     window.close unless keep_open?
+    #   end
     WindowCloseEvent = Data.define
+
+    # The native window is gone.
+    #
+    # Created from tao's <tt>WindowEvent::Destroyed</tt>, which follows
+    # Window#close. The callback's answer matters for this event: +true+
+    # ends the loop with status 0, as the last window's exit request does
+    # in Tauri's runtime (tauri-runtime-wry lib.rs:4171-4185); any other
+    # answer keeps it running.
+    #
+    #   case event
+    #   when Tokra::Native::WindowDestroyedEvent
+    #     windows_left.empty?
+    #   end
+    WindowDestroyedEvent = Data.define
+
+    # Code asked the app to exit with +code+.
+    #
+    # Created for each Proxy#request_exit, Tauri's
+    # <tt>Message::RequestExit</tt>. The callback's answer matters for this
+    # event: +true+ ends the loop with +code+; any other answer keeps it
+    # running (tauri-runtime-wry lib.rs:4215-4227).
+    #
+    #   case event
+    #   when Tokra::Native::ExitRequestedEvent
+    #     !keep_running?
+    #   end
+    ExitRequestedEvent = Data.define(:code)
 
     # HTTP request from WebView via the <tt>tokra://</tt> custom protocol.
     #

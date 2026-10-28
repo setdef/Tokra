@@ -6,7 +6,7 @@ module Tokra
 
   type json_value = String | Integer | Float | bool | nil | Array[json_value] | Hash[String, json_value]
 
-  type native_event = Native::HttpRequestEvent | Native::IpcEvent | Native::PageLoadEvent | Native::WindowCloseEvent | Native::WakeUpEvent | Native::DragDropEvent | Native::LoopDestroyedEvent | Native::TaskEvent
+  type native_event = Native::HttpRequestEvent | Native::IpcEvent | Native::PageLoadEvent | Native::WindowCloseEvent | Native::WindowDestroyedEvent | Native::ExitRequestedEvent | Native::WakeUpEvent | Native::DragDropEvent | Native::LoopDestroyedEvent | Native::TaskEvent
 
   type invoke_body = json_value
 

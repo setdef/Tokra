@@ -10,9 +10,17 @@ require "test_helper"
 
 # Tests for Tokra::WindowEvent types.
 class TestWindowEvent < Minitest::Test
-  def test_close_requested_exists
-    event = Tokra::WindowEvent::CloseRequested.new
-    assert_instance_of Tokra::WindowEvent::CloseRequested, event
+  def test_close_requested_carries_its_api
+    api = Tokra::CloseRequestApi.new
+    event = Tokra::WindowEvent::CloseRequested.new(api:)
+    assert_same api, event.api
+  end
+
+  def test_prevent_close_marks_the_request_prevented
+    api = Tokra::CloseRequestApi.new
+    refute_predicate api, :prevented?
+    assert_nil api.prevent_close
+    assert_predicate api, :prevented?
   end
 
   def test_destroyed_exists

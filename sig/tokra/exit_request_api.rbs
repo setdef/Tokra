@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  RESTART_EXIT_CODE: Integer
+
+  class ExitRequestApi
+    @code: Integer?
+    @prevented: bool
+
+    def initialize: (Integer? code) -> void
+    def prevent_exit: () -> nil
+    def prevented?: () -> bool
+  end
+end

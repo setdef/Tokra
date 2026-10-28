@@ -68,8 +68,9 @@ module Tokra
     #
     # - Window: Native window
     #   - .new(event_loop) -> Window
-    #   - #title -> String
+    #   - #title -> String, or nil once closed
     #   - #set_title(string)
+    #   - #close - drop the native window; tao then reports Destroyed
     #   - #set_size(width, height)
     #   - #id -> String
     #   - #raw_window_handle -> tagged Array, which
@@ -80,10 +81,13 @@ module Tokra
     # - WebView: WebKit/WebView2 webview
     #   - .new(window, url, ipc_callback, proxy) -> WebView
     #   - #eval(js_string)
+    #   - #close - drop the native webview
     #
     # - Proxy: Thread-safe handle (genuinely Send-safe)
     #   - #wake_up(payload) - Send wake event to main thread
     #   - #send_task - Wake the loop to run one queued RuntimeContext task
+    #   - #request_exit(code) - Ask the loop to exit (ExitRequestedEvent)
+    #   - #request_close - Ask to close the window (WindowCloseEvent)
     #
     # - IpcEvent: Event fired when WebView sends IPC message
     #   - #message -> String
@@ -92,6 +96,12 @@ module Tokra
     #   - #payload -> String
     #
     # - WindowCloseEvent: Event fired when window close is requested
+    #
+    # - WindowDestroyedEvent: Event fired when the native window is gone;
+    #   the callback answers true to end the loop
+    #
+    # - ExitRequestedEvent: Event fired for Proxy#request_exit
+    #   - #code -> Integer; the callback answers true to end the loop
 
     # Generates JavaScript code to emit an event to the WebView.
     #

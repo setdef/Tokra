@@ -109,6 +109,13 @@ event_loop.run(
       LOGGER.info { "Window close requested" }
       LOGGER.info { "Session stats: #{request_count} requests, #{page_load_count} page loads" }
       LOGGER.info { "Goodbye!" }
+      # The loop keeps running until the window is gone: close it, and the
+      # platform answers with WindowDestroyedEvent.
+      window.close
+
+    when Tokra::Native::WindowDestroyedEvent
+      # Answering true ends the loop.
+      true
     end
   }
 )
