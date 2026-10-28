@@ -59,6 +59,7 @@
 mod event_loop;
 mod gvl_handoff;
 mod image;
+mod interrupt_check;
 mod path;
 mod proxy;
 mod raw_handle;

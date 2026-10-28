@@ -23,6 +23,25 @@ class ExitPathsTest < RealApp::TestCase
   # Seconds Ctrl-C may take to end the app; the loop exits on its next turn.
   INTERRUPT_GRACE = 15
 
+  # Seconds the waiting app is left idle after its report before SIGTERM.
+  SETTLE = 1
+
+  # Seconds SIGTERM may take to end the idle app (Plan 034).
+  TERM_GRACE = 2
+
+  # Waits with no exit of its own, and gets SIGTERM once the page has
+  # reported and the loop has gone idle.
+  def terminated
+    self.class.fixture_run(:terminated) do
+      RealApp.launch("exit_paths", "--wait", "--run-callback", on_line: lambda { |line, pid|
+        next false unless line.start_with?("REPORT ")
+
+        sleep SETTLE
+        RealApp.signal(pid, :TERM)
+      })
+    end
+  end
+
   def exited
     self.class.fixture_run(:exited) do
       RealApp.launch("exit_paths", "--exit-code=#{EXIT_CODE}", "--raise-on-page-load")
@@ -67,5 +86,17 @@ class ExitPathsTest < RealApp::TestCase
     refute_includes run.stderr, "Interrupt", "Ruby's own SIGINT handler ran instead of the loop's"
     assert_equal 0, run.status, run.describe
     assert_equal ["EVENT ready", "REPORT", "EVENT exit", "AT_EXIT"], run.kinds, run.describe
+  end
+
+  # Ruby's SIGTERM unwinds the loop, so plugins and the run callback hear
+  # RunEvent::Exit, the way ensure code runs, where Tauri's process would
+  # simply end (Plan 034, decision 1); the process still ends by the signal.
+  def test_sigterm_on_an_idle_app_emits_exit_and_ends_by_the_signal
+    run = terminated
+    assert_finished run
+    refute_nil run.exit_after_signal, "the page never reported, so SIGTERM was never sent\n#{run.describe}"
+    assert_operator run.exit_after_signal, :<, TERM_GRACE, "the app outlived SIGTERM\n#{run.describe}"
+    assert_equal Signal.list.fetch("TERM"), run.termsig, run.describe
+    assert_equal ["EVENT ready", "REPORT", "EVENT exit", "RUN exit", "AT_EXIT"], run.kinds, run.describe
   end
 end

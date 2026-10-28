@@ -33,6 +33,9 @@
 //! `rb_internal_thread_add_event_hook` returns `NULL` (`thread_win32.c:34-45`),
 //! and [`GvlHandoff::install`] returns `None` so the loop polls instead
 //! ([`idle_control_flow`]).
+//!
+//! A signal needs the main thread too, and no hook announces it; see
+//! `interrupt_check.rs`.
 
 use std::ffi::c_void;
 use std::ptr::NonNull;

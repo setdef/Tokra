@@ -272,7 +272,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   exit
 - `SIGTERM`, `SIGHUP`, and `SIGQUIT` with Ruby's default handlers being
   printed and ignored by a running app; they now end it as they end any
-  Ruby program
+  Ruby program, within about 100 ms even while the window is idle, and an
+  app's own `trap` handlers for those signals run as promptly
 - A webview call from a background thread reaching wry off the main thread,
   and a window or webview freed by a garbage collection on another thread
   being destroyed there; the webview case was undefined behavior, and the

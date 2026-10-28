@@ -23,6 +23,7 @@ use tao::{
 };
 
 use crate::gvl_handoff::{idle_control_flow, GvlHandoff};
+use crate::interrupt_check::{InterruptTicker, INTERRUPT_CHECK};
 use crate::proxy::RbProxy;
 use crate::runtime_error;
 use crate::thread_bound::{wrong_thread, ThreadBound};
@@ -157,7 +158,10 @@ impl RbEventLoop {
     /// the way Ruby ends a process.
     ///
     /// The loop holds the GVL, and hands it to any other Ruby thread that
-    /// waits for it (`gvl_handoff.rs`).
+    /// waits for it (`gvl_handoff.rs`). It also wakes once per Ruby's
+    /// default time slice, 100 ms, to run a pending interrupt, so a
+    /// signal's handler, Ruby's default or the app's `trap`, runs even
+    /// while nothing else happens (`interrupt_check.rs`, Plan 034).
     ///
     /// # Errors
     ///
@@ -183,6 +187,12 @@ impl RbEventLoop {
         .ok(); // Ignore if already set
 
         let handoff = GvlHandoff::install(self.proxy.clone(), ruby.thread_main().as_raw());
+        // Wakes the loop once per time slice to run a signal's handler
+        // (interrupt_check.rs); it stops once the loop is gone.
+        let ticks = self.proxy.clone();
+        let ticker = InterruptTicker::start(INTERRUPT_CHECK, move || {
+            ticks.send_event(UserEvent::Yield).is_ok()
+        });
         let poll = handoff.is_none();
         let mut raised = None;
         let mut inbox = VecDeque::new();
@@ -212,12 +222,14 @@ impl RbEventLoop {
                 // Once per iteration, after tao has drained its events:
                 // deliver what the drain queued, then hand over the GVL if
                 // another thread waits, so a busy thread gets one time slice
-                // per turn of the loop and cannot starve the window.
+                // per turn of the loop and cannot starve the window, or if
+                // Ruby has an interrupt pending, such as a signal, which
+                // the hand-off runs.
                 turn.deliver_inbox();
                 let owed = handoff
                     .as_ref()
                     .map_or_else(|| poll && !ruby.thread_alone(), GvlHandoff::take_pending);
-                if hands_over(owed, turn.exiting()) {
+                if hands_over(owed || interrupt_pending(&ruby), turn.exiting()) {
                     turn.yield_gvl();
                 }
             } else {
@@ -225,6 +237,7 @@ impl RbEventLoop {
             }
         });
         // Unregister before the loop and its proxy go.
+        drop(ticker);
         drop(handoff);
 
         // An interrupt that ended the loop (a signal's SignalException,
@@ -268,7 +281,8 @@ enum ForRuby {
 }
 
 /// Whether to hand the GVL over this turn: only when another thread is
-/// owed it and no exit is set, so an exit never waits a time slice.
+/// owed it, or an interrupt is pending, and no exit is set, so an exit
+/// never waits a time slice.
 const fn hands_over(owed: bool, exiting: bool) -> bool {
     owed && !exiting
 }
@@ -467,6 +481,26 @@ impl Turn<'_> {
         *self.control_flow = ControlFlow::Exit;
         self.raised.get_or_insert(error);
     }
+}
+
+/// Whether Ruby has an interrupt pending for the main thread: a signal
+/// whose handler has not run, a `Thread#raise`, or a `Thread#kill`.
+///
+/// Ruby's signal handler only raises the main thread's trap-interrupt flag;
+/// the handler itself waits for the main thread's next interrupt check,
+/// which the loop, waiting in tao, would otherwise make only when an event
+/// or a hand-off reaches Ruby (`interrupt_check.rs`).
+#[allow(unsafe_code)]
+fn interrupt_pending(ruby: &Ruby) -> bool {
+    let main_thread = ruby.thread_main().as_raw();
+    // SAFETY: `rb_thread_interrupted` is public Ruby API
+    // (`include/ruby/internal/intern/thread.h:375`) that type-checks its
+    // argument as a `Thread` through `rb_thread_ptr` and only reads that
+    // thread's interrupt flag (Ruby v4.0.1 `thread.c:1483-1487`,
+    // `vm_core.h:2212-2216`). `ruby` proves this thread holds the GVL, and
+    // `main_thread` is the live main thread's `Thread`, which
+    // `rb_thread_main` always returns (`thread.c:3199-3203`).
+    unsafe { rb_sys::rb_thread_interrupted(main_thread) != 0 }
 }
 
 /// The status of a `SystemExit`, or `None` for any other error.

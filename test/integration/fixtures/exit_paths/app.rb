@@ -14,13 +14,16 @@
 # loading, before its script sends anything, so every invoke after it ran on
 # a loop that survived a Ruby exception.
 #
+# --run-callback passes Builder#run a callback that prints RUN exit when it
+# hears RunEvent::Exit.
+#
 # To close the window by hand (the one exit path the tests cannot drive):
 #
 #   bundle exec ruby test/integration/fixtures/exit_paths/app.rb --wait
 
 require_relative "../../support/fixture_app"
 
-options = FixtureApp.options(ARGV, :raise_on_page_load)
+options = FixtureApp.options(ARGV, :raise_on_page_load, :run_callback)
 at_exit { puts "AT_EXIT" }
 
 builder = FixtureApp.builder(FixtureApp::Site.new(__dir__, options), "exit paths")
@@ -37,4 +40,8 @@ if options[:raise_on_page_load]
   })
 end
 
-builder.run
+if options[:run_callback]
+  builder.run { |_app, event| puts "RUN exit" if event.is_a?(Tokra::RunEvent::Exit) }
+else
+  builder.run
+end

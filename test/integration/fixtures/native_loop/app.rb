@@ -16,6 +16,11 @@
 #                    they already wait for the GVL when the loop starts.
 #   --ticker-wait    a ticker sleeps in a loop; prints READY and waits for a
 #                    signal.
+#   --idle           no other thread, and no event after the first, which
+#                    prints READY; waits for a signal (Plan 034).
+#   --trap-usr1      a USR1 trap prints TRAPPED USR1 and keeps running.
+#   --trap-term-exit=N
+#                    a TERM trap prints TRAPPED TERM and exits with N.
 #   --gc-drop        three bare windows and three heartbeating webviews (in
 #                    windows the app keeps) become unreachable; a background
 #                    thread collects them. Prints STILL_BEATING <count of
@@ -25,6 +30,8 @@
 #                    afterwards said>), and keeps one unanswered; at_exit
 #                    answers it once the loop is gone and prints
 #                    LATE_RESPONSE <error message>.
+#
+# An ensure around the loop prints ENSURE.
 #
 #   bundle exec ruby test/integration/fixtures/native_loop/app.rb --cpu=3
 
@@ -36,6 +43,9 @@ OptionParser.new do |parser|
   parser.on("--cpu=N", Integer) { |n| options[:cpu] = n }
   parser.on("--before-run") { options[:before_run] = true }
   parser.on("--ticker-wait") { options[:ticker_wait] = true }
+  parser.on("--idle") { options[:idle] = true }
+  parser.on("--trap-usr1") { options[:trap_usr1] = true }
+  parser.on("--trap-term-exit=N", Integer) { |n| options[:trap_term_exit] = n }
   parser.on("--gc-drop") { options[:gc_drop] = true }
   parser.on("--responses") { options[:responses] = true }
 end.parse!(ARGV)
@@ -116,6 +126,18 @@ elsif options[:ticker_wait]
   Thread.new { loop { sleep 0.1 } }
   puts "READY"
   -> (_event) {}
+elsif options[:idle]
+  trap("USR1") { puts "TRAPPED USR1" } if options[:trap_usr1]
+  if options[:trap_term_exit]
+    trap("TERM") do
+      puts "TRAPPED TERM"
+      exit options[:trap_term_exit]
+    end
+  end
+  proxy.wake_up("ready")
+  lambda do |event|
+    puts "READY" if event.is_a?(Tokra::Native::WakeUpEvent) && event.payload == "ready"
+  end
 elsif options[:gc_drop]
   heartbeats(event_loop, proxy)
   beats = {}
@@ -197,7 +219,11 @@ elsif options[:responses]
 end
 
 handler ||= -> (_event) {}
-event_loop.run(lambda do |event|
-  exit 0 if event.is_a?(Tokra::Native::WakeUpEvent) && event.payload == "done"
-  handler.call(event)
-end)
+begin
+  event_loop.run(lambda do |event|
+    exit 0 if event.is_a?(Tokra::Native::WakeUpEvent) && event.payload == "done"
+    handler.call(event)
+  end)
+ensure
+  puts "ENSURE"
+end

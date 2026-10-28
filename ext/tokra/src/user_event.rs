@@ -135,9 +135,11 @@ pub enum UserEvent {
     Task,
 
     // SPDX-SnippetEnd
-    /// Another Ruby thread is waiting for the GVL, which the loop holds.
-    /// Sent by the READY thread-event hook (`gvl_handoff.rs`); the loop
-    /// answers with `Thread.pass`.
+    /// Wakes the loop for a turn that may owe Ruby the main thread. Sent
+    /// by the READY thread-event hook when another Ruby thread is waiting
+    /// for the GVL (`gvl_handoff.rs`), and once per time slice so the loop
+    /// looks for a pending interrupt (`interrupt_check.rs`); the loop
+    /// answers with `Thread.pass` when either is due.
     Yield,
 
     /// A window or webview to drop on the main thread.

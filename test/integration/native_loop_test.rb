@@ -95,6 +95,85 @@ class NativeLoopTest < RealApp::TestCase
     assert_equal "AT_EXIT", run.lines.last, run.describe
   end
 
+  # Seconds the idle fixture is left alone before each signal, so the
+  # window's start-up events are over and only the signal can wake it.
+  SETTLE = 1
+
+  # Seconds an idle app may take to act on a signal. The loop looks for
+  # one every 100 ms (Plan 034), and a healthy run acts within about that;
+  # the margin is for a loaded machine.
+  IDLE_GRACE = 2
+
+  # Runs the idle fixture, which has no other thread and gets no event
+  # after the one that prints READY (Plan 034). +signals+ maps a line to the
+  # signal sent when that line appears, after SETTLE seconds, or to
+  # <tt>[signal, seconds]</tt>.
+  def idle(key, signals, *flags)
+    self.class.fixture_run(key) do
+      RealApp.launch("native_loop", "--idle", *flags, on_line: lambda { |line, pid|
+        signal, settle = signals[line.chomp]
+        next false unless signal
+
+        sleep(settle || SETTLE)
+        RealApp.signal(pid, signal)
+      })
+    end
+  end
+
+  # The app ended within IDLE_GRACE of the last signal, having run its
+  # ensure clause and at_exit hook.
+  def assert_ended_the_ruby_way(run, lines)
+    assert_finished run
+    refute_nil run.exit_after_signal, "the app was never signalled\n#{run.describe}"
+    assert_operator run.exit_after_signal, :<, IDLE_GRACE, "the app outlived the signal\n#{run.describe}"
+    assert_equal lines, run.lines, run.describe
+  end
+
+  # Nothing but the signal wakes the loop, so the loop must look for Ruby's
+  # pending interrupt on its own (Plan 034).
+  def test_sigterm_ends_an_idle_app_the_way_it_ends_any_ruby_program
+    run = idle(:idle_term, { "READY" => :TERM })
+    assert_ended_the_ruby_way run, %w[READY ENSURE AT_EXIT]
+    assert_equal Signal.list.fetch("TERM"), run.termsig, run.describe
+  end
+
+  # Sent at once, the signal lands while the loop's last turn is fresh.
+  def test_sigterm_sent_as_the_loop_starts_ends_the_app
+    run = idle(:start_term, { "READY" => [:TERM, 0] })
+    assert_ended_the_ruby_way run, %w[READY ENSURE AT_EXIT]
+    assert_equal Signal.list.fetch("TERM"), run.termsig, run.describe
+  end
+
+  # The USR1 trap gives the loop a turn; SIGTERM follows at once, well
+  # within 100 ms of it, so a deadline counted from the loop's last turn
+  # has not lapsed, and on Linux tao never wakes for one anyway (Plan 034,
+  # decision 2). Only the loop's own once-a-slice wake catches it.
+  def test_a_signal_right_after_another_turn_still_ends_the_app
+    run = idle(:turn_then_term, { "READY" => :USR1, "TRAPPED USR1" => [:TERM, 0] }, "--trap-usr1")
+    assert_ended_the_ruby_way run, ["READY", "TRAPPED USR1", "ENSURE", "AT_EXIT"]
+    assert_equal Signal.list.fetch("TERM"), run.termsig, run.describe
+  end
+
+  def test_sighup_ends_an_idle_app_the_way_it_ends_any_ruby_program
+    run = idle(:idle_hup, { "READY" => :HUP })
+    assert_ended_the_ruby_way run, %w[READY ENSURE AT_EXIT]
+    assert_equal Signal.list.fetch("HUP"), run.termsig, run.describe
+  end
+
+  # The trap runs while the loop idles, and returning from it keeps the app
+  # running: only the later SIGTERM ends it.
+  def test_an_apps_trap_runs_while_the_loop_is_idle_and_can_keep_it_running
+    run = idle(:idle_trap_usr1, { "READY" => :USR1, "TRAPPED USR1" => :TERM }, "--trap-usr1")
+    assert_ended_the_ruby_way run, ["READY", "TRAPPED USR1", "ENSURE", "AT_EXIT"]
+    assert_equal Signal.list.fetch("TERM"), run.termsig, run.describe
+  end
+
+  def test_an_apps_trap_can_end_an_idle_app_with_its_own_status
+    run = idle(:idle_trap_term, { "READY" => :TERM }, "--trap-term-exit=3")
+    assert_ended_the_ruby_way run, ["READY", "TRAPPED TERM", "ENSURE", "AT_EXIT"]
+    assert_equal 3, run.status, run.describe
+  end
+
   # A window freed on another thread would close through tao's synchronous
   # main-thread dispatch while the main thread waits for the GVL; a webview
   # freed there would be destroyed off its thread. Both go home and drop on
