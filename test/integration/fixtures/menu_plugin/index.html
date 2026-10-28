@@ -1,0 +1,66 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>menu plugin</title>
+  <script src="/harness.js"></script>
+</head>
+<body>
+  <ol id="checks"></ol>
+  <script>
+    const { Menu, Submenu, MenuItem, CheckMenuItem, PredefinedMenuItem } = window.__TAURI__.menu;
+    const { invoke } = window.__TAURI__.core;
+    const { check, finish, withTimeout } = window.fixture;
+
+    (async () => {
+      await check('a menu the page builds', async () => {
+        let heardItem;
+        const itemClicked = new Promise((resolve) => { heardItem = resolve; });
+        let heardNested;
+        const nestedClicked = new Promise((resolve) => { heardNested = resolve; });
+        const item = await MenuItem.new({ id: 'js-item', text: 'JS Item', action: (id) => heardItem(id) });
+        const toggle = await CheckMenuItem.new({ id: 'js-check', text: 'JS Check', checked: true });
+        const separator = await PredefinedMenuItem.new({ item: 'Separator' });
+        const submenu = await Submenu.new({
+          id: 'js-submenu',
+          text: 'JS',
+          items: [item, toggle, separator, { id: 'js-nested', text: 'JS Nested', action: (id) => heardNested(id) }],
+        });
+        const menu = await Menu.new({ id: 'js-menu', items: [submenu] });
+        const previous = await menu.setAsAppMenu();
+        const kinds = (await submenu.items()).map((i) => [i.id, i.kind]);
+        await item.setText('JS Item');
+        const activated = await invoke('plugin:menu-fixture|activate', { submenu: 'JS', title: 'JS Item' });
+        const clicked = await withTimeout(itemClicked, 5000, 'the item action');
+        await invoke('plugin:menu-fixture|activate', { submenu: 'JS', title: 'JS Nested' });
+        const nested = await withTimeout(nestedClicked, 5000, 'the nested action');
+        const found = await menu.get('js-submenu');
+        return {
+          pass: activated && clicked === 'js-item' && nested === 'js-nested',
+          detail: {
+            activated, clicked, nested, kinds,
+            previous: previous ? previous.id : null,
+            found: found ? [found.id, found.kind] : null,
+            checked: await toggle.isChecked(),
+          },
+        };
+      });
+
+      await check('a bad kind rejects in serde words', async () => {
+        try {
+          return { pass: false, detail: { resolved: await invoke('plugin:menu|text', { rid: 0, kind: 'Bogus' }) } };
+        } catch (error) {
+          return { pass: true, detail: { rejected: error } };
+        }
+      });
+
+      await finish();
+    })();
+  </script>
+</body>
+</html>

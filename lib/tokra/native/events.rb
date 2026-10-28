@@ -147,5 +147,9 @@ module Tokra
     #     context.handle_task
     #   end
     TaskEvent = Data.define
+
+    # A menu item was clicked: +id+ is the item's id, as muda's event
+    # handler sent it through the loop (ext/tokra/src/menu.rs).
+    MenuEvent = Data.define(:id)
   end
 end

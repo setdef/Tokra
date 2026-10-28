@@ -24,3 +24,6 @@ gem needs Rust and Cargo:
   WebKitGTK 2.40 or newer: Tokra enables wry's +linux-body+ feature, as
   Tauri does, so request bodies reach Ruby. On Debian and Ubuntu, install
   +libwebkit2gtk-4.1-dev+ and +libgtk-3-dev+.
+* On Linux, libxdo, which menus use for their Copy, Cut, Paste, and Select
+  All items, as Tauri's +linux-libxdo+ feature does: +libxdo-dev+ to build
+  on Debian and Ubuntu, and +libxdo3+ at run time (+xdotool+ on Arch).

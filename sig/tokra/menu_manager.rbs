@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class MenuManager
+    type app_listener = ^(AppHandle, Menu::MenuEvent) -> void
+    type window_listener = ^(Window, Menu::MenuEvent) -> void
+
+    @runtime_context: RuntimeContext
+    @mutex: Thread::Mutex
+    @menus: Hash[Menu::MenuId, Menu::Menu]
+    @menu: Menu::Menu?
+    @global_event_listeners: Array[app_listener]
+    @event_listeners: Hash[String, window_listener]
+
+    def initialize: (RuntimeContext runtime_context, ?Array[app_listener] global_event_listeners) -> void
+    def menu: () -> Menu::Menu?
+    def replace_menu: (Menu::Menu? menu) -> Menu::Menu?
+    def take_menu: () -> Menu::Menu?
+    def menu_in_use?: (Menu::MenuId id) -> bool
+    def insert_menu_into_stash: (Menu::Menu menu) -> void
+    def remove_menu_from_stash: (Menu::MenuId id) -> void
+    def menus: () -> Array[Menu::Menu]
+    def on_menu_event: (app_listener handler) -> nil
+    def set_window_listener: (String label, window_listener handler) -> nil
+    def global_event_listeners: () -> Array[app_listener]
+    def event_listeners: () -> Hash[String, window_listener]
+
+    private
+
+    def stash_changed: () -> nil
+  end
+end

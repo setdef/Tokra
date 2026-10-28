@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Menu
+    class Menu
+      include Wrapper
+      include MenuTree
+
+      def self.new: (Manager manager) -> Menu
+      def self.with_id: (Manager manager, id id) -> Menu
+      def self.with_items: (Manager manager, Array[item] items) -> Menu
+      def self.with_id_and_items: (Manager manager, id id, Array[item] items) -> Menu
+      def self.default: (AppHandle app_handle) -> Menu
+      def self.from_native: (AppHandle app_handle, Native::Menu native) -> Menu
+      def set_as_app_menu: () -> Menu?
+      def set_as_window_menu: (Window window) -> Menu?
+
+      private
+
+      def self.default_for: (AppHandle app_handle, Symbol os) -> Menu
+      def self.app_submenu: (AppHandle app_handle, String name, AboutMetadata about) -> Submenu
+      def self.file_submenu: (AppHandle app_handle, Symbol os) -> Submenu
+      def self.edit_submenu: (AppHandle app_handle) -> Submenu
+    end
+  end
+end

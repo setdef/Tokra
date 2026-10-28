@@ -84,6 +84,12 @@ class TestBuilderPluginRunEvents < Minitest::Test
     EventLoop = Class.new(StubNative::EventLoop) { def run(_callback) = nil }
     Window = StubNative::Window
     WebView = StubNative::WebView
+    # The real menu classes, as every native stand-in carries them (plan 042).
+    Menu = Tokra::Native::Menu
+    Submenu = Tokra::Native::Submenu
+    MenuItem = Tokra::Native::MenuItem
+    CheckMenuItem = Tokra::Native::CheckMenuItem
+    PredefinedMenuItem = Tokra::Native::PredefinedMenuItem
   end
 
   def test_exit_is_emitted_only_when_the_loop_is_destroyed

@@ -1,0 +1,77 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Menu
+    WINDOW_SUBMENU_ID: String
+    HELP_SUBMENU_ID: String
+
+    type item = MenuItem | Submenu | PredefinedMenuItem | CheckMenuItem
+    type native_item = Native::MenuItem | Native::Submenu | Native::PredefinedMenuItem | Native::CheckMenuItem
+    type id = MenuId | String | Symbol | Integer
+
+    class MenuId < Data
+      attr_reader value: String
+      def self.new: (value: String) -> MenuId
+                  | (String value) -> MenuId
+      def self.from: (id id) -> MenuId
+      def ==: (Object other) -> bool
+      def to_s: () -> String
+      def to_json: (*JSON::State state) -> String
+    end
+
+    class MenuEvent < Data
+      attr_reader id: MenuId
+      def self.new: (id: MenuId) -> MenuEvent
+                  | (MenuId id) -> MenuEvent
+      def to_json: (*JSON::State state) -> String
+    end
+
+    class Natives < Data
+      attr_reader app: singleton(Native)
+      attr_reader menu: singleton(Native::Menu)
+      attr_reader submenu: singleton(Native::Submenu)
+      attr_reader menu_item: singleton(Native::MenuItem)
+      attr_reader check_menu_item: singleton(Native::CheckMenuItem)
+      attr_reader predefined_menu_item: singleton(Native::PredefinedMenuItem)
+      def self.new: (app: singleton(Native), menu: singleton(Native::Menu), submenu: singleton(Native::Submenu),
+                     menu_item: singleton(Native::MenuItem), check_menu_item: singleton(Native::CheckMenuItem),
+                     predefined_menu_item: singleton(Native::PredefinedMenuItem)) -> Natives
+      def self.from: (Module native) -> Natives
+      def nsapp?: () -> bool
+    end
+
+    module Wrapper
+      include Resource
+
+      @app_handle: AppHandle
+      @native: Native::Menu | native_item
+      @id: MenuId
+
+      attr_reader id: MenuId
+      attr_reader app_handle: AppHandle
+      attr_reader native: Native::Menu | native_item
+      def ==: (Object other) -> bool
+      alias eql? ==
+      def hash: () -> Integer
+      def inspect: () -> String
+
+      private
+
+      def initialize_wrapper: (AppHandle app_handle, Native::Menu | native_item native, MenuId id) -> void
+      def run_item_main_thread: [T] () { () -> T } -> T
+    end
+
+    module IsMenuItem
+      include Wrapper
+
+      def kind: () -> self
+    end
+
+    def self.run_main_thread: [T] (Manager manager) { () -> T } -> T
+    def self.natives: (Manager manager) -> Natives
+    def self.wrap_item: (AppHandle app_handle, native_item native) -> item
+    def self.native_item: (Object item) -> (Native::Menu | native_item)
+    def self.os: () -> (:macos | :windows | :linux)
+  end
+end

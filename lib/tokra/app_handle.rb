@@ -21,12 +21,17 @@ module Tokra
     # Creates a new AppHandle with the given AppManager.
     #
     # This is called internally by App and should not be called directly.
-    def initialize(manager, state_manager: nil, runtime_context: RuntimeContext.new) # :nodoc:
+    def initialize(manager, state_manager: nil, runtime_context: RuntimeContext.new, menu_event_listeners: []) # :nodoc:
       @manager = manager
       @state_manager = state_manager
       @runtime_context = runtime_context
       @restart_on_exit = false
+      @menu_manager = MenuManager.new(runtime_context, menu_event_listeners)
     end
+
+    # The app's menus and their listeners, which Tauri's AppManager holds
+    # (manager/menu.rs).
+    attr_reader :menu_manager # :nodoc:
 
     private attr_reader :manager
 
@@ -401,6 +406,153 @@ module Tokra
     rescue Error::Runtime
       Tokra::Process.restart(env)
     end
+
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: The app's menu adapted from tauri/crates/tauri/src/app.rs
+    #                      and manager/mod.rs
+
+    # Calls the block with this handle and each Menu::MenuEvent, a click on
+    # any menu item, and returns +nil+.
+    #
+    # Each block hears every click, in the order the blocks came, before
+    # each window's Window#on_menu_event block and before the run
+    # callback hears it as RunEvent::MenuEvent. The blocks run on the main
+    # thread.
+    #
+    # Mirrors Tauri's on_menu_event (app.rs:733-739).
+    #
+    # === Example
+    #
+    #   handle.on_menu_event { |handle, event| handle.exit(0) if event.id == "quit" }
+    def on_menu_event(&handler)
+      @menu_manager.on_menu_event(handler)
+    end
+
+    # The app's menu, or +nil+.
+    #
+    # Mirrors Tauri's menu (app.rs:877-880).
+    def menu
+      @menu_manager.menu
+    end
+
+    # Makes +menu+ the app's menu and returns the menu it replaces, or
+    # +nil+.
+    #
+    # On macOS the menu goes at the top of the screen. On Windows and
+    # Linux every window that shows the app's menu, or no menu, shows this
+    # one instead. Before App#run builds the event loop, macOS gets the
+    # menu once the loop exists (plan 042, decision 7).
+    #
+    # Mirrors Tauri's set_menu (app.rs:886-923).
+    #
+    # === Example
+    #
+    #   handle.set_menu(Tokra::Menu::Menu.default(handle))
+    def set_menu(menu)
+      previous = remove_menu
+      @menu_manager.insert_menu_into_stash(menu)
+      @menu_manager.replace_menu(menu)
+      if @runtime_context.menu_natives.nsapp?
+        on_nsapp { init_app_menu(menu) }
+      else
+        windows.each_value do |window|
+          next unless window.has_app_wide_menu? || window.menu.nil?
+
+          window.set_menu(menu)
+          window.replace_window_menu(Window::WindowMenu.new(is_app_wide: true, menu:))
+        end
+      end
+      previous
+    end
+
+    # Takes the app's menu away and returns it, or +nil+.
+    #
+    # Mirrors Tauri's remove_menu (app.rs:925-962).
+    def remove_menu
+      current = @menu_manager.menu
+      if current
+        if @runtime_context.menu_natives.nsapp?
+          app = @runtime_context.menu_natives.app
+          native_menu = current.native #: Native::Menu
+          on_nsapp { app.remove_menu_for_nsapp(native_menu) }
+        else
+          windows.each_value do |window|
+            next unless window.has_app_wide_menu?
+
+            window.remove_menu
+            window.replace_window_menu(nil)
+          end
+        end
+      end
+      previous = @menu_manager.take_menu
+      remove_menu_from_stash_by_id(previous&.id)
+      previous
+    end
+
+    # Hides the app's menu bar on every window that shows it, and returns
+    # +nil+. On macOS it does nothing.
+    #
+    # Mirrors Tauri's hide_menu (app.rs:964-983).
+    def hide_menu
+      return nil if @runtime_context.menu_natives.nsapp? || @menu_manager.menu.nil?
+
+      windows.each_value { |window| window.hide_menu if window.has_app_wide_menu? }
+      nil
+    end
+
+    # Shows the app's menu bar again on every window that shows it, and
+    # returns +nil+. On macOS it does nothing.
+    #
+    # Mirrors Tauri's show_menu (app.rs:985-1004).
+    def show_menu
+      return nil if @runtime_context.menu_natives.nsapp? || @menu_manager.menu.nil?
+
+      windows.each_value { |window| window.show_menu if window.has_app_wide_menu? }
+      nil
+    end
+
+    # Puts +menu+ on NSApp, with its Window and Help submenus as NSApp's,
+    # on the main thread. macOS only.
+    #
+    # Mirrors Tauri's init_app_menu (app.rs:2336-2350).
+    def init_app_menu(menu) # :nodoc:
+      app = @runtime_context.menu_natives.app
+      native_menu = menu.native #: Native::Menu
+      Menu.run_main_thread(self) { app.init_menu_for_nsapp(native_menu) }
+      window_menu = menu.get(Menu::WINDOW_SUBMENU_ID)
+      window_menu.set_as_windows_menu_for_nsapp if window_menu.is_a?(Menu::Submenu)
+      help_menu = menu.get(Menu::HELP_SUBMENU_ID)
+      help_menu.set_as_help_menu_for_nsapp if help_menu.is_a?(Menu::Submenu)
+      nil
+    end
+
+    # Drops the menu with the id +id+ from the stash unless the app or a
+    # window still shows it (manager/mod.rs:689-702).
+    private def remove_menu_from_stash_by_id(id)
+      return nil unless id
+
+      used_by_a_window = windows.each_value.any? { |window| window.menu_in_use?(id) }
+      @menu_manager.remove_menu_from_stash(id) unless @menu_manager.menu_in_use?(id) || used_by_a_window
+      nil
+    end
+
+    # Runs +work+ on the main thread once the event loop exists, ignoring
+    # its errors, as Tauri's set_menu ignores init_app_menu's. Before then
+    # there is no NSApp to change: tao makes it with the loop, and App#run
+    # puts the app's menu on it then (plan 042, decision 7).
+    private def on_nsapp(&work)
+      return nil unless @runtime_context.window_target
+
+      @runtime_context.run_on_main_thread do
+        work.call
+      rescue Error
+        nil
+      end
+    end
+
+    # SPDX-SnippetEnd
 
     # Whether #restart or #request_restart asked the loop to restart the
     # app as it ends, Tauri's <tt>restart_on_exit</tt> flag

@@ -43,6 +43,12 @@ module Tokra
     def initialize: (Builder builder, ?native: Module) -> void
     def run: () { (AppHandle, run_event) -> void } -> void
          | () -> void
+    def on_menu_event: () { (AppHandle, Menu::MenuEvent) -> void } -> nil
+    def menu: () -> Menu::Menu?
+    def set_menu: (Menu::Menu menu) -> Menu::Menu?
+    def remove_menu: () -> Menu::Menu?
+    def hide_menu: () -> nil
+    def show_menu: () -> nil
     def run_on_main_thread: () { () -> void } -> nil
     def display_handle: () -> RawWindowHandle::display_handle
     def primary_monitor: () -> Monitor?
@@ -52,6 +58,9 @@ module Tokra
 
     private
 
+    def install_app_menu: () -> void
+    def prepare_window_menu: (Native::Window native_window) -> Window::WindowMenu?
+    def dispatch_menu_event: (Native::MenuEvent native_event, (^(AppHandle, run_event) -> void)? callback) -> void
     def emit_run_event: (run_event event, (^(AppHandle, run_event) -> void)? callback) -> void
     def build_ipc_responder: (json_value callback, json_value error, ?can_use_channel: bool) -> ipc_responder?
     def can_use_channel_for_response?: (String cmd, json_value options) -> bool

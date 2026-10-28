@@ -33,6 +33,13 @@ class TestLogRegistration < Minitest::Test
       def self.new_with_protocol(*) = new
       def eval(_script) = nil
     end
+
+    # The real menu classes, which need no window (plan 042).
+    Menu = Tokra::Native::Menu
+    Submenu = Tokra::Native::Submenu
+    MenuItem = Tokra::Native::MenuItem
+    CheckMenuItem = Tokra::Native::CheckMenuItem
+    PredefinedMenuItem = Tokra::Native::PredefinedMenuItem
   end
 
   def test_the_readme_example_registers_the_plugin_from_the_setup_hook

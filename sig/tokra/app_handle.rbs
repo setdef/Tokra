@@ -12,7 +12,18 @@ module Tokra
     @path: Path::Resolver?
     @resources_table: ResourceTable?
 
-    def initialize: (AppManager manager, ?state_manager: StateManager?, ?runtime_context: RuntimeContext) -> void
+    @menu_manager: MenuManager
+
+    def initialize: (AppManager manager, ?state_manager: StateManager?, ?runtime_context: RuntimeContext,
+                     ?menu_event_listeners: Array[MenuManager::app_listener]) -> void
+    attr_reader menu_manager: MenuManager
+    def on_menu_event: () { (AppHandle, Menu::MenuEvent) -> void } -> nil
+    def menu: () -> Menu::Menu?
+    def set_menu: (Menu::Menu menu) -> Menu::Menu?
+    def remove_menu: () -> Menu::Menu?
+    def hide_menu: () -> nil
+    def show_menu: () -> nil
+    def init_app_menu: (Menu::Menu menu) -> nil
     attr_reader runtime_context: RuntimeContext
     def run_on_main_thread: () { () -> void } -> nil
     def app_handle: -> AppHandle
@@ -41,6 +52,8 @@ module Tokra
 
     private
 
+    def remove_menu_from_stash_by_id: (Menu::MenuId? id) -> nil
+    def on_nsapp: () { () -> void } -> nil
     def window_target_getter: [T < Object] () { (Native::EventLoop) -> T? } -> T
 
     def manager: () -> AppManager

@@ -149,9 +149,9 @@ module Tokra
       @manager = AppManager.new(config:, webviews: {}, windows: {})
       # The thread that builds the app is its main thread until App#run
       # attaches the event loop, which makes the running thread the main one.
-      @runtime_context = RuntimeContext.new
+      @runtime_context = RuntimeContext.new(native:)
       @handle = AppHandle.new(@manager, state_manager: builder.__send__(:state_manager),
-        runtime_context: @runtime_context)
+        runtime_context: @runtime_context, menu_event_listeners: builder.__send__(:menu_event_listeners))
       @builder = builder
       # Set by App#set_activation_policy, on macOS (activation_policy.rb).
       @activation_policy = nil
@@ -165,6 +165,8 @@ module Tokra
       # The channel-data queue and its fetch command (app.rs:2260-2261)
       @handle.manage(Ipc::ChannelDataIpcQueue.new)
       @handle.plugin(Ipc::Channel::Plugin.new(@handle))
+      # The menu commands the JavaScript API calls (app.rs:2262-2263)
+      @handle.plugin(Menu::Plugin.new(@handle))
       # The command line a restart runs again (app.rs:2248-2249)
       @handle.manage(Env.default)
       # Store class references to avoid dynamic constant lookups
@@ -207,6 +209,10 @@ module Tokra
       event_loop = @event_loop_class.new
       @runtime_context.window_target = event_loop
 
+      # The builder's menu, now that tao has made NSApp (plan 042,
+      # decision 7), before the setup hook, as Tauri's Builder::build does.
+      install_app_menu
+
       # Call setup hook before anything else
       @builder.__send__(:setup_hook)&.call(self)
 
@@ -229,8 +235,12 @@ module Tokra
       native_window.set_title(@window_config[:title].to_s)
       native_window.set_size(@window_config[:width].to_f, @window_config[:height].to_f)
 
+      # The app's menu on the new window, before its webview, as Tauri's
+      # creation handler runs (plan 042, decision 9).
+      window_menu = prepare_window_menu(native_window)
+
       # Wrap the native window and register in manager
-      window = Window.new(label: "main", native: native_window, app_handle: @handle)
+      window = Window.new(label: "main", native: native_window, app_handle: @handle, menu: window_menu)
       @window = window
       @handle.windows["main"] = window
 
@@ -259,6 +269,99 @@ module Tokra
         @runtime_context.close
       end
     end
+
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: The app's menu and its events adapted from tauri/crates/tauri/src/app.rs,
+    #                      window/mod.rs, and manager/menu.rs
+
+    # Calls the block with the app handle and each Menu::MenuEvent, as
+    # AppHandle#on_menu_event does.
+    #
+    # Mirrors Tauri's App::on_menu_event (app.rs:733-739).
+    def on_menu_event(&)
+      @handle.on_menu_event(&)
+    end
+
+    # The app's menu, or +nil+, as AppHandle#menu answers. +nil+ before
+    # App#run, which sets the builder's menu (plan 042, decision 7).
+    def menu
+      @handle.menu
+    end
+
+    # Makes +menu+ the app's menu, as AppHandle#set_menu does.
+    def set_menu(menu)
+      @handle.set_menu(menu)
+    end
+
+    # Takes the app's menu away, as AppHandle#remove_menu does.
+    def remove_menu
+      @handle.remove_menu
+    end
+
+    # Hides the app's menu bar, as AppHandle#hide_menu does.
+    def hide_menu
+      @handle.hide_menu
+    end
+
+    # Shows the app's menu bar again, as AppHandle#show_menu does.
+    def show_menu
+      @handle.show_menu
+    end
+
+    # Builds the builder's menu, or Menu.default on macOS when it sets
+    # none, and makes it the app's; on macOS also puts the app's menu on
+    # NSApp, including one set before the loop existed
+    # (app.rs:2094-2100, 2232-2245).
+    private def install_app_menu
+      hook = @builder.__send__(:menu_hook)
+      natives = @runtime_context.menu_natives
+      if hook.nil? && @builder.__send__(:macos_default_menu?) && Menu.os == :macos
+        hook = -> (handle) { Menu::Menu.default(handle) }
+      end
+      if hook
+        menu = hook.call(@handle)
+        @handle.menu_manager.insert_menu_into_stash(menu)
+        @handle.menu_manager.replace_menu(menu)
+      end
+      current = @handle.menu
+      @handle.init_app_menu(current) if current && natives.nsapp?
+    end
+
+    # Gives a new window the app's menu, as Tauri's window builder does
+    # with no menu of its own (window/mod.rs:364-375), and puts it on the
+    # native window on Windows and Linux (manager/menu.rs:54-95). Answers
+    # the window's WindowMenu, or +nil+.
+    private def prepare_window_menu(native_window)
+      menu = @handle.menu
+      return nil unless menu
+
+      @handle.menu_manager.insert_menu_into_stash(menu)
+      native_menu = menu.native #: Native::Menu
+      # Tauri themes it with the configured theme or Auto; Tokra configures
+      # none (manager/menu.rs:74-79).
+      if !@runtime_context.menu_natives.nsapp? && native_window.respond_to?(:init_menu)
+        native_window.init_menu(native_menu, "Auto")
+      end
+      Window::WindowMenu.new(is_app_wide: true, menu:)
+    end
+
+    # Calls the app's menu listeners, then each window's, then plugins and
+    # the run callback with RunEvent::MenuEvent (app.rs:2436-2453,
+    # 2488-2494).
+    private def dispatch_menu_event(native_event, callback)
+      event = Menu::MenuEvent.new(id: Menu::MenuId.new(value: native_event.id))
+      menus = @handle.menu_manager
+      menus.global_event_listeners.each { |listener| listener.call(@handle, event) }
+      menus.event_listeners.each do |label, listener|
+        window = @handle.get_window(label)
+        listener.call(window, event) if window
+      end
+      emit_run_event(RunEvent::MenuEvent.new(event:), callback)
+    end
+
+    # SPDX-SnippetEnd
 
     # Sends a run event to every registered plugin, then the user callback.
     #
@@ -412,6 +515,8 @@ module Tokra
         exit_requested(event.code, callback)
       elsif event.is_a?(Native::DragDropEvent)
         dispatch_webview_event(event)
+      elsif event.is_a?(Native::MenuEvent)
+        dispatch_menu_event(event, callback)
       elsif event.is_a?(Native::LoopDestroyedEvent)
         # The runtime's loop-destroyed event becomes RunEvent::Exit
         # (tauri-runtime-wry lib.rs:4046-4047, app.rs:1304-1305). A

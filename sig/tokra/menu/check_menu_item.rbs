@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Menu
+    class CheckMenuItem
+      include IsMenuItem
+
+      def self.new: (Manager manager, String text, bool enabled, bool checked, String? accelerator) -> CheckMenuItem
+      def self.with_id: (Manager manager, id id, String text, bool enabled, bool checked, String? accelerator) -> CheckMenuItem
+      def self.from_native: (AppHandle app_handle, Native::CheckMenuItem native) -> CheckMenuItem
+      def text: () -> String
+      def set_text: (String text) -> nil
+      def is_enabled: () -> bool
+      def set_enabled: (bool enabled) -> nil
+      def set_accelerator: (String? accelerator) -> nil
+      def is_checked: () -> bool
+      def set_checked: (bool checked) -> nil
+    end
+  end
+end

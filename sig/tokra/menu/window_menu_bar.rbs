@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Native
+    class Window
+      def init_menu: (Menu menu, String? theme) -> nil
+      def remove_menu: (Menu menu) -> nil
+      def hide_menu: (Menu menu) -> nil
+      def show_menu: (Menu menu) -> nil
+      def is_menu_visible: (Menu menu) -> bool
+    end
+  end
+end

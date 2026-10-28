@@ -35,5 +35,13 @@ module Tokra
   end
 
   # Type alias for run events
-  type run_event = RunEvent::Ready | RunEvent::Exit | RunEvent::ExitRequested | RunEvent::WindowEvent | RunEvent::WebviewEvent | RunEvent::Resumed | RunEvent::MainEventsCleared
+  module RunEvent
+    class MenuEvent < Data
+      attr_reader event: Menu::MenuEvent
+      def self.new: (event: Menu::MenuEvent) -> MenuEvent
+                  | (Menu::MenuEvent event) -> MenuEvent
+    end
+  end
+
+  type run_event = RunEvent::MenuEvent | RunEvent::Ready | RunEvent::Exit | RunEvent::ExitRequested | RunEvent::WindowEvent | RunEvent::WebviewEvent | RunEvent::Resumed | RunEvent::MainEventsCleared
 end

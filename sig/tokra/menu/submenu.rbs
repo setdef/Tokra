@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Menu
+    class Submenu
+      include IsMenuItem
+      include MenuTree
+
+      def self.new: (Manager manager, String text, bool enabled) -> Submenu
+      def self.with_id: (Manager manager, id id, String text, bool enabled) -> Submenu
+      def self.with_items: (Manager manager, String text, bool enabled, Array[item] items) -> Submenu
+      def self.with_id_and_items: (Manager manager, id id, String text, bool enabled, Array[item] items) -> Submenu
+      def self.from_native: (AppHandle app_handle, Native::Submenu native) -> Submenu
+      def text: () -> String
+      def set_text: (String text) -> nil
+      def is_enabled: () -> bool
+      def set_enabled: (bool enabled) -> nil
+    end
+  end
+end

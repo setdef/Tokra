@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Native
+    def self.init_menu_for_nsapp: (Menu menu) -> nil
+    def self.remove_menu_for_nsapp: (Menu menu) -> nil
+    def self.set_windows_menu_for_nsapp: (Submenu submenu) -> nil
+    def self.set_help_menu_for_nsapp: (Submenu submenu) -> nil
+  end
+
+  module Menu
+    class Submenu
+      def set_as_windows_menu_for_nsapp: () -> nil
+      def set_as_help_menu_for_nsapp: () -> nil
+    end
+  end
+end

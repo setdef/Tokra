@@ -16,8 +16,12 @@ module Tokra
     @unsent: Array[^(Native::Proxy) -> void]
     @closed: bool
     @window_target: Native::EventLoop?
+    @native: Module
+    @menu_natives: Menu::Natives?
 
-    def initialize: (?main_thread: Thread) -> void
+    def initialize: (?main_thread: Thread, ?native: Module) -> void
+    def menu_natives: () -> Menu::Natives
+    def run_main_thread: [T] () { () -> T } -> T
     attr_accessor window_target: Native::EventLoop?
     def main_thread?: () -> bool
     def attach: (Native::Proxy proxy) -> void
@@ -34,6 +38,7 @@ module Tokra
     def wake: (Native::Proxy? proxy) -> void
     def send_event: () { (Native::Proxy proxy) -> void } -> nil
     def send_through: (Native::Proxy? proxy) { (Native::Proxy proxy) -> void } -> void
-    def answer: [T] ([T] | Failure | nil reply) -> T
+    def call_and_wait: [T] (^() -> T query, Exception unanswered) -> T
+    def answer: [T] ([T] | Failure | nil reply, Exception unanswered) -> T
   end
 end

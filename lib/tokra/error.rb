@@ -88,6 +88,56 @@ module Tokra
       end
     end
 
+    # Raised when the main thread took a call but never answered it.
+    #
+    # A menu runs each call on the main thread and waits for the answer.
+    # When the event loop ends before it answers, there is no answer to
+    # wait for, and the call raises this.
+    #
+    # Mirrors <tt>tauri::Error::FailedToReceiveMessage</tt>
+    # (error.rs:95-97), which Tauri's menus raise from
+    # <tt>run_main_thread!</tt> and <tt>run_item_main_thread!</tt>
+    # (lib.rs:1083-1095, menu/mod.rs:25-39).
+    #
+    # === Example
+    #
+    #   item.text
+    #   # raises Tokra::Error::FailedToReceiveMessage: "failed to receive message"
+    class FailedToReceiveMessage < Error
+      # Creates the error with Tauri's message.
+      def initialize(message = "failed to receive message")
+        super
+      end
+    end
+
+    # Raised when muda refuses a menu operation.
+    #
+    # Removing an item from a menu it is not in, or putting a window's menu
+    # on it twice, fails in muda, the crate under Tokra's menus. The message
+    # says what muda said.
+    #
+    # Mirrors <tt>tauri::Error::Menu</tt>, "menu error: {0}"
+    # (error.rs:98-101).
+    #
+    # === Example
+    #
+    #   menu.remove(item_not_in_menu)
+    #   # raises Tokra::Error::Menu:
+    #   #   "menu error: This menu item is not a child of this `Menu` or `Submenu`"
+    class Menu < Error
+      # Creates the error from muda's own +message+.
+      def initialize(message)
+        super("menu error: #{message}")
+      end
+    end
+
+    # Raised when muda refuses an image as a menu icon.
+    #
+    # Mirrors <tt>tauri::Error::BadMenuIcon</tt>, which shows muda's
+    # <tt>BadIcon</tt> text as it is (error.rs:102-105).
+    class BadMenuIcon < Error
+    end
+
     # Raised when a plugin's setup fails.
     #
     # A plugin may need something from the system before it can work: a

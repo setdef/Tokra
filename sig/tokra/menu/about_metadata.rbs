@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Menu
+    class AboutMetadata < Data
+      attr_reader name: String?
+      attr_reader version: String?
+      attr_reader short_version: String?
+      attr_reader authors: Array[String]?
+      attr_reader comments: String?
+      attr_reader copyright: String?
+      attr_reader license: String?
+      attr_reader website: String?
+      attr_reader website_label: String?
+      attr_reader credits: String?
+      attr_reader icon: Image?
+
+      def self.new: (?name: String?, ?version: String?, ?short_version: String?, ?authors: Array[String]?,
+                     ?comments: String?, ?copyright: String?, ?license: String?, ?website: String?,
+                     ?website_label: String?, ?credits: String?, ?icon: Image?) -> AboutMetadata
+      def to_native: () -> Native::PredefinedMenuItem::about
+    end
+
+    class AboutMetadataBuilder
+      @fields: Hash[Symbol, String | Array[String] | Image | nil]
+
+      def initialize: () -> void
+      def name: (String? name) -> self
+      def version: (String? version) -> self
+      def short_version: (String? short_version) -> self
+      def authors: (Array[String]? authors) -> self
+      def comments: (String? comments) -> self
+      def copyright: (String? copyright) -> self
+      def license: (String? license) -> self
+      def website: (String? website) -> self
+      def website_label: (String? website_label) -> self
+      def credits: (String? credits) -> self
+      def icon: (Image? icon) -> self
+      def build: () -> AboutMetadata
+
+      private
+
+      def set: (Symbol field, String | Array[String] | Image | nil value) -> self
+    end
+  end
+end

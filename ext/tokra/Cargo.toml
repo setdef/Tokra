@@ -27,6 +27,11 @@ wry = { version = "0.54.1", features = ["linux-body"] }
 ctrlc = "3.4"
 dirs = "6.0"
 image = { version = "0.25", default-features = false, features = ["ico", "png"] }
+# Menus (plan 042): the version Tauri locks (vendor/tauri Cargo.lock), with
+# its gtk feature as crates/tauri/Cargo.toml:89-92 enables it, and libxdo,
+# Tauri's linux-libxdo (Cargo.toml:199), built in as an additive feature.
+# common-controls-v6 stays off; plan 042, decision 2, says why.
+muda = { version = "=0.17.1", default-features = false, features = ["gtk", "libxdo"] }
 
 # A window's -[NSWindow windowNumber], for its AppKit handle (raw_handle.rs,
 # plan 035); -[NSWindow center], a screen's visible frame, and a webview's

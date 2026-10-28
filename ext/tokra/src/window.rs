@@ -286,5 +286,14 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
         method!(RbWindow::raw_display_handle, 0),
     )?;
     crate::window_state::define_methods(window_class)?;
+    #[cfg(any(
+        windows,
+        target_os = "linux",
+        target_os = "dragonfly",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd"
+    ))]
+    crate::menu::define_window_methods(window_class)?;
     crate::window_ext::define_methods(window_class)
 }

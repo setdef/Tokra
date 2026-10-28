@@ -52,7 +52,9 @@ module Tokra
     # makes it the thread that runs the event loop.
     #
     # [main_thread] the thread that builds the app.
-    def initialize(main_thread: Thread.current)
+    # [native] the module of native classes the app runs on: Native, or a
+    #          test's stand-in for it.
+    def initialize(main_thread: Thread.current, native: Native)
       @main_thread = main_thread
       @mutex = Thread::Mutex.new
       @tasks = [] #: Array[[^() -> void, Thread::Queue[Object]?]]
@@ -61,6 +63,8 @@ module Tokra
       @unsent = [] #: Array[^(Native::Proxy) -> void]
       @closed = false
       @window_target = nil
+      @native = native
+      @menu_natives = nil
     end
 
     # The event loop whose window target answers the app handle's monitor
@@ -167,6 +171,39 @@ module Tokra
       nil
     end
 
+    # The native menu classes this context's app builds menus with, and
+    # the module whose functions put a menu on the app (plan 042,
+    # decision 1). Tauri's are its runtime's type parameter.
+    def menu_natives # :nodoc:
+      @menu_natives ||= Menu::Natives.from(@native)
+    end
+
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: run_main_thread! adapted from tauri/crates/tauri/src/lib.rs
+
+    # Runs +task+ on the main thread and returns its result, waiting for
+    # it when called from another thread, as #getter does.
+    #
+    # A menu sends every call to its platform objects this way. Raises
+    # Error::FailedToReceiveMessage when the event loop ends before it
+    # answers, and Error::Runtime when the loop has already ended.
+    #
+    # Mirrors Tauri's run_main_thread! and run_item_main_thread! macros,
+    # which run the closure through run_on_main_thread and wait on a
+    # channel, failing with Error::FailedToReceiveMessage when it closes
+    # unanswered (lib.rs:1083-1095, menu/mod.rs:25-39).
+    #
+    # === Example
+    #
+    #   text = context.run_main_thread { native_item.text }
+    def run_main_thread(&task)
+      call_and_wait(task, Error::FailedToReceiveMessage.new)
+    end
+
+    # SPDX-SnippetEnd
+
     # Runs +query+ on the main thread and returns its result, waiting for
     # it when called from another thread.
     #
@@ -185,6 +222,12 @@ module Tokra
     #
     #   title = context.getter { native_window.title }
     def getter(&query)
+      call_and_wait(query, Error::Runtime.new(Error::Runtime::FAILED_TO_RECEIVE_MESSAGE))
+    end
+
+    # Sends +query+ to the main thread and waits for its answer, raising
+    # +unanswered+ if none comes.
+    private def call_and_wait(query, unanswered)
       reply = Thread::Queue.new
       task = lambda do
         reply << [query.call]
@@ -196,7 +239,7 @@ module Tokra
         reply.close
       end
       send_user_message(task, reply)
-      answer(reply.pop)
+      answer(reply.pop, unanswered)
     end
 
     # Runs the oldest queued task on the main thread. The App calls it for
@@ -281,8 +324,8 @@ module Tokra
     # The getter's result, from what the main thread put in +reply+: the
     # value in a one-element Array, or a Failure. A closed, empty queue
     # pops +nil+: the answer never came.
-    private def answer(reply)
-      raise Error::Runtime, Error::Runtime::FAILED_TO_RECEIVE_MESSAGE unless reply
+    private def answer(reply, unanswered)
+      raise unanswered unless reply
       raise reply.error if reply.is_a?(Failure)
 
       reply.first

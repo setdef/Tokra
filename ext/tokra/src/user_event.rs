@@ -25,6 +25,8 @@ use crate::thread_bound::ThreadBound;
 pub enum Released {
     WebView(Box<ThreadBound<wry::WebView>>),
     Window(Box<ThreadBound<tao::window::Window>>),
+    /// A muda menu or item, in its `ThreadBound` (`menu.rs`).
+    Menu(Box<dyn Send>),
 }
 
 impl fmt::Debug for Released {
@@ -32,6 +34,7 @@ impl fmt::Debug for Released {
         f.write_str(match self {
             Self::WebView(_) => "Released(WebView)",
             Self::Window(_) => "Released(Window)",
+            Self::Menu(_) => "Released(Menu)",
         })
     }
 }
@@ -152,6 +155,14 @@ pub enum UserEvent {
     /// run the oldest one.
     Task,
 
+    /// A menu item was activated: its id, from muda's event handler
+    /// (`menu.rs`).
+    ///
+    /// Tauri's `EventLoopMessage::MenuEvent`, sent through the loop's proxy
+    /// from muda's handler (`app.rs:2196-2201`), so it reaches the app in
+    /// order with the other user events.
+    MenuEvent(String),
+
     // SPDX-SnippetEnd
     /// Wakes the loop for a turn that may owe Ruby the main thread. Sent
     /// by the READY thread-event hook when another Ruby thread is waiting
@@ -160,7 +171,7 @@ pub enum UserEvent {
     /// answers with `Thread.pass` when either is due.
     Yield,
 
-    /// A window or webview to drop on the main thread.
+    /// A window, webview, or menu to drop on the main thread.
     Release(Released),
 
     /// A custom-protocol answer from another thread, for the main thread

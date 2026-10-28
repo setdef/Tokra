@@ -28,6 +28,9 @@ module Tokra
       @async_uri_scheme_protocols = {}
       @window_event_listeners = []
       @webview_event_listeners = []
+      @menu_event_listeners = []
+      @menu_hook = nil
+      @enable_macos_default_menu = true
       @state_manager = StateManager.new
       @rack_app = nil
       @window_config = {}
@@ -155,6 +158,58 @@ module Tokra
       self
     end
 
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: The builder's menu adapted from tauri/crates/tauri/src/app.rs
+
+    # Sets the app's menu: the block receives the AppHandle and returns a
+    # Menu::Menu.
+    #
+    # App#run calls it once the event loop exists and before the setup
+    # hook, and the menu becomes the app's, as AppHandle#set_menu would
+    # make it (plan 042, decision 7). An error the block raises ends
+    # App#run, as Tauri's Builder::build returns it.
+    # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
+    #
+    # Mirrors Tauri's Builder::menu (app.rs:1828-1834).
+    #
+    # === Example
+    #
+    #   Tokra::Builder.default.menu(Ractor.shareable_proc { |app| Tokra::Menu::Menu.default(app) })
+    def menu(&block)
+      require_shareable!(block, "menu")
+      @menu_hook = block
+      self
+    end
+
+    # Adds a block that hears each click on a menu item, with the
+    # AppHandle and a Menu::MenuEvent, as AppHandle#on_menu_event adds one.
+    # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
+    #
+    # Mirrors Tauri's Builder::on_menu_event (app.rs:1836-1857).
+    def on_menu_event(&block)
+      require_shareable!(block, "on_menu_event")
+      @menu_event_listeners << block
+      self
+    end
+
+    # Whether an app that sets no #menu gets Menu::Menu.default on macOS,
+    # as it does unless told otherwise. Elsewhere such an app has no menu.
+    #
+    # Mirrors Tauri's Builder::enable_macos_default_menu
+    # (app.rs:1859-1893, 2094-2100).
+    #
+    # === Example
+    #
+    #   Tokra::Builder.default.enable_macos_default_menu(false)
+    def enable_macos_default_menu(enable)
+      @enable_macos_default_menu = enable
+      self
+    end
+
+    # SPDX-SnippetEnd
+
     # Defines the page load hook.
     #
     # The block receives (webview, payload).
@@ -189,6 +244,9 @@ module Tokra
     #
     # Returns an App instance ready to run.
     # <tt>native:</tt> can be injected for testing with mock native components.
+    # A stand-in for Tokra::Native also defines its menu classes (+Menu+,
+    # +Submenu+, +MenuItem+, +CheckMenuItem+, +PredefinedMenuItem+); the
+    # real ones need no window, so a stand-in can name them.
     def build(native: Native)
       App.new(self, native:)
     end
@@ -211,7 +269,14 @@ module Tokra
     # read by App through __send__.
     private attr_reader :state_manager, :invoke_handler_hook, :uri_scheme_protocols, # :nodoc:
       :async_uri_scheme_protocols, :setup_hook, :on_page_load_hook,
-      :window_event_listeners, :webview_event_listeners, :rack_app, :window_config
+      :window_event_listeners, :webview_event_listeners, :rack_app, :window_config,
+      :menu_hook, :menu_event_listeners
+
+    # Whether an app with no menu gets the default one on macOS (friendly
+    # reader; a predicate so it does not collide with the setter).
+    private def macos_default_menu? # :nodoc:
+      @enable_macos_default_menu
+    end
 
     # Whether the @tauri-apps/api bundle should be injected (friendly reader;
     # a predicate so it does not collide with the with_global_tauri setter).

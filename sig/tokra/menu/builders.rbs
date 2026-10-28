@@ -1,0 +1,106 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Menu
+    module SharedMenuBuilder
+      @manager: Manager
+      @id: MenuId?
+      @items: Array[item | Error]
+
+      def id: (id id) -> SharedMenuBuilder
+      def item: (item item) -> SharedMenuBuilder
+      def items: (Array[item] items) -> SharedMenuBuilder
+      def text: (id id, String text) -> SharedMenuBuilder
+      def check: (id id, String text) -> SharedMenuBuilder
+      def separator: () -> SharedMenuBuilder
+      def copy: () -> SharedMenuBuilder
+      def copy_with_text: (String text) -> SharedMenuBuilder
+      def cut: () -> SharedMenuBuilder
+      def cut_with_text: (String text) -> SharedMenuBuilder
+      def paste: () -> SharedMenuBuilder
+      def paste_with_text: (String text) -> SharedMenuBuilder
+      def select_all: () -> SharedMenuBuilder
+      def select_all_with_text: (String text) -> SharedMenuBuilder
+      def undo: () -> SharedMenuBuilder
+      def undo_with_text: (String text) -> SharedMenuBuilder
+      def redo: () -> SharedMenuBuilder
+      def redo_with_text: (String text) -> SharedMenuBuilder
+      def minimize: () -> SharedMenuBuilder
+      def minimize_with_text: (String text) -> SharedMenuBuilder
+      def maximize: () -> SharedMenuBuilder
+      def maximize_with_text: (String text) -> SharedMenuBuilder
+      def fullscreen: () -> SharedMenuBuilder
+      def fullscreen_with_text: (String text) -> SharedMenuBuilder
+      def hide: () -> SharedMenuBuilder
+      def hide_with_text: (String text) -> SharedMenuBuilder
+      def hide_others: () -> SharedMenuBuilder
+      def hide_others_with_text: (String text) -> SharedMenuBuilder
+      def show_all: () -> SharedMenuBuilder
+      def show_all_with_text: (String text) -> SharedMenuBuilder
+      def close_window: () -> SharedMenuBuilder
+      def close_window_with_text: (String text) -> SharedMenuBuilder
+      def quit: () -> SharedMenuBuilder
+      def quit_with_text: (String text) -> SharedMenuBuilder
+      def about: (AboutMetadata? metadata) -> SharedMenuBuilder
+      def about_with_text: (String text, AboutMetadata? metadata) -> SharedMenuBuilder
+      def services: () -> SharedMenuBuilder
+      def services_with_text: (String text) -> SharedMenuBuilder
+
+      private
+
+      def append_built: [M < MenuTree] (M menu) -> M
+      def add: () { () -> item } -> SharedMenuBuilder
+    end
+
+    class MenuBuilder
+      include SharedMenuBuilder
+
+      def initialize: (Manager manager) -> void
+      def self.with_id: (Manager manager, id id) -> MenuBuilder
+      def build: () -> Menu
+    end
+
+    class SubmenuBuilder
+      include SharedMenuBuilder
+
+      @text: String
+      @enabled: bool
+
+      def initialize: (Manager manager, String text) -> void
+      def self.with_id: (Manager manager, id id, String text) -> SubmenuBuilder
+      def enabled: (bool enabled) -> self
+      def build: () -> Submenu
+    end
+
+    class MenuItemBuilder
+      @text: String
+      @id: MenuId?
+      @enabled: bool
+      @accelerator: String?
+
+      def initialize: (String text) -> void
+      def self.with_id: (id id, String text) -> MenuItemBuilder
+      def id: (id id) -> self
+      def enabled: (bool enabled) -> self
+      def accelerator: (String accelerator) -> self
+      def build: (Manager manager) -> MenuItem
+    end
+
+    class CheckMenuItemBuilder
+      @text: String
+      @id: MenuId?
+      @enabled: bool
+      @checked: bool
+      @accelerator: String?
+
+      def initialize: (String text) -> void
+      def self.with_id: (id id, String text) -> CheckMenuItemBuilder
+      def id: (id id) -> self
+      def enabled: (bool enabled) -> self
+      def checked: (bool checked) -> self
+      def accelerator: (String accelerator) -> self
+      def build: (Manager manager) -> CheckMenuItem
+    end
+  end
+end

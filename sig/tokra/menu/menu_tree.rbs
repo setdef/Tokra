@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Menu
+    module MenuTree : Wrapper
+      def append: (item item) -> nil
+      def append_items: (Array[item] items) -> nil
+      def prepend: (item item) -> nil
+      def prepend_items: (Array[item] items) -> nil
+      def insert: (item item, Integer position) -> nil
+      def insert_items: (Array[item] items, Integer position) -> nil
+      def remove: (item item) -> nil
+      def remove_at: (Integer position) -> item?
+      def get: (MenuId | String id) -> item?
+      def items: () -> Array[item]
+    end
+  end
+end

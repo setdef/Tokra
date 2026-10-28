@@ -288,6 +288,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `#set_enabled`, `#set_inner_size_constraints`, `#set_window_icon`,
   `#set_background_color`, and `#set_shadow`, and
   `Native::WebView#set_background_color`
+- Menus (`Tokra::Menu`): `Menu`, `Submenu`, `MenuItem`, `CheckMenuItem`, and
+  `PredefinedMenuItem` with Tauri's constructors and methods, `MenuId`,
+  `MenuEvent`, `AboutMetadata` and its builder, `MenuBuilder`,
+  `SubmenuBuilder`, `MenuItemBuilder`, `CheckMenuItemBuilder`, and
+  `Menu.default`; icons and context menus are not ported yet
+- `App` and `AppHandle#on_menu_event`, `#menu`, `#set_menu`, `#remove_menu`,
+  `#hide_menu`, and `#show_menu`; `Window#on_menu_event`, `#menu`,
+  `#set_menu`, `#remove_menu`, `#hide_menu`, `#show_menu`, and
+  `#is_menu_visible`; `Builder#menu`, `#on_menu_event`, and
+  `#enable_macos_default_menu`; `RunEvent::MenuEvent`
+- On macOS an app that sets no menu gets Tauri's default menu
+- The core `menu` plugin, so the menu classes of `@tauri-apps/api` work
+- `Error::Menu`, `Error::BadMenuIcon`, and `Error::FailedToReceiveMessage`
+- `Native::Menu`, `Native::Submenu`, `Native::MenuItem`,
+  `Native::CheckMenuItem`, `Native::PredefinedMenuItem`, and
+  `Native::MenuEvent`; on macOS `Native.init_menu_for_nsapp` and its
+  siblings, on Windows and Linux `Native::Window#init_menu` and its siblings
+- Dependency: muda 0.17.1, with its libxdo feature
+- On Linux, libxdo is a new build (`libxdo-dev`) and run-time (`libxdo3`)
+  dependency
 
 ### Changed
 

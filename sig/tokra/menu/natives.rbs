@@ -1,0 +1,75 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Native
+    type menu_child = Tokra::Menu::native_item | Native::Menu
+
+    class Menu
+      def self.new: () -> Menu
+      def self.with_id: (String id) -> Menu
+      def id: () -> String
+      def append: (menu_child item) -> nil
+      def prepend: (menu_child item) -> nil
+      def insert: (menu_child item, Integer position) -> nil
+      def remove: (menu_child item) -> nil
+      def remove_at: (Integer position) -> Tokra::Menu::native_item?
+      def items: () -> Array[Tokra::Menu::native_item]
+    end
+
+    class Submenu
+      def self.new: (String text, bool enabled) -> Submenu
+      def self.with_id: (String id, String text, bool enabled) -> Submenu
+      def id: () -> String
+      def append: (menu_child item) -> nil
+      def prepend: (menu_child item) -> nil
+      def insert: (menu_child item, Integer position) -> nil
+      def remove: (menu_child item) -> nil
+      def remove_at: (Integer position) -> Tokra::Menu::native_item?
+      def items: () -> Array[Tokra::Menu::native_item]
+      def text: () -> String
+      def set_text: (String text) -> nil
+      def is_enabled: () -> bool
+      def set_enabled: (bool enabled) -> nil
+    end
+
+    class MenuItem
+      def self.new: (String text, bool enabled, String? accelerator) -> MenuItem
+      def self.with_id: (String id, String text, bool enabled, String? accelerator) -> MenuItem
+      def id: () -> String
+      def text: () -> String
+      def set_text: (String text) -> nil
+      def is_enabled: () -> bool
+      def set_enabled: (bool enabled) -> nil
+      def set_accelerator: (String? accelerator) -> nil
+    end
+
+    class CheckMenuItem
+      def self.new: (String text, bool enabled, bool checked, String? accelerator) -> CheckMenuItem
+      def self.with_id: (String id, String text, bool enabled, bool checked, String? accelerator) -> CheckMenuItem
+      def id: () -> String
+      def text: () -> String
+      def set_text: (String text) -> nil
+      def is_enabled: () -> bool
+      def set_enabled: (bool enabled) -> nil
+      def set_accelerator: (String? accelerator) -> nil
+      def is_checked: () -> bool
+      def set_checked: (bool checked) -> nil
+    end
+
+    class PredefinedMenuItem
+      type about = Hash[Symbol, String | Array[String] | [String, Integer, Integer] | nil]
+
+      def self.new: (String kind, String? text, about? about) -> PredefinedMenuItem
+      def id: () -> String
+      def text: () -> String
+      def set_text: (String text) -> nil
+    end
+
+    class MenuEvent < Data
+      attr_reader id: String
+      def self.new: (String id) -> MenuEvent
+                  | (id: String) -> MenuEvent
+    end
+  end
+end

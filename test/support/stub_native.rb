@@ -25,6 +25,7 @@ module StubNative
     Thread.current[:stub_native_task_wake_ups] = nil
     Thread.current[:stub_native_event_loop_calls] = nil
     Thread.current[:stub_native_exit_code] = nil
+    Thread.current[:stub_native_nsapp_calls] = nil
   end
 
   # The status the loop ended with: the code of the exit request the App
@@ -60,6 +61,83 @@ module StubNative
   # observable by tests the same way as responses.
   def self.dropped
     Thread.current[:stub_native_dropped] ||= []
+  end
+
+  # The real muda-backed menu classes: they need no window and no
+  # display, so tests drive real menus (plan 042, Verification).
+  Menu = Tokra::Native::Menu
+  Submenu = Tokra::Native::Submenu
+  MenuItem = Tokra::Native::MenuItem
+  CheckMenuItem = Tokra::Native::CheckMenuItem
+  PredefinedMenuItem = Tokra::Native::PredefinedMenuItem
+
+  # The NSApp calls the app made, in order, as <tt>[name, id]</tt>.
+  def self.nsapp_calls
+    Thread.current[:stub_native_nsapp_calls] ||= []
+  end
+
+  # On macOS, records the calls that would change NSApp, which a test
+  # process must not touch: tao makes NSApp with its own class, and a
+  # plain one made first would break every later event loop.
+  if Tokra::Native.respond_to?(:init_menu_for_nsapp)
+    def self.init_menu_for_nsapp(menu)
+      nsapp_calls << [:init_menu_for_nsapp, menu.id]
+      nil
+    end
+
+    def self.remove_menu_for_nsapp(menu)
+      nsapp_calls << [:remove_menu_for_nsapp, menu.id]
+      nil
+    end
+
+    def self.set_windows_menu_for_nsapp(submenu)
+      nsapp_calls << [:set_windows_menu_for_nsapp, submenu.id]
+      nil
+    end
+
+    def self.set_help_menu_for_nsapp(submenu)
+      nsapp_calls << [:set_help_menu_for_nsapp, submenu.id]
+      nil
+    end
+  end
+
+  # A window's own menu bar, recorded as <tt>[name, menu id]</tt>, as
+  # Native::Window answers on Windows and Linux.
+  module WindowMenus
+    def menu_calls
+      @menu_calls ||= []
+    end
+
+    # The theme each init_menu asked for, in order.
+    def menu_themes
+      @menu_themes ||= []
+    end
+
+    def init_menu(menu, theme)
+      @closed || ((menu_calls << [:init_menu, menu.id]) && (menu_themes << theme))
+      nil
+    end
+
+    def remove_menu(menu)
+      @closed || (menu_calls << [:remove_menu, menu.id])
+      nil
+    end
+
+    def hide_menu(menu)
+      @closed || ((menu_calls << [:hide_menu, menu.id]) && (@hidden = true))
+      nil
+    end
+
+    def show_menu(menu)
+      @closed || ((menu_calls << [:show_menu, menu.id]) && (@hidden = false))
+      nil
+    end
+
+    # Whether the window shows a menu bar: one it was given and did not
+    # hide, while it is open.
+    def is_menu_visible(menu)
+      !@closed && menu_calls.include?([:init_menu, menu.id]) && !@hidden
+    end
   end
 
   # Stub Proxy that records respond() and drop_response() calls, and
@@ -102,6 +180,8 @@ module StubNative
   # Stub Window recording its title and size. Closing it queues its
   # WindowDestroyedEvent, as the platform answers tao's dropped window.
   class Window
+    include WindowMenus if Tokra::Native::Window.method_defined?(:init_menu)
+
     attr_reader :size
 
     def initialize(event_loop)
@@ -367,5 +447,23 @@ set_enabled: :is_enabled,
       end
       true
     end
+  end
+end
+
+# StubNative as a platform whose windows carry their own menu bars, as on
+# Windows and Linux, wherever the tests run: no NSApp functions, and
+# windows with Native::Window's menu methods.
+module StubWindowMenusNative
+  EventLoop = StubNative::EventLoop
+  WebView = StubNative::WebView
+  Proxy = StubNative::Proxy
+  Menu = StubNative::Menu
+  Submenu = StubNative::Submenu
+  MenuItem = StubNative::MenuItem
+  CheckMenuItem = StubNative::CheckMenuItem
+  PredefinedMenuItem = StubNative::PredefinedMenuItem
+
+  class Window < StubNative::Window
+    include StubNative::WindowMenus
   end
 end

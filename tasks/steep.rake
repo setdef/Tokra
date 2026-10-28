@@ -52,7 +52,13 @@ namespace :rbs do
     args += %w[--native Tokra::Native --allow rbs_exceptions.rb]
     # Tauri and tao define the activation policy only on macOS, and so
     # does Tokra (lib/tokra/activation_policy.rb).
-    args += %w[--exclude-sig sig/tokra/activation_policy.rbs] unless RbConfig::CONFIG["host_os"].include?("darwin")
+    host = RbConfig::CONFIG["host_os"]
+    args += %w[--exclude-sig sig/tokra/activation_policy.rbs] unless host.include?("darwin")
+    # Menus belong to NSApp on macOS and to each window elsewhere, and
+    # only Windows translates their accelerators in the loop (plan 042).
+    args += %w[--exclude-sig sig/tokra/menu/nsapp.rbs] unless host.include?("darwin")
+    args += %w[--exclude-sig sig/tokra/menu/window_menu_bar.rbs] if host.include?("darwin")
+    args += %w[--exclude-sig sig/tokra/menu/accelerators.rbs] unless host.match?(/mswin|mingw|cygwin/)
     ruby File.expand_path("rbs_parity.rb", __dir__), *args
   end
 end

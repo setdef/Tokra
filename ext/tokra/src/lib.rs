@@ -19,6 +19,7 @@
 //! - [`responders`] - Async protocol responder storage
 //! - [`image`] - PNG/ICO decoding (`Tokra::Native.image_from_bytes`)
 //! - [`fs`] - File reading with std's errors (`Tokra::Native.fs_read`)
+//! - [`menu`] - muda's menus (`Tokra::Native::Menu` and its items)
 //! - [`thread_bound`] - Values usable only on the thread that created them
 //! - [`gvl_handoff`] - Hands the GVL to other Ruby threads while the loop waits
 //!
@@ -64,6 +65,7 @@ mod gvl_handoff;
 mod icon;
 mod image;
 mod interrupt_check;
+mod menu;
 mod path;
 mod proxy;
 mod raw_handle;
@@ -123,6 +125,7 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     webview::define_class(ruby, native)?;
     proxy::define_class(ruby, native)?;
     icon::define_class(ruby, native)?;
+    menu::define_classes(ruby, native)?;
 
     // Path resolution functions (thin wrapper around dirs crate)
     path::define_functions(ruby, native)?;

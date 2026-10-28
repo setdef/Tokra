@@ -62,9 +62,21 @@ impl RbEventLoop {
     ///
     /// This function is infallible but returns `Result` for consistency with Magnus FFI.
     pub fn new() -> Result<Self, Error> {
-        let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
+        #[cfg_attr(not(windows), allow(unused_mut))]
+        let mut builder = EventLoopBuilder::<UserEvent>::with_user_event();
+        // Keyboard accelerators for the app's menus, as Tauri's runtime
+        // hooks them (app.rs:2145-2162, plan 042, decision 10).
+        #[cfg(windows)]
+        {
+            use tao::platform::windows::EventLoopBuilderExtWindows;
+            builder.with_msg_hook(crate::menu::translate_accelerator);
+        }
+        let event_loop = builder.build();
 
         let proxy = event_loop.create_proxy();
+        // Menu events and released menus go to this loop (plan 042,
+        // decision 5).
+        crate::menu::attach_loop(proxy.clone());
 
         Ok(Self {
             inner: ThreadBound::new(RefCell::new(Some(event_loop))),
@@ -426,6 +438,10 @@ impl Turn<'_> {
             UserEvent::Task => {
                 // Data.define; the App runs the oldest queued task.
                 self.deliver("::Tokra::Native::TaskEvent", ());
+            }
+            UserEvent::MenuEvent(id) => {
+                // Data.define; the App calls the menu event's listeners.
+                self.deliver("::Tokra::Native::MenuEvent", (id,));
             }
             // SPDX-SnippetBegin
             // SPDX-License-Identifier: Apache-2.0 OR MIT

@@ -60,4 +60,18 @@ class TestBuilderShareability < Minitest::Test
       builder.on_webview_event { nil }
     end
   end
+
+  def test_menu_raises_on_non_shareable_proc
+    builder = Tokra::Builder.default
+    assert_raises(Tokra::Error) do
+      builder.menu { nil }
+    end
+  end
+
+  def test_on_menu_event_raises_on_non_shareable_proc
+    builder = Tokra::Builder.default
+    assert_raises(Tokra::Error) do
+      builder.on_menu_event { nil }
+    end
+  end
 end

@@ -16,7 +16,26 @@ module Tokra
     attr_reader app_handle: AppHandle
     attr_reader native: Native::Window
 
-    def initialize: (label: String, native: Native::Window, app_handle: AppHandle) -> void
+    class WindowMenu < Data
+      attr_reader is_app_wide: bool
+      attr_reader menu: Menu::Menu
+      def self.new: (is_app_wide: bool, menu: Menu::Menu) -> WindowMenu
+    end
+
+    @menu_mutex: Thread::Mutex
+    @window_menu: WindowMenu?
+
+    def initialize: (label: String, native: Native::Window, app_handle: AppHandle, ?menu: WindowMenu?) -> void
+    def on_menu_event: () { (Window, Menu::MenuEvent) -> void } -> nil
+    def menu: () -> Menu::Menu?
+    def set_menu: (Menu::Menu menu) -> Menu::Menu?
+    def remove_menu: () -> Menu::Menu?
+    def hide_menu: () -> nil
+    def show_menu: () -> nil
+    def is_menu_visible: () -> bool
+    def has_app_wide_menu?: () -> bool
+    def menu_in_use?: (Menu::MenuId id) -> bool
+    def replace_window_menu: (WindowMenu? window_menu) -> WindowMenu?
     def resources_table: () -> ResourceTable
     def set_title: (String title) -> nil
     def set_size: (LogicalSize | PhysicalSize size) -> nil
@@ -89,6 +108,8 @@ module Tokra
     def run_on_main_thread: () { () -> void } -> nil
 
     private
+
+    def window_menu: () -> WindowMenu?
 
     def dispatch: () { () -> void } -> nil
     def getter: [T < Object] () { () -> T? } -> T

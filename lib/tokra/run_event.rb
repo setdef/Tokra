@@ -40,6 +40,12 @@ module Tokra
 
     # Emitted when main events are cleared.
     MainEventsCleared = Data.define
+
+    # A menu item was clicked. +event+ is the Menu::MenuEvent, which the
+    # app's and the windows' menu listeners heard first.
+    # Mirrors Tauri's <tt>RunEvent::MenuEvent(MenuEvent)</tt>
+    # (app.rs:240-242); Ruby's Data names the tuple's value +event+.
+    MenuEvent = Data.define(:event)
   end
 end
 

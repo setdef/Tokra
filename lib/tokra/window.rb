@@ -32,12 +32,157 @@ module Tokra
     # +label+:: a unique identifier for this window (e.g., "main").
     # +native+:: the Native::Window handle from tao/winit.
     # +app_handle+:: provides access to app-level state and config.
-    def initialize(label:, native:, app_handle:)
+    # +menu+:: the WindowMenu it opens with, or +nil+.
+    def initialize(label:, native:, app_handle:, menu: nil)
       @label = label
       @native = native
       @app_handle = app_handle
       @resources_table = ResourceTable.new
+      @menu_mutex = Thread::Mutex.new
+      @window_menu = menu
     end
+
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: Window menus adapted from tauri/crates/tauri/src/window/mod.rs
+
+    # The menu a window shows, and whether it is the app's (plan 042).
+    #
+    # Mirrors Tauri's WindowMenu (window/mod.rs:907-914).
+    WindowMenu = Data.define(:is_app_wide, :menu) # :nodoc:
+
+    # Calls the block with this window and each Menu::MenuEvent, a click
+    # on any menu item, and returns +nil+.
+    #
+    # The block hears every click, whether on this window's menu, the
+    # app's, or another window's. A window has one such block; a second
+    # call replaces the first.
+    #
+    # Mirrors Tauri's Window::on_menu_event (window/mod.rs:1152-1163).
+    #
+    # === Example
+    #
+    #   window.on_menu_event { |window, event| window.close if event.id == "close" }
+    def on_menu_event(&handler)
+      @app_handle.menu_manager.set_window_listener(@label, handler)
+    end
+
+    # The menu this window shows, or +nil+.
+    #
+    # On Windows and Linux a window opens with the app's menu, if the app
+    # has one. On macOS menus belong to the app, so a window's menu is
+    # only what #set_menu gave it.
+    #
+    # Mirrors Tauri's Window::menu (window/mod.rs:1188-1191).
+    def menu
+      window_menu&.menu
+    end
+
+    # Gives this window +menu+ and returns the menu it had, or +nil+.
+    #
+    # On Windows and Linux the menu bar shows inside the window. On macOS
+    # this only records the menu: macOS shows the app's menu, which
+    # AppHandle#set_menu sets. The native work runs on the main thread;
+    # from another thread it travels there.
+    #
+    # Mirrors Tauri's Window::set_menu (window/mod.rs:1199-1242).
+    #
+    # === Example
+    #
+    #   window.set_menu(Tokra::Menu::MenuBuilder.new(window).text("reload", "Reload").build)
+    def set_menu(menu)
+      previous = remove_menu
+      @app_handle.menu_manager.insert_menu_into_stash(menu)
+      native = @native
+      native_menu = menu.native #: Native::Menu
+      # +nil+: the window's own theme, as Tauri's set_menu reads it.
+      dispatch { native.init_menu(native_menu, nil) } if native.respond_to?(:init_menu)
+      replace_window_menu(WindowMenu.new(is_app_wide: false, menu:))
+      previous
+    end
+
+    # Takes this window's menu away and returns it, or +nil+.
+    #
+    # Mirrors Tauri's Window::remove_menu (window/mod.rs:1244-1276).
+    def remove_menu
+      previous = replace_window_menu(nil)&.menu
+      native = @native
+      if previous && native.respond_to?(:remove_menu)
+        native_menu = previous.native #: Native::Menu
+        dispatch { native.remove_menu(native_menu) }
+      end
+      @app_handle.__send__(:remove_menu_from_stash_by_id, previous&.id)
+      previous
+    end
+
+    # Hides this window's menu bar and returns +nil+. Windows and Linux;
+    # on macOS it does nothing.
+    #
+    # Mirrors Tauri's Window::hide_menu (window/mod.rs:1278-1304).
+    def hide_menu
+      current = window_menu
+      native = @native
+      return nil unless current && native.respond_to?(:hide_menu)
+
+      native_menu = current.menu.native #: Native::Menu
+      dispatch { native.hide_menu(native_menu) }
+    end
+
+    # Shows this window's menu bar again and returns +nil+. Windows and
+    # Linux; on macOS it does nothing.
+    #
+    # Mirrors Tauri's Window::show_menu (window/mod.rs:1306-1332).
+    def show_menu
+      current = window_menu
+      native = @native
+      return nil unless current && native.respond_to?(:show_menu)
+
+      native_menu = current.menu.native #: Native::Menu
+      dispatch { native.show_menu(native_menu) }
+    end
+
+    # Whether this window shows its menu bar: +false+ with no menu, on
+    # macOS, or when the window has closed.
+    #
+    # Mirrors Tauri's Window::is_menu_visible (window/mod.rs:1334-1363),
+    # whose unanswered query answers +false+.
+    def is_menu_visible
+      current = window_menu
+      native = @native
+      return false unless current && native.respond_to?(:is_menu_visible)
+
+      native_menu = current.menu.native #: Native::Menu
+      @app_handle.runtime_context.run_main_thread { native.is_menu_visible(native_menu) }
+    rescue Error::FailedToReceiveMessage
+      false
+    end
+
+    # Whether this window shows the app's menu.
+    def has_app_wide_menu? # :nodoc:
+      window_menu&.is_app_wide || false
+    end
+
+    # Whether this window's menu has the id +id+.
+    def menu_in_use?(id) # :nodoc:
+      current = window_menu
+      !current.nil? && current.menu.id == id
+    end
+
+    # Sets the WindowMenu and returns the one before it.
+    def replace_window_menu(window_menu) # :nodoc:
+      @menu_mutex.synchronize do
+        previous = @window_menu
+        @window_menu = window_menu
+        previous
+      end
+    end
+
+    private def window_menu
+      @menu_mutex.synchronize { @window_menu }
+    end
+
+    # SPDX-SnippetEnd
 
     # Per-window resource table.
     def resources_table

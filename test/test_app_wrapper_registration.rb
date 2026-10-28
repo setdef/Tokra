@@ -53,6 +53,13 @@ class TestAppWrapperRegistration < Minitest::Test
     class Proxy
       def respond(*); end
     end
+
+    # The real menu classes, as every native stand-in carries them (plan 042).
+    Menu = Tokra::Native::Menu
+    Submenu = Tokra::Native::Submenu
+    MenuItem = Tokra::Native::MenuItem
+    CheckMenuItem = Tokra::Native::CheckMenuItem
+    PredefinedMenuItem = Tokra::Native::PredefinedMenuItem
   end
 
   StubProxy = StubNative::Proxy
