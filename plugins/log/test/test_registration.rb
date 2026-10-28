@@ -40,6 +40,8 @@ class TestLogRegistration < Minitest::Test
     MenuItem = Tokra::Native::MenuItem
     CheckMenuItem = Tokra::Native::CheckMenuItem
     PredefinedMenuItem = Tokra::Native::PredefinedMenuItem
+    IconMenuItem = Tokra::Native::IconMenuItem
+    MenuIcon = Tokra::Native::MenuIcon
   end
 
   def test_the_readme_example_registers_the_plugin_from_the_setup_hook

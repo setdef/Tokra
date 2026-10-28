@@ -38,9 +38,10 @@ module Tokra
       end
 
       # The Hash Native::PredefinedMenuItem.new takes, with the icon as
-      # <tt>[rgba, width, height]</tt>.
-      def to_native # :nodoc:
-        to_h.merge(icon: icon && [icon.rgba, icon.width, icon.height])
+      # muda's, made for +manager+'s app. Raises Error::BadMenuIcon for an
+      # icon muda refuses.
+      def to_native(manager) # :nodoc:
+        to_h.merge(icon: Tokra::Menu.menu_icon(manager, icon))
       end
     end
 

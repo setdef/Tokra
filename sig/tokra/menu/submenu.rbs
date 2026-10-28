@@ -10,12 +10,18 @@ module Tokra
       def self.new: (Manager manager, String text, bool enabled) -> Submenu
       def self.with_id: (Manager manager, id id, String text, bool enabled) -> Submenu
       def self.with_items: (Manager manager, String text, bool enabled, Array[item] items) -> Submenu
+      def self.new_with_icon: (Manager manager, String text, bool enabled, Image? icon) -> Submenu
+      def self.new_with_native_icon: (Manager manager, String text, bool enabled, NativeIcon? native_icon) -> Submenu
+      def self.with_id_and_icon: (Manager manager, id id, String text, bool enabled, Image? icon) -> Submenu
+      def self.with_id_and_native_icon: (Manager manager, id id, String text, bool enabled, NativeIcon? native_icon) -> Submenu
       def self.with_id_and_items: (Manager manager, id id, String text, bool enabled, Array[item] items) -> Submenu
       def self.from_native: (AppHandle app_handle, Native::Submenu native) -> Submenu
       def text: () -> String
       def set_text: (String text) -> nil
       def is_enabled: () -> bool
       def set_enabled: (bool enabled) -> nil
+      def set_icon: (Image? icon) -> nil
+      def set_native_icon: (NativeIcon? native_icon) -> nil
     end
   end
 end

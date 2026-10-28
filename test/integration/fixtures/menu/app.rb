@@ -15,8 +15,10 @@
 # through the platform's own dispatch (-[NSMenu
 # performActionForItemAtIndex:], WM_COMMAND, gtk_menu_item_activate),
 # never a click or a key, so each event travels muda's path to the app.
-# It reports what each listener heard, then takes the menu away and reads
-# the platform again. It prints REPORT <json> and exits.
+# It reports what each listener heard, reads which items show an image
+# (plan 042, phase 2), changes two icons and reads them again, then takes
+# the menu away and reads the platform again. It prints REPORT <json> and
+# exits.
 #
 #   bundle exec ruby test/integration/fixtures/menu/app.rb
 
@@ -48,6 +50,13 @@ app = Tokra::Builder.default.title(MenuFixture::TITLE).size(320, 240)
         .item(Tokra::Menu::CheckMenuItemBuilder.with_id("fixture-check", "Fixture Check").checked(false).build(handle))
         .build)
       .item(Tokra::Menu::SubmenuBuilder.with_id(handle, "fixture-tools", "Tools").text("tools-run", "Run Tool").build)
+      .item(Tokra::Menu::SubmenuBuilder.with_id(handle, "fixture-icons", "Icons")
+        .submenu_icon(Tokra::Image.new(rgba: "\x20\x80\xE0\xFF".b * 256, width: 16, height: 16))
+        .icon("icon-image", "Icon Image", Tokra::Image.new(rgba: "\xE0\x40\x20\xFF".b * 256, width: 16, height: 16))
+        .native_icon("icon-native", "Icon Native", Tokra::Menu::NativeIcon::LockLocked)
+        .item(Tokra::Menu::IconMenuItemBuilder.with_id("icon-none", "Icon None").build(handle))
+        .text("icon-text", "Icon Text")
+        .build)
       .build
   })
   .on_menu_event(&Ractor.shareable_proc { |_handle, event| MenuFixture::HEARD << "app:#{event.id}" })
@@ -82,6 +91,21 @@ app.run do |handle, event|
       report["activated_check"] = on_main.call { PlatformMenu.activate(window, MenuFixture::TITLE, "Fixture", "Fixture Check") }
       report["heard_check"] = MenuFixture.heard(3)
       report["checked_after"] = check.is_checked
+      image_paths = [
+        ["Icons"],
+        ["Icons", "Icon Image"],
+        ["Icons", "Icon Native"],
+        ["Icons", "Icon None"],
+        ["Icons", "Icon Text"],
+]
+      read_images = -> { on_main.call { image_paths.map { |path| PlatformMenu.image?(window, MenuFixture::TITLE, path) } } }
+      report["images"] = read_images.call
+      icons = menu.get("fixture-icons")
+      icons.set_icon(nil)
+      icons.get("icon-image").set_icon(nil)
+      icons.get("icon-none").set_icon(Tokra::Image.new(rgba: "\x40\xE0\x40\xFF".b * 256, width: 16, height: 16))
+      icons.get("icon-native").set_native_icon(nil)
+      report["images_after_set"] = read_images.call
       report["removed"] = handle.remove_menu&.id.to_s
       report["window_menu"] = window.menu&.id.to_s
       report["tree_after_remove"] = on_main.call { PlatformMenu.tree(window, MenuFixture::TITLE) }

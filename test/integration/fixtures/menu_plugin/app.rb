@@ -25,11 +25,14 @@ class MenuActivator < Tokra::Plugin
   end
 
   def extend_api(invoke)
-    return false unless invoke.command == "activate"
-
     window = app.get_window("main")
     payload = invoke.payload
-    invoke.resolve(PlatformMenu.activate(window, window.title, payload.fetch("submenu"), payload.fetch("title")))
+    case invoke.command
+    when "activate"
+      invoke.resolve(PlatformMenu.activate(window, window.title, payload.fetch("submenu"), payload.fetch("title")))
+    when "image" then invoke.resolve(PlatformMenu.image?(window, window.title, payload.fetch("path")))
+    else return false
+    end
     true
   end
 end

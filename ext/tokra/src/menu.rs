@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! muda's menus: `Tokra::Native::Menu`, `Submenu`, `MenuItem`,
-//! `CheckMenuItem`, and `PredefinedMenuItem` (plan 042).
+//! `CheckMenuItem`, `PredefinedMenuItem`, and `IconMenuItem`, and muda's
+//! icon, `Tokra::Native::MenuIcon` (plan 042).
 //!
 //! Each class holds one muda value in a [`ThreadBound`]: muda's items are
 //! `Rc`s over platform objects, usable only on the main thread, where
@@ -173,6 +174,11 @@ menu_class!(
     muda::PredefinedMenuItem,
     "Tokra::Native::PredefinedMenuItem"
 );
+menu_class!(
+    RbIconMenuItem,
+    muda::IconMenuItem,
+    "Tokra::Native::IconMenuItem"
+);
 
 /// Runs `f` with the muda item a Ruby value wraps.
 ///
@@ -194,6 +200,9 @@ fn with_item<T>(item: Value, f: impl FnOnce(&dyn IsMenuItem) -> T) -> Result<T, 
     if let Ok(item) = <&RbPredefinedMenuItem>::try_convert(item) {
         return Ok(f(item.get()?));
     }
+    if let Ok(item) = <&RbIconMenuItem>::try_convert(item) {
+        return Ok(f(item.get()?));
+    }
     let ruby = Ruby::get_with(item);
     Err(Error::new(
         ruby.exception_type_error(),
@@ -213,9 +222,7 @@ fn item_value(ruby: &Ruby, item: MenuItemKind) -> Value {
             ruby.obj_wrap(RbPredefinedMenuItem::wrap(item)).as_value()
         }
         MenuItemKind::Check(item) => ruby.obj_wrap(RbCheckMenuItem::wrap(item)).as_value(),
-        // Tokra makes no icon items yet (plan 042, phase 2), so no tree
-        // holds one; muda's id is all there is to answer with.
-        MenuItemKind::Icon(item) => ruby.str_new(&item.id().0).as_value(),
+        MenuItemKind::Icon(item) => ruby.obj_wrap(RbIconMenuItem::wrap(item)).as_value(),
     }
 }
 
@@ -383,11 +390,40 @@ text_methods!(RbSubmenu);
 text_methods!(RbMenuItem);
 text_methods!(RbCheckMenuItem);
 text_methods!(RbPredefinedMenuItem);
+text_methods!(RbIconMenuItem);
 enabled_methods!(RbSubmenu);
 enabled_methods!(RbMenuItem);
 enabled_methods!(RbCheckMenuItem);
+enabled_methods!(RbIconMenuItem);
 accelerator_methods!(RbMenuItem);
 accelerator_methods!(RbCheckMenuItem);
+accelerator_methods!(RbIconMenuItem);
+
+/// The icon methods `Submenu` and `IconMenuItem` share: muda's `set_icon`
+/// and `set_native_icon`, which muda makes a no-op off macOS.
+macro_rules! icon_methods {
+    ($rb:ident) => {
+        impl $rb {
+            fn set_icon(&self, icon: Option<&RbMenuIcon>) -> Result<(), Error> {
+                self.get()?.set_icon(icon.map(RbMenuIcon::icon));
+                Ok(())
+            }
+
+            fn set_native_icon(
+                ruby: &Ruby,
+                rb_self: &Self,
+                name: Option<String>,
+            ) -> Result<(), Error> {
+                let icon = name.map(|name| native_icon(ruby, &name)).transpose()?;
+                rb_self.get()?.set_native_icon(icon);
+                Ok(())
+            }
+        }
+    };
+}
+
+icon_methods!(RbSubmenu);
+icon_methods!(RbIconMenuItem);
 
 impl RbSubmenu {
     fn new(ruby: &Ruby, text: String, enabled: bool) -> Result<Self, Error> {
@@ -478,6 +514,80 @@ impl RbCheckMenuItem {
     }
 }
 
+impl RbIconMenuItem {
+    fn new(
+        ruby: &Ruby,
+        text: String,
+        enabled: bool,
+        icon: Option<&RbMenuIcon>,
+        accelerator_text: Option<String>,
+    ) -> Result<Self, Error> {
+        on_main_thread(ruby, Self::CLASS)?;
+        Ok(Self::wrap(muda::IconMenuItem::new(
+            text,
+            enabled,
+            icon.map(RbMenuIcon::icon),
+            accelerator(accelerator_text),
+        )))
+    }
+
+    fn with_id(
+        ruby: &Ruby,
+        id: String,
+        text: String,
+        enabled: bool,
+        icon: Option<&RbMenuIcon>,
+        accelerator_text: Option<String>,
+    ) -> Result<Self, Error> {
+        on_main_thread(ruby, Self::CLASS)?;
+        Ok(Self::wrap(muda::IconMenuItem::with_id(
+            id,
+            text,
+            enabled,
+            icon.map(RbMenuIcon::icon),
+            accelerator(accelerator_text),
+        )))
+    }
+
+    /// An item with the macOS image named `name`, one of
+    /// [`native_icon`]'s; muda shows no icon on Windows and Linux.
+    fn with_native_icon(
+        ruby: &Ruby,
+        text: String,
+        enabled: bool,
+        name: Option<String>,
+        accelerator_text: Option<String>,
+    ) -> Result<Self, Error> {
+        on_main_thread(ruby, Self::CLASS)?;
+        let icon = name.map(|name| native_icon(ruby, &name)).transpose()?;
+        Ok(Self::wrap(muda::IconMenuItem::with_native_icon(
+            text,
+            enabled,
+            icon,
+            accelerator(accelerator_text),
+        )))
+    }
+
+    fn with_id_and_native_icon(
+        ruby: &Ruby,
+        id: String,
+        text: String,
+        enabled: bool,
+        name: Option<String>,
+        accelerator_text: Option<String>,
+    ) -> Result<Self, Error> {
+        on_main_thread(ruby, Self::CLASS)?;
+        let icon = name.map(|name| native_icon(ruby, &name)).transpose()?;
+        Ok(Self::wrap(muda::IconMenuItem::with_id_and_native_icon(
+            id,
+            text,
+            enabled,
+            icon,
+            accelerator(accelerator_text),
+        )))
+    }
+}
+
 impl RbPredefinedMenuItem {
     /// muda's predefined item named `kind`, one of the 17 Tauri offers
     /// (`menu/predefined.rs`), with `text` in place of the platform's own
@@ -526,18 +636,16 @@ impl RbPredefinedMenuItem {
 ///
 /// # Errors
 ///
-/// Returns `TypeError` for a field of the wrong type, and a
-/// `RuntimeError` with muda's `BadIcon` text for an icon muda refuses,
-/// which Ruby raises as `Error::BadMenuIcon` (Tauri `error.rs:102-105`).
+/// Returns `TypeError` for a field of the wrong type, its `:icon` one
+/// that is no `Native::MenuIcon` among them.
 fn about_metadata(ruby: &Ruby, about: Option<RHash>) -> Result<Option<muda::AboutMetadata>, Error> {
     let Some(about) = about else {
         return Ok(None);
     };
     let text = |key: &str| about.lookup::<_, Option<String>>(ruby.to_symbol(key));
-    let icon = match about.lookup::<_, Option<(RString, u32, u32)>>(ruby.to_symbol("icon"))? {
-        Some((rgba, width, height)) => Some(menu_icon(rgba, width, height)?),
-        None => None,
-    };
+    let icon = about
+        .lookup::<_, Option<&RbMenuIcon>>(ruby.to_symbol("icon"))?
+        .map(RbMenuIcon::icon);
     Ok(Some(muda::AboutMetadata {
         name: text("name")?,
         version: text("version")?,
@@ -553,30 +661,78 @@ fn about_metadata(ruby: &Ruby, about: Option<RHash>) -> Result<Option<muda::Abou
     }))
 }
 
-/// muda's `Icon::from_rgba`, after muda's own checks.
+/// muda's icon, `Tokra::Native::MenuIcon`: the image a menu item, a
+/// submenu, or the About panel shows.
 ///
-/// muda's GTK icon checks nothing and hands the bytes to
-/// `Pixbuf::from_mut_slice`, which panics on the main thread when they are
-/// short (muda 0.17.1 `platform_impl/gtk/icon.rs:27-38`), as tao's did
-/// (plan 041, decision 4); and its checks multiply the dimensions as `u32`,
-/// which overflows. So Tokra runs muda's `RgbaIcon` checks first on every
-/// platform, in 64 bits, with muda's texts.
-fn menu_icon(rgba: RString, width: u32, height: u32) -> Result<muda::Icon, Error> {
-    let rgba = rgba.to_bytes().to_vec();
-    if let Some(message) = bad_menu_icon(rgba.len(), width, height) {
-        return Err(Error::new(runtime_error(), message));
+/// Tauri converts an `Image` into muda's `Icon` before it goes to the main
+/// thread (`image/mod.rs:141-146`, `menu/icon.rs:35-38`), so a bad image
+/// fails the caller with `Error::BadMenuIcon`. muda's `Icon` holds bytes
+/// on macOS and Linux and an `HICON` muda declares `Send` on Windows
+/// (`platform_impl/windows/icon.rs:73`), so it is made on any thread.
+///
+/// That Windows icon is `Send` but not `Sync`: it shares its `HICON`
+/// through an `Arc` without a lock. Ruby reaches `&self` only while its
+/// thread holds the GVL, so no two threads touch the icon at once; the
+/// one thing done through `&self` is [`Self::icon`]'s clone, which bumps
+/// the `Arc`'s atomic count, and the icon is dropped once, wherever Ruby
+/// frees it, which `Send` allows.
+#[magnus::wrap(class = "Tokra::Native::MenuIcon", free_immediately, size)]
+pub struct RbMenuIcon(muda::Icon);
+
+impl RbMenuIcon {
+    /// The muda icon, for the item that takes it.
+    fn icon(&self) -> muda::Icon {
+        self.0.clone()
     }
-    muda::Icon::from_rgba(rgba, width, height)
-        .map_err(|e| Error::new(runtime_error(), e.to_string()))
+
+    /// muda's `Icon::from_rgba`, after the checks that keep muda from
+    /// panicking.
+    ///
+    /// muda's GTK icon checks nothing and hands the bytes to
+    /// `Pixbuf::from_mut_slice`, which panics on the main thread when they
+    /// are short (muda 0.17.1 `platform_impl/gtk/icon.rs:27-38`), as tao's
+    /// did (plan 041, decision 4); its checks multiply the dimensions as
+    /// `u32`, which overflows; and an icon with no pixels passes them, then
+    /// panics where it is drawn: in the PNG encoder's `unwrap` on macOS
+    /// (`platform_impl/macos/icon.rs:25-38`) and in `Pixbuf::from_mut_slice`
+    /// on Linux. So Tokra runs muda's checks first on every platform, in 64
+    /// bits, with muda's texts, then refuses an empty dimension with tao's
+    /// text for it, and a dimension GTK's `i32` row stride cannot hold
+    /// (plan 042, decision 13).
+    ///
+    /// # Errors
+    ///
+    /// Returns a `RuntimeError` with that text, or with muda's when
+    /// Windows fails to make the icon; Ruby raises it as
+    /// `Error::BadMenuIcon`.
+    fn from_rgba(rgba: RString, width: u32, height: u32) -> Result<Self, Error> {
+        let rgba = rgba.to_bytes().to_vec();
+        if let Some(message) = bad_menu_icon(rgba.len(), width, height) {
+            return Err(Error::new(runtime_error(), message));
+        }
+        muda::Icon::from_rgba(rgba, width, height)
+            .map(Self)
+            .map_err(|e| Error::new(runtime_error(), e.to_string()))
+    }
 }
 
 // SPDX-SnippetBegin
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // SPDX-SnippetCopyrightText: 2022-2022 Tauri Programme within The Commons Conservancy
-// SPDX-SnippetComment: The RGBA checks and their texts adapted from muda 0.17.1 src/icon.rs
+// SPDX-SnippetCopyrightText: 2014-2021 The winit contributors
+// SPDX-SnippetComment: The RGBA checks and their texts adapted from muda 0.17.1 src/icon.rs,
+//                      and the empty-dimension text from tao 0.34.5 src/icon.rs
 
-/// Why muda would refuse `byte_count` bytes as a `width` by `height` icon,
-/// in its own words (`src/icon.rs:27-45`, `82-103`), or `None`.
+/// Why Tokra refuses `byte_count` bytes as a `width` by `height` icon:
+/// muda's checks in muda's words (`src/icon.rs:27-45`, `82-103`), then an
+/// empty dimension in tao's (`src/icon.rs:42-79`), then a size GTK cannot
+/// hold, or `None`.
+///
+/// muda's GTK icon casts `width` and `height` to `i32` and asks for a row
+/// stride of `width * 4` bytes (`platform_impl/gtk/icon.rs:37-47`), which
+/// overflows `i32` past 536,870,911 pixels; `Pixbuf::from_mut_slice` then
+/// asserts on it (gdk-pixbuf 0.18.5 `src/pixbuf.rs:24-26`). Tokra refuses
+/// such an icon on every platform, as it refuses the others.
 fn bad_menu_icon(byte_count: usize, width: u32, height: u32) -> Option<String> {
     if !byte_count.is_multiple_of(4) {
         return Some(format!(
@@ -585,13 +741,104 @@ fn bad_menu_icon(byte_count: usize, width: u32, height: u32) -> Option<String> {
     }
     let pixel_count = byte_count / 4;
     let width_x_height = u64::from(width) * u64::from(height);
-    if u64::try_from(pixel_count).ok() == Some(width_x_height) {
-        None
-    } else {
-        Some(format!(
+    if u64::try_from(pixel_count).ok() != Some(width_x_height) {
+        return Some(format!(
             "The specified dimensions ({width:?}x{height:?}) don't match the number of pixels supplied by the `rgba` argument ({pixel_count:?}). For those dimensions, the expected pixel count is {width_x_height:?}."
-        ))
+        ));
     }
+    if width == 0 || height == 0 {
+        return Some(format!(
+            "The specified dimensions ({width:?}x{height:?}) must be greater than zero."
+        ));
+    }
+    let row_stride = u64::from(width) * 4;
+    (row_stride > u64::from(i32::MAX.unsigned_abs()) || height > i32::MAX.unsigned_abs()).then(|| {
+        format!(
+            "The specified dimensions ({width:?}x{height:?}) are too large: GTK's row stride ({row_stride:?} bytes) and height must each fit in an i32 ({}).",
+            i32::MAX
+        )
+    })
+}
+
+// SPDX-SnippetEnd
+
+// SPDX-SnippetBegin
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+// SPDX-SnippetComment: The NativeIcon variants adapted from tauri/crates/tauri/src/menu/mod.rs
+
+/// muda's native icon for the name of one of Tauri's 56 `NativeIcon`
+/// variants (`menu/mod.rs:361-537`).
+///
+/// # Errors
+///
+/// Returns `ArgumentError` for any other name.
+fn native_icon(ruby: &Ruby, name: &str) -> Result<muda::NativeIcon, Error> {
+    use muda::NativeIcon as N;
+    Ok(match name {
+        "Add" => N::Add,
+        "Advanced" => N::Advanced,
+        "Bluetooth" => N::Bluetooth,
+        "Bookmarks" => N::Bookmarks,
+        "Caution" => N::Caution,
+        "ColorPanel" => N::ColorPanel,
+        "ColumnView" => N::ColumnView,
+        "Computer" => N::Computer,
+        "EnterFullScreen" => N::EnterFullScreen,
+        "Everyone" => N::Everyone,
+        "ExitFullScreen" => N::ExitFullScreen,
+        "FlowView" => N::FlowView,
+        "Folder" => N::Folder,
+        "FolderBurnable" => N::FolderBurnable,
+        "FolderSmart" => N::FolderSmart,
+        "FollowLinkFreestanding" => N::FollowLinkFreestanding,
+        "FontPanel" => N::FontPanel,
+        "GoLeft" => N::GoLeft,
+        "GoRight" => N::GoRight,
+        "Home" => N::Home,
+        "IChatTheater" => N::IChatTheater,
+        "IconView" => N::IconView,
+        "Info" => N::Info,
+        "InvalidDataFreestanding" => N::InvalidDataFreestanding,
+        "LeftFacingTriangle" => N::LeftFacingTriangle,
+        "ListView" => N::ListView,
+        "LockLocked" => N::LockLocked,
+        "LockUnlocked" => N::LockUnlocked,
+        "MenuMixedState" => N::MenuMixedState,
+        "MenuOnState" => N::MenuOnState,
+        "MobileMe" => N::MobileMe,
+        "MultipleDocuments" => N::MultipleDocuments,
+        "Network" => N::Network,
+        "Path" => N::Path,
+        "PreferencesGeneral" => N::PreferencesGeneral,
+        "QuickLook" => N::QuickLook,
+        "RefreshFreestanding" => N::RefreshFreestanding,
+        "Refresh" => N::Refresh,
+        "Remove" => N::Remove,
+        "RevealFreestanding" => N::RevealFreestanding,
+        "RightFacingTriangle" => N::RightFacingTriangle,
+        "Share" => N::Share,
+        "Slideshow" => N::Slideshow,
+        "SmartBadge" => N::SmartBadge,
+        "StatusAvailable" => N::StatusAvailable,
+        "StatusNone" => N::StatusNone,
+        "StatusPartiallyAvailable" => N::StatusPartiallyAvailable,
+        "StatusUnavailable" => N::StatusUnavailable,
+        "StopProgressFreestanding" => N::StopProgressFreestanding,
+        "StopProgress" => N::StopProgress,
+        "TrashEmpty" => N::TrashEmpty,
+        "TrashFull" => N::TrashFull,
+        "User" => N::User,
+        "UserAccounts" => N::UserAccounts,
+        "UserGroup" => N::UserGroup,
+        "UserGuest" => N::UserGuest,
+        _ => {
+            return Err(Error::new(
+                ruby.exception_arg_error(),
+                format!("unknown native icon: {name:?}"),
+            ))
+        }
+    })
 }
 
 // SPDX-SnippetEnd
@@ -726,6 +973,8 @@ pub fn define_classes(ruby: &Ruby, native: RModule) -> Result<(), Error> {
     submenu.define_method("set_text", method!(RbSubmenu::set_text, 1))?;
     submenu.define_method("is_enabled", method!(RbSubmenu::is_enabled, 0))?;
     submenu.define_method("set_enabled", method!(RbSubmenu::set_enabled, 1))?;
+    submenu.define_method("set_icon", method!(RbSubmenu::set_icon, 1))?;
+    submenu.define_method("set_native_icon", method!(RbSubmenu::set_native_icon, 1))?;
 
     let item = native.define_class("MenuItem", ruby.class_object())?;
     item.define_singleton_method("new", function!(RbMenuItem::new, 3))?;
@@ -757,6 +1006,35 @@ pub fn define_classes(ruby: &Ruby, native: RModule) -> Result<(), Error> {
     predefined.define_method("id", method!(RbPredefinedMenuItem::id, 0))?;
     predefined.define_method("text", method!(RbPredefinedMenuItem::text, 0))?;
     predefined.define_method("set_text", method!(RbPredefinedMenuItem::set_text, 1))?;
+
+    let icon_item = native.define_class("IconMenuItem", ruby.class_object())?;
+    icon_item.define_singleton_method("new", function!(RbIconMenuItem::new, 4))?;
+    icon_item.define_singleton_method("with_id", function!(RbIconMenuItem::with_id, 5))?;
+    icon_item.define_singleton_method(
+        "with_native_icon",
+        function!(RbIconMenuItem::with_native_icon, 4),
+    )?;
+    icon_item.define_singleton_method(
+        "with_id_and_native_icon",
+        function!(RbIconMenuItem::with_id_and_native_icon, 5),
+    )?;
+    icon_item.define_method("id", method!(RbIconMenuItem::id, 0))?;
+    icon_item.define_method("text", method!(RbIconMenuItem::text, 0))?;
+    icon_item.define_method("set_text", method!(RbIconMenuItem::set_text, 1))?;
+    icon_item.define_method("is_enabled", method!(RbIconMenuItem::is_enabled, 0))?;
+    icon_item.define_method("set_enabled", method!(RbIconMenuItem::set_enabled, 1))?;
+    icon_item.define_method(
+        "set_accelerator",
+        method!(RbIconMenuItem::set_accelerator, 1),
+    )?;
+    icon_item.define_method("set_icon", method!(RbIconMenuItem::set_icon, 1))?;
+    icon_item.define_method(
+        "set_native_icon",
+        method!(RbIconMenuItem::set_native_icon, 1),
+    )?;
+
+    let menu_icon = native.define_class("MenuIcon", ruby.class_object())?;
+    menu_icon.define_singleton_method("from_rgba", function!(RbMenuIcon::from_rgba, 3))?;
 
     #[cfg(target_os = "macos")]
     {
@@ -976,5 +1254,19 @@ mod tests {
             Some("The specified dimensions (2x2) don't match the number of pixels supplied by the `rgba` argument (1). For those dimensions, the expected pixel count is 4.")
         );
         assert!(bad_menu_icon(4, u32::MAX, u32::MAX).is_some());
+        assert_eq!(
+            bad_menu_icon(0, 0, 3).as_deref(),
+            Some("The specified dimensions (0x3) must be greater than zero.")
+        );
+        assert_eq!(
+            bad_menu_icon(0, 0, 0).as_deref(),
+            Some("The specified dimensions (0x0) must be greater than zero.")
+        );
+        assert_eq!(bad_menu_icon(536_870_911 * 4, 536_870_911, 1), None);
+        assert_eq!(
+            bad_menu_icon(536_870_912 * 4, 536_870_912, 1).as_deref(),
+            Some("The specified dimensions (536870912x1) are too large: GTK's row stride (2147483648 bytes) and height must each fit in an i32 (2147483647).")
+        );
+        assert!(bad_menu_icon(2_147_483_648 * 4, 1, 2_147_483_648).is_some());
     }
 }

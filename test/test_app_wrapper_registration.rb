@@ -60,6 +60,8 @@ class TestAppWrapperRegistration < Minitest::Test
     MenuItem = Tokra::Native::MenuItem
     CheckMenuItem = Tokra::Native::CheckMenuItem
     PredefinedMenuItem = Tokra::Native::PredefinedMenuItem
+    IconMenuItem = Tokra::Native::IconMenuItem
+    MenuIcon = Tokra::Native::MenuIcon
   end
 
   StubProxy = StubNative::Proxy

@@ -1,0 +1,72 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Menu
+    class NativeIcon < Data
+      extend ClosedEnum
+      include ClosedEnum::With
+
+      attr_reader name: String
+
+      private def self.new: (name: String) -> NativeIcon
+
+      Add: NativeIcon
+      Advanced: NativeIcon
+      Bluetooth: NativeIcon
+      Bookmarks: NativeIcon
+      Caution: NativeIcon
+      ColorPanel: NativeIcon
+      ColumnView: NativeIcon
+      Computer: NativeIcon
+      EnterFullScreen: NativeIcon
+      Everyone: NativeIcon
+      ExitFullScreen: NativeIcon
+      FlowView: NativeIcon
+      Folder: NativeIcon
+      FolderBurnable: NativeIcon
+      FolderSmart: NativeIcon
+      FollowLinkFreestanding: NativeIcon
+      FontPanel: NativeIcon
+      GoLeft: NativeIcon
+      GoRight: NativeIcon
+      Home: NativeIcon
+      IChatTheater: NativeIcon
+      IconView: NativeIcon
+      Info: NativeIcon
+      InvalidDataFreestanding: NativeIcon
+      LeftFacingTriangle: NativeIcon
+      ListView: NativeIcon
+      LockLocked: NativeIcon
+      LockUnlocked: NativeIcon
+      MenuMixedState: NativeIcon
+      MenuOnState: NativeIcon
+      MobileMe: NativeIcon
+      MultipleDocuments: NativeIcon
+      Network: NativeIcon
+      Path: NativeIcon
+      PreferencesGeneral: NativeIcon
+      QuickLook: NativeIcon
+      RefreshFreestanding: NativeIcon
+      Refresh: NativeIcon
+      Remove: NativeIcon
+      RevealFreestanding: NativeIcon
+      RightFacingTriangle: NativeIcon
+      Share: NativeIcon
+      Slideshow: NativeIcon
+      SmartBadge: NativeIcon
+      StatusAvailable: NativeIcon
+      StatusNone: NativeIcon
+      StatusPartiallyAvailable: NativeIcon
+      StatusUnavailable: NativeIcon
+      StopProgressFreestanding: NativeIcon
+      StopProgress: NativeIcon
+      TrashEmpty: NativeIcon
+      TrashFull: NativeIcon
+      User: NativeIcon
+      UserAccounts: NativeIcon
+      UserGroup: NativeIcon
+      UserGuest: NativeIcon
+    end
+  end
+end

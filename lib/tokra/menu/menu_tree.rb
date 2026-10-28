@@ -19,8 +19,8 @@ module Tokra
     # and on Submenu (menu/submenu.rs:277-370); they are the same in Ruby,
     # so both include this module. Each runs on the main thread, waiting
     # for it from another thread, and raises Error::Menu for what muda
-    # refuses. An +item+ is a MenuItem, Submenu, PredefinedMenuItem, or
-    # CheckMenuItem; anything else raises TypeError.
+    # refuses. An +item+ is a MenuItem, Submenu, PredefinedMenuItem,
+    # CheckMenuItem, or IconMenuItem; anything else raises TypeError.
     module MenuTree
       # Adds +item+ at the end and returns +nil+.
       #
@@ -108,8 +108,8 @@ module Tokra
         list.find { |item| item.id == id }
       end
 
-      # The items, in order: MenuItem, Submenu, PredefinedMenuItem, and
-      # CheckMenuItem objects.
+      # The items, in order: MenuItem, Submenu, PredefinedMenuItem,
+      # CheckMenuItem, and IconMenuItem objects.
       def items
         native = @native #: Native::Menu | Native::Submenu
         handle = @app_handle

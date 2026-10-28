@@ -9,7 +9,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
 # SPDX-SnippetComment: The menu builders adapted from tauri/crates/tauri/src/menu/builders/menu.rs,
-#                      builders/normal.rs, and builders/check.rs
+#                      builders/normal.rs, builders/check.rs, and builders/icon.rs
 
 module Tokra
   module Menu
@@ -20,7 +20,6 @@ module Tokra
     # order and raises the first error it meets. Each returns the builder.
     #
     # Mirrors Tauri's <tt>shared_menu_builder!</tt> (builders/menu.rs).
-    # +icon+ and +native_icon+ are not ported yet (plan 042, phase 2).
     module SharedMenuBuilder
       # Sets the id of the menu being built, a String or a MenuId.
       def id(id)
@@ -50,6 +49,18 @@ module Tokra
       # +text+, checked, as Tauri's builder makes it.
       def check(id, text)
         add { CheckMenuItem.with_id(@manager, id, text, true, true, nil) }
+      end
+
+      # Adds an enabled IconMenuItem with the id +id+ and the title +text+,
+      # showing +icon+, a Tokra::Image.
+      def icon(id, text, icon)
+        add { IconMenuItem.with_id(@manager, id, text, true, icon, nil) }
+      end
+
+      # Adds an enabled IconMenuItem with the id +id+ and the title +text+,
+      # showing +icon+, a NativeIcon. Windows and Linux show no icon.
+      def native_icon(id, text, icon)
+        add { IconMenuItem.with_id_and_native_icon(@manager, id, text, true, icon, nil) }
       end
 
       # Adds a separator.
@@ -274,8 +285,7 @@ module Tokra
 
     # Builds a Submenu, enabled unless #enabled says otherwise.
     #
-    # Mirrors Tauri's SubmenuBuilder (builders/menu.rs). Its icon methods
-    # are not ported yet (plan 042, phase 2).
+    # Mirrors Tauri's SubmenuBuilder (builders/menu.rs).
     #
     # === Example
     #
@@ -290,6 +300,8 @@ module Tokra
         @enabled = true
         @id = nil #: MenuId?
         @items = [] #: Array[IsMenuItem | Error]
+        @icon = nil #: Image?
+        @native_icon = nil #: NativeIcon?
       end
 
       # A builder for a submenu with the id +id+.
@@ -305,11 +317,40 @@ module Tokra
         self
       end
 
+      # Sets the icon the submenu shows, a Tokra::Image, and drops any
+      # #submenu_native_icon.
+      def submenu_icon(icon)
+        @icon = icon
+        @native_icon = nil
+        self
+      end
+
+      # Sets the icon the submenu shows, a NativeIcon, and drops any
+      # #submenu_icon. Windows and Linux show no icon.
+      def submenu_native_icon(icon)
+        @native_icon = icon
+        @icon = nil
+        self
+      end
+
       # The Submenu, with the items added in order.
       def build
+        append_built(build_submenu)
+      end
+
+      private def build_submenu
         id = @id
-        submenu = id ? Submenu.with_id(@manager, id, @text, @enabled) : Submenu.new(@manager, @text, @enabled)
-        append_built(submenu)
+        icon = @icon
+        native_icon = @native_icon
+        if id
+          if icon then Submenu.with_id_and_icon(@manager, id, @text, @enabled, icon)
+          elsif native_icon then Submenu.with_id_and_native_icon(@manager, id, @text, @enabled, native_icon)
+          else Submenu.with_id(@manager, id, @text, @enabled)
+          end
+        elsif icon then Submenu.new_with_icon(@manager, @text, @enabled, icon)
+        elsif native_icon then Submenu.new_with_native_icon(@manager, @text, @enabled, native_icon)
+        else Submenu.new(@manager, @text, @enabled)
+        end
       end
     end
 
@@ -418,6 +459,81 @@ module Tokra
           CheckMenuItem.with_id(manager, id, @text, @enabled, @checked, @accelerator)
         else
           CheckMenuItem.new(manager, @text, @enabled, @checked, @accelerator)
+        end
+      end
+    end
+
+    # Builds an IconMenuItem: enabled, with no icon and no accelerator,
+    # unless told otherwise. #icon and #native_icon each drop the other.
+    #
+    # Mirrors Tauri's IconMenuItemBuilder (builders/icon.rs).
+    #
+    # === Example
+    #
+    #   Tokra::Menu::IconMenuItemBuilder.with_id("lock", "Lock").native_icon(Tokra::Menu::NativeIcon::LockLocked).build(app)
+    class IconMenuItemBuilder
+      # A builder for an item titled +text+.
+      def initialize(text)
+        @text = text
+        @id = nil #: MenuId?
+        @enabled = true
+        @icon = nil #: Image?
+        @native_icon = nil #: NativeIcon?
+        @accelerator = nil #: String?
+      end
+
+      # A builder for an item with the id +id+.
+      def self.with_id(id, text)
+        new(text).id(id)
+      end
+
+      # Sets the item's id, a String or a MenuId.
+      def id(id)
+        @id = MenuId.from(id)
+        self
+      end
+
+      # Sets whether the item can be clicked.
+      def enabled(enabled)
+        @enabled = enabled
+        self
+      end
+
+      # Sets the item's shortcut, such as <tt>"CmdOrCtrl+L"</tt>.
+      def accelerator(accelerator)
+        @accelerator = accelerator
+        self
+      end
+
+      # Sets the item's icon, a Tokra::Image, and drops any #native_icon.
+      def icon(icon)
+        @icon = icon
+        @native_icon = nil
+        self
+      end
+
+      # Sets the item's icon, a NativeIcon, and drops any #icon. Windows
+      # and Linux show no icon.
+      def native_icon(icon)
+        @native_icon = icon
+        @icon = nil
+        self
+      end
+
+      # The IconMenuItem, belonging to +manager+: with its image if it has
+      # one, else with its native icon or none, as Tauri's build chooses.
+      def build(manager)
+        id = @id
+        if @icon
+          if id
+            IconMenuItem.with_id(manager, id, @text, @enabled, @icon, @accelerator)
+          else
+            IconMenuItem.new(manager, @text, @enabled, @icon, @accelerator)
+          end
+        elsif id
+          IconMenuItem.with_id_and_native_icon(manager, id, @text, @enabled, @native_icon, @accelerator)
+        else
+          IconMenuItem.with_native_icon(manager, @text, @enabled, @native_icon, @accelerator)
         end
       end
     end

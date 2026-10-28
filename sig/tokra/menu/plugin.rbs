@@ -6,7 +6,7 @@ module Tokra
     class Plugin < Tokra::Plugin
       type about_fields = Hash[Symbol, String | Array[String] | JsImage | nil]
       type payload = ExistingItem | PredefinedPayload | CheckPayload | IconPayload | SubmenuPayload | MenuItemPayload
-      type icon = String | JsImage
+      type icon = NativeIcon | JsImage
 
       class MenuChannels
         @mutex: Thread::Mutex
@@ -22,7 +22,6 @@ module Tokra
 
       UNREACHABLE: String
       UNWRAP_NONE: String
-      ICONS_NOT_PORTED: String
       ITEM_KINDS: Array[String]
       PREDEFINED: Hash[String, Symbol]
       NATIVE_ICONS: Array[String]
@@ -55,8 +54,14 @@ module Tokra
       end
 
       class IconPayload < Data
+        attr_reader handler: Ipc::JavaScriptChannelId?
+        attr_reader id: MenuId?
         attr_reader text: String
-        def self.new: (text: String) -> IconPayload
+        attr_reader icon: icon
+        attr_reader enabled: bool?
+        attr_reader accelerator: String?
+        def self.new: (handler: Ipc::JavaScriptChannelId?, id: MenuId?, text: String, icon: icon, enabled: bool?,
+                       accelerator: String?) -> IconPayload
       end
 
       class SubmenuPayload < Data
@@ -113,18 +118,20 @@ module Tokra
       def set_enabled: (Ipc::Invoke invoke) -> nil
       def set_accelerator: (Ipc::Invoke invoke) -> nil
       def set_nsapp_menu: (Ipc::Invoke invoke) -> nil
+      def set_icon: (Ipc::Invoke invoke) -> nil
       def set_checked: (Ipc::Invoke invoke) -> nil
       def check_item: (Ipc::Invoke invoke) -> CheckMenuItem
       def with_menu_item: [T] (Ipc::Invoke invoke, Array[String] kinds, ?after: (^() -> void)?) { (item) -> T } -> T
       def menu_or_submenu: (ResourceTable table, Integer rid, String kind) -> (Menu | Submenu)
       def menu_item: (ResourceTable table, Integer rid, String kind, Array[String] kinds) -> item
-      def enableable: (item item) -> (MenuItem | Submenu | CheckMenuItem)
+      def enableable: (item item) -> (MenuItem | Submenu | CheckMenuItem | IconMenuItem)
       def menu_resource: (ResourceTable table, Integer rid) -> Menu
       def submenu_resource: (ResourceTable table, Integer rid) -> Submenu
       def item_resource: (ResourceTable table, item item) -> [Integer, String, String]
       def with_item: [T] (Webview webview, ResourceTable table, payload payload) { (item) -> T } -> T
       def create_submenu: (Webview webview, ResourceTable table, SubmenuPayload payload) -> Submenu
       def create_check: (Webview webview, CheckPayload payload) -> CheckMenuItem
+      def create_icon: (Webview webview, ResourceTable table, IconPayload payload) -> IconMenuItem
       def create_menu_item: (Webview webview, MenuItemPayload payload) -> MenuItem
       def create_predefined: (Webview webview, ResourceTable table, PredefinedPayload payload) -> PredefinedMenuItem
       def about_metadata_for: (ResourceTable table, about_fields fields) -> AboutMetadata

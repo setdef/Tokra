@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Menu
+    class IconMenuItem
+      include IsMenuItem
+
+      def self.new: (Manager manager, String text, bool enabled, Image? icon, String? accelerator) -> IconMenuItem
+      def self.with_id: (Manager manager, id id, String text, bool enabled, Image? icon, String? accelerator) -> IconMenuItem
+      def self.with_native_icon: (Manager manager, String text, bool enabled, NativeIcon? native_icon, String? accelerator) -> IconMenuItem
+      def self.with_id_and_native_icon: (Manager manager, id id, String text, bool enabled, NativeIcon? native_icon,
+                                         String? accelerator) -> IconMenuItem
+      def self.from_native: (AppHandle app_handle, Native::IconMenuItem native) -> IconMenuItem
+      def text: () -> String
+      def set_text: (String text) -> nil
+      def is_enabled: () -> bool
+      def set_enabled: (bool enabled) -> nil
+      def set_accelerator: (String? accelerator) -> nil
+      def set_icon: (Image? icon) -> nil
+      def set_native_icon: (NativeIcon? native_icon) -> nil
+    end
+  end
+end

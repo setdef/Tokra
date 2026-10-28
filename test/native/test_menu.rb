@@ -108,14 +108,75 @@ class TestNativeMenu < Minitest::Test
     assert_raises(ArgumentError) { Tokra::Native::PredefinedMenuItem.new("bring_all_to_front", nil, nil) }
   end
 
-  def test_the_about_item_takes_metadata_and_refuses_a_bad_icon_in_mudas_words
-    metadata = { name: "Notes", version: "1.0", authors: ["Ada"], icon: ["\xFF".b * 4, 1, 1] }
+  def test_the_about_item_takes_metadata_with_mudas_icon
+    icon = Tokra::Native::MenuIcon.from_rgba("\xFF".b * 4, 1, 1)
+    metadata = { name: "Notes", version: "1.0", authors: ["Ada"], icon: }
     assert_kind_of String, Tokra::Native::PredefinedMenuItem.new("about", nil, metadata).id
 
-    error = assert_raises(RuntimeError) do
-      Tokra::Native::PredefinedMenuItem.new("about", nil, { icon: ["\xFF".b * 4, 2, 2] })
+    assert_raises(TypeError) { Tokra::Native::PredefinedMenuItem.new("about", nil, { icon: ["\xFF".b * 4, 1, 1] }) }
+  end
+
+  # muda's checks in muda's words, then the empty icon muda takes but
+  # cannot draw (its PNG encoder on macOS, GTK's Pixbuf on Linux), in
+  # tao's words (plan 042, decision 13).
+  def test_a_menu_icon_is_refused_in_mudas_words_and_an_empty_one_in_taos
+    assert_instance_of Tokra::Native::MenuIcon, Tokra::Native::MenuIcon.from_rgba("\xFF".b * 16, 2, 2)
+
+    {
+      ["\xFF".b * 5, 1, 1] => "The length of the `rgba` argument (5) isn't divisible by 4, making it impossible to interpret as 32bpp RGBA pixels.",
+      ["\xFF".b * 4, 2, 2] => "The specified dimensions (2x2) don't match the number of pixels supplied by the `rgba` argument (1). For those dimensions, the expected pixel count is 4.",
+      ["", 0, 0] => "The specified dimensions (0x0) must be greater than zero.",
+      ["", 7, 0] => "The specified dimensions (7x0) must be greater than zero.",
+      ["\xFF".b * 4, 65_536, 65_536] => "The specified dimensions (65536x65536) don't match the number of pixels supplied by the `rgba` argument (1). For those dimensions, the expected pixel count is 4294967296.",
+    }.each do |(rgba, width, height), message|
+      error = assert_raises(RuntimeError) { Tokra::Native::MenuIcon.from_rgba(rgba, width, height) }
+      assert_equal message, error.message
     end
-    assert_match(/don't match the number of pixels/, error.message)
+  end
+
+  # NativeIcon's 56 names, Tauri's (menu/mod.rs:361-474); each goes into a
+  # menu, where muda draws it from macOS's named images.
+  def test_icon_items_take_an_image_or_any_of_tauris_native_icons
+    icon = Tokra::Native::MenuIcon.from_rgba("\xFF".b * 16, 2, 2)
+    menu = Tokra::Native::Menu.new
+    item = Tokra::Native::IconMenuItem.with_id("lock", "Lock", true, icon, "CmdOrCtrl+L")
+    menu.append(item)
+    menu.append(Tokra::Native::IconMenuItem.new("None", false, nil, nil))
+    Tokra::Menu::Plugin::NATIVE_ICONS.each do |name|
+      menu.append(Tokra::Native::IconMenuItem.with_id_and_native_icon("native-#{name}", name, true, name, nil))
+    end
+    menu.append(Tokra::Native::IconMenuItem.with_native_icon("Plain", true, nil, nil))
+
+    assert_equal 59, menu.items.size
+    assert_instance_of Tokra::Native::IconMenuItem, menu.items.first
+    assert_equal %w[lock native-Add native-UserGuest], menu.items.values_at(0, 2, 57).map(&:id)
+    assert_equal ["Lock", true], [item.text, item.is_enabled]
+    item.set_icon(nil)
+    item.set_native_icon("TrashFull")
+    item.set_icon(icon)
+    item.set_native_icon(nil)
+    error = assert_raises(ArgumentError) { Tokra::Native::IconMenuItem.with_native_icon("X", true, "Bogus", nil) }
+    assert_equal 'unknown native icon: "Bogus"', error.message
+    assert_raises(ArgumentError) { item.set_native_icon("Bogus") }
+    assert_raises(TypeError) { item.set_icon("\xFF".b * 4) }
+  end
+
+  def test_a_submenu_takes_an_icon_and_a_native_icon
+    submenu = Tokra::Native::Submenu.with_id("file", "File", true)
+    Tokra::Native::Menu.new.append(submenu)
+
+    submenu.set_icon(Tokra::Native::MenuIcon.from_rgba("\xFF".b * 4, 1, 1))
+    submenu.set_native_icon("Folder")
+    submenu.set_icon(nil)
+    submenu.set_native_icon(nil)
+    assert_raises(ArgumentError) { submenu.set_native_icon("Bogus") }
+  end
+
+  def test_icon_items_are_made_only_on_the_main_thread
+    made = quiet_thread { Tokra::Native::IconMenuItem.new("A", true, nil, nil) }
+    assert_raises(ThreadError) { made.value }
+    icon = quiet_thread { Tokra::Native::MenuIcon.from_rgba("\xFF".b * 4, 1, 1) }
+    assert_instance_of Tokra::Native::MenuIcon, icon.value, "muda's icon is made on any thread, as Tauri converts it"
   end
 
   def test_menus_are_made_and_used_only_on_the_main_thread

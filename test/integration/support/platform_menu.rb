@@ -11,7 +11,9 @@ require "fiddle"
 # through the platform's own dispatch, for the menu fixtures (plan 042):
 # -[NSApp mainMenu] and -[NSMenu performActionForItemAtIndex:] on macOS,
 # GetMenu and WM_COMMAND on Windows, and the window's GtkMenuBar and
-# gtk_menu_item_activate on Linux. Nothing here clicks, types, or brings
+# gtk_menu_item_activate on Linux. Whether an item shows an image is
+# -[NSMenuItem image], the item's hbmpItem, or the GtkImage muda packs
+# beside its label. Nothing here clicks, types, or brings
 # the app to the front. Every method runs on the main thread, which owns
 # the menus.
 module PlatformMenu
@@ -33,6 +35,17 @@ module PlatformMenu
     when :macos then Appkit.activate(submenu, title)
     when :windows then Win32.activate(window.window_handle.hwnd, submenu, title)
     else Gtk.activate(Gtk.menu_bar(window_title), submenu, title)
+    end
+  end
+
+  # Whether the platform shows an image on the item at +path+: the titles
+  # of a top-level submenu and, optionally, of an item inside it. +nil+
+  # when there is no such item.
+  def self.image?(window, window_title, path)
+    case Tokra::Menu.os
+    when :macos then Appkit.image?(path)
+    when :windows then Win32.image?(window.window_handle.hwnd, path)
+    else Gtk.image?(Gtk.menu_bar(window_title), path)
     end
   end
 
@@ -72,6 +85,12 @@ module PlatformMenu
 
     def self.tree(menu = main_menu)
       menu && items(menu).map { |item| [title(item), (sub = submenu(item)) ? tree(sub) : []] }
+    end
+
+    def self.image?(path)
+      submenu_item = items(main_menu).find { |item| title(item) == path[0] }
+      item = path[1] ? submenu_item && (sub = submenu(submenu_item)) && items(sub).find { |i| title(i) == path[1] } : submenu_item
+      item && !msg(item, "image").null?
     end
 
     def self.activate(submenu_title, title)
@@ -127,6 +146,36 @@ module PlatformMenu
       return nil if menu.zero?
 
       items(menu).map { |index| [text(menu, index), (sub = submenu(menu, index)) ? tree(hwnd, sub) : []] }
+    end
+
+    # MENUITEMINFOW's size and hbmpItem's offset on 64-bit Windows
+    # (winuser.h), and the mask that asks for hbmpItem.
+    MENUITEMINFOW_SIZE = 80
+    HBMPITEM_OFFSET = 72
+    MIIM_BITMAP = 0x80
+
+    def self.image?(hwnd, path)
+      bar = fn("GetMenu", [Fiddle::TYPE_INTPTR_T], Fiddle::TYPE_INTPTR_T).call(hwnd)
+      return nil if bar.zero?
+
+      index = items(bar).find { |position| text(bar, position) == path[0] }
+      menu = bar
+      if index && path[1]
+        menu = submenu(bar, index)
+        index = menu && items(menu).find { |position| text(menu, position) == path[1] }
+      end
+      index && bitmap?(menu, index)
+    end
+
+    def self.bitmap?(menu, index)
+      info = Fiddle::Pointer.malloc(MENUITEMINFOW_SIZE, Fiddle::RUBY_FREE)
+      info[0, MENUITEMINFOW_SIZE] = "\0" * MENUITEMINFOW_SIZE
+      info[0, 8] = [MENUITEMINFOW_SIZE, MIIM_BITMAP].pack("L<L<")
+      read = fn("GetMenuItemInfoW", [Fiddle::TYPE_INTPTR_T, Fiddle::TYPE_INT, Fiddle::TYPE_INT, Fiddle::TYPE_VOIDP],
+        Fiddle::TYPE_INT).call(menu, index, 1, info)
+      return nil if read.zero?
+
+      !info[HBMPITEM_OFFSET, 8].unpack1("Q<").zero?
     end
 
     def self.activate(hwnd, submenu_title, title)
@@ -207,6 +256,20 @@ module PlatformMenu
 
     def self.tree(menu)
       menu && children(menu).map { |item| [label(item), (sub = submenu(item)) ? tree(sub) : []] }
+    end
+
+    # Whether the GtkImage muda packs first in the item's box holds a
+    # pixbuf (platform_impl/gtk/mod.rs:1004-1030, 1284-1310).
+    def self.image?(menu_bar, path)
+      item = menu_bar && children(menu_bar).find { |child| label(child) == path[0] }
+      item = item && (sub = submenu(item)) && children(sub).find { |child| label(child) == path[1] } if path[1]
+      return nil unless item
+
+      box = fn("gtk_bin_get_child", [Fiddle::TYPE_VOIDP]).call(item)
+      return false if box.null? || type_name(box) != "GtkBox"
+
+      image = children(box).first
+      !image.nil? && type_name(image) == "GtkImage" && !fn("gtk_image_get_pixbuf", [Fiddle::TYPE_VOIDP]).call(image).null?
     end
 
     def self.activate(menu_bar, submenu_title, title)

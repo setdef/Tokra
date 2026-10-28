@@ -23,11 +23,9 @@ module Tokra
     # hears its clicks through a channel, which this plugin sends each
     # MenuEvent's id down, after the app's listeners heard it.
     #
-    # Mirrors Tauri's menu plugin (menu/plugin.rs). The icon commands
-    # (+set_icon+, and +new+ for an icon item or a submenu with an icon)
-    # and +popup+ are not ported yet (plan 042, phases 2 and 3); the first
-    # reject with a message saying so. Where Tauri panics on what the page
-    # sends, this rejects with the panic's text (plan 042, decision 8).
+    # Mirrors Tauri's menu plugin (menu/plugin.rs). +popup+ is not ported
+    # yet (plan 042, phase 3). Where Tauri panics on what the page sends,
+    # this rejects with the panic's text (plan 042, decision 8).
     class Plugin < Tokra::Plugin
       # The channels of the page's items, by item id (plugin.rs:885).
       class MenuChannels # :nodoc:
@@ -57,9 +55,6 @@ module Tokra
 
       # The text of Rust's panic for <tt>None.unwrap()</tt>.
       UNWRAP_NONE = "called `Option::unwrap()` on a `None` value"
-
-      # What Tokra answers for the menu icons it does not port yet.
-      ICONS_NOT_PORTED = "menu icons are not supported by Tokra yet (plan 042, phase 2)"
 
       # Tauri's ItemKind (plugin.rs:22-30).
       ITEM_KINDS = %w[Menu MenuItem Predefined Submenu Check Icon].freeze
@@ -149,7 +144,11 @@ module Tokra
 
       # The ItemKind each item class answers as (plugin.rs:574-586).
       KIND_NAMES = {
-        MenuItem => "MenuItem", Submenu => "Submenu", PredefinedMenuItem => "Predefined", CheckMenuItem => "Check"
+        MenuItem => "MenuItem",
+        Submenu => "Submenu",
+        PredefinedMenuItem => "Predefined",
+        CheckMenuItem => "Check",
+        IconMenuItem => "Icon",
       }.freeze
 
       # Every item kind, the kinds <tt>do_menu_item!</tt> takes by default
@@ -177,8 +176,8 @@ module Tokra
       PredefinedPayload = Data.define(:item, :about, :text) # :nodoc:
       # A CheckMenuItem to make (plugin.rs:135-143).
       CheckPayload = Data.define(:handler, :id, :text, :checked, :enabled, :accelerator) # :nodoc:
-      # An IconMenuItem to make (plugin.rs:182-191), not ported yet.
-      IconPayload = Data.define(:text) # :nodoc:
+      # An IconMenuItem to make (plugin.rs:182-191).
+      IconPayload = Data.define(:handler, :id, :text, :icon, :enabled, :accelerator) # :nodoc:
       # A Submenu to make (plugin.rs:96-103).
       SubmenuPayload = Data.define(:id, :text, :enabled, :items, :icon) # :nodoc:
       # A MenuItem to make (plugin.rs:231-238).
@@ -233,6 +232,7 @@ module Tokra
         when "set_as_windows_menu_for_nsapp", "set_as_help_menu_for_nsapp" then set_nsapp_menu(invoke)
         when "is_checked" then check_item(invoke).is_checked
         when "set_checked" then set_checked(invoke)
+        when "set_icon" then set_icon(invoke)
         else return false
         end
         invoke.resolve(answer)
@@ -271,7 +271,9 @@ module Tokra
         when "Check"
           create_check(webview, CheckPayload.new(handler: nil, id: options.id, text: options.text || "",
             checked: options.checked || false, enabled: options.enabled, accelerator: options.accelerator))
-        else raise Rejection, ICONS_NOT_PORTED
+        else
+          create_icon(webview, table, IconPayload.new(handler: nil, id: options.id, text: options.text || "",
+            icon: options.icon || NativeIcon::User, enabled: options.enabled, accelerator: options.accelerator))
         end
         rid = table.add(item)
         channels.insert(item.id, handler)
@@ -391,7 +393,7 @@ module Tokra
         accelerator = nil #: String?
         read = -> { accelerator = argument(invoke, "accelerator").deserialize_option { |value| string(value) } }
         with_menu_item(invoke, %w[MenuItem Check Icon], after: read) do |item|
-          with_accelerator = item #: MenuItem | CheckMenuItem
+          with_accelerator = item #: MenuItem | CheckMenuItem | IconMenuItem
           with_accelerator.set_accelerator(accelerator)
         end
       end
@@ -406,6 +408,25 @@ module Tokra
 
         submenu_resource(invoke.webview.resources_table, rid).set_as_help_menu_for_nsapp
         nil
+      end
+
+      # +set_icon+ (plugin.rs:858-882): a native icon, an image, or with
+      # +null+ neither, on an icon item or a submenu.
+      private def set_icon(invoke)
+        icon = nil #: NativeIcon | JsImage | nil
+        read = -> { icon = argument(invoke, "icon").deserialize_option { |value| icon(value) } }
+        table = invoke.webview.resources_table
+        with_menu_item(invoke, %w[Icon Submenu], after: read) do |item|
+          icon_item = item #: IconMenuItem | Submenu
+          case icon
+          when NativeIcon then icon_item.set_native_icon(icon)
+          when JsImage then icon_item.set_icon(icon.into_img(table))
+          else
+            icon_item.set_icon(nil)
+            icon_item.set_native_icon(nil)
+          end
+          nil
+        end
       end
 
       # +set_checked+ (plugin.rs:847-856).
@@ -445,7 +466,6 @@ module Tokra
 
       # The item +rid+ names, as <tt>do_menu_item!</tt> takes it: the kind
       # must be one of +kinds+, or Tauri reaches <tt>unreachable!()</tt>.
-      # No icon item exists yet, so an Icon is never in the table.
       private def menu_item(table, rid, kind, kinds)
         raise Rejection, UNREACHABLE unless kinds.include?(kind)
 
@@ -455,6 +475,7 @@ module Tokra
         when "Submenu" then resource if resource.is_a?(Submenu)
         when "Predefined" then resource if resource.is_a?(PredefinedMenuItem)
         when "Check" then resource if resource.is_a?(CheckMenuItem)
+        when "Icon" then resource if resource.is_a?(IconMenuItem)
         end
         item || raise(Error::BadResourceId, rid)
       end
@@ -462,7 +483,7 @@ module Tokra
       # +item+, which <tt>do_menu_item!</tt>'s kinds made one that can be
       # enabled.
       private def enableable(item)
-        item #: MenuItem | Submenu | CheckMenuItem
+        item #: MenuItem | Submenu | CheckMenuItem | IconMenuItem
       end
 
       # The Menu +rid+ names: Tauri's ResourceTable::get, which downcasts or
@@ -492,7 +513,7 @@ module Tokra
         when SubmenuPayload then create_submenu(webview, table, payload)
         when PredefinedPayload then create_predefined(webview, table, payload)
         when CheckPayload then create_check(webview, payload)
-        when IconPayload then raise Rejection, ICONS_NOT_PORTED
+        when IconPayload then create_icon(webview, table, payload)
         else create_menu_item(webview, payload)
         end
         yield item
@@ -502,8 +523,10 @@ module Tokra
       private def create_submenu(webview, table, payload)
         builder = payload.id ? SubmenuBuilder.with_id(webview, payload.id, payload.text) : SubmenuBuilder.new(webview, payload.text)
         builder.enabled(payload.enabled) unless payload.enabled.nil?
-        raise Rejection, ICONS_NOT_PORTED if payload.icon
-
+        case (icon = payload.icon)
+        when NativeIcon then builder.submenu_native_icon(icon)
+        when JsImage then builder.submenu_icon(icon.into_img(table))
+        end
         payload.items.each { |item| with_item(webview, table, item) { |made| builder.item(made) } }
         builder.build
       end
@@ -515,6 +538,16 @@ module Tokra
         builder.enabled(payload.enabled) unless payload.enabled.nil?
         item = builder.checked(payload.checked).build(webview)
         listen(webview, item, payload.handler)
+      end
+
+      # IconMenuItemPayload::create_item (plugin.rs:193-229).
+      private def create_icon(webview, table, payload)
+        builder = payload.id ? IconMenuItemBuilder.with_id(payload.id, payload.text) : IconMenuItemBuilder.new(payload.text)
+        builder.accelerator(payload.accelerator) if payload.accelerator
+        builder.enabled(payload.enabled) unless payload.enabled.nil?
+        icon = payload.icon
+        icon.is_a?(NativeIcon) ? builder.native_icon(icon) : builder.icon(icon.into_img(table))
+        listen(webview, builder.build(webview), payload.handler)
       end
 
       # MenuItemPayload::create_item (plugin.rs:240-268).
@@ -703,10 +736,10 @@ module Tokra
         raise mismatch("invalid channel value `#{text}`, expected a string in the `#{Ipc::Channel::IPC_PAYLOAD_PREFIX}ID` format")
       end
 
-      # The Icon untagged enum (plugin.rs:175-180): a NativeIcon name, or a
-      # JsImage.
+      # The Icon untagged enum (plugin.rs:175-180): a NativeIcon, by its
+      # name, or a JsImage.
       private def icon(value)
-        return value if value.is_a?(String) && NATIVE_ICONS.include?(value)
+        return NativeIcon.const_get(value, false) if value.is_a?(String) && NATIVE_ICONS.include?(value)
 
         JsImage.deserialize(value)
       rescue Ipc::CommandItem::Mismatch
@@ -781,13 +814,14 @@ module Tokra
 
       private def icon_payload(value)
         hash = struct_fields(value, "IconMenuItemPayload", %w[handler id text icon enabled accelerator])
-        optional(hash, "handler") { |v| channel_id(v) }
-        optional(hash, "id") { |v| menu_id(v) }
-        text = required(hash, "text") { |v| string(v) }
-        required(hash, "icon") { |v| icon(v) }
-        optional(hash, "enabled") { |v| boolean(v) }
-        optional(hash, "accelerator") { |v| string(v) }
-        IconPayload.new(text:)
+        IconPayload.new(
+          handler: optional(hash, "handler") { |v| channel_id(v) },
+          id: optional(hash, "id") { |v| menu_id(v) },
+          text: required(hash, "text") { |v| string(v) },
+          icon: required(hash, "icon") { |v| icon(v) },
+          enabled: optional(hash, "enabled") { |v| boolean(v) },
+          accelerator: optional(hash, "accelerator") { |v| string(v) }
+        )
       end
 
       private def submenu_payload(value)

@@ -31,6 +31,8 @@ module Tokra
       def set_text: (String text) -> nil
       def is_enabled: () -> bool
       def set_enabled: (bool enabled) -> nil
+      def set_icon: (MenuIcon? icon) -> nil
+      def set_native_icon: (String? name) -> nil
     end
 
     class MenuItem
@@ -58,12 +60,31 @@ module Tokra
     end
 
     class PredefinedMenuItem
-      type about = Hash[Symbol, String | Array[String] | [String, Integer, Integer] | nil]
+      type about = Hash[Symbol, String | Array[String] | MenuIcon | nil]
 
       def self.new: (String kind, String? text, about? about) -> PredefinedMenuItem
       def id: () -> String
       def text: () -> String
       def set_text: (String text) -> nil
+    end
+
+    class IconMenuItem
+      def self.new: (String text, bool enabled, MenuIcon? icon, String? accelerator) -> IconMenuItem
+      def self.with_id: (String id, String text, bool enabled, MenuIcon? icon, String? accelerator) -> IconMenuItem
+      def self.with_native_icon: (String text, bool enabled, String? name, String? accelerator) -> IconMenuItem
+      def self.with_id_and_native_icon: (String id, String text, bool enabled, String? name, String? accelerator) -> IconMenuItem
+      def id: () -> String
+      def text: () -> String
+      def set_text: (String text) -> nil
+      def is_enabled: () -> bool
+      def set_enabled: (bool enabled) -> nil
+      def set_accelerator: (String? accelerator) -> nil
+      def set_icon: (MenuIcon? icon) -> nil
+      def set_native_icon: (String? name) -> nil
+    end
+
+    class MenuIcon
+      def self.from_rgba: (String rgba, Integer width, Integer height) -> MenuIcon
     end
 
     class MenuEvent < Data

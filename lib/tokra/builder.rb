@@ -245,8 +245,9 @@ module Tokra
     # Returns an App instance ready to run.
     # <tt>native:</tt> can be injected for testing with mock native components.
     # A stand-in for Tokra::Native also defines its menu classes (+Menu+,
-    # +Submenu+, +MenuItem+, +CheckMenuItem+, +PredefinedMenuItem+); the
-    # real ones need no window, so a stand-in can name them.
+    # +Submenu+, +MenuItem+, +CheckMenuItem+, +PredefinedMenuItem+,
+    # +IconMenuItem+, +MenuIcon+); the real ones need no window, so a
+    # stand-in can name them.
     def build(native: Native)
       App.new(self, native:)
     end

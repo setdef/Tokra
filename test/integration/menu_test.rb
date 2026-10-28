@@ -28,8 +28,20 @@ class MenuTest < RealApp::TestCase
 
   def test_the_platform_holds_the_menu_the_builder_made
     assert_equal "fixture-bar", @report["menu_id"]
-    assert_equal [["Fixture", [["Fixture Item", []], ["Fixture Check", []]]], ["Tools", [["Run Tool", []]]]],
-      @report["tree"]
+    assert_equal [
+      ["Fixture", [["Fixture Item", []], ["Fixture Check", []]]],
+      ["Tools", [["Run Tool", []]]],
+      ["Icons", [["Icon Image", []], ["Icon Native", []], ["Icon None", []], ["Icon Text", []]]],
+], @report["tree"]
+  end
+
+  # The Icons submenu and its image item show their images, the native
+  # icon shows on macOS alone, and the items without one show none; then
+  # set_icon and set_native_icon change them on the platform's own items.
+  def test_the_platform_shows_each_items_icon_and_follows_set_icon
+    macos = RbConfig::CONFIG["host_os"].include?("darwin")
+    assert_equal [true, true, macos, false, false], @report["images"]
+    assert_equal [false, false, false, true, false], @report["images_after_set"]
   end
 
   def test_a_thread_reads_an_item_through_the_main_thread

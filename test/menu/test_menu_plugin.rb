@@ -219,12 +219,120 @@ class TestMenuPlugin < Minitest::Test
     assert_equal [[:set_help_menu_for_nsapp, id], [:set_help_menu_for_nsapp, id]], StubNative.nsapp_calls
   end
 
-  def test_icons_are_not_ported_yet
-    message = Tokra::Menu::Plugin::ICONS_NOT_PORTED
+  # An icon payload's icon is a NativeIcon name or a JsImage, the untagged
+  # Icon enum (plugin.rs:175-191); +new+ for an Icon with no icon shows
+  # NativeIcon::User (plugin.rs:443-449).
+  def test_new_makes_icon_items_and_submenus_with_icons
+    image = { "rgba" => [255] * 16, "width" => 2, "height" => 2 }
+    ok, (rid, id) = call("new", "kind" => "Icon", "options" => {
+      "id" => "lock", "text" => "Lock", "icon" => "LockLocked", "enabled" => false, "accelerator" => "CmdOrCtrl+L"
+    })
+    assert ok, rid
+    item = @table.get(rid)
+    assert_instance_of Tokra::Menu::IconMenuItem, item
+    assert_equal ["lock", "Lock", false], [id, item.text, item.is_enabled]
+    ok, (plain_rid,) = call("new", "kind" => "Icon", "options" => { "text" => "Plain" })
+    assert ok, plain_rid
+    assert_instance_of Tokra::Menu::IconMenuItem, @table.get(plain_rid)
 
-    assert_rejects message, "new", "kind" => "Icon", "options" => { "text" => "I" }
-    assert_rejects message, "new", "kind" => "Menu", "options" => { "items" => [{ "text" => "I", "icon" => "Add" }] }
-    assert_rejects message, "new", "kind" => "Submenu", "options" => { "text" => "S", "icon" => "Add" }
+    ok, (submenu_rid,) = call("new", "kind" => "Submenu", "options" => {
+      "id" => "tools",
+      "text" => "Tools",
+      "icon" => image,
+      "items" => [
+        { "id" => "share", "text" => "Share", "icon" => "Share" },
+        { "id" => "paint", "text" => "Paint", "icon" => image },
+        [plain_rid, "Icon"],
+        { "id" => "off", "text" => "Off", "icon" => "Add", "enabled" => false, "accelerator" => "CmdOrCtrl+O" },
+      ],
+    })
+    assert ok, submenu_rid
+    tools = @table.get(submenu_rid)
+    assert_instance_of Tokra::Menu::Submenu, tools
+    assert_equal [Tokra::Menu::IconMenuItem] * 4, tools.items.map(&:class)
+    _, listed = call("items", "rid" => submenu_rid, "kind" => "Submenu")
+    assert_equal [%w[share Icon], %w[paint Icon], [@table.get(plain_rid).id.to_s, "Icon"], %w[off Icon]],
+      listed.map { |(_, item_id, kind)| [item_id, kind] }
+    refute tools.get("off").is_enabled, "a nested icon payload's enabled reaches the item (plugin.rs:204-209)"
+    # muda answers no item's accelerator, so the payload shows where it goes.
+    plugin = @handle.__send__(:manager).plugins.instance_variable_get(:@store).find { |p| p.name == "menu" }
+    payload = plugin.__send__(:payload_kind, { "text" => "Off", "icon" => "Add", "enabled" => false, "accelerator" => "CmdOrCtrl+O" })
+    assert_equal [false, "CmdOrCtrl+O", Tokra::Menu::NativeIcon::Add], [payload.enabled, payload.accelerator, payload.icon]
+    ok, (native_rid,) = call("new", "kind" => "Submenu", "options" => { "id" => "s", "text" => "S", "icon" => "Folder" })
+    assert ok, native_rid
+    assert_equal "s", @table.get(native_rid).id.to_s
+  end
+
+  # serde takes the first variant of MenuItemPayloadKind that reads, and
+  # IconMenuItemPayload comes before SubmenuPayload and ignores +items+
+  # (plugin.rs:310-320): a nested submenu with an icon is an icon item, in
+  # Tauri as here.
+  def test_a_nested_submenu_payload_with_an_icon_reads_as_an_icon_item
+    ok, (rid,) = call("new", "kind" => "Menu", "options" => {
+"items" => [
+      { "id" => "tools", "text" => "Tools", "icon" => "Folder", "items" => [{ "text" => "Run" }] },
+    ],
+})
+
+    assert ok, rid
+    assert_equal [Tokra::Menu::IconMenuItem], @table.get(rid).items.map(&:class)
+  end
+
+  def test_an_icon_items_channels_hear_its_clicks
+    call("new", { "kind" => "Icon", "options" => { "id" => "lock", "text" => "Lock" } }, "__CHANNEL__:51")
+    call("append", "rid" => call("new", "kind" => "Menu").last.first, "kind" => "Menu",
+      "items" => [{ "id" => "share", "text" => "Share", "icon" => "Share", "handler" => "__CHANNEL__:52" }])
+    plugin = @handle.__send__(:manager).plugins.instance_variable_get(:@store).find { |p| p.name == "menu" }
+
+    %w[lock share].each do |id|
+      plugin.on_event(@handle, Tokra::RunEvent::MenuEvent.new(event: Tokra::Menu::MenuEvent.new(id: Tokra::Menu::MenuId.new(value: id))))
+    end
+
+    assert_equal 2, @native_webview.evals.size
+    assert_match(/51.*"lock"/m, @native_webview.evals[0])
+    assert_match(/52.*"share"/m, @native_webview.evals[1])
+  end
+
+  def test_the_items_commands_answer_for_an_icon_item
+    _, (rid,) = call("new", "kind" => "Icon", "options" => { "text" => "Lock", "icon" => "LockLocked" })
+    item = { "rid" => rid, "kind" => "Icon" }
+
+    assert_equal [true, "Lock"], call("text", item)
+    call("set_text", item.merge("text" => "Unlock"))
+    call("set_enabled", item.merge("enabled" => false))
+    assert_equal [true, false], call("is_enabled", item)
+    assert_equal [true, nil], call("set_accelerator", item.merge("accelerator" => "CmdOrCtrl+U"))
+    assert_equal "Unlock", @table.get(rid).text
+  end
+
+  # set_icon takes a NativeIcon, an image, or null on an Icon or a Submenu
+  # (plugin.rs:858-882), and reaches unreachable!() for any other kind.
+  def test_set_icon_changes_the_icon_of_an_icon_item_or_a_submenu
+    _, (icon_rid,) = call("new", "kind" => "Icon", "options" => { "text" => "I" })
+    _, (submenu_rid,) = call("new", "kind" => "Submenu", "options" => { "text" => "S" })
+    _, (item_rid,) = call("new", "kind" => "MenuItem", "options" => { "text" => "M" })
+    image_rid = @table.add(Tokra::Image.new(rgba: "\xFF".b * 4, width: 1, height: 1))
+
+    [[icon_rid, "Icon"], [submenu_rid, "Submenu"]].each do |rid, kind|
+      ["Add", { "rgba" => [0] * 4, "width" => 1, "height" => 1 }, image_rid, nil].each do |icon|
+        assert_equal [true, nil], call("set_icon", "rid" => rid, "kind" => kind, "icon" => icon), [kind, icon].inspect
+      end
+    end
+    assert_rejects Tokra::Menu::Plugin::UNREACHABLE, "set_icon", "rid" => item_rid, "kind" => "MenuItem", "icon" => "Add"
+    assert_rejects "The resource id #{item_rid} is invalid.", "set_icon", "rid" => item_rid, "kind" => "Icon", "icon" => nil
+  end
+
+  def test_an_icon_muda_refuses_or_that_reads_as_nothing_rejects
+    short = { "rgba" => [255] * 4, "width" => 2, "height" => 2 }
+    text = "The specified dimensions (2x2) don't match the number of pixels supplied by the `rgba` argument (1). " \
+      "For those dimensions, the expected pixel count is 4."
+    _, (rid,) = call("new", "kind" => "Icon", "options" => { "text" => "I" })
+
+    assert_rejects text, "new", "kind" => "Icon", "options" => { "text" => "I", "icon" => short }
+    assert_rejects text, "new", "kind" => "Submenu", "options" => { "text" => "S", "icon" => short }
+    assert_rejects text, "set_icon", "rid" => rid, "kind" => "Icon", "icon" => short
+    assert_rejects "invalid args `icon` for command `set_icon`: data did not match any variant of untagged enum Icon",
+      "set_icon", "rid" => rid, "kind" => "Icon", "icon" => true
   end
 
   # Sends +command+ through the app's plugin store and answers

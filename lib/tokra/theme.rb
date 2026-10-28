@@ -24,13 +24,15 @@ module Tokra
   #   window.set_theme(Tokra::Theme::Dark)
   #   window.theme  #=> #<data Tokra::Theme name="Dark">
   class Theme < Data.define(:name)
+    extend ClosedEnum
+
     ##
     # Light theme.
     Light = new(name: "Light")
     # Dark theme.
     Dark = new(name: "Dark")
 
-    private_class_method :new
+    close
   end
 end
 

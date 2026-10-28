@@ -22,6 +22,8 @@ module Tokra
   #
   #   window.start_resize_dragging(Tokra::ResizeDirection::SouthEast)
   class ResizeDirection < Data.define(:name)
+    extend ClosedEnum
+
     ##
     # The right edge.
     East = new(name: "East")
@@ -40,7 +42,7 @@ module Tokra
     # The left edge.
     West = new(name: "West")
 
-    private_class_method :new
+    close
   end
 end
 

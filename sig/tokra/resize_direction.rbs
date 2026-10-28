@@ -3,6 +3,9 @@
 
 module Tokra
   class ResizeDirection < Data
+    extend ClosedEnum
+    include ClosedEnum::With
+
     attr_reader name: String
 
     private def self.new: (name: String) -> ResizeDirection

@@ -45,6 +45,8 @@ module Tokra
   #
   #   Tokra::ActivationPolicy::Prohibited.name  #=> "Prohibited"
   class ActivationPolicy < Data.define(:name)
+    extend ClosedEnum
+
     ##
     # Corresponds to NSApplicationActivationPolicyRegular: a Dock icon and
     # the menu bar, the way most apps run.
@@ -59,7 +61,7 @@ module Tokra
 
     # The three are the only policies, as Tauri's enum has only its three
     # variants, so no other can be made.
-    private_class_method :new
+    close
   end
 
   class App

@@ -15,8 +15,11 @@ module Tokra
     # A titled group of items inside a Menu or another Submenu: File,
     # Edit, Window.
     #
-    # Mirrors Tauri's Submenu (menu/submenu.rs). Its icons and its
-    # context-menu methods are not ported yet (plan 042, phases 2 and 3).
+    # A submenu can show an icon beside its title: a Tokra::Image, or on
+    # macOS a NativeIcon.
+    #
+    # Mirrors Tauri's Submenu (menu/submenu.rs). Its context-menu methods
+    # are not ported yet (plan 042, phase 3).
     #
     # === Example
     #
@@ -43,6 +46,59 @@ module Tokra
           value = MenuId.from(id).value
           handle = manager.app_handle
           Tokra::Menu.run_main_thread(handle) { from_native(handle, submenu.with_id(value, text, enabled)) }
+        end
+
+        # A new, empty submenu showing +icon+, a Tokra::Image or +nil+.
+        # Raises Error::BadMenuIcon for an image muda refuses, where Tauri
+        # panics (plan 042, decision 13).
+        def new_with_icon(manager, text, enabled, icon)
+          submenu = Tokra::Menu.natives(manager).submenu
+          native_icon = Tokra::Menu.menu_icon(manager, icon)
+          handle = manager.app_handle
+          Tokra::Menu.run_main_thread(handle) do
+            native = submenu.new(text, enabled)
+            native.set_icon(native_icon) if native_icon
+            from_native(handle, native)
+          end
+        end
+
+        # A new, empty submenu showing +native_icon+, a NativeIcon or
+        # +nil+. Windows and Linux show no icon.
+        def new_with_native_icon(manager, text, enabled, native_icon)
+          submenu = Tokra::Menu.natives(manager).submenu
+          name = native_icon&.name
+          handle = manager.app_handle
+          Tokra::Menu.run_main_thread(handle) do
+            native = submenu.new(text, enabled)
+            native.set_native_icon(name) if name
+            from_native(handle, native)
+          end
+        end
+
+        # A new, empty submenu with the id +id+, showing +icon+.
+        def with_id_and_icon(manager, id, text, enabled, icon)
+          submenu = Tokra::Menu.natives(manager).submenu
+          value = MenuId.from(id).value
+          native_icon = Tokra::Menu.menu_icon(manager, icon)
+          handle = manager.app_handle
+          Tokra::Menu.run_main_thread(handle) do
+            native = submenu.with_id(value, text, enabled)
+            native.set_icon(native_icon) if native_icon
+            from_native(handle, native)
+          end
+        end
+
+        # A new, empty submenu with the id +id+, showing +native_icon+.
+        def with_id_and_native_icon(manager, id, text, enabled, native_icon)
+          submenu = Tokra::Menu.natives(manager).submenu
+          value = MenuId.from(id).value
+          name = native_icon&.name
+          handle = manager.app_handle
+          Tokra::Menu.run_main_thread(handle) do
+            native = submenu.with_id(value, text, enabled)
+            native.set_native_icon(name) if name
+            from_native(handle, native)
+          end
         end
 
         # A new submenu holding +items+.
@@ -86,6 +142,28 @@ module Tokra
       def set_enabled(enabled)
         native = @native #: Native::Submenu
         run_item_main_thread { native.set_enabled(enabled) }
+        nil
+      end
+
+      # Shows +icon+, a Tokra::Image, beside the submenu's title, or no
+      # icon with +nil+, and returns +nil+. Raises Error::BadMenuIcon for
+      # an image muda refuses.
+      def set_icon(icon)
+        native = @native #: Native::Submenu
+        native_icon = Tokra::Menu.menu_icon(@app_handle, icon)
+        run_item_main_thread { native.set_icon(native_icon) }
+        nil
+      end
+
+      # Shows +native_icon+, a NativeIcon, beside the submenu's title, or
+      # no icon with +nil+, and returns +nil+. It does nothing on Windows
+      # and Linux, as in Tauri.
+      def set_native_icon(native_icon)
+        return nil unless Tokra::Menu.natives(@app_handle).nsapp?
+
+        native = @native #: Native::Submenu
+        name = native_icon&.name
+        run_item_main_thread { native.set_native_icon(name) }
         nil
       end
 

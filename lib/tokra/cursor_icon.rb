@@ -23,6 +23,8 @@ module Tokra
   #
   #   window.set_cursor_icon(Tokra::CursorIcon::Wait)
   class CursorIcon < Data.define(:name)
+    extend ClosedEnum
+
     ##
     # The platform-dependent default cursor.
     Default = new(name: "Default")
@@ -100,7 +102,7 @@ module Tokra
     # A row is to be resized.
     RowResize = new(name: "RowResize")
 
-    private_class_method :new
+    close
   end
 end
 

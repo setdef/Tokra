@@ -19,7 +19,7 @@ module Tokra
       def self.new: (?name: String?, ?version: String?, ?short_version: String?, ?authors: Array[String]?,
                      ?comments: String?, ?copyright: String?, ?license: String?, ?website: String?,
                      ?website_label: String?, ?credits: String?, ?icon: Image?) -> AboutMetadata
-      def to_native: () -> Native::PredefinedMenuItem::about
+      def to_native: (Manager manager) -> Native::PredefinedMenuItem::about
     end
 
     class AboutMetadataBuilder

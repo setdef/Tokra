@@ -90,6 +90,8 @@ class TestBuilderPluginRunEvents < Minitest::Test
     MenuItem = Tokra::Native::MenuItem
     CheckMenuItem = Tokra::Native::CheckMenuItem
     PredefinedMenuItem = Tokra::Native::PredefinedMenuItem
+    IconMenuItem = Tokra::Native::IconMenuItem
+    MenuIcon = Tokra::Native::MenuIcon
   end
 
   def test_exit_is_emitted_only_when_the_loop_is_destroyed

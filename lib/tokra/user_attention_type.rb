@@ -24,6 +24,8 @@ module Tokra
   #
   #   window.request_user_attention(Tokra::UserAttentionType::Informational)
   class UserAttentionType < Data.define(:name)
+    extend ClosedEnum
+
     ##
     # On macOS, bounces the Dock icon until the app is in focus; on
     # Windows, flashes both the window and the taskbar button until the
@@ -33,7 +35,7 @@ module Tokra
     # taskbar button until the app is in focus.
     Informational = new(name: "Informational")
 
-    private_class_method :new
+    close
   end
 end
 

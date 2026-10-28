@@ -18,14 +18,14 @@ module Tokra
   # A desktop app keeps its commands in a menu bar: the one at the top of
   # the screen on macOS, and one inside each window on Windows and Linux.
   # This module builds those menus from Ruby. Build a Menu of Submenu
-  # objects holding MenuItem, CheckMenuItem, and PredefinedMenuItem
-  # objects, give it to AppHandle#set_menu or Window#set_menu, and hear
+  # objects holding MenuItem, CheckMenuItem, IconMenuItem, and
+  # PredefinedMenuItem objects, give it to AppHandle#set_menu or Window#set_menu, and hear
   # each click in AppHandle#on_menu_event or Window#on_menu_event. Every
   # menu and item answers on the main thread; from another thread a call
   # travels there and waits for the answer.
   #
   # Mirrors Tauri's <tt>tauri::menu</tt> module (menu/mod.rs), which wraps
-  # the muda crate. Icons and context menus are not ported yet (plan 042).
+  # the muda crate. Context menus are not ported yet (plan 042, phase 3).
   #
   # === Example
   #
@@ -103,13 +103,15 @@ module Tokra
 
     # The native classes and app functions one app's menus are built with
     # (plan 042, decision 1).
-    class Natives < Data.define(:app, :menu, :submenu, :menu_item, :check_menu_item, :predefined_menu_item) # :nodoc:
+    class Natives < Data.define(:app, :menu, :submenu, :menu_item, :check_menu_item, :predefined_menu_item, # :nodoc:
+      :icon_menu_item, :menu_icon)
       # The menu classes of +native+, Native or a test's stand-in.
       def self.from(native)
         app = native #: singleton(Native)
         new(app:, menu: native.const_get(:Menu), submenu: native.const_get(:Submenu),
           menu_item: native.const_get(:MenuItem), check_menu_item: native.const_get(:CheckMenuItem),
-          predefined_menu_item: native.const_get(:PredefinedMenuItem))
+          predefined_menu_item: native.const_get(:PredefinedMenuItem),
+          icon_menu_item: native.const_get(:IconMenuItem), menu_icon: native.const_get(:MenuIcon))
       end
 
       # Whether menus belong to the app, as on macOS, where Tauri's
@@ -224,8 +226,26 @@ module Tokra
         when natives.check_menu_item
           check = native #: Native::CheckMenuItem
           CheckMenuItem.from_native(app_handle, check)
+        when natives.icon_menu_item
+          icon = native #: Native::IconMenuItem
+          IconMenuItem.from_native(app_handle, icon)
         else raise TypeError, "wrong argument type #{native.class} (expected a native menu item)"
         end
+      end
+
+      # muda's icon for +image+, a Tokra::Image, or +nil+ for none: Tauri's
+      # <tt>TryFrom<Image> for muda::Icon</tt> (image/mod.rs:141-146), on
+      # the calling thread, as Tauri converts before it goes to the main
+      # thread. Raises Error::BadMenuIcon with muda's text for an image
+      # muda refuses (plan 042, decision 13).
+      def menu_icon(manager, image) # :nodoc:
+        return nil if image.nil?
+
+        natives(manager).menu_icon.from_rgba(image.rgba, image.width, image.height)
+      rescue RuntimeError => e
+        raise unless e.instance_of?(RuntimeError)
+
+        raise Error::BadMenuIcon, e.message
       end
 
       # The native item for +item+, raising TypeError for anything that is
@@ -243,6 +263,7 @@ end
 
 # SPDX-SnippetEnd
 
+require_relative "menu/native_icon"
 require_relative "menu/about_metadata"
 require_relative "menu/menu_tree"
 require_relative "menu/menu"
@@ -250,5 +271,6 @@ require_relative "menu/submenu"
 require_relative "menu/menu_item"
 require_relative "menu/check_menu_item"
 require_relative "menu/predefined_menu_item"
+require_relative "menu/icon_menu_item"
 require_relative "menu/builders"
 require_relative "menu/plugin"

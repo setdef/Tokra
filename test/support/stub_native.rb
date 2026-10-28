@@ -70,6 +70,8 @@ module StubNative
   MenuItem = Tokra::Native::MenuItem
   CheckMenuItem = Tokra::Native::CheckMenuItem
   PredefinedMenuItem = Tokra::Native::PredefinedMenuItem
+  IconMenuItem = Tokra::Native::IconMenuItem
+  MenuIcon = Tokra::Native::MenuIcon
 
   # The NSApp calls the app made, in order, as <tt>[name, id]</tt>.
   def self.nsapp_calls
@@ -462,6 +464,8 @@ module StubWindowMenusNative
   MenuItem = StubNative::MenuItem
   CheckMenuItem = StubNative::CheckMenuItem
   PredefinedMenuItem = StubNative::PredefinedMenuItem
+  IconMenuItem = StubNative::IconMenuItem
+  MenuIcon = StubNative::MenuIcon
 
   class Window < StubNative::Window
     include StubNative::WindowMenus

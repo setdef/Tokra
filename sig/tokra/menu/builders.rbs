@@ -13,6 +13,8 @@ module Tokra
       def items: (Array[item] items) -> SharedMenuBuilder
       def text: (id id, String text) -> SharedMenuBuilder
       def check: (id id, String text) -> SharedMenuBuilder
+      def icon: (id id, String text, Image icon) -> SharedMenuBuilder
+      def native_icon: (id id, String text, NativeIcon icon) -> SharedMenuBuilder
       def separator: () -> SharedMenuBuilder
       def copy: () -> SharedMenuBuilder
       def copy_with_text: (String text) -> SharedMenuBuilder
@@ -66,11 +68,37 @@ module Tokra
 
       @text: String
       @enabled: bool
+      @icon: Image?
+      @native_icon: NativeIcon?
 
       def initialize: (Manager manager, String text) -> void
       def self.with_id: (Manager manager, id id, String text) -> SubmenuBuilder
       def enabled: (bool enabled) -> self
+      def submenu_icon: (Image icon) -> self
+      def submenu_native_icon: (NativeIcon icon) -> self
       def build: () -> Submenu
+
+      private
+
+      def build_submenu: () -> Submenu
+    end
+
+    class IconMenuItemBuilder
+      @text: String
+      @id: MenuId?
+      @enabled: bool
+      @icon: Image?
+      @native_icon: NativeIcon?
+      @accelerator: String?
+
+      def initialize: (String text) -> void
+      def self.with_id: (id id, String text) -> IconMenuItemBuilder
+      def id: (id id) -> self
+      def enabled: (bool enabled) -> self
+      def accelerator: (String accelerator) -> self
+      def icon: (Image icon) -> self
+      def native_icon: (NativeIcon icon) -> self
+      def build: (Manager manager) -> IconMenuItem
     end
 
     class MenuItemBuilder

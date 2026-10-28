@@ -108,7 +108,7 @@ module Tokra
         # Shows the About panel with +metadata+, an AboutMetadata or +nil+.
         # Raises Error::BadMenuIcon for an icon muda refuses.
         def about(manager, text, metadata)
-          build(manager, "about", text, metadata&.to_native)
+          build(manager, "about", text, metadata&.to_native(manager))
         end
 
         # The Services submenu. macOS only.
@@ -126,13 +126,7 @@ module Tokra
         private def build(manager, kind, text, about = nil)
           item = Tokra::Menu.natives(manager).predefined_menu_item
           handle = manager.app_handle
-          handle.runtime_context.run_main_thread do
-            from_native(handle, item.new(kind, text, about))
-          rescue RuntimeError => e
-            raise unless e.instance_of?(RuntimeError)
-
-            raise Error::BadMenuIcon, e.message
-          end
+          Tokra::Menu.run_main_thread(handle) { from_native(handle, item.new(kind, text, about)) }
         end
       end
 

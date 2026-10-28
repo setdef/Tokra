@@ -329,9 +329,10 @@ class TestMenu < Minitest::Test
     assert_equal %i[name version short_version authors comments copyright license website website_label credits icon],
       Tokra::Menu::AboutMetadata.members
     assert_equal "Notes", metadata.name
-    assert_equal ["\x01\x02\x03\x04".b, 1, 1], metadata.to_native[:icon]
-    assert_nil Tokra::Menu::AboutMetadata.new.name
     handle = Tokra::Builder.default.build(native: StubNative).handle
+    assert_instance_of Tokra::Native::MenuIcon, metadata.to_native(handle)[:icon]
+    assert_nil Tokra::Menu::AboutMetadata.new.to_native(handle)[:icon]
+    assert_nil Tokra::Menu::AboutMetadata.new.name
     assert_kind_of Tokra::Menu::PredefinedMenuItem, Tokra::Menu::PredefinedMenuItem.about(handle, nil, metadata)
   end
 

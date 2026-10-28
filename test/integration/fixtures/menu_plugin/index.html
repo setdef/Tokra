@@ -13,7 +13,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 <body>
   <ol id="checks"></ol>
   <script>
-    const { Menu, Submenu, MenuItem, CheckMenuItem, PredefinedMenuItem } = window.__TAURI__.menu;
+    const { Menu, Submenu, MenuItem, CheckMenuItem, PredefinedMenuItem, IconMenuItem, NativeIcon } = window.__TAURI__.menu;
+    const { Image } = window.__TAURI__.image;
     const { invoke } = window.__TAURI__.core;
     const { check, finish, withTimeout } = window.fixture;
 
@@ -48,6 +49,41 @@ SPDX-License-Identifier: AGPL-3.0-or-later
             found: found ? [found.id, found.kind] : null,
             checked: await toggle.isChecked(),
           },
+        };
+      });
+
+      await check('icon items and a submenu icon the page sets', async () => {
+        let heard;
+        const clicked = new Promise((resolve) => { heard = resolve; });
+        const pixels = new Uint8Array(16 * 16 * 4).fill(200);
+        const image = await Image.new(pixels, 16, 16);
+        const painted = await IconMenuItem.new({ id: 'js-icon', text: 'JS Icon', icon: image, action: (id) => heard(id) });
+        const locked = await IconMenuItem.new({ id: 'js-native', text: 'JS Native', icon: NativeIcon.LockLocked });
+        const bare = await IconMenuItem.new({ id: 'js-bare', text: 'JS Bare' });
+        const submenu = await Submenu.new({ id: 'js-icons', text: 'JS Icons', icon: image, items: [painted, locked, bare] });
+        await (await Menu.new({ id: 'js-icon-menu', items: [submenu] })).setAsAppMenu();
+        const read = (path) => invoke('plugin:menu-fixture|image', { path });
+        const paths = [['JS Icons'], ['JS Icons', 'JS Icon'], ['JS Icons', 'JS Native'], ['JS Icons', 'JS Bare']];
+        const before = [];
+        for (const path of paths) before.push(await read(path));
+        await submenu.setIcon(null);
+        await painted.setIcon(null);
+        await bare.setIcon(NativeIcon.Folder);
+        await locked.setIcon({ rgba: Array.from(pixels), width: 16, height: 16 });
+        const after = [];
+        for (const path of paths) after.push(await read(path));
+        let rejected = null;
+        try {
+          await locked.setIcon({ rgba: [1, 2, 3, 4], width: 2, height: 2 });
+        } catch (error) {
+          rejected = error;
+        }
+        const kinds = (await submenu.items()).map((i) => [i.id, i.kind]);
+        const activated = await invoke('plugin:menu-fixture|activate', { submenu: 'JS Icons', title: 'JS Icon' });
+        const action = await withTimeout(clicked, 5000, 'the icon item action');
+        return {
+          pass: activated && action === 'js-icon' && before[0] === true && before[1] === true && after[2] === true,
+          detail: { before, after, rejected, kinds, action, text: await locked.text() },
         };
       });
 
