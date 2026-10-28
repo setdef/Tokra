@@ -15,8 +15,10 @@ class TestClosedEnum < Minitest::Test
     Tokra::CursorIcon,
     Tokra::ResizeDirection,
     Tokra::UserAttentionType,
-    Tokra::ActivationPolicy,
     Tokra::Menu::NativeIcon,
+    # ActivationPolicy exists only on macOS, as Tauri's cfg has it
+    # (plan 029), so it is checked only where it is defined.
+    *(Tokra.const_defined?(:ActivationPolicy) ? [Tokra.const_get(:ActivationPolicy)] : []),
 ].freeze
 
   def test_new_and_brackets_are_private
