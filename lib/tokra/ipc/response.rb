@@ -25,7 +25,10 @@ module Tokra
     # <tt>invoke</tt> resolves to an <tt>ArrayBuffer</tt>. Over the
     # <tt>postMessage</tt> fallback the page gets them as an Array of
     # numbers, as Tauri sends them on macOS. Any other String is JSON text,
-    # sent as it is, in UTF-8.
+    # sent as it is, in UTF-8. Channel#send takes a Response too, and the
+    # page's Channel receives its bytes as an <tt>ArrayBuffer</tt>, or as
+    # an Array of numbers when a large message is fetched after the
+    # client fell back to <tt>postMessage</tt>, as in Tauri.
     #
     # JSON text read as binary, from File.binread or a socket, is a binary
     # String too, so it would be sent as bytes: call

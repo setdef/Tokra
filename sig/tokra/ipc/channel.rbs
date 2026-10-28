@@ -4,13 +4,18 @@
 module Tokra
   module Ipc
     class Channel
-      type on_message = ^(String json) -> void
+      type on_message = ^(String body) -> void
       type on_drop = ^() -> void
 
       IPC_PAYLOAD_PREFIX: String
       CHANNEL_PLUGIN_NAME: String
+      FETCH_CHANNEL_DATA_COMMAND: String
+      CHANNEL_ID_HEADER_NAME: String
+      MAX_JSON_DIRECT_EXECUTE_THRESHOLD: Integer
+      MAX_RAW_DIRECT_EXECUTE_THRESHOLD: Integer
 
       self.@counter: Integer
+      self.@data_counter: Integer
       self.@counter_lock: Thread::Mutex
 
       @id: Integer
@@ -21,12 +26,15 @@ module Tokra
 
       def self.from_command: (Invoke invoke, String key) -> Channel
       def self.new_with_id: (Integer id, on_message on_message, on_drop? on_drop) -> Channel
+      def self.from_callback_fn: (Webview webview, Integer callback) -> Channel
       private def self.next_id: () -> Integer
+      private def self.next_data_id: () -> Integer
+      private def self.deliver: (Webview webview, String body, inline: ^(String js) -> String, fetched: String) -> void
 
       attr_reader id: Integer
 
-      def initialize: () { (String json) -> void } -> void
-      def send: (json_value data) -> nil
+      def initialize: () { (String body) -> void } -> void
+      def send: (json_value | Response data) -> nil
       def drop: () -> nil
       def to_json: (?JSON::State? state) -> String
 
@@ -44,6 +52,26 @@ module Tokra
       def self.from_str: (String string) -> JavaScriptChannelId
 
       def channel_on: (Webview webview) -> Channel
+    end
+
+    class ChannelDataIpcQueue
+      @data: Hash[Integer, String]
+      @lock: Thread::Mutex
+
+      def initialize: () -> void
+      def insert: (Integer id, String body) -> nil
+      def remove: (Integer id) -> String?
+    end
+
+    class Channel
+      class Plugin < Tokra::Plugin
+        def name: () -> String
+        def extend_api: (Invoke invoke) -> bool
+
+        private
+
+        def data_id: (String? value) -> Integer?
+      end
     end
   end
 end

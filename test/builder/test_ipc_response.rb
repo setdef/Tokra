@@ -399,7 +399,7 @@ class TestBuilderIpcResponse < Minitest::Test
   end
 
   # Over postMessage on macOS, and whenever the client fell back from
-  # ipc://, Tauri evaluates a raw response with format_result, which
+  # ipc:// (test_ipc_channel_fetch.rb covers the rest), Tauri evaluates a raw response with format_result, which
   # serializes the bytes as a JSON number array (ipc/protocol.rs:390-402).
   def test_raw_response_over_post_message_is_a_number_array
     handler = Ractor.shareable_proc { |invoke|
@@ -407,8 +407,10 @@ class TestBuilderIpcResponse < Minitest::Test
       true
     }
     app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
-    inject_ipc(app, "cmd" => "ping", "callback" => 100, "error" => 200)
-    app.run
+    app.stub(:os_name, "macos") do
+      inject_ipc(app, "cmd" => "ping", "callback" => 100, "error" => 200)
+      app.run
+    end
 
     assert_equal ["window.__TAURI_INTERNALS__.runCallback(100, [3,2,255])"], webview_evals(app)
   ensure

@@ -115,6 +115,9 @@ module Tokra
       # Register core plugins, mirroring Tauri app.rs (App::build)
       @handle.plugin(Resources::Plugin.new(@handle))
       @handle.plugin(Image::Plugin.new(@handle))
+      # The channel-data queue and its fetch command (app.rs:2260-2261)
+      @handle.manage(Ipc::ChannelDataIpcQueue.new)
+      @handle.plugin(Ipc::Channel::Plugin.new(@handle))
       # Store class references to avoid dynamic constant lookups
       @event_loop_class = native.const_get(:EventLoop)
       @window_class = native.const_get(:Window)
@@ -213,9 +216,6 @@ module Tokra
     # SPDX-SnippetComment: Initialization script assembly adapted from
     # tauri/crates/tauri/src/manager/webview.rs and app.rs
 
-    # The channel-data command name (ipc/channel.rs FETCH_CHANNEL_DATA_COMMAND).
-    FETCH_CHANNEL_DATA_COMMAND = "plugin:__TAURI_CHANNEL__|fetch"
-
     # The window[...] function the emit script calls; the injected event
     # script defines it. Tauri generates random names per app
     # (listeners.rs); Tokra fixes them, matching Native.emit_js_script.
@@ -280,7 +280,7 @@ module Tokra
       render_js_template("ipc-protocol.js.erb",
         process_ipc_message_fn: Native.load_js_template("process-ipc-message-fn.js"),
         os_name: JSON.generate(os_name),
-        fetch_channel_data_command: JSON.generate(FETCH_CHANNEL_DATA_COMMAND),
+        fetch_channel_data_command: JSON.generate(Ipc::Channel::FETCH_CHANNEL_DATA_COMMAND),
         invoke_key: JSON.generate(@manager.invoke_key))
     end
 
@@ -439,7 +439,8 @@ module Tokra
 
       empty_payload = {} #: Hash[String, json_value]
       body = parsed.fetch("payload", empty_payload)
-      responder = build_ipc_responder(parsed["callback"], parsed["error"])
+      responder = build_ipc_responder(parsed["callback"], parsed["error"],
+        can_use_channel: can_use_channel_for_response?(cmd, parsed["options"]))
 
       route_invoke(cmd, body, headers, responder, event.url)
     rescue Ipc::Json::Error, IpcMessageError => e
@@ -521,7 +522,9 @@ module Tokra
     # invoke whose origin is not the app's own (local_url?) with Tauri's
     # release-build ACL message. That is stricter than Tauri, which lets a
     # remote origin call app commands when the app has no ACL manifest;
-    # the stopgap goes away when capabilities land (ADR 010). On Linux the
+    # the stopgap goes away when capabilities land (ADR 010). The
+    # channel-data fetch command is exempt, as Tauri exempts it from the
+    # ACL (webview/mod.rs:1802-1806). On Linux the
     # postMessage origin is the webview's top-level URI, not the posting
     # frame's (wry's WebKitGTK backend reports it so, as Tauri sees it too),
     # so a foreign frame passes the check over postMessage there; ipc://
@@ -539,7 +542,9 @@ module Tokra
         responder:,
         webview: @webview # steep:ignore ArgumentTypeMismatch
       )
-      return invoke.reject("Command #{cmd} not allowed by ACL") unless local_url?(origin)
+      unless cmd == Ipc::Channel::FETCH_CHANNEL_DATA_COMMAND || local_url?(origin)
+        return invoke.reject("Command #{cmd} not allowed by ACL")
+      end
 
       handled = if plugin_name
         @manager.plugins.extend_api(plugin_name, invoke)
@@ -562,13 +567,12 @@ module Tokra
     # format_result serializes a Vec<u8> on macOS and whenever the client
     # fell back from ipc:// (ipc/protocol.rs:390-402).
     #
-    # Deviation: on platforms other than macOS, Tauri sends object and
-    # array results, and raw bodies, over a Channel instead of eval
-    # (ipc/protocol.rs:371-407), unless the client reports
-    # customProtocolIpcBlocked, as it does after ipc:// failed. Tokra's
-    # Ipc::Channel carries no invoke results, so this always evaluates
-    # runCallback; a hand-rolled postMessage on Linux or Windows gets an
-    # Array of numbers where Tauri gives an ArrayBuffer.
+    # Off macOS, when +can_use_channel+, a successful object or array
+    # result, and a raw one, travel over Ipc::Channel.from_callback_fn
+    # instead, as Tauri sends them (ipc/protocol.rs:371-407): a small one
+    # evaluated, a large one fetched, raw bytes reaching the page as an
+    # ArrayBuffer. A failed send is ignored, as Tauri's <tt>let _ =</tt>
+    # does.
     #
     # As responder_eval does, a reply that cannot be built rejects with the
     # error's message instead, so the invoke still settles, and a failed
@@ -578,13 +582,19 @@ module Tokra
     # the webview, so it must never cross a Ractor boundary. The Worker
     # Ractor phase (ADR 001) will swap this implementation for a proxy
     # round-trip without touching handlers.
-    private def build_ipc_responder(callback, error)
+    private def build_ipc_responder(callback, error, can_use_channel: false)
       return nil unless callback.is_a?(Integer) && error.is_a?(Integer)
 
       webview = @webview
       return nil unless webview
 
+      over_channel = can_use_channel && os_name != "macos"
       lambda do |success, body|
+        if success && over_channel && (Ipc::InvokeBody.raw?(body) || body.start_with?("{", "["))
+          channel = Ipc::Channel.from_callback_fn(webview, callback)
+          next channel.send(Ipc::Response.new(body)) # rubocop:disable Style/Send
+        end
+
         script = begin
           json = Ipc::InvokeBody.raw?(body) ? JSON.generate(body.bytes) : body
           Ipc::FormatCallback.format_raw(success ? callback : error, json)
@@ -595,6 +605,15 @@ module Tokra
       rescue Tokra::Error
         nil
       end
+    end
+
+    # Tauri's can_use_channel_for_response (ipc/protocol.rs:337-339): any
+    # command but the channel-data fetch, unless the client reports that
+    # ipc:// failed. A customProtocolIpcBlocked that is not +true+ counts
+    # as false, as ADR 009 tolerates a loose message shape.
+    private def can_use_channel_for_response?(cmd, options)
+      blocked = options.is_a?(Hash) && options["customProtocolIpcBlocked"] == true
+      cmd != Ipc::Channel::FETCH_CHANNEL_DATA_COMMAND && !blocked
     end
 
     # Splits a plugin:NAME|command invoke into [NAME, command], or returns

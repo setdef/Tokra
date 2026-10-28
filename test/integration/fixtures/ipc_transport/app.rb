@@ -27,6 +27,21 @@ FixtureApp.builder(FixtureApp::Site.new(__dir__, options), "ipc transport")
       body = Tokra::Ipc::Request.from_command(invoke).body
       bytes = body.is_a?(Array) ? body.pack("C*") : body.to_s.b
       invoke.resolve(Tokra::Ipc::Response.new(bytes.reverse))
+    when "stream_channel"
+      # Through the page's Channel: JSON past the 8 KiB threshold and a
+      # megabyte of bytes are fetched, a small object and a few bytes are
+      # evaluated (channel.rs:153-182; Plan 037). The drop ends it.
+      channel = Tokra::Ipc::Channel.from_command(invoke, "onMessage")
+      size = invoke.payload["size"]
+      bytes = Array.new(size) { |i| ((i * 31) + 7) % 256 }.pack("C*")
+      # rubocop:disable Style/Send -- Channel#send is Tauri's name
+      channel.send({ "text" => "x" * 9000 })
+      channel.send({ "small" => true })
+      channel.send(Tokra::Ipc::Response.new("\x01\x02\xFF".b))
+      channel.send(Tokra::Ipc::Response.new(bytes))
+      # rubocop:enable Style/Send
+      channel.drop
+      invoke.resolve(nil)
     when "describe_request"
       request = Tokra::Ipc::Request.from_command(invoke)
       invoke.resolve({

@@ -6,7 +6,6 @@ module Tokra
     include Manager
 
     DEFAULT_CONFIG: Hash[Symbol, String | Integer | Float]
-    FETCH_CHANNEL_DATA_COMMAND: String
     EMIT_FUNCTION_NAME: String
     LISTENERS_OBJECT_NAME: String
     IPC_CORS_HEADERS: Array[[String, String]]
@@ -50,7 +49,8 @@ module Tokra
     private
 
     def emit_run_event: (run_event event, (^(AppHandle, run_event) -> void)? callback) -> void
-    def build_ipc_responder: (json_value callback, json_value error) -> ipc_responder?
+    def build_ipc_responder: (json_value callback, json_value error, ?can_use_channel: bool) -> ipc_responder?
+    def can_use_channel_for_response?: (String cmd, json_value options) -> bool
     def report_ipc_message_error: (String message) -> void
     def initialization_scripts: () -> Array[String]
     def global_api_script: () -> String

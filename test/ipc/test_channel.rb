@@ -62,14 +62,125 @@ class TestChannel < Minitest::Test
     assert_equal 9, channel.id
   end
 
-  # A large message goes through eval as well; Tauri fetches it instead
-  # (Plan 025, decision 5), and the page receives the same message.
-  def test_a_large_message_is_evaluated_too
+  # The data id in a fetch script.
+  private def data_id(script)
+    Integer(script[/'Tauri-Channel-Id': '(\d+)'/, 1])
+  end
+
+  private def queue
+    webview.state(Tokra::Ipc::ChannelDataIpcQueue)
+  end
+
+  # Tauri's fetch script, verbatim (channel.rs:178-180).
+  private def fetch_script(callback_id, data_id, index)
+    "window.__TAURI_INTERNALS__.invoke('plugin:__TAURI_CHANNEL__|fetch', null, " \
+      "{ headers: { 'Tauri-Channel-Id': '#{data_id}' } }).then((response) => " \
+      "window.__TAURI_INTERNALS__.runCallback(#{callback_id}, { message: response, index: #{index} }))" \
+      ".catch(console.error)"
+  end
+
+  # MAX_JSON_DIRECT_EXECUTE_THRESHOLD, channel.rs:37 and 155-162: JSON
+  # shorter than 8192 bytes is evaluated, and 8192 bytes or more is queued
+  # and fetched. A string of N characters is N + 2 bytes of JSON.
+  def test_json_of_8192_bytes_or_more_goes_through_the_fetch_command
     channel = JavaScriptChannelId.from_str("__CHANNEL__:3").channel_on(webview)
+    channel.send("x" * 8189)
+    channel.send("x" * 8190)
+
+    assert_equal %(window.__TAURI_INTERNALS__.runCallback(3, { message: "#{'x' * 8189}", index: 0 })), evals[0]
+    id = data_id(evals[1])
+    assert_equal fetch_script(3, id, 1), evals[1]
+    assert_equal %("#{'x' * 8190}"), queue.remove(id)
+    assert_nil queue.remove(id), "fetching takes the data out of the queue"
+  end
+
+  # The threshold counts bytes, as Rust's String::len does.
+  def test_the_json_threshold_counts_bytes
+    channel = JavaScriptChannelId.from_str("__CHANNEL__:3").channel_on(webview)
+    channel.send("é" * 4095)
+
+    assert_equal fetch_script(3, data_id(evals[0]), 0), evals[0]
+  end
+
+  # MAX_RAW_DIRECT_EXECUTE_THRESHOLD, channel.rs:39 and 163-181: bytes
+  # shorter than 1024 become an ArrayBuffer inline, 1024 or more are queued
+  # as bytes and fetched.
+  def test_raw_bytes_of_1024_or_more_go_through_the_fetch_command
+    channel = JavaScriptChannelId.from_str("__CHANNEL__:4").channel_on(webview)
+    small = ("\x00\xFF".b * 512).byteslice(0, 1023)
+    large = "\x01".b * 1024
+    channel.send(Tokra::Ipc::Response.new(small))
+    channel.send(Tokra::Ipc::Response.new(large))
+
+    assert_equal "window.__TAURI_INTERNALS__.runCallback(4, { message: new Uint8Array(#{JSON.generate(small.bytes)}).buffer, index: 0 })",
+      evals[0]
+    id = data_id(evals[1])
+    assert_equal fetch_script(4, id, 1), evals[1]
+    stored = queue.remove(id)
+    assert_equal large, stored
+    assert_equal Encoding::BINARY, stored.encoding
+  end
+
+  # A Response of text is JSON text, sent verbatim (ipc/mod.rs:106-116).
+  def test_a_response_of_text_is_sent_as_json_text
+    channel = JavaScriptChannelId.from_str("__CHANNEL__:4").channel_on(webview)
+    channel.send(Tokra::Ipc::Response.new('{"a":1}'))
+
+    assert_equal ['window.__TAURI_INTERNALS__.runCallback(4, { message: {"a":1}, index: 0 })'], evals
+  end
+
+  # CHANNEL_DATA_COUNTER, channel.rs:42 and 169: one process-wide u32
+  # counter for every channel, wrapping as AtomicU32::fetch_add does.
+  def test_data_ids_come_from_one_counter_that_wraps
+    first = JavaScriptChannelId.from_str("__CHANNEL__:1").channel_on(webview)
+    second = JavaScriptChannelId.from_str("__CHANNEL__:2").channel_on(webview)
+    first.send("x" * 9000)
+    second.send("x" * 9000)
+    assert_equal data_id(evals[0]) + 1, data_id(evals[1])
+
+    saved = Channel.instance_variable_get(:@data_counter)
+    begin
+      Channel.instance_variable_set(:@data_counter, 0xFFFF_FFFF)
+      first.send("x" * 9000)
+      first.send("x" * 9000)
+    ensure
+      Channel.instance_variable_set(:@data_counter, saved)
+    end
+    assert_equal [0xFFFF_FFFF, 0], [data_id(evals[2]), data_id(evals[3])]
+  end
+
+  # The end message follows the fetch script, with the next index; the
+  # page holds it until the fetched message lands (core.ts Channel). A
+  # dropped channel leaves its unfetched data queued, as Tauri's does.
+  def test_a_fetched_message_keeps_its_index_before_the_end
+    channel = JavaScriptChannelId.from_str("__CHANNEL__:6").channel_on(webview)
+    channel.send("x" * 9000)
+    channel.drop
     channel.send("x" * 9000)
 
-    assert evals.first.start_with?('window.__TAURI_INTERNALS__.runCallback(3, { message: "xxx')
-    assert evals.first.end_with?('", index: 0 })')
+    id = data_id(evals[0])
+    assert_equal [fetch_script(6, id, 0), "window.__TAURI_INTERNALS__.runCallback(6, { end: true, index: 1 })"], evals
+    assert_equal %("#{'x' * 9000}"), queue.remove(id)
+  end
+
+  # Channel::from_callback_fn (channel.rs:244-284): the same three paths,
+  # with the message itself as the callback's argument and no index.
+  def test_a_channel_for_an_invoke_result_sends_the_bare_message
+    channel = Channel.from_callback_fn(webview, 8)
+    channel.send({ "a" => 1 })
+    channel.send(Tokra::Ipc::Response.new("\x01\x02".b))
+    channel.send("x" * 9000)
+    channel.send(Tokra::Ipc::Response.new("\x03".b * 1024))
+
+    assert_equal 'window.__TAURI_INTERNALS__.runCallback(8, {"a":1})', evals[0]
+    assert_equal "window.__TAURI_INTERNALS__.runCallback(8, new Uint8Array([1,2]).buffer)", evals[1]
+    [2, 3].each do |n|
+      assert_equal "window.__TAURI_INTERNALS__.invoke('plugin:__TAURI_CHANNEL__|fetch', null, " \
+        "{ headers: { 'Tauri-Channel-Id': '#{data_id(evals[n])}' } }).then((response) => " \
+        "window.__TAURI_INTERNALS__.runCallback(8, response)).catch(console.error)", evals[n]
+    end
+    assert_equal "\x03".b * 1024, queue.remove(data_id(evals[3]))
+    assert_equal 8, channel.id
   end
 
   def test_non_finite_floats_serialize_as_null
@@ -114,15 +225,17 @@ class TestChannel < Minitest::Test
   end
 
   # Channel::new: a Ruby handler, and ids from a process-wide counter.
-  def test_a_new_channel_calls_its_block_with_the_json
+  def test_a_new_channel_calls_its_block_with_the_body
     bodies = []
     first = Channel.new { |body| bodies << body }
     second = Channel.new { |_body| nil }
     first.send({ "a" => [1] })
+    first.send(Tokra::Ipc::Response.new("\xFF".b))
     first.drop
     first.send("after the drop")
 
-    assert_equal ['{"a":[1]}'], bodies
+    assert_equal ['{"a":[1]}', "\xFF".b], bodies
+    assert_equal Encoding::BINARY, bodies.last.encoding
     assert_equal first.id + 1, second.id
   end
 
@@ -153,5 +266,6 @@ class TestChannel < Minitest::Test
   def test_the_channel_plugin_names_are_tauris
     assert_equal "__CHANNEL__:", Channel::IPC_PAYLOAD_PREFIX
     assert_equal "__TAURI_CHANNEL__", Channel::CHANNEL_PLUGIN_NAME
+    assert_equal "plugin:__TAURI_CHANNEL__|fetch", Channel::FETCH_CHANNEL_DATA_COMMAND
   end
 end

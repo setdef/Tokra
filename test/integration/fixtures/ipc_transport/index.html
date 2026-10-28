@@ -152,6 +152,43 @@ SPDX-License-Identifier: AGPL-3.0-or-later
         return { pass: settled === null && reply === 'PINGPONG', detail: { settled, reply } };
       });
 
+      // A command sends large JSON, small JSON, a few bytes, and a megabyte
+      // of bytes through the page's Channel, then drops it. The large two
+      // ride plugin:__TAURI_CHANNEL__|fetch over ipc:// and may land after
+      // the end message; the Channel orders them by index (Plan 037).
+      const streamChannel = async (size) => {
+        const received = [];
+        let done;
+        const all = new Promise((resolve) => { done = resolve; });
+        const channel = new window.__TAURI__.core.Channel((message) => {
+          received.push(message);
+          if (received.length === 4) done();
+        });
+        await invoke('stream_channel', { onMessage: channel, size });
+        await Promise.race([all, new Promise((resolve) => setTimeout(resolve, 5000))]);
+        const bytesOf = (value) => (value instanceof ArrayBuffer ? Array.from(new Uint8Array(value)) : value);
+        const big = bytesOf(received[3]);
+        let mismatches = Array.isArray(big) && big.length === size ? 0 : -1;
+        if (mismatches === 0) {
+          for (let i = 0; i < size; i += 1) if (big[i] !== (i * 31 + 7) % 256) mismatches += 1;
+        }
+        return {
+          count: received.length,
+          types: received.map((m) => Object.prototype.toString.call(m)),
+          textLength: received[0] && received[0].text && received[0].text.length,
+          small: received[1],
+          fewBytes: bytesOf(received[2]),
+          size: big && big.length,
+          mismatches,
+          fetches: window.observed.ipcFetches.filter((f) => f.url.includes('__TAURI_CHANNEL__')).length,
+        };
+      };
+
+      await check('channel stream', async () => {
+        const detail = await streamChannel(1024 * 1024);
+        return { pass: detail.count === 4 && detail.mismatches === 0, detail };
+      });
+
       // Once ipc:// fails the client sends every invoke by postMessage with
       // customProtocolIpcBlocked (ipc-protocol.js:57-79). The same typed
       // array arrives as a number array with the same headers, and a raw
@@ -161,7 +198,10 @@ SPDX-License-Identifier: AGPL-3.0-or-later
         const described = await invoke('describe_request', new Uint8Array([1, 2, 255]), { headers: { 'X-Probe': 'café' } });
         const reversed = await invoke('reverse_bytes', new Uint8Array([1, 2, 3]));
         const fellBack = window.observed.warnings.some((w) => w.includes('IPC custom protocol failed'));
-        return { pass: fellBack, detail: { described, reversed } };
+        // The fetch command falls back too, so fetched bytes arrive as the
+        // number array format_result writes (ipc/protocol.rs:390-402).
+        const channel = await streamChannel(2048);
+        return { pass: fellBack && channel.count === 4 && channel.mismatches === 0, detail: { described, reversed, channel } };
       });
 
       await finish();

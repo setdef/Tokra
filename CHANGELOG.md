@@ -93,7 +93,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `body` and `headers`
 - `Tokra::Ipc::Response.new(string)`, Tauri's `ipc::Response`: a binary
   String resolves the invoke with an `ArrayBuffer` (a number array over
-  `postMessage`), other text is sent as JSON text in UTF-8
+  `postMessage` on macOS or after `ipc://` failed), other text is sent as
+  JSON text in UTF-8; off macOS a hand-sent `postMessage`'s object, array,
+  or raw result reaches the page over a Channel, as in Tauri
 - `Tokra::Ipc::InvokeBody.raw?` tells raw bytes from JSON
 - A `postMessage` whose `options.headers` the http crate refuses is
   reported with `console.error("JSON error: ...")` and not dispatched
@@ -162,7 +164,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   apps take from Ferro's git repository until it is on RubyGems.org
 - `Tokra::Ipc::Channel` and `Tokra::Ipc::JavaScriptChannelId`, Tauri's
   `ipc::Channel`: read a page's Channel argument with
-  `Channel.from_command(invoke, key)` and `send` it JSON values
+  `Channel.from_command(invoke, key)` and `send` it JSON values, or bytes in
+  a `Tokra::Ipc::Response`, which the page receives as an `ArrayBuffer`;
+  JSON of 8 KiB or more and bytes of 1 KiB or more wait in the app's
+  `Tokra::Ipc::ChannelDataIpcQueue` until the page fetches them with
+  Tauri's core `plugin:__TAURI_CHANNEL__|fetch` command, registered on
+  every app and exempt from the local-origin check
 - `Tokra::Ipc::CommandItem` reads one argument of a command as Tauri's
   `CommandItem` does: `string`, `strings`, and `u32`, or any type through
   `deserialize` and `deserialize_option` with a block that raises

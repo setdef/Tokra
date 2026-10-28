@@ -86,6 +86,31 @@ class IpcTransportTest < RealApp::TestCase
     assert_equal [3, 2, 1], detail["reversed"]
   end
 
+  # A command's Channel messages reach the page's Channel in order: large
+  # JSON and a megabyte of bytes through two fetches of
+  # plugin:__TAURI_CHANNEL__|fetch over ipc://, small JSON and a few bytes
+  # evaluated, bytes as ArrayBuffers (channel.rs:153-182, 318-337; Plan 037).
+  def test_channel_messages_arrive_in_order_with_their_bytes
+    detail = check_detail(@run, "channel stream")
+    assert_equal 4, detail["count"], detail.inspect
+    assert_equal ["[object Object]", "[object Object]", "[object ArrayBuffer]", "[object ArrayBuffer]"], detail["types"]
+    assert_equal 9000, detail["textLength"]
+    assert_equal({ "small" => true }, detail["small"])
+    assert_equal [1, 2, 255], detail["fewBytes"]
+    assert_equal 1024 * 1024, detail["size"]
+    assert_equal 0, detail["mismatches"]
+    assert_equal 2, detail["fetches"]
+  end
+
+  # After ipc:// fails, the fetch command rides postMessage too, and its
+  # bytes come back as a number array (ipc/protocol.rs:337-339, 390-402).
+  def test_channel_messages_survive_the_post_message_fallback
+    detail = check_detail(@run, "postMessage fallback")["channel"]
+    assert_equal 4, detail["count"], detail.inspect
+    assert_equal "[object Array]", detail["types"][3]
+    assert_equal [2048, 0], [detail["size"], detail["mismatches"]]
+  end
+
   def test_the_client_never_falls_back_to_post_message
     detail = check_detail(@run, "transport")
     assert_empty detail["fallbackWarnings"]
