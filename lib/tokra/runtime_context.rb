@@ -60,7 +60,22 @@ module Tokra
       # What was sent before the loop existed, in order, for #attach.
       @unsent = [] #: Array[^(Native::Proxy) -> void]
       @closed = false
+      @window_target = nil
     end
+
+    # The event loop whose window target answers the app handle's monitor
+    # and cursor getters on the main thread, or +nil+ before App#run
+    # builds it.
+    #
+    # Tauri's runtime context holds the loop's window target
+    # (tauri-runtime-wry lib.rs:2662-2688); Tokra's native loop lends its
+    # target to the getters while it runs (plan 041, decision 1). Read it
+    # only on the main thread, inside #getter.
+    #
+    # === Example
+    #
+    #   context.getter { context.window_target&.primary_monitor }
+    attr_accessor :window_target
 
     # Whether the calling thread is the main thread.
     #

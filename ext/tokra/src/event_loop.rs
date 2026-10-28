@@ -198,8 +198,8 @@ impl RbEventLoop {
         let mut raised = None;
         let mut inbox = VecDeque::new();
 
-        // Run the event loop - this is a blocking call
-        let exit_code = event_loop.run_return(|event, _, control_flow| {
+        // What the loop does with each event.
+        let mut on_event = |event: Event<'_, UserEvent>, control_flow: &mut ControlFlow| {
             let mut turn = Turn {
                 callback,
                 control_flow,
@@ -236,6 +236,12 @@ impl RbEventLoop {
             } else {
                 turn.handle(event);
             }
+        };
+        // Run the event loop - this is a blocking call. Each event's
+        // callback may ask the window target for monitors and the cursor,
+        // so the loop lends it for the call (`event_loop_target.rs`).
+        let exit_code = event_loop.run_return(|event, target, control_flow| {
+            crate::event_loop_target::lend(target, || on_event(event, control_flow));
         });
         // Unregister before the loop and its proxy go.
         drop(ticker);
@@ -625,7 +631,7 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
         "set_activation_policy",
         method!(RbEventLoop::set_activation_policy, 1),
     )?;
-    Ok(())
+    crate::event_loop_target::define_methods(event_loop_class)
 }
 
 #[cfg(test)]

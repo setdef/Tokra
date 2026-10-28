@@ -270,6 +270,24 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   is unchanged
 - The native extension depends directly on `objc2` (macOS), `gtk` (Linux),
   and `windows` (Windows), at the versions tao already locks
+- `Window#is_enabled` and `Window#set_enabled`, `Window#cursor_position`,
+  `Window#set_size_constraints`, `Window#set_icon` (an image that does not
+  fill its size raises `Error::Runtime`, `invalid icon: ...`),
+  `Window#set_background_color`, and `Window#set_shadow`
+- An undecorated, resizable window can be resized by its edges on Windows
+  and Linux, as in Tauri
+- `AppHandle#primary_monitor`, `#monitor_from_point`, `#available_monitors`,
+  and `#cursor_position` (raising `Error::Runtime`, `failed to get cursor
+  position`), also on `App`; the setup hook can ask, since `App#run` builds
+  the event loop before calling it
+- `Webview#set_background_color`
+- `Tokra::Color` (with `Color.from_str`), `Tokra::LogicalUnit`,
+  `Tokra::PhysicalUnit`, and `Tokra::WindowSizeConstraints`
+- `Native::Icon`, `Native::EventLoop#cursor_position`, `#primary_monitor`,
+  `#monitor_from_point`, and `#available_monitors`, `Native::Window#is_enabled`,
+  `#set_enabled`, `#set_inner_size_constraints`, `#set_window_icon`,
+  `#set_background_color`, and `#set_shadow`, and
+  `Native::WebView#set_background_color`
 
 ### Changed
 

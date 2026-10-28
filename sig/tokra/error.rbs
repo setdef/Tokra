@@ -15,6 +15,7 @@ module Tokra
     class Runtime < Error
       FAILED_TO_SEND_MESSAGE: String
       FAILED_TO_RECEIVE_MESSAGE: String
+      FAILED_TO_GET_CURSOR_POSITION: String
 
       def initialize: (String message) -> void
     end

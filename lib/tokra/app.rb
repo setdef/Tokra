@@ -83,6 +83,51 @@ module Tokra
       @handle.display_handle
     end
 
+    # The system's main monitor, as AppHandle#primary_monitor answers.
+    #
+    # Mirrors Tauri's App::primary_monitor (app.rs:793-801).
+    #
+    # === Example
+    #
+    #   app.primary_monitor&.scale_factor  #=> 2.0
+    def primary_monitor
+      @handle.primary_monitor
+    end
+
+    # The monitor holding a desktop point, as
+    # AppHandle#monitor_from_point answers.
+    #
+    # Mirrors Tauri's App::monitor_from_point (app.rs:804-810).
+    #
+    # === Example
+    #
+    #   app.monitor_from_point(0, 0)&.name  #=> "Built-in Retina Display"
+    def monitor_from_point(x, y)
+      @handle.monitor_from_point(x, y)
+    end
+
+    # Every monitor, as AppHandle#available_monitors answers.
+    #
+    # Mirrors Tauri's App::available_monitors (app.rs:813-823).
+    #
+    # === Example
+    #
+    #   app.available_monitors.map(&:name)  #=> ["Built-in Retina Display"]
+    def available_monitors
+      @handle.available_monitors
+    end
+
+    # The cursor's desktop position, as AppHandle#cursor_position answers.
+    #
+    # Mirrors Tauri's App::cursor_position (app.rs:825-840).
+    #
+    # === Example
+    #
+    #   app.cursor_position  #=> #<data Tokra::PhysicalPosition x=812.0, y=455.5>
+    def cursor_position
+      @handle.cursor_position
+    end
+
     # Default window configuration when not specified.
     DEFAULT_CONFIG = {
       title: "Tokra",
@@ -156,11 +201,15 @@ module Tokra
     #     puts "bye" if event.is_a?(Tokra::RunEvent::Exit)
     #   end
     def run(&callback)
+      # Build the event loop first, as Tauri's runtime exists before its
+      # setup hook runs, so the hook can ask for monitors and the cursor
+      # (plan 041, decision 1).
+      event_loop = @event_loop_class.new
+      @runtime_context.window_target = event_loop
+
       # Call setup hook before anything else
       @builder.__send__(:setup_hook)&.call(self)
 
-      # Create native components via injected factory
-      event_loop = @event_loop_class.new
       # Before the loop runs, Tauri's App hands the policy to the runtime,
       # which sets it on tao's loop (app.rs:1160-1162, tauri-runtime-wry
       # lib.rs:3031-3036); this App builds the loop here, so it hands the

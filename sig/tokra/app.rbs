@@ -45,6 +45,10 @@ module Tokra
          | () -> void
     def run_on_main_thread: () { () -> void } -> nil
     def display_handle: () -> RawWindowHandle::display_handle
+    def primary_monitor: () -> Monitor?
+    def monitor_from_point: (Float | Integer x, Float | Integer y) -> Monitor?
+    def available_monitors: () -> Array[Monitor]
+    def cursor_position: () -> PhysicalPosition
 
     private
 

@@ -420,7 +420,7 @@ module Tokra
     #   window.available_monitors.size  #=> 2
     def available_monitors
       native = @native
-      getter { native.available_monitors }.map { |entry| monitor(entry) }
+      getter { native.available_monitors }.map { |entry| Monitor.from_native(entry) }
     end
 
     # The window's appearance, Theme::Light or Theme::Dark. A theme Tauri
@@ -483,11 +483,13 @@ module Tokra
     # Lets a person resize the window, or stops them, and returns +nil+.
     # Runs as #center does.
     #
-    # On Windows Tauri also lets a person resize an undecorated window by
-    # its edges; Tokra does not yet (plan 040, decision 8).
+    # On Windows a resizable window without decorations can still be
+    # resized by its edges: Tauri covers it with a window that answers as
+    # its frame, and this attaches or removes that cover (plan 041,
+    # decision 5).
     #
     # Mirrors Tauri's Window::set_resizable (window/mod.rs:1680;
-    # lib.rs:3337-3348).
+    # lib.rs:3337-3348; undecorated_resizing.rs:117-196, 403-411).
     #
     # === Example
     #
@@ -619,11 +621,12 @@ module Tokra
     # Gives the window its frame and title bar, or takes them away, and
     # returns +nil+. Runs as #center does.
     #
-    # On Windows Tauri also lets a person resize an undecorated window by
-    # its edges; Tokra does not yet (plan 040, decision 8).
+    # On Windows a resizable window without decorations can still be
+    # resized by its edges, as #set_resizable describes; this attaches or
+    # removes the cover that makes it so (plan 041, decision 5).
     #
     # Mirrors Tauri's Window::set_decorations (window/mod.rs:1792;
-    # lib.rs:3366-3377).
+    # lib.rs:3366-3377; undecorated_resizing.rs:117-196, 403-411).
     #
     # === Example
     #
@@ -934,6 +937,145 @@ module Tokra
       dispatch { native.set_theme(name) }
     end
 
+    # Whether the window takes input. Answers as #scale_factor does.
+    #
+    # On macOS a disabled window has a sheet attached, as #set_enabled
+    # leaves it; on Linux it is GTK's sensitivity, and on Windows Win32's
+    # enabled state.
+    #
+    # Mirrors Tauri's Window::is_enabled (window/mod.rs:1443; lib.rs:3330),
+    # which tauri-runtime-wry's WindowExt implements for each platform
+    # (window/macos.rs:35-38, linux.rs:20-22, windows.rs:18-20).
+    #
+    # === Example
+    #
+    #   window.is_enabled  #=> true
+    def is_enabled
+      native = @native
+      getter { native.is_enabled }
+    end
+
+    # Lets the window take input, or stops it, and returns +nil+. Runs as
+    # #center does.
+    #
+    # On macOS disabling attaches a half-transparent sheet the size of the
+    # window, as Electron does, and enabling ends it; on Linux it changes
+    # GTK's sensitivity, and on Windows it calls EnableWindow.
+    #
+    # Mirrors Tauri's Window::set_enabled (window/mod.rs:1741; lib.rs:3357),
+    # with WindowExt's code for each platform (window/macos.rs:12-33,
+    # linux.rs:16-18, windows.rs:14-16).
+    #
+    # === Example
+    #
+    #   window.set_enabled(false)
+    def set_enabled(enabled)
+      native = @native
+      dispatch { native.set_enabled(enabled) }
+    end
+
+    # The mouse cursor's position on the desktop, a PhysicalPosition, as
+    # AppHandle#cursor_position answers it.
+    #
+    # Mirrors Tauri's Window::cursor_position (window/mod.rs:1643-1645),
+    # which asks its app handle.
+    #
+    # === Example
+    #
+    #   window.cursor_position  #=> #<data Tokra::PhysicalPosition x=812.0, y=455.5>
+    def cursor_position
+      @app_handle.cursor_position
+    end
+
+    # Limits the window's client area one side at a time, as +constraints+,
+    # a WindowSizeConstraints, says, and returns +nil+. Runs as #set_size
+    # does; any other argument raises TypeError on the calling thread.
+    #
+    # Mirrors Tauri's Window::set_size_constraints (window/mod.rs:1942;
+    # lib.rs:3404-3411), which hands tao the same four limits.
+    #
+    # === Example
+    #
+    #   window.set_size_constraints(Tokra::WindowSizeConstraints.new(min_width: Tokra::LogicalUnit.new(400)))
+    def set_size_constraints(constraints)
+      native = @native
+      expect(constraints, WindowSizeConstraints)
+      limits = [constraints.min_width, constraints.min_height, constraints.max_width, constraints.max_height]
+        .map { |limit| limit && unit_dimension(limit) }
+      dispatch { native.set_inner_size_constraints(limits) }
+    end
+
+    # Sets the window's icon to +image+, a Tokra::Image, and returns +nil+.
+    # Runs as #center does. macOS has no window icons, so there it does
+    # nothing.
+    #
+    # The image becomes an icon on the calling thread, as in Tauri, so an
+    # image whose pixels do not fill its width and height raises
+    # Error::Runtime "invalid icon: ..." here, with tao's reason, and
+    # nothing is sent. On Linux tao checks nothing and GTK would end the
+    # process instead; Tokra checks there as tao does elsewhere (plan 041,
+    # decision 4). Anything but an Image raises TypeError.
+    #
+    # Mirrors Tauri's Window::set_icon (window/mod.rs:2014), which converts
+    # the image into tao's icon before sending it (image/mod.rs:130-138;
+    # tauri-runtime-wry lib.rs:490-499, 2278-2286, 3434-3436).
+    #
+    # === Example
+    #
+    #   window.set_icon(Tokra::Image.from_path("icons/32x32.png"))
+    def set_icon(image)
+      native = @native
+      expect(image, Image)
+      icon = begin
+        Native::Icon.from_rgba(image.rgba, image.width, image.height)
+      rescue RuntimeError => e
+        raise Error::Runtime, "invalid icon: #{e.message}"
+      end
+      dispatch { native.set_window_icon(icon) }
+    end
+
+    # Colors the window behind its content with +color+, a Tokra::Color,
+    # or the platform's default for +nil+, and returns +nil+. Runs as
+    # #center does. On Windows the alpha is ignored.
+    #
+    # The webview fills the window and paints its own background, so this
+    # shows only where the webview does not; Webview#set_background_color
+    # colors the webview. Tauri's WebviewWindow sets both, and Tokra has no
+    # WebviewWindow, so call both for that (plan 041, decision 2).
+    #
+    # Mirrors Tauri's Window::set_background_color (window/mod.rs:1897;
+    # lib.rs:3542-3544).
+    #
+    # === Example
+    #
+    #   window.set_background_color(Tokra::Color.from_str("#1e1e1e"))
+    def set_background_color(color)
+      native = @native
+      expect(color, Color) if color
+      rgba = color && [color.red, color.green, color.blue, color.alpha] #: Native::Window::rgba?
+      dispatch { native.set_background_color(rgba) }
+    end
+
+    # Gives the window a shadow, or takes it away, and returns +nil+. Runs
+    # as #center does.
+    #
+    # On macOS it is AppKit's window shadow. On Windows it matters only for
+    # an undecorated window: +true+ draws a thin border and, on Windows 11,
+    # rounded corners, and the edges a person drags to resize it follow.
+    # Linux has no such setting, so there it does nothing.
+    #
+    # Mirrors Tauri's Window::set_shadow (window/mod.rs:1809;
+    # lib.rs:3378-3385), with Tauri's undecorated resizing on Windows
+    # (undecorated_resizing.rs:443-475).
+    #
+    # === Example
+    #
+    #   window.set_shadow(false)
+    def set_shadow(enable)
+      native = @native
+      dispatch { native.set_shadow(enable) }
+    end
+
     # Asks to close this window and returns +nil+.
     #
     # Closing works like a click on the close button: your
@@ -1072,22 +1214,7 @@ module Tokra
     # <tt>[nil]</tt>.
     private def maybe_monitor(answer)
       entry = answer.first
-      entry && monitor(entry)
-    end
-
-    # The Monitor for a native monitor Array.
-    private def monitor(entry)
-      name, (x, y), (width, height), ((work_x, work_y), (work_width, work_height)), scale_factor = entry
-      Monitor.new(
-        name:,
-        size: PhysicalSize.new(width:, height:),
-        position: PhysicalPosition.new(x:, y:),
-        work_area: PhysicalRect.new(
-          position: PhysicalPosition.new(x: work_x, y: work_y),
-          size: PhysicalSize.new(width: work_width, height: work_height)
-        ),
-        scale_factor:
-      )
+      entry && Monitor.from_native(entry)
     end
 
     # The native <tt>[physical, width, height]</tt> for a LogicalSize or a
@@ -1110,6 +1237,12 @@ module Tokra
         raise TypeError,
           "wrong argument type #{position.class} (expected Tokra::LogicalPosition or Tokra::PhysicalPosition)"
       end
+    end
+
+    # The native <tt>[physical, value]</tt> for a LogicalUnit or a
+    # PhysicalUnit.
+    private def unit_dimension(unit)
+      [unit.is_a?(PhysicalUnit), Float(unit.value)]
     end
 
     # Raises TypeError, in Ruby's words, unless +value+ is a +type+.

@@ -132,6 +132,48 @@ fn build_in(builder: WebViewBuilder<'_>, window: &tao::window::Window) -> wry::R
 
 // SPDX-SnippetEnd
 
+// SPDX-SnippetBegin
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+// SPDX-SnippetComment: The window content's resize handler adapted from tauri-runtime-wry/src/lib.rs create_webview
+
+/// Lets a person resize an undecorated window by its edges, as Tauri does
+/// once it has built the webview that is a window's content
+/// (tauri-runtime-wry `src/lib.rs:5055-5067`): on Linux the webview gets
+/// GTK handlers that begin the drag, and on Windows a resizable,
+/// undecorated window gets the drag window over it
+/// (`undecorated_resizing.rs`).
+#[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
+fn attach_resize_handler(_window: &tao::window::Window, webview: &WebView) {
+    crate::undecorated_resizing::attach_resize_handler(webview);
+}
+
+/// Lets a person resize an undecorated window by its edges (see the
+/// Linux version).
+#[cfg(windows)]
+fn attach_resize_handler(window: &tao::window::Window, _webview: &WebView) {
+    use tao::platform::windows::WindowExtWindows;
+
+    if window.is_resizable() && !window.is_decorated() {
+        crate::undecorated_resizing::attach_resize_handler(
+            window.hwnd(),
+            window.has_undecorated_shadow(),
+        );
+    }
+}
+
+/// macOS keeps an undecorated window resizable itself.
+#[cfg(target_os = "macos")]
+const fn attach_resize_handler(_window: &tao::window::Window, _webview: &WebView) {}
+
+// SPDX-SnippetEnd
+
 /// Ruby wrapper for `wry::WebView`.
 ///
 /// wry's `WebView` is not `Send`: the compiler infers that from the platform
@@ -200,8 +242,11 @@ impl RbWebView {
             .with_ipc_handler(move |msg| {
                 forward_ipc_message_to_ruby(&proxy_clone, &msg);
             });
-        let webview = build_in(builder, &*window.window()?)
+        let tao_window = window.window()?;
+        let webview = build_in(builder, &tao_window)
             .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
+        attach_resize_handler(&tao_window, &webview);
+        drop(tao_window);
 
         Ok(Self {
             inner: RefCell::new(ThreadBound::new(webview)),
@@ -324,8 +369,11 @@ impl RbWebView {
             .with_ipc_handler(move |msg| {
                 forward_ipc_message_to_ruby(&proxy_clone, &msg);
             });
-        let webview = build_in(builder, &*window.window()?)
+        let tao_window = window.window()?;
+        let webview = build_in(builder, &tao_window)
             .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
+        attach_resize_handler(&tao_window, &webview);
+        drop(tao_window);
 
         Ok(Self {
             inner: RefCell::new(ThreadBound::new(webview)),
@@ -358,6 +406,35 @@ impl RbWebView {
                 .map_err(|e| Error::new(runtime_error(), e.to_string()))
         })
     }
+
+    // SPDX-SnippetBegin
+    // SPDX-License-Identifier: Apache-2.0 OR MIT
+    // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    // SPDX-SnippetComment: The webview's SetBackgroundColor arm adapted from tauri-runtime-wry/src/lib.rs handle_user_message
+    /// wry's `WebView::set_background_color`, white for `nil`, as Tauri's
+    /// runtime asks it (`src/lib.rs:3745-3750`). A closed webview ignores
+    /// it.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ThreadError` off the webview's thread, or a `RuntimeError`
+    /// with wry's error, which `Tokra::Webview` logs as Tauri's runtime
+    /// does.
+    pub fn set_background_color(&self, color: Option<(u8, u8, u8, u8)>) -> Result<(), Error> {
+        let inner = self
+            .inner
+            .try_borrow()
+            .map_err(|_| Error::new(runtime_error(), "WebView is closing"))?;
+        if !inner.owner().is_current() {
+            return Err(wrong_thread(CLASS));
+        }
+        inner.get().map_or(Ok(()), |webview| {
+            webview
+                .set_background_color(color.unwrap_or((255, 255, 255, 255)))
+                .map_err(|e| Error::new(runtime_error(), e.to_string()))
+        })
+    }
+    // SPDX-SnippetEnd
 
     // SPDX-SnippetBegin
     // SPDX-License-Identifier: Apache-2.0 OR MIT
@@ -422,6 +499,10 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
     )?;
     webview_class.define_method("eval", method!(RbWebView::eval, 1))?;
     webview_class.define_method("close", method!(RbWebView::close, 0))?;
+    webview_class.define_method(
+        "set_background_color",
+        method!(RbWebView::set_background_color, 1),
+    )?;
     Ok(())
 }
 

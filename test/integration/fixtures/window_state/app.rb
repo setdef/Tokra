@@ -6,7 +6,7 @@
 #++
 
 # Fixture for window_state_test.rb: a real window's getters and setters
-# (plan 040). It needs no page, so it runs on Windows too.
+# (plans 040 and 041). It needs no page, so it runs on Windows too.
 #
 # Once the loop runs, a background thread changes the window through
 # Tokra::Window, as an app's code on another thread would, and reads back
@@ -97,6 +97,21 @@ module WindowStateFixture
     text = send.call(send.call(boxed, sel.call("description")), sel.call("UTF8String")).to_s
     width, height = text.scan(/-?[\d.]+/).map(&:to_f).last(2)
     { "width" => width, "height" => height }
+  end
+
+  # Whether AppKit draws the window's shadow, read through its AppKit
+  # handle on the main thread; +nil+ on other platforms.
+  def self.appkit_has_shadow(window)
+    handle = window.window_handle
+    return nil unless handle.is_a?(Tokra::RawWindowHandle::AppKitWindowHandle)
+
+    objc = Fiddle.dlopen("/usr/lib/libobjc.A.dylib")
+    sel = Fiddle::Function.new(objc["sel_registerName"], [Fiddle::TYPE_VOIDP], Fiddle::TYPE_VOIDP)
+    send = Fiddle::Function.new(objc["objc_msgSend"], [Fiddle::TYPE_VOIDP, Fiddle::TYPE_VOIDP], Fiddle::TYPE_VOIDP)
+    # BOOL is one byte, returned in the low byte of the result register.
+    flag = Fiddle::Function.new(objc["objc_msgSend"], [Fiddle::TYPE_VOIDP, Fiddle::TYPE_VOIDP], Fiddle::TYPE_CHAR)
+    ns_window = send.call(handle.ns_view, sel.call("window"))
+    flag.call(ns_window, sel.call("hasShadow")) & 0xFF != 0
   end
 
   # Runs +read+ on the main thread and answers its value.
@@ -205,6 +220,71 @@ app.run do |handle, event|
       maximized = fixture.settle(true) { window.is_maximized }
       window.unmaximize
       report["maximized"] = { "maximized" => maximized, "restored" => fixture.settle(false) { window.is_maximized } }
+    end
+
+    # Plan 041: Tauri's WindowExt enabled state.
+    window.set_enabled(false)
+    disabled = fixture.settle(false) { window.is_enabled }
+    disabled_on_main = fixture.on_main(handle) { window.is_enabled }
+    window.set_enabled(true)
+    report["enabled"] = {
+      "disabled" => disabled,
+      "disabled_on_main" => disabled_on_main,
+      "enabled" => fixture.settle(true) { window.is_enabled },
+    }
+
+    # Size constraints one side at a time: on macOS AppKit's content
+    # limits; elsewhere the width a smaller size is held to.
+    window.set_size_constraints(Tokra::WindowSizeConstraints.new(
+      min_width: Tokra::LogicalUnit.new(260),
+      max_width: Tokra::PhysicalUnit.new((880 * scale).round)
+    ))
+    report["constraint_limits"] = fixture.on_main(handle) do
+      sleep 0.2
+      fixture.appkit_content_limits(window)
+    end
+    window.set_size(Tokra::LogicalSize.new(width: 100, height: 220))
+    min_width = (260 * scale).round
+    report["constrained_width"] = fixture.settle(min_width) { window.inner_size.width }
+    report["constrained_min_width"] = min_width
+    window.set_size_constraints(Tokra::WindowSizeConstraints.new)
+
+    window.set_shadow(false)
+    without = fixture.on_main(handle) { fixture.appkit_has_shadow(window) }
+    window.set_shadow(true)
+    report["shadow"] = { "without" => without, "with" => fixture.on_main(handle) { fixture.appkit_has_shadow(window) } }
+
+    image = Tokra::Image.new(rgba: "\x20\x40\x80\xFF".b * 256, width: 16, height: 16)
+    report["icon"] = fixture.settle { window.set_icon(image) }
+    begin
+      window.set_icon(Tokra::Image.new(rgba: "\x00".b * 12, width: 2, height: 2))
+    rescue Tokra::Error::Runtime => e
+      report["bad_icon"] = e.message
+    end
+    report["background_color"] = fixture.settle do
+      window.set_background_color(Tokra::Color.from_str("#1e1e1e"))
+      handle.get_webview("main").set_background_color(Tokra::Color.new(30, 30, 30, 255))
+      fixture.on_main(handle) { "set" }
+    end
+    window.set_background_color(nil)
+
+    # Plan 041: the app handle's monitors and cursor come from the event
+    # loop's window target, from this thread and from the main one.
+    position = window.outer_position
+    report["handle_monitors"] = {
+      "primary" => fixture.json(handle.primary_monitor) == fixture.json(window.primary_monitor),
+      "available" => fixture.json(handle.available_monitors) == fixture.json(window.available_monitors),
+      "at_window" => fixture.json(handle.monitor_from_point(position.x, position.y)) ==
+        fixture.json(window.monitor_from_point(position.x, position.y)),
+      "on_main" => fixture.on_main(handle) { fixture.json(handle.available_monitors) } ==
+        fixture.json(window.available_monitors),
+    }
+    report["cursor"] = fixture.settle do
+      {
+        "handle" => handle.cursor_position.class.name,
+        "window" => window.cursor_position.class.name,
+        "on_main" => fixture.on_main(handle) { handle.cursor_position.class.name },
+      }
     end
 
     report["fullscreen"] = window.is_fullscreen

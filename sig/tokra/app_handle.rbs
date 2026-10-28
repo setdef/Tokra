@@ -25,6 +25,10 @@ module Tokra
     def get_window: (String label) -> Window?
     def get_webview: (String label) -> Webview?
     def display_handle: () -> RawWindowHandle::display_handle
+    def primary_monitor: () -> Monitor?
+    def monitor_from_point: (Float | Integer x, Float | Integer y) -> Monitor?
+    def available_monitors: () -> Array[Monitor]
+    def cursor_position: () -> PhysicalPosition
     def resources_table: -> ResourceTable
     def plugin: (_Plugin plugin) -> bool
     def remove_plugin: (String name) -> bool
@@ -36,6 +40,8 @@ module Tokra
     def path: -> Path::Resolver
 
     private
+
+    def window_target_getter: [T < Object] () { (Native::EventLoop) -> T? } -> T
 
     def manager: () -> AppManager
   end

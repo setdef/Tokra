@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class PhysicalUnit < Data
+    attr_reader value: pixel
+
+    def self.new: (pixel value) -> PhysicalUnit
+                | (value: pixel) -> PhysicalUnit
+    def self.from_logical: (LogicalUnit logical, Float | Integer scale_factor) -> PhysicalUnit
+    def to_logical: (Float | Integer scale_factor) -> LogicalUnit
+
+    MAX: LogicalUnit
+    MIN: LogicalUnit
+    ZERO: LogicalUnit
+  end
+end

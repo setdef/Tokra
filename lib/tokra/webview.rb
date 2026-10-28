@@ -86,6 +86,36 @@ module Tokra
     end
     alias eval evaluate
 
+    # Paints the webview's background, behind the page, with +color+, a
+    # Tokra::Color, or white for +nil+, and returns +nil+. Runs as
+    # #evaluate does; anything but a Color or +nil+ raises TypeError on the
+    # calling thread. A color the webview fails to take is logged, never
+    # raised, as Tauri's runtime logs it.
+    #
+    # wry does not implement it on macOS, so there it does nothing. On
+    # Windows an alpha other than 0 is taken as 255. Window#set_background_color
+    # colors the window behind the webview (plan 041, decision 2).
+    #
+    # Mirrors Tauri's Webview::set_background_color (webview/mod.rs:2069-2083;
+    # tauri-runtime-wry lib.rs:1829-1838, 3745-3750).
+    #
+    # === Example
+    #
+    #   webview.set_background_color(Tokra::Color.new(30, 30, 30, 255))
+    def set_background_color(color)
+      native = @native
+      unless color.nil? || color.is_a?(Color)
+        raise TypeError, "wrong argument type #{color.class} (expected Tokra::Color)"
+      end
+
+      rgba = color && [color.red, color.green, color.blue, color.alpha] #: Native::Window::rgba?
+      @app_handle.runtime_context.run_on_main_thread do
+        native.set_background_color(rgba)
+      rescue RuntimeError => e
+        warn("failed to set webview background color: #{e.message}")
+      end
+    end
+
     # Runs the block on the main thread and returns +nil+, as
     # AppHandle#run_on_main_thread does.
     #

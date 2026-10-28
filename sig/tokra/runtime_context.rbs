@@ -15,8 +15,10 @@ module Tokra
     @proxy: Native::Proxy?
     @unsent: Array[^(Native::Proxy) -> void]
     @closed: bool
+    @window_target: Native::EventLoop?
 
     def initialize: (?main_thread: Thread) -> void
+    attr_accessor window_target: Native::EventLoop?
     def main_thread?: () -> bool
     def attach: (Native::Proxy proxy) -> void
     def run_on_main_thread: () { () -> void } -> nil

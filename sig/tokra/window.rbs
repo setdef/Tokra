@@ -75,6 +75,13 @@ module Tokra
     def start_dragging: () -> nil
     def start_resize_dragging: (ResizeDirection direction) -> nil
     def set_theme: (Theme? theme) -> nil
+    def is_enabled: () -> bool
+    def set_enabled: (bool enabled) -> nil
+    def cursor_position: () -> PhysicalPosition
+    def set_size_constraints: (WindowSizeConstraints constraints) -> nil
+    def set_icon: (Image image) -> nil
+    def set_background_color: (Color? color) -> nil
+    def set_shadow: (bool enable) -> nil
     def close: () -> nil
     def destroy: () -> nil
     def window_handle: () -> RawWindowHandle::window_handle
@@ -87,9 +94,9 @@ module Tokra
     def getter: [T < Object] () { () -> T? } -> T
     def physical_position: ([Native::Window::point?] answer) -> PhysicalPosition
     def maybe_monitor: ([Native::Window::monitor?] answer) -> Monitor?
-    def monitor: (Native::Window::monitor entry) -> Monitor
     def size_dimensions: (LogicalSize | PhysicalSize size) -> Native::Window::dimensions
     def position_dimensions: (LogicalPosition | PhysicalPosition position) -> Native::Window::dimensions
+    def unit_dimension: (pixel_unit unit) -> Native::Window::unit
     def expect: (Object value, Module type) -> nil
   end
 end

@@ -22,6 +22,7 @@ module Tokra
     def resources_table: () -> ResourceTable
     def evaluate: (String script) -> nil
     alias eval evaluate
+    def set_background_color: (Color? color) -> nil
     def run_on_main_thread: () { () -> void } -> nil
   end
 end

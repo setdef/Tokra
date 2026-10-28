@@ -58,8 +58,10 @@
 // SPDX-SnippetEnd
 
 mod event_loop;
+mod event_loop_target;
 mod fs;
 mod gvl_handoff;
+mod icon;
 mod image;
 mod interrupt_check;
 mod path;
@@ -67,9 +69,11 @@ mod proxy;
 mod raw_handle;
 mod responders;
 mod thread_bound;
+mod undecorated_resizing;
 mod user_event;
 mod webview;
 mod window;
+mod window_ext;
 mod window_state;
 
 // Re-export for use by other modules
@@ -118,6 +122,7 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     window::define_class(ruby, native)?;
     webview::define_class(ruby, native)?;
     proxy::define_class(ruby, native)?;
+    icon::define_class(ruby, native)?;
 
     // Path resolution functions (thin wrapper around dirs crate)
     path::define_functions(ruby, native)?;

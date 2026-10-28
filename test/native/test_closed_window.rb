@@ -67,6 +67,26 @@ class TestNativeClosedWindow < Minitest::Test
     assert_kind_of Float, scale_factor
   end
 
+  # Plan 041's getter, on an open window.
+  def test_an_open_window_is_enabled
+    assert_same true, @window.is_enabled
+  end
+
+  # Rust's u8 rejects a color component outside a byte before anything is
+  # sent, as Tokra::Color already does in Ruby.
+  def test_a_color_component_outside_a_byte_raises_range_error
+    assert_raises(RangeError) { @window.set_background_color([256, 0, 0, 0]) }
+  end
+
+  def test_a_webview_takes_a_background_color_and_ignores_it_once_closed
+    webview = Tokra::Native::WebView.new_with_protocol(@window, @proxy, [])
+
+    assert_nil webview.set_background_color([30, 30, 30, 255])
+    assert_nil webview.set_background_color(nil)
+    webview.close
+    assert_nil webview.set_background_color(nil)
+  end
+
   def test_a_name_the_ruby_enum_lacks_raises_argument_error
     assert_raises(ArgumentError) { @window.drag_resize_window("Up") }
     assert_raises(ArgumentError) { @window.request_user_attention("Urgent") }
@@ -104,6 +124,7 @@ class TestNativeClosedWindow < Minitest::Test
     primary_monitor: [],
     monitor_from_point: [0.0, 0.0],
     available_monitors: [],
+    is_enabled: [],
   }.freeze
 
   # Each setter Native::Window gained in plan 040, with its arguments.
@@ -137,6 +158,11 @@ class TestNativeClosedWindow < Minitest::Test
     drag_window: [],
     drag_resize_window: ["East"],
     set_theme: ["Dark"],
+    set_enabled: [false],
+    set_shadow: [false],
+    set_inner_size_constraints: [[[false, 100.0], nil, nil, [true, 900.0]]],
+    set_window_icon: [Tokra::Native::Icon.from_rgba("\x00".b * 4, 1, 1)],
+    set_background_color: [[1, 2, 3, 4]],
   }.freeze
 
   def test_closing_a_window_twice_does_nothing

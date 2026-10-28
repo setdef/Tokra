@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class Color < Data
+    INVALID_LENGTH: String
+    INVALID_DIGIT: String
+
+    attr_reader red: Integer
+    attr_reader green: Integer
+    attr_reader blue: Integer
+    attr_reader alpha: Integer
+
+    def self.new: (Integer red, Integer green, Integer blue, Integer alpha) -> Color
+                | (red: Integer, green: Integer, blue: Integer, alpha: Integer) -> Color
+    def self.from_str: (String text) -> Color
+    private def self.byte: (String pair) -> Integer
+  end
+end

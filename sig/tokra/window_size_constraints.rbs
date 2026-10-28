@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class WindowSizeConstraints < Data
+    attr_reader min_width: pixel_unit?
+    attr_reader min_height: pixel_unit?
+    attr_reader max_width: pixel_unit?
+    attr_reader max_height: pixel_unit?
+
+    def self.new: (?pixel_unit? min_width, ?pixel_unit? min_height, ?pixel_unit? max_width, ?pixel_unit? max_height) -> WindowSizeConstraints
+                | (?min_width: pixel_unit?, ?min_height: pixel_unit?, ?max_width: pixel_unit?, ?max_height: pixel_unit?) -> WindowSizeConstraints
+  end
+end

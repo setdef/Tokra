@@ -28,14 +28,14 @@ type Dimensions = (bool, f64, f64);
 
 /// An answer that may itself be nothing, wrapped so that `nil` alone means
 /// a closed window: `[value]` or `[nil]`.
-type Maybe<T> = (Option<T>,);
+pub type Maybe<T> = (Option<T>,);
 
 /// A position and a size, as Ruby reads a rectangle.
-type Rect = ((i32, i32), (u32, u32));
+pub type Rect = ((i32, i32), (u32, u32));
 
 /// A monitor as Ruby reads it: name, position, size, work area, and scale
 /// factor, the fields tauri-runtime-wry copies (`src/lib.rs:596-608`).
-type MonitorValue = (Option<String>, (i32, i32), (u32, u32), Rect, f64);
+pub type MonitorValue = (Option<String>, (i32, i32), (u32, u32), Rect, f64);
 
 /// tao's `Size` for a Ruby size: `Size::Physical` holds `u32`s, as
 /// Tauri's `PhysicalSize<u32>` does, and dpi rounds into them.
@@ -164,7 +164,7 @@ fn resize_direction(name: &str) -> Result<ResizeDirection, Error> {
 }
 
 /// The monitor as Ruby reads it, as `MonitorHandleWrapper` copies it.
-fn monitor(handle: &MonitorHandle) -> MonitorValue {
+pub fn monitor(handle: &MonitorHandle) -> MonitorValue {
     let position = handle.position();
     let size = handle.size();
     let (work_position, work_size) = work_area(handle);
@@ -431,14 +431,12 @@ impl RbWindow {
     );
 
     flag_setters!(
-        set_resizable,
         set_maximizable,
         set_minimizable,
         set_closable,
         set_maximized,
         set_minimized,
         set_visible,
-        set_decorations,
         set_always_on_bottom,
         set_visible_on_all_workspaces,
         set_content_protection,
@@ -848,14 +846,12 @@ pub fn define_methods(class: RClass) -> Result<(), Error> {
         available_monitors / 0,
         center / 0,
         request_user_attention / 1,
-        set_resizable / 1,
         set_maximizable / 1,
         set_minimizable / 1,
         set_closable / 1,
         set_maximized / 1,
         set_minimized / 1,
         set_visible / 1,
-        set_decorations / 1,
         set_always_on_bottom / 1,
         set_visible_on_all_workspaces / 1,
         set_content_protection / 1,

@@ -159,6 +159,7 @@ module StubNative
       current_monitor: [MONITOR],
       primary_monitor: [MONITOR],
       available_monitors: [MONITOR, SIDE_MONITOR].freeze,
+      is_enabled: true,
     }.freeze
 
     # What each setter last asked for, by setter name, and the webview
@@ -195,6 +196,7 @@ set_visible: :is_visible,
 set_decorations: :is_decorated,
 set_fullscreen: :is_fullscreen,
 set_simple_fullscreen: :is_fullscreen,
+set_enabled: :is_enabled,
 }.each do |setter, key|
       define_method(setter) do |value|
         request(setter, value) { @state[key] = value }
@@ -222,6 +224,10 @@ set_simple_fullscreen: :is_fullscreen,
       drag_window
       drag_resize_window
       set_theme
+      set_inner_size_constraints
+      set_window_icon
+      set_background_color
+      set_shadow
     ].each do |setter|
       define_method(setter) { |*args| request(setter, *args) }
     end
@@ -249,7 +255,10 @@ set_simple_fullscreen: :is_fullscreen,
     # A script whose evaluation fails, the way wry's evaluate_script can.
     FAILING_SCRIPT = "throw from wry"
 
-    attr_reader :initialization_scripts, :evals
+    attr_reader :initialization_scripts, :evals, :background_colors
+
+    # The error wry's set_background_color gives, for a test to set.
+    attr_accessor :background_color_error
 
     def self.new_with_protocol(_, _, scripts) = new(scripts).tap { |webview| instances << webview }
 
@@ -261,6 +270,7 @@ set_simple_fullscreen: :is_fullscreen,
     def initialize(scripts = [])
       @initialization_scripts = scripts
       @evals = []
+      @background_colors = []
       @closed = false
     end
 
@@ -268,6 +278,15 @@ set_simple_fullscreen: :is_fullscreen,
 
     def close
       @closed = true
+      nil
+    end
+
+    # Records the color, or raises the error a test set, as wry can fail.
+    def set_background_color(rgba)
+      return if @closed
+      raise background_color_error if background_color_error
+
+      @background_colors << rgba
       nil
     end
 
@@ -291,9 +310,27 @@ set_simple_fullscreen: :is_fullscreen,
 
     def initialize
       @queue = []
+      @ended = false
+      @cursor = [[812.0, 455.5]]
     end
 
     def create_proxy = Proxy.new(@queue)
+
+    # The cursor position the window target answers, in Native::EventLoop's
+    # shape: <tt>[[x, y]]</tt>, or <tt>[nil]</tt> for tao's error.
+    attr_writer :cursor
+
+    # The window target's answers, as Native::EventLoop gives them before
+    # and while it runs; +nil+ once the run has ended.
+    def cursor_position = @ended ? nil : @cursor
+    def primary_monitor = @ended ? nil : [Window::MONITOR]
+    def available_monitors = @ended ? nil : [Window::MONITOR, Window::SIDE_MONITOR]
+
+    def monitor_from_point(x, y)
+      return nil if @ended
+
+      [[Window::MONITOR, Window::SIDE_MONITOR].find { |(_, (left, top), (width, height))| x.between?(left, left + width - 1) && y.between?(top, top + height - 1) }]
+    end
 
     # Records the policy's name, as tao's macOS loop keeps it for launch.
     # Defined only where the real loop has it, so the stub answers
@@ -314,6 +351,8 @@ set_simple_fullscreen: :is_fullscreen,
         break if ends_loop?(event, answer)
       end
       callback.call(Tokra::Native::LoopDestroyedEvent.new)
+    ensure
+      @ended = true
     end
 
     # Whether the App's +answer+ to +event+ ends the loop, recording the

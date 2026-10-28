@@ -176,6 +176,84 @@ module Tokra
       raise RawWindowHandle::HandleError::Unavailable
     end
 
+    # The system's main monitor, as a Monitor, or +nil+ when the platform
+    # cannot tell (Wayland).
+    #
+    # It needs no window: the event loop answers, on the main thread. From
+    # another thread the question travels there and this waits for the
+    # answer. Raises Error::Runtime "failed to receive message from
+    # webview" before App#run has built the event loop or after it has
+    # ended, and "failed to send message to the webview" when another
+    # thread asks after the loop has ended.
+    #
+    # Mirrors Tauri's AppHandle::primary_monitor (app.rs:793-801), which
+    # the runtime reads from its event loop's window target
+    # (tauri-runtime-wry lib.rs:2662-2669). *Deviation*: Tauri reads it on
+    # the calling thread and never fails; Tokra's native objects answer
+    # only the main thread (ADR 012; plan 041, decision 1).
+    #
+    # === Example
+    #
+    #   handle.primary_monitor.name  #=> "Built-in Retina Display"
+    def primary_monitor
+      answer = window_target_getter(&:primary_monitor).first
+      answer && Monitor.from_native(answer)
+    end
+
+    # The monitor that holds the desktop point (+x+, +y+), in physical
+    # pixels, as a Monitor, or +nil+ when none does. Answers as
+    # #primary_monitor does.
+    #
+    # Mirrors Tauri's AppHandle::monitor_from_point (app.rs:804-810;
+    # tauri-runtime-wry lib.rs:2671-2678).
+    #
+    # === Example
+    #
+    #   handle.monitor_from_point(10.0, 10.0).position  #=> #<data Tokra::PhysicalPosition x=0, y=0>
+    def monitor_from_point(x, y)
+      x = Float(x)
+      y = Float(y)
+      answer = window_target_getter { |target| target.monitor_from_point(x, y) }.first
+      answer && Monitor.from_native(answer)
+    end
+
+    # Every monitor attached to the computer, as an Array of Monitors.
+    # Answers as #primary_monitor does.
+    #
+    # Mirrors Tauri's AppHandle::available_monitors (app.rs:813-823;
+    # tauri-runtime-wry lib.rs:2680-2688).
+    #
+    # === Example
+    #
+    #   handle.available_monitors.size  #=> 2
+    def available_monitors
+      window_target_getter(&:available_monitors).map { |entry| Monitor.from_native(entry) }
+    end
+
+    # The mouse cursor's position, as a PhysicalPosition relative to the
+    # top-left corner of the desktop: the main monitor's on Windows and
+    # macOS, the leftmost monitor's on X11. It can be negative. Wayland
+    # cannot tell and answers 0, 0.
+    #
+    # Answers on the main thread as #primary_monitor does, and raises
+    # Error::Runtime "failed to get cursor position" when the platform
+    # fails to read it.
+    #
+    # Mirrors Tauri's AppHandle::cursor_position (app.rs:825-840), which
+    # asks the event loop's window target through the loop
+    # (tauri-runtime-wry lib.rs:212-217, 2690-2695, 3999-4004).
+    #
+    # === Example
+    #
+    #   handle.cursor_position  #=> #<data Tokra::PhysicalPosition x=812.0, y=455.5>
+    def cursor_position
+      position = window_target_getter(&:cursor_position).first
+      raise Error::Runtime, Error::Runtime::FAILED_TO_GET_CURSOR_POSITION unless position
+
+      x, y = position
+      PhysicalPosition.new(x:, y:)
+    end
+
     # Returns the app-level resources table.
     #
     # This is the final fallback in the hierarchy: webview → window → app.
@@ -329,6 +407,20 @@ module Tokra
     # (manager/mod.rs:218).
     def restart_on_exit? # :nodoc:
       @restart_on_exit
+    end
+
+    # Runs +query+ with the event loop's window target on the main thread
+    # and answers it. Without a loop the answer is +nil+, which raises, as
+    # an answer that never came does.
+    private def window_target_getter(&query)
+      context = @runtime_context
+      answer = context.getter do
+        target = context.window_target
+        target && query.call(target)
+      end
+      raise Error::Runtime, Error::Runtime::FAILED_TO_RECEIVE_MESSAGE if answer.nil?
+
+      answer
     end
   end
 end

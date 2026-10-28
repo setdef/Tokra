@@ -11,5 +11,6 @@ module Tokra
 
     def self.new: (String? name, PhysicalSize size, PhysicalPosition position, PhysicalRect work_area, Float scale_factor) -> Monitor
                 | (name: String?, size: PhysicalSize, position: PhysicalPosition, work_area: PhysicalRect, scale_factor: Float) -> Monitor
+    def self.from_native: (Native::Window::monitor entry) -> Monitor
   end
 end

@@ -107,4 +107,48 @@ class TestDpi < Minitest::Test
     assert_equal 35, Tokra::CursorIcon.constants.size
     assert_equal "NwseResize", Tokra::CursorIcon::NwseResize.name
   end
+
+  def test_a_logical_unit_scales_up_to_a_physical_one
+    assert_equal Tokra::PhysicalUnit.new(800.0), Tokra::LogicalUnit.new(400).to_physical(2.0)
+    assert_equal Tokra::PhysicalUnit.new(800.0), Tokra::PhysicalUnit.from_logical(Tokra::LogicalUnit.new(400), 2.0)
+  end
+
+  def test_a_physical_unit_scales_down_to_a_logical_one
+    assert_equal Tokra::LogicalUnit.new(400.0), Tokra::PhysicalUnit.new(600).to_logical(1.5)
+    assert_equal Tokra::LogicalUnit.new(400.0), Tokra::LogicalUnit.from_physical(Tokra::PhysicalUnit.new(600), 1.5)
+  end
+
+  def test_a_unit_conversion_rejects_what_dpi_rejects
+    assert_raises(ArgumentError) { Tokra::LogicalUnit.new(1).to_physical(0.0) }
+    assert_raises(ArgumentError) { Tokra::PhysicalUnit.new(1).to_logical(Float::NAN) }
+  end
+
+  # dpi defines PhysicalUnit's MAX, MIN, and ZERO as LogicalUnits
+  # (src/lib.rs:247-252).
+  def test_the_unit_constants_are_dpis
+    assert_equal Tokra::LogicalUnit.new(Float::MAX), Tokra::LogicalUnit::MAX
+    assert_equal Tokra::LogicalUnit.new(-Float::MAX), Tokra::LogicalUnit::MIN
+    assert_equal Tokra::LogicalUnit.new(0.0), Tokra::LogicalUnit::ZERO
+    assert_same Tokra::LogicalUnit::MAX, Tokra::PhysicalUnit::MAX
+    assert_same Tokra::LogicalUnit::MIN, Tokra::PhysicalUnit::MIN
+    assert_same Tokra::LogicalUnit::ZERO, Tokra::PhysicalUnit::ZERO
+  end
+
+  # Tauri's Default leaves every limit None (tauri-runtime window.rs:209).
+  def test_size_constraints_default_to_no_limits
+    constraints = Tokra::WindowSizeConstraints.new
+
+    assert_equal [nil, nil, nil, nil],
+      [constraints.min_width, constraints.min_height, constraints.max_width, constraints.max_height]
+  end
+
+  def test_size_constraints_take_either_unit_and_nothing_else
+    constraints = Tokra::WindowSizeConstraints.new(min_width: Tokra::LogicalUnit.new(1),
+      max_height: Tokra::PhysicalUnit.new(2))
+
+    assert_equal Tokra::LogicalUnit.new(1), constraints.min_width
+    assert_equal Tokra::PhysicalUnit.new(2), constraints.max_height
+    error = assert_raises(TypeError) { Tokra::WindowSizeConstraints.new(max_width: 300) }
+    assert_includes error.message, "Integer"
+  end
 end

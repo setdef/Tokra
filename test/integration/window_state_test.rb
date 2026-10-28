@@ -149,4 +149,60 @@ class WindowStateTest < RealApp::TestCase
     refute @report["fullscreen"]
     refute @report["minimized"]
   end
+
+  # Tauri's WindowExt (tauri-runtime-wry src/window/): an attached sheet on
+  # macOS, GTK's sensitivity on Linux, EnableWindow on Windows.
+  def test_set_enabled_reads_back_through_is_enabled
+    assert_equal({ "disabled" => false, "disabled_on_main" => false, "enabled" => true }, @report["enabled"])
+  end
+
+  # AppKit's contentMinSize and contentMaxSize, in points, from one
+  # logical and one physical limit.
+  def test_size_constraints_reach_appkit
+    skip "AppKit only" unless macos?
+
+    assert_in_delta 260.0, @report["constraint_limits"]["min_width"]
+    assert_in_delta 880.0, @report["constraint_limits"]["max_width"]
+  end
+
+  def test_a_minimum_width_holds_a_smaller_size
+    skip "Wayland gives no window size here" if wayland?
+
+    assert_equal @report["constrained_min_width"], @report["constrained_width"]
+  end
+
+  def test_set_shadow_reaches_appkit
+    skip "AppKit only" unless macos?
+
+    assert_equal({ "without" => false, "with" => true }, @report["shadow"])
+  end
+
+  # tao's BadIcon text inside Tauri's InvalidIcon (tauri-runtime
+  # lib.rs:137-139), raised before anything reaches the window.
+  def test_an_icon_is_taken_and_a_bad_one_refused
+    assert_nil @report["icon"]
+    assert_equal "runtime error: invalid icon: The specified dimensions (2x2) don't match the number of pixels " \
+      "supplied by the `rgba` argument (3). For those dimensions, the expected pixel count is 4.",
+      @report["bad_icon"]
+  end
+
+  def test_background_colors_are_taken
+    assert_equal "set", @report["background_color"]
+  end
+
+  # The event loop's window target, lent to the main thread while it runs,
+  # answers as the window does.
+  def test_the_app_handles_monitors_are_the_windows
+    assert_equal({ "primary" => true, "available" => true, "at_window" => true, "on_main" => true },
+      @report["handle_monitors"])
+  end
+
+  def test_the_cursor_position_is_a_physical_position
+    expected = {
+"handle" => "Tokra::PhysicalPosition",
+"window" => "Tokra::PhysicalPosition",
+"on_main" => "Tokra::PhysicalPosition",
+}
+    assert_equal expected, @report["cursor"]
+  end
 end

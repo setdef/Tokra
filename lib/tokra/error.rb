@@ -78,6 +78,10 @@ module Tokra
       # The main thread never answered.
       FAILED_TO_RECEIVE_MESSAGE = "failed to receive message from webview"
 
+      # The platform could not tell where the cursor is
+      # (tauri-runtime lib.rs:146-148).
+      FAILED_TO_GET_CURSOR_POSITION = "failed to get cursor position"
+
       # Creates a runtime error from the runtime's own +message+.
       def initialize(message)
         super("runtime error: #{message}")
