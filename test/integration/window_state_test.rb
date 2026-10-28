@@ -165,10 +165,13 @@ class WindowStateTest < RealApp::TestCase
     assert_in_delta 880.0, @report["constraint_limits"]["max_width"]
   end
 
-  def test_a_minimum_width_holds_a_smaller_size
+  # GTK holds a smaller size to the minimum; AppKit and Win32, under tao,
+  # limit only a person's resize, so the size Tokra asks for is the size
+  # the window takes (see the fixture for tao's code).
+  def test_a_minimum_width_holds_a_smaller_size_only_on_linux
     skip "Wayland gives no window size here" if wayland?
 
-    assert_equal @report["constrained_min_width"], @report["constrained_width"]
+    assert_equal @report["constrained_expected_width"], @report["constrained_width"]
   end
 
   def test_set_shadow_reaches_appkit

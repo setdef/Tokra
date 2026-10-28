@@ -234,7 +234,15 @@ app.run do |handle, event|
     }
 
     # Size constraints one side at a time: on macOS AppKit's content
-    # limits; elsewhere the width a smaller size is held to.
+    # limits; everywhere the width a smaller size then reaches. Only GTK
+    # holds a resize Tokra asks for to the minimum (geometry hints, tao
+    # platform_impl/linux/util.rs:40). On macOS tao
+    # resizes with setContentSize (platform_impl/macos/util/async.rs:87-92),
+    # which AppKit's minimum does not limit; on Windows tao answers
+    # WM_WINDOWPOSCHANGING itself (platform_impl/windows/event_loop.rs:
+    # 1151-1236), so DefWindowProc never applies the minimum that
+    # WM_GETMINMAXINFO gives (:1861-1889) to a SetWindowPos, only to a
+    # person's drag. Each read waits for its platform's answer.
     window.set_size_constraints(Tokra::WindowSizeConstraints.new(
       min_width: Tokra::LogicalUnit.new(260),
       max_width: Tokra::PhysicalUnit.new((880 * scale).round)
@@ -244,9 +252,10 @@ app.run do |handle, event|
       fixture.appkit_content_limits(window)
     end
     window.set_size(Tokra::LogicalSize.new(width: 100, height: 220))
-    min_width = (260 * scale).round
-    report["constrained_width"] = fixture.settle(min_width) { window.inner_size.width }
-    report["constrained_min_width"] = min_width
+    held = RbConfig::CONFIG["host_os"].include?("linux")
+    expected = ((held ? 260 : 100) * scale).round
+    report["constrained_width"] = fixture.settle(expected) { window.inner_size.width }
+    report["constrained_expected_width"] = expected
     window.set_size_constraints(Tokra::WindowSizeConstraints.new)
 
     window.set_shadow(false)
