@@ -62,6 +62,17 @@ class TestPackageCheck < Minitest::Test
     PackageCheck.new(root: @root, gems: gems.empty? ? [target] : gems, out: @out).fast
   end
 
+  # Cargo writes progress such as "Blocking waiting for file lock" to
+  # standard error, and the crate check parses cargo metadata's output as
+  # JSON, so only standard output may reach the parser.
+  def test_a_parsed_command_output_leaves_standard_error_out
+    check = PackageCheck.new(root: @root, gems: [], out: @out)
+    output = check.__send__(:run_stdout!, {}, Gem.ruby, "-e", 'warn "Blocking waiting for file lock"; puts "{}"',
+      chdir: @root)
+
+    assert_equal "{}\n", output
+  end
+
   def test_a_complete_package_passes_and_runs_its_smoke_script
     check
 

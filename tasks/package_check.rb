@@ -255,7 +255,7 @@ class PackageCheck
     return unless gem.crate
 
     manifest = File.join(dir, gem.crate, "Cargo.toml")
-    output = run!({}, "cargo", "metadata", "--format-version", "1", "--locked", "--offline", "--manifest-path",
+    output = run_stdout!({}, "cargo", "metadata", "--format-version", "1", "--locked", "--offline", "--manifest-path",
       manifest, chdir: dir)
     metadata = JSON.parse(output)
     root = metadata.fetch("workspace_root")
@@ -337,6 +337,16 @@ class PackageCheck
   private def run!(env, *command, chdir:)
     output, status = Open3.capture2e(env, *command, chdir:)
     raise Failure, "#{command.join(' ')} failed in #{chdir}:\n#{output}" unless status.success?
+
+    output
+  end
+
+  # Like run!, but returns standard output alone, for a command whose output
+  # is parsed: Cargo writes progress such as "Blocking waiting for file lock"
+  # to standard error whenever another Cargo holds the package cache.
+  private def run_stdout!(env, *command, chdir:)
+    output, errors, status = Open3.capture3(env, *command, chdir:)
+    raise Failure, "#{command.join(' ')} failed in #{chdir}:\n#{output}#{errors}" unless status.success?
 
     output
   end

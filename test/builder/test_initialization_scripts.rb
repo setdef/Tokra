@@ -66,7 +66,9 @@ class TestBuilderInitializationScripts < Minitest::Test
     plugin_app = Tokra::Builder.default.with_global_tauri.build(native: StubNative)
     scripts_for(plugin_app).each_with_index do |script, index|
       refute_match(/__(TEMPLATE|RAW)_\w+__/, script, "script #{index} has a Tauri marker left")
-      refute_includes script, "<%", "script #{index} has an ERB tag left"
+      # The invoke key is Z85 text (lib.rs:1252-1256), whose alphabet holds
+      # both "<" and "%", so a key can read "<%" by chance.
+      refute_includes script.sub(plugin_app.invoke_key, ""), "<%", "script #{index} has an ERB tag left"
       refute_match(%r{\A// Auto-generated}, script, "script #{index} kept the vendoring banner")
     end
   end
