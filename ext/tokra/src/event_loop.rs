@@ -167,7 +167,8 @@ impl RbEventLoop {
     ///
     /// Returns `ThreadError` off the loop's thread, or an error if `run()`
     /// has already been called, consuming the event loop. Otherwise always
-    /// returns `SystemExit` carrying the loop's exit code.
+    /// returns `SystemExit` carrying the loop's exit code, or the
+    /// `SystemExit` the callback raised for the last event (`deliver_last`).
     pub fn run(&self, callback: Value) -> Result<(), Error> {
         let mut event_loop = self
             .loop_cell()?
@@ -327,7 +328,7 @@ impl Turn<'_> {
                 // it and `run` raises SystemExit. Tauri emits
                 // RunEvent::Exit from it. Anything still queued goes first.
                 self.deliver_inbox();
-                self.deliver("::Tokra::Native::LoopDestroyedEvent", ());
+                self.deliver_last("::Tokra::Native::LoopDestroyedEvent");
             }
             // SPDX-SnippetEnd
             _ => {}
@@ -456,18 +457,41 @@ impl Turn<'_> {
     /// App answers with the dispatcher's result instead.
     fn ask<A: ArgList>(&mut self, class_path: &str, args: A) -> bool {
         let ruby = Ruby::get_with(self.callback);
-        let result = ruby
-            .eval::<RClass>(class_path)
-            .and_then(|klass| klass.funcall::<_, _, Value>("new", args))
-            .and_then(|event| self.callback.funcall::<_, _, Value>("call", (event,)));
-
-        match result {
+        match self.call(&ruby, class_path, args) {
             Ok(answer) => answer.as_raw() == ruby.qtrue().as_raw(),
             Err(error) => {
                 self.report(&ruby, error);
                 false
             }
         }
+    }
+
+    /// Deliver the loop's last event, `LoopDestroyedEvent`.
+    ///
+    /// The loop is over, so a `SystemExit` raised here cannot set its
+    /// control flow; it becomes the exception `run` raises instead of the
+    /// loop's own status, as an `exit` in an `ensure` clause replaces the
+    /// exception in flight. That is how a restart (`Tokra::Process.restart`)
+    /// after `RunEvent::Exit` ends the process with status 0, as Tauri's
+    /// `process::restart` does (Plan 039, decision 4). Anything else is
+    /// handled as `report` handles it.
+    fn deliver_last(&mut self, class_path: &str) {
+        let ruby = Ruby::get_with(self.callback);
+        if let Err(error) = self.call(&ruby, class_path, ()) {
+            if system_exit_status(&ruby, &error).is_some() {
+                *self.raised = Some(error);
+            } else {
+                self.report(&ruby, error);
+            }
+        }
+    }
+
+    /// Build a `Tokra::Native` event and pass it to the Ruby callback,
+    /// answering what the callback returned or raised.
+    fn call<A: ArgList>(&self, ruby: &Ruby, class_path: &str, args: A) -> Result<Value, Error> {
+        ruby.eval::<RClass>(class_path)
+            .and_then(|klass| klass.funcall::<_, _, Value>("new", args))
+            .and_then(|event| self.callback.funcall::<_, _, Value>("call", (event,)))
     }
 
     /// End the loop with `code`, unless an exit is already set: the first

@@ -101,6 +101,18 @@ module Tokra
       app_handle.try_state(klass)
     end
 
+    # The command line the app started with, which a restart runs again.
+    #
+    # Mirrors Tauri's <tt>Manager::env</tt> (lib.rs:760-763), the Env that
+    # App::build manages (app.rs:2248-2249).
+    #
+    # === Example
+    #
+    #   app.env.args_os.drop(1) # => the script and its arguments
+    def env
+      state(Env) #: Env
+    end
+
     # Fetches a single window from the manager, or +nil+.
     #
     # === Example

@@ -40,3 +40,14 @@ Style/EndlessMethod:
 Style/Send:
   Exclude:
     - "test/ipc/test_channel.rb"
+# Tokra::Process mirrors tauri::process, so inside module Tokra a bare
+# Process names it, not Ruby's module (plan 039, decision 8). Library code
+# names either from the top: ::Process or Tokra::Process.
+# test/tasks/test_top_level_constants.rb checks the signatures.
+Lint/ConstantResolution:
+  Enabled: true
+  Only:
+    - Process
+  Include:
+    - "lib/**/*.rb"
+    - "plugins/*/lib/**/*.rb"

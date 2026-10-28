@@ -25,6 +25,7 @@ module Tokra
       @manager = manager
       @state_manager = state_manager
       @runtime_context = runtime_context
+      @restart_on_exit = false
     end
 
     private attr_reader :manager
@@ -258,6 +259,76 @@ module Tokra
       @runtime_context.request_exit(code)
     rescue Error::Runtime
       Kernel.exit(code)
+    end
+
+    # Restarts the app, and never returns.
+    #
+    # Restarts the app by triggering RunEvent::ExitRequested with code
+    # RESTART_EXIT_CODE and RunEvent::Exit, then runs the app's command
+    # line again (Process.restart): the same Ruby, script, and arguments,
+    # in a new process, while this one ends with status 0.
+    #
+    # Called on the main thread, inside an event handler, the events cannot
+    # be delivered in order, so this skips them and restarts at once; the
+    # Kernel.exit that ends the process still runs +ensure+ clauses, and
+    # inside the event loop RunEvent::Exit follows it as it follows any
+    # exit. Called on any other thread, it asks the loop and then waits
+    # there for the loop to end the process. Use #request_restart to have
+    # the events delivered reliably.
+    #
+    # Mirrors Tauri's AppHandle::restart (app.rs:540-570).
+    #
+    # === Example
+    #
+    #   Thread.new { handle.restart if update_installed? }
+    def restart
+      if @runtime_context.main_thread?
+        # The process ends here, so the loop's end must not restart it again.
+        @restart_on_exit = false
+        Tokra::Process.restart(env)
+      end
+
+      @restart_on_exit = true
+      # The loop restarts the app once RunEvent::Exit is out (App#run).
+      begin
+        @runtime_context.request_exit(RESTART_EXIT_CODE)
+      rescue Error::Runtime
+        Tokra::Process.restart(env)
+      end
+      loop { sleep }
+    end
+
+    # Asks the app to restart, and returns +nil+.
+    #
+    # Restarts the app by triggering RunEvent::ExitRequested with code
+    # RESTART_EXIT_CODE and RunEvent::Exit. Like #exit, the request travels
+    # through the event loop from any thread, so your code after this call
+    # runs. Handlers cannot prevent this exit: ExitRequestApi#prevent_exit
+    # does nothing for RESTART_EXIT_CODE. Once plugins and the App#run
+    # callback have heard RunEvent::Exit, the app runs its command line
+    # again (Process.restart) and this process ends with status 0. Called
+    # before App#run, the request waits for the loop; once the loop has
+    # ended, the app restarts at once.
+    #
+    # Mirrors Tauri's AppHandle::request_restart (app.rs:572-582).
+    #
+    # === Example
+    #
+    #   handle.request_restart
+    def request_restart
+      @restart_on_exit = true
+      # The loop restarts the app once RunEvent::Exit is out (App#run).
+      @runtime_context.request_exit(RESTART_EXIT_CODE)
+      nil
+    rescue Error::Runtime
+      Tokra::Process.restart(env)
+    end
+
+    # Whether #restart or #request_restart asked the loop to restart the
+    # app as it ends, Tauri's <tt>restart_on_exit</tt> flag
+    # (manager/mod.rs:218).
+    def restart_on_exit? # :nodoc:
+      @restart_on_exit
     end
   end
 end

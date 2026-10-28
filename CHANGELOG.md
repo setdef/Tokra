@@ -66,7 +66,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   (close requested and destroyed), `RunEvent::ExitRequested`, and
   `RunEvent::Exit` through `Plugin#on_event`, before the run callback;
   `Exit` is emitted from the native loop's `Native::LoopDestroyedEvent`,
-  since tao's event loop never returns
+  since tao's event loop never returns, and a `Kernel#exit` in its handler
+  sets the process's exit status
 - Frontend `invoke` promises now resolve and reject: `App` evaluates Tauri's
   `runCallback` in the WebView, so `@tauri-apps/api` works end to end
 - `Tokra::Ipc::FormatCallback` formats invoke responses as callback scripts
@@ -221,6 +222,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   process ends with its code unless a handler prevents the exit, and it
   falls back to `Kernel.exit` once the loop has ended
 - `Tokra::RESTART_EXIT_CODE`; `prevent_exit` is ignored for it
+- `AppHandle#request_restart` asks to exit with `RESTART_EXIT_CODE` and,
+  after `RunEvent::Exit`, runs the app again in a new process and exits
+  with 0; `AppHandle#restart` does the same from another thread and never
+  returns, and on the main thread restarts at once without
+  `RunEvent::ExitRequested`
+- `Tokra::Env` and `Manager#env`: the interpreter, the absolute script
+  path, and the arguments the app started with, captured when Tokra loads
+- `Tokra::Process.current_binary` (the canonical Ruby interpreter, refused
+  on macOS when a symlink leads to it) and `Tokra::Process.restart`, which
+  refuses an app with no script file (`ruby -e`, standard input)
 - `WindowEvent::CloseRequested#api`, a `Tokra::CloseRequestApi`, whose
   `prevent_close` keeps the window open
 - `WindowEvent::Destroyed` is emitted once a closed window is gone

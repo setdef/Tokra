@@ -13,7 +13,7 @@ Pre-1.0, zero external users. Prefer good design over backward compatibility; re
 
 ## Design precedence
 
-1. **Ruby the language.** What Ruby can and cannot express. Rust constructs with no Ruby meaning (lifetimes, ownership, Cargo feature flags) are translated, not ported. A feature Tauri gates behind a Cargo feature is simply supported.
+1. **Ruby the language.** What Ruby can and cannot express. Rust constructs with no Ruby meaning (lifetimes, ownership, Cargo feature flags) are translated, not ported. A feature Tauri gates behind a Cargo feature is simply supported when it adds behavior; one that relaxes a safety default stays off, and is exposed only as a code-level opt-in named after the feature (ADR 011, amended 2026-10-28).
 2. **Tauri fidelity.** Names, class structure, error messages, wire formats, and behavior MUST match Tauri's Rust source. Do not invent "more Ruby-like" APIs.
 3. **Ruby culture.** Idioms yield to 1 and 2.
 
@@ -31,6 +31,7 @@ The authority is the pinned submodule `vendor/tauri` (`git submodule update --in
 
 - `Data.define` for value objects (`class Foo < Data.define(...)`), `class` for entities.
 - Every Ruby method has an RBS signature in `sig/` mirroring `lib/`. No `untyped`, no comments in `.rbs`. For `Data.define` classes, declare `self.new` instead of `initialize` (Steep mis-checks `initialize` there); plain classes declare `initialize` as usual.
+- Inside `module Tokra`, a bare `Process` names `Tokra::Process` (Tauri's `process` module), so `lib/` and plugin code write `::Process` or `Tokra::Process`; RuboCop's `Lint/ConstantResolution` and `test/tasks/test_top_level_constants.rb` enforce it (Plan 039, 2026-10-28).
 - RDoc (never YARD) in `.rb` files only. Wrap SPDX headers in `#--` / `#++`.
 - Architectural decisions get an ADR; plans live in `doc/contributors/plan/`.
 - `examples/` is documentation for app developers: small, focused, and copyable. Never put test hooks, probes, or fixtures there; those live under `test/`.

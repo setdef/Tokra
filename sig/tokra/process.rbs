@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Process
+    class StartingBinary
+      @error: String?
+      @path: String
+
+      def initialize: (String dangerous_path) -> void
+      def cloned: () -> String
+
+      private
+
+      def symlink_in: (String path) -> String?
+    end
+
+    STARTING_BINARY: StartingBinary
+
+    def self.current_binary: (Env _env) -> String
+    def self.restart: (Env env) -> bot
+  end
+end

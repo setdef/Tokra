@@ -8,6 +8,7 @@ module Tokra
     def manage: (Object state) -> bool
     def state: (Class klass) -> managed_state
     def try_state: (Class klass) -> managed_state?
+    def env: -> Env
     def get_window: (String label) -> Window?
     def get_webview: (String label) -> Webview?
     def windows: -> Hash[String, Window]

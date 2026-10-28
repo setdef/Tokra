@@ -111,6 +111,8 @@ module Tokra
       # Set by App#set_activation_policy, on macOS (activation_policy.rb).
       @activation_policy = nil
       @with_global_tauri = builder.__send__(:with_global_tauri?)
+      # Set when a requested restart ends the loop (#exit_requested).
+      @restart_pending = false
 
       # Register core plugins, mirroring Tauri app.rs (App::build)
       @handle.plugin(Resources::Plugin.new(@handle))
@@ -118,6 +120,8 @@ module Tokra
       # The channel-data queue and its fetch command (app.rs:2260-2261)
       @handle.manage(Ipc::ChannelDataIpcQueue.new)
       @handle.plugin(Ipc::Channel::Plugin.new(@handle))
+      # The command line a restart runs again (app.rs:2248-2249)
+      @handle.manage(Env.default)
       # Store class references to avoid dynamic constant lookups
       @event_loop_class = native.const_get(:EventLoop)
       @window_class = native.const_get(:Window)
@@ -361,8 +365,12 @@ module Tokra
         dispatch_webview_event(event)
       elsif event.is_a?(Native::LoopDestroyedEvent)
         # The runtime's loop-destroyed event becomes RunEvent::Exit
-        # (tauri-runtime-wry lib.rs:4046-4047, app.rs:1304-1305).
-        emit_run_event(RunEvent::Exit.new, callback)
+        # (tauri-runtime-wry lib.rs:4046-4047, app.rs:1304-1305). A
+        # handler that raises does not keep a requested restart from
+        # following it (app.rs:1306-1310); one that exits does, as
+        # process::exit would.
+        reporting { emit_run_event(RunEvent::Exit.new, callback) }
+        Tokra::Process.restart(env) if @restart_pending
       end
     end
 
@@ -947,7 +955,13 @@ module Tokra
     private def exit_requested(code, callback)
       api = ExitRequestApi.new(code)
       reporting { emit_run_event(RunEvent::ExitRequested.new(code:, api:), callback) }
-      !api.prevented?
+      ends = !api.prevented?
+      # The loop ends for a requested restart, so its end restarts the app
+      # (app.rs:1308-1310). A handler that exited instead, as restart on
+      # the main thread does, never gets here: in Tauri its process::exit
+      # ends the process before the Exit arm runs (Plan 039, decision 9).
+      @restart_pending = true if ends && code == RESTART_EXIT_CODE && @handle.restart_on_exit?
+      ends
     end
 
     # SPDX-SnippetEnd

@@ -3,9 +3,12 @@
 
 module Tokra
   class AppHandle
+    include Manager
+
     @manager: AppManager
     @state_manager: StateManager?
     @runtime_context: RuntimeContext
+    @restart_on_exit: bool
     @path: Path::Resolver?
     @resources_table: ResourceTable?
 
@@ -27,6 +30,9 @@ module Tokra
     def remove_plugin: (String name) -> bool
     def emit: (String event_name, ::_ToJson payload) -> void
     def exit: (?Integer code) -> nil
+    def restart: () -> bot
+    def request_restart: () -> nil
+    def restart_on_exit?: () -> bool
     def path: -> Path::Resolver
 
     private
