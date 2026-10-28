@@ -6,25 +6,27 @@
 #++
 
 # Fixture for context_menu_test.rb: real context menus (plan 042, phase
-# 3), on Linux and Windows only. On macOS a context menu is modal: it
-# shows on screen and takes the keyboard while it tracks, so this fixture
-# refuses to run there.
+# 3), on every platform.
 #
 # It pops up a menu at a position from a background thread, then a
 # submenu at the pointer from the main thread. While each tracks, a timer
 # on the main thread finds the platform's menu and reads its items and
 # position, and a second Ruby thread, which runs only if the popup let go
-# of the GVL, counts ticks and then closes the menu: on Linux by choosing
-# an item of the first (gtk_menu_shell_activate_item) and cancelling the
-# second, on Windows by posting WM_CANCELMODE. A fallback timer closes a
-# menu that thread never reached, which a popup holding the GVL would
-# cause. It prints REPORT <json> and exits.
+# of the GVL, counts ticks and then closes the menu: on macOS by choosing
+# an item of the first (-[NSMenu performActionForItemAtIndex:], sent
+# through GCD's main queue) and cancelling each (-[NSMenu
+# cancelTracking]), on Linux by choosing an item of the first
+# (gtk_menu_shell_activate_item) and cancelling the second, on Windows by
+# posting WM_CANCELMODE. A fallback timer closes a menu that thread never
+# reached, which a popup holding the GVL would cause. It prints REPORT
+# <json> and exits.
+#
+# On macOS the app keeps the Prohibited activation policy: AppKit shows
+# and tracks the menu without activating the app, so it never takes the
+# keyboard, and the menu closes without a click or a key. It does show on
+# screen for a moment.
 #
 #   bundle exec ruby test/integration/fixtures/context_menu/app.rb
-
-if RbConfig::CONFIG["host_os"].include?("darwin")
-  abort "a macOS context menu is modal and takes the keyboard; this fixture never shows one there"
-end
 
 require_relative "../../support/fixture_app"
 require_relative "../../support/platform_popup"
@@ -39,8 +41,8 @@ module ContextMenuFixture
 
   # Shows a context menu with +show+, which returns once it closes, and
   # reports what happened while it tracked. +labels+ are the items the
-  # platform should hold; +choose+ is the item to choose on Linux, or
-  # +nil+ to cancel.
+  # platform should hold; +choose+ is the item to choose on macOS and
+  # Linux, or +nil+ to cancel.
   def self.track(handle, window, labels:, choose: nil, hmenu: nil, &show)
     shown = Thread::Queue.new
     seen = {}
@@ -49,7 +51,9 @@ module ContextMenuFixture
     # Read before the popup: the handle is a getter the main thread
     # answers, and the main thread is busy while a menu tracks.
     hwnd = (Tokra::Menu.os == :windows) ? window.window_handle.hwnd : nil
+    place = (Tokra::Menu.os == :macos) ? [window.inner_position, window.scale_factor] : nil
     on_main(handle) do
+      PlatformPopup::Appkit.observe if Tokra::Menu.os == :macos
       PlatformPopup.every(window, 50) do
         next false if done
 
@@ -57,7 +61,7 @@ module ContextMenuFixture
         next true unless menu
 
         seen["labels"] = PlatformPopup.labels(menu, hmenu)
-        seen["offset"] = PlatformPopup.offset(window, menu, TITLE)
+        seen["offset"] = PlatformPopup.offset(window, menu, TITLE, place)
         shown << menu
         false
       end
@@ -96,13 +100,31 @@ module ContextMenuFixture
     seen.merge("dismissed_by" => dismissed_by.pop(timeout: 1))
   end
 
-  # Closes +menu+: chooses +choose+ or cancels on Linux, through GTK on
-  # the main thread; cancels on Windows, by a message any thread may post
-  # or by EndMenu on the main thread.
+  # Closes +menu+: on macOS chooses +choose+, if given, and cancels,
+  # through AppKit on the main thread; chooses +choose+ or cancels on
+  # Linux, through GTK on the main thread; cancels on Windows, by a
+  # message any thread may post or by EndMenu on the main thread.
   def self.close(menu, hwnd, choose, on_main:)
-    if Tokra::Menu.os == :windows
+    case Tokra::Menu.os
+    when :macos then close_appkit(menu, choose, on_main:)
+    when :windows
       on_main ? PlatformPopup::Win32.end_menu : PlatformPopup::Win32.cancel(hwnd)
-    elsif on_main
+    else close_gtk(menu, choose, on_main:)
+    end
+  end
+
+  def self.close_appkit(menu, choose, on_main:)
+    return unless menu
+    return PlatformPopup::Appkit.cancel(menu) if on_main
+
+    PlatformPopup::Appkit.on_main_queue do
+      PlatformPopup::Appkit.activate(menu, choose) if choose
+      PlatformPopup::Appkit.cancel(menu)
+    end
+  end
+
+  def self.close_gtk(menu, choose, on_main:)
+    if on_main
       menu && PlatformPopup::Gtk.cancel(menu)
     else
       PlatformPopup::Gtk.every(0) do

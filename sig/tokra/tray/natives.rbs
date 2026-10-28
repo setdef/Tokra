@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Native
+    class TrayIcon
+      type attribute = Native::Menu | Native::Submenu | Icon | String | bool | nil
+      type rect = [Integer, Integer, Integer, Integer]
+
+      class Icon
+        def self.from_rgba: (String rgba, Integer width, Integer height) -> Icon
+      end
+
+      def self.new: (String id, Hash[String, attribute] attributes) -> TrayIcon
+      def self.next_id: () -> String
+      def id: () -> String
+      def set_icon: (Icon? icon) -> nil
+      def set_menu: ((Native::Menu | Native::Submenu)? menu) -> nil
+      def set_tooltip: (String? tooltip) -> nil
+      def set_title: (String? title) -> nil
+      def set_visible: (bool visible) -> nil
+      def rect: () -> rect?
+      def remove: () -> nil
+      def removed?: () -> bool
+    end
+
+    class TrayIconEvent < Data
+      attr_reader kind: String
+      attr_reader id: String
+      attr_reader position: [Float, Float]
+      attr_reader rect: TrayIcon::rect
+      attr_reader button: String?
+      attr_reader button_state: String?
+
+      def self.new: (String kind, String id, [Float, Float] position, TrayIcon::rect rect, String? button,
+                     String? button_state) -> TrayIconEvent
+                  | (kind: String, id: String, position: [Float, Float], rect: TrayIcon::rect, button: String?,
+                     button_state: String?) -> TrayIconEvent
+    end
+  end
+end

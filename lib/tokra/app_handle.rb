@@ -21,17 +21,24 @@ module Tokra
     # Creates a new AppHandle with the given AppManager.
     #
     # This is called internally by App and should not be called directly.
-    def initialize(manager, state_manager: nil, runtime_context: RuntimeContext.new, menu_event_listeners: []) # :nodoc:
+    def initialize(manager, state_manager: nil, runtime_context: RuntimeContext.new, menu_event_listeners: [], # :nodoc:
+      tray_icon_event_listeners: []
+    )
       @manager = manager
       @state_manager = state_manager
       @runtime_context = runtime_context
       @restart_on_exit = false
       @menu_manager = MenuManager.new(runtime_context, menu_event_listeners)
+      @tray_manager = TrayManager.new(tray_icon_event_listeners)
     end
 
     # The app's menus and their listeners, which Tauri's AppManager holds
     # (manager/menu.rs).
     attr_reader :menu_manager # :nodoc:
+
+    # The app's tray icons and their listeners, which Tauri's AppManager
+    # holds (manager/tray.rs).
+    attr_reader :tray_manager # :nodoc:
 
     private attr_reader :manager
 
@@ -341,6 +348,7 @@ module Tokra
     def exit(code = 0)
       @runtime_context.request_exit(code)
     rescue Error::Runtime
+      cleanup_trays
       Kernel.exit(code)
     end
 
@@ -368,6 +376,7 @@ module Tokra
       if @runtime_context.main_thread?
         # The process ends here, so the loop's end must not restart it again.
         @restart_on_exit = false
+        cleanup_trays
         Tokra::Process.restart(env)
       end
 
@@ -376,6 +385,7 @@ module Tokra
       begin
         @runtime_context.request_exit(RESTART_EXIT_CODE)
       rescue Error::Runtime
+        cleanup_trays
         Tokra::Process.restart(env)
       end
       loop { sleep }
@@ -404,6 +414,7 @@ module Tokra
       @runtime_context.request_exit(RESTART_EXIT_CODE)
       nil
     rescue Error::Runtime
+      cleanup_trays
       Tokra::Process.restart(env)
     end
 
@@ -550,6 +561,59 @@ module Tokra
       rescue Error
         nil
       end
+    end
+
+    # SPDX-SnippetEnd
+
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: The app's tray icons adapted from tauri/crates/tauri/src/app.rs
+
+    # Calls the block with this handle and each Tray::TrayIconEvent, from
+    # any of the app's trays, and returns +nil+.
+    #
+    # Each block hears every event, in the order the blocks came, before
+    # the tray's own Tray::TrayIcon#on_tray_icon_event block and before
+    # the run callback hears it as RunEvent::TrayIconEvent. The blocks run
+    # on the main thread.
+    #
+    # Mirrors Tauri's on_tray_icon_event (app.rs:741-749).
+    #
+    # === Example
+    #
+    #   handle.on_tray_icon_event { |handle, event| handle.tray_by_id(event.id)&.set_visible(false) }
+    def on_tray_icon_event(&handler)
+      @tray_manager.on_tray_icon_event(handler)
+    end
+
+    # The tray with +id+, a String or Tray::TrayIconId, or +nil+.
+    #
+    # Mirrors Tauri's tray_by_id (app.rs:751-760).
+    def tray_by_id(id)
+      @tray_manager.tray_by_id(self, id)
+    end
+
+    # Takes the tray with +id+ off the system tray and out of the app, and
+    # returns it, or +nil+ when the app has none with that id. The
+    # returned tray does nothing any more (plan 043, decision 6).
+    #
+    # Mirrors Tauri's remove_tray_by_id (app.rs:762-774), where dropping
+    # the returned tray takes it off the system tray.
+    #
+    # === Example
+    #
+    #   handle.remove_tray_by_id("main")
+    def remove_tray_by_id(id)
+      @tray_manager.remove_tray_by_id(self, id)
+    end
+
+    # Takes every tray off the system tray, as Tauri's cleanup_before_exit
+    # does by dropping them before the process ends (app.rs:1026-1028;
+    # plan 043, decision 7). A tray that fails to close is skipped: the
+    # app is ending.
+    def cleanup_trays # :nodoc:
+      @tray_manager.close_all(self)
     end
 
     # SPDX-SnippetEnd

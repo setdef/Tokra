@@ -26,6 +26,8 @@ module StubNative
     Thread.current[:stub_native_event_loop_calls] = nil
     Thread.current[:stub_native_exit_code] = nil
     Thread.current[:stub_native_nsapp_calls] = nil
+    Thread.current[:stub_native_trays] = nil
+    Thread.current[:stub_native_tray_failure] = nil
   end
 
   # The status the loop ended with: the code of the exit request the App
@@ -99,6 +101,70 @@ module StubNative
 
     def self.set_help_menu_for_nsapp(submenu)
       nsapp_calls << [:set_help_menu_for_nsapp, submenu.id]
+      nil
+    end
+  end
+
+  # A tray-icon tray that records each call as <tt>[name, argument, main
+  # thread?]</tt> (plan 043, Verification): a real status item would make
+  # AppKit's NSApplication before tao's in this process. Its icon class is
+  # the real one, which is plain data. The platform's own setters exist
+  # only where Native::TrayIcon has them, so respond_to? answers as the
+  # real class does.
+  class TrayIcon
+    Icon = Tokra::Native::TrayIcon::Icon
+
+    # The trays built on this thread, in order.
+    def self.instances
+      Thread.current[:stub_native_trays] ||= []
+    end
+
+    # The message the next build raises as a RuntimeError, as tray-icon's
+    # errors reach Ruby, or +nil+.
+    def self.fail_next=(message)
+      Thread.current[:stub_native_tray_failure] = message
+    end
+
+    def self.new(id, attributes)
+      message = Thread.current[:stub_native_tray_failure]
+      Thread.current[:stub_native_tray_failure] = nil
+      raise message if message
+
+      super.tap { |tray| instances << tray }
+    end
+
+    attr_reader :id, :attributes, :calls
+
+    def initialize(id, attributes)
+      @id = id
+      @attributes = attributes
+      @main_thread = Thread.current == Thread.main
+      @calls = []
+      @removed = false
+    end
+
+    # Whether the tray was built on the main thread.
+    def built_on_main_thread? = @main_thread
+
+    def removed? = @removed
+
+    def remove
+      @removed = true
+      record(:remove, nil)
+    end
+
+    def rect = @removed ? nil : [10, 20, 22, 24]
+
+    %i[set_icon set_menu set_tooltip set_title set_visible].each do |name|
+      define_method(name) { |value| record(name, value) }
+    end
+
+    %i[set_temp_dir_path set_icon_as_template set_show_menu_on_left_click].each do |name|
+      define_method(name) { |value| record(name, value) } if Tokra::Native::TrayIcon.method_defined?(name)
+    end
+
+    private def record(name, value)
+      @calls << [name, value, Thread.current == Thread.main] unless @removed && name != :remove
       nil
     end
   end
@@ -495,6 +561,7 @@ module StubWindowMenusNative
   PredefinedMenuItem = StubNative::PredefinedMenuItem
   IconMenuItem = StubNative::IconMenuItem
   MenuIcon = StubNative::MenuIcon
+  TrayIcon = StubNative::TrayIcon
 
   class Window < StubNative::Window
     include StubNative::WindowMenus

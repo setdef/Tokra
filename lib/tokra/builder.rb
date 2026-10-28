@@ -29,6 +29,7 @@ module Tokra
       @window_event_listeners = []
       @webview_event_listeners = []
       @menu_event_listeners = []
+      @tray_icon_event_listeners = []
       @menu_hook = nil
       @enable_macos_default_menu = true
       @state_manager = StateManager.new
@@ -194,6 +195,29 @@ module Tokra
       self
     end
 
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: on_tray_icon_event adapted from tauri/crates/tauri/src/app.rs
+
+    # Adds a block that hears each event of any tray icon, with the
+    # AppHandle and a Tray::TrayIconEvent, as AppHandle#on_tray_icon_event
+    # adds one. The block must be Ractor-shareable (use
+    # +Ractor.shareable_proc+).
+    #
+    # Mirrors Tauri's Builder::on_tray_icon_event (app.rs:1859-1879).
+    #
+    # === Example
+    #
+    #   Tokra::Builder.default.on_tray_icon_event(&Ractor.shareable_proc { |app, event| puts event.id })
+    def on_tray_icon_event(&block)
+      require_shareable!(block, "on_tray_icon_event")
+      @tray_icon_event_listeners << block
+      self
+    end
+
+    # SPDX-SnippetEnd
+
     # Whether an app that sets no #menu gets Menu::Menu.default on macOS,
     # as it does unless told otherwise. Elsewhere such an app has no menu.
     #
@@ -271,7 +295,7 @@ module Tokra
     private attr_reader :state_manager, :invoke_handler_hook, :uri_scheme_protocols, # :nodoc:
       :async_uri_scheme_protocols, :setup_hook, :on_page_load_hook,
       :window_event_listeners, :webview_event_listeners, :rack_app, :window_config,
-      :menu_hook, :menu_event_listeners
+      :menu_hook, :menu_event_listeners, :tray_icon_event_listeners
 
     # Whether an app with no menu gets the default one on macOS (friendly
     # reader; a predicate so it does not collide with the setter).

@@ -1,0 +1,138 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Tray
+    class TrayIconId < Data
+      attr_reader value: String
+
+      def self.new: (String value) -> TrayIconId
+                  | (value: String) -> TrayIconId
+      def self.from: (TrayIconId | String | Symbol id) -> TrayIconId
+      def ==: (Object other) -> bool
+      def to_s: () -> String
+      def to_json: (*JSON::State state) -> String
+    end
+
+    class MouseButton < Data
+      extend ClosedEnum
+      include ClosedEnum::With
+
+      attr_reader name: String
+
+      private def self.new: (name: String) -> MouseButton
+
+      Left: MouseButton
+      Right: MouseButton
+      Middle: MouseButton
+
+      def to_json: (*JSON::State state) -> String
+    end
+
+    class MouseButtonState < Data
+      extend ClosedEnum
+      include ClosedEnum::With
+
+      attr_reader name: String
+
+      private def self.new: (name: String) -> MouseButtonState
+
+      Up: MouseButtonState
+      Down: MouseButtonState
+
+      def to_json: (*JSON::State state) -> String
+    end
+
+    module TrayIconEvent
+      type event = Click | DoubleClick | Enter | Move | Leave
+      module Base : _Event
+        def to_json: (*JSON::State state) -> String
+
+        private
+
+        def json_with: (Hash[String, json_value] fields) -> Hash[String, json_value]
+      end
+
+      interface _Event
+        def id: () -> TrayIconId
+        def position: () -> PhysicalPosition
+        def rect: () -> Rect
+        def as_json: () -> Hash[String, json_value]
+      end
+
+      class Click < Data
+        include Base
+
+        attr_reader id: TrayIconId
+        attr_reader position: PhysicalPosition
+        attr_reader rect: Rect
+        attr_reader button: MouseButton
+        attr_reader button_state: MouseButtonState
+
+        def self.new: (id: TrayIconId, position: PhysicalPosition, rect: Rect, button: MouseButton,
+                       button_state: MouseButtonState) -> Click
+        def as_json: () -> Hash[String, json_value]
+      end
+
+      class DoubleClick < Data
+        include Base
+
+        attr_reader id: TrayIconId
+        attr_reader position: PhysicalPosition
+        attr_reader rect: Rect
+        attr_reader button: MouseButton
+
+        def self.new: (id: TrayIconId, position: PhysicalPosition, rect: Rect, button: MouseButton) -> DoubleClick
+        def as_json: () -> Hash[String, json_value]
+      end
+
+      class Enter < Data
+        include Base
+
+        attr_reader id: TrayIconId
+        attr_reader position: PhysicalPosition
+        attr_reader rect: Rect
+
+        def self.new: (id: TrayIconId, position: PhysicalPosition, rect: Rect) -> Enter
+        def as_json: () -> Hash[String, json_value]
+      end
+
+      class Move < Data
+        include Base
+
+        attr_reader id: TrayIconId
+        attr_reader position: PhysicalPosition
+        attr_reader rect: Rect
+
+        def self.new: (id: TrayIconId, position: PhysicalPosition, rect: Rect) -> Move
+        def as_json: () -> Hash[String, json_value]
+      end
+
+      class Leave < Data
+        include Base
+
+        attr_reader id: TrayIconId
+        attr_reader position: PhysicalPosition
+        attr_reader rect: Rect
+
+        def self.new: (id: TrayIconId, position: PhysicalPosition, rect: Rect) -> Leave
+        def as_json: () -> Hash[String, json_value]
+      end
+
+      def self.from_native: (Native::TrayIconEvent native) -> event
+    end
+
+    class Natives < Data
+      attr_reader tray_icon: singleton(Native::TrayIcon)
+
+      def self.new: (tray_icon: singleton(Native::TrayIcon)) -> Natives
+      def self.from: (Module native) -> Natives
+    end
+
+    def self.run_main_thread: [T] (Manager manager) { () -> T } -> T
+    def self.natives: (Manager manager) -> Natives
+    def self.tray_icon: (Image image) -> Native::TrayIcon::Icon
+    def self.native_menu: (Menu::Menu | Menu::Submenu menu) -> (Native::Menu | Native::Submenu)
+    def self.refuse_unbuildable_menu: (Manager manager, (Native::Menu | Native::Submenu)? native_menu) -> nil
+  end
+end

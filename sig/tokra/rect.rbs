@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class Rect < Data
+    type position = PhysicalPosition | LogicalPosition
+    type size = PhysicalSize | LogicalSize
+
+    attr_reader position: position
+    attr_reader size: size
+
+    def self.new: (position position, size size) -> Rect
+                | (position: position, size: size) -> Rect
+    def to_json: (*JSON::State state) -> String
+    def as_json: () -> Hash[String, json_value]
+
+    private
+
+    def tag: (position | size value) -> String
+  end
+end

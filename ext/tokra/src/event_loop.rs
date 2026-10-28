@@ -76,6 +76,8 @@ impl RbEventLoop {
         // Menu events and released menus go to this loop (plan 042,
         // decision 5).
         crate::menu::attach_loop(proxy.clone());
+        // Tray events too, beside the menu's (plan 043, decision 4).
+        crate::tray::attach_loop();
 
         Ok(Self {
             inner: ThreadBound::new(RefCell::new(Some(event_loop))),
@@ -456,6 +458,22 @@ impl Turn<'_> {
             UserEvent::MenuEvent(id) => {
                 // Data.define; the App calls the menu event's listeners.
                 self.deliver("::Tokra::Native::MenuEvent", (id,));
+            }
+            UserEvent::TrayIconEvent(event) => {
+                // Data.define(:kind, :id, :position, :rect, :button,
+                // :button_state); the App calls the tray's listeners.
+                let crate::tray::TrayEvent {
+                    kind,
+                    id,
+                    position,
+                    rect,
+                    button,
+                    button_state,
+                } = *event;
+                self.deliver(
+                    "::Tokra::Native::TrayIconEvent",
+                    (kind, id, position, rect, button, button_state),
+                );
             }
             // SPDX-SnippetBegin
             // SPDX-License-Identifier: Apache-2.0 OR MIT

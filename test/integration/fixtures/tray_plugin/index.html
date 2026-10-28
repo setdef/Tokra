@@ -1,0 +1,74 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>tray plugin</title>
+  <script src="/harness.js"></script>
+</head>
+<body>
+  <ol id="checks"></ol>
+  <script>
+    const { TrayIcon } = window.__TAURI__.tray;
+    const { Menu } = window.__TAURI__.menu;
+    const { Image } = window.__TAURI__.image;
+    const { PhysicalPosition, PhysicalSize } = window.__TAURI__.dpi;
+    const { invoke } = window.__TAURI__.core;
+    const { check, finish, withTimeout } = window.fixture;
+    const read = () => invoke('plugin:tray-fixture|read');
+
+    (async () => {
+      await check('a tray the page builds, changes, and closes', async () => {
+        const os = await invoke('plugin:tray-fixture|os');
+        const events = [];
+        let heardAll;
+        const expected = { macos: 3, windows: 4, linux: 0 }[os];
+        const allHeard = new Promise((resolve) => { heardAll = resolve; });
+        if (expected === 0) heardAll();
+        const image = await Image.new(new Uint8Array(16 * 16 * 4).fill(200), 16, 16);
+        const menu = await Menu.new({ id: 'js-tray-menu', items: [{ id: 'js-tray-open', text: 'Open' }] });
+        const tray = await TrayIcon.new({
+          id: 'js-tray', icon: image, tooltip: 'JS Tip', title: 'JS Title', menu,
+          tempDirPath: await invoke('plugin:tray-fixture|dir'),
+          action: (event) => { events.push(event); if (events.length === expected) heardAll(); },
+        });
+        const built = await read();
+        const found = await TrayIcon.getById('js-tray');
+        await tray.setTooltip('JS Changed');
+        await tray.setTitle('JS Changed Title');
+        await tray.setIcon(null);
+        const changed = await read();
+        await tray.setIcon(image);
+        await tray.setMenu(null);
+        await tray.setMenu(menu);
+        await tray.setVisible(false);
+        const hidden = await read();
+        await tray.setVisible(true);
+        await tray.setIconAsTemplate(false);
+        await tray.setShowMenuOnLeftClick(false);
+        const sent = await invoke('plugin:tray-fixture|dispatch',
+          { kinds: ['enter', 'move', 'leave', 'click_down', 'click_up', 'double_click'] });
+        await withTimeout(allHeard, 5000, 'the tray events');
+        const shapes = events.map((e) => [e.type, e.id, e.position instanceof PhysicalPosition,
+          e.rect.position instanceof PhysicalPosition, e.rect.size instanceof PhysicalSize, e.button ?? null,
+          e.buttonState ?? null]);
+        await tray.close();
+        const closed = await read();
+        const foundAfter = await TrayIcon.getById('js-tray');
+        let removeError = null;
+        try { await TrayIcon.removeById('js-tray'); } catch (e) { removeError = String(e); }
+        return {
+          pass: found !== null && found.id === 'js-tray' && foundAfter === null && sent.length === expected,
+          detail: { os, built, changed, hidden, sent, shapes, closed, removeError, id: tray.id },
+        };
+      });
+
+      finish();
+    })();
+  </script>
+</body>
+</html>

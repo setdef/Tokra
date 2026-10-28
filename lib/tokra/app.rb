@@ -151,7 +151,8 @@ module Tokra
       # attaches the event loop, which makes the running thread the main one.
       @runtime_context = RuntimeContext.new(native:)
       @handle = AppHandle.new(@manager, state_manager: builder.__send__(:state_manager),
-        runtime_context: @runtime_context, menu_event_listeners: builder.__send__(:menu_event_listeners))
+        runtime_context: @runtime_context, menu_event_listeners: builder.__send__(:menu_event_listeners),
+        tray_icon_event_listeners: builder.__send__(:tray_icon_event_listeners))
       @builder = builder
       # Set by App#set_activation_policy, on macOS (activation_policy.rb).
       @activation_policy = nil
@@ -167,6 +168,8 @@ module Tokra
       @handle.plugin(Ipc::Channel::Plugin.new(@handle))
       # The menu commands the JavaScript API calls (app.rs:2262-2263)
       @handle.plugin(Menu::Plugin.new(@handle))
+      # The tray commands the JavaScript API calls (app.rs:1132-1133)
+      @handle.plugin(Tray::Plugin.new(@handle))
       # The command line a restart runs again (app.rs:2248-2249)
       @handle.manage(Env.default)
       # Store class references to avoid dynamic constant lookups
@@ -295,6 +298,24 @@ module Tokra
       @handle.set_menu(menu)
     end
 
+    # Calls the block with the AppHandle and each Tray::TrayIconEvent, as
+    # AppHandle#on_tray_icon_event does.
+    #
+    # Mirrors Tauri's App::on_tray_icon_event (app.rs:741-749).
+    def on_tray_icon_event(&)
+      @handle.on_tray_icon_event(&)
+    end
+
+    # The tray with +id+, or +nil+, as AppHandle#tray_by_id answers.
+    def tray_by_id(id)
+      @handle.tray_by_id(id)
+    end
+
+    # Takes the tray with +id+ away, as AppHandle#remove_tray_by_id does.
+    def remove_tray_by_id(id)
+      @handle.remove_tray_by_id(id)
+    end
+
     # Takes the app's menu away, as AppHandle#remove_menu does.
     def remove_menu
       @handle.remove_menu
@@ -359,6 +380,22 @@ module Tokra
         listener.call(window, event) if window
       end
       emit_run_event(RunEvent::MenuEvent.new(event:), callback)
+    end
+
+    # Calls the app's tray listeners, then the listener of the tray the
+    # event names, if the app still has it, then plugins and the run
+    # callback with RunEvent::TrayIconEvent (app.rs:2453-2472, 2488-2494).
+    private def dispatch_tray_icon_event(native_event, callback)
+      event = Tray::TrayIconEvent.from_native(native_event)
+      trays = @handle.tray_manager
+      trays.global_event_listeners.each { |listener| listener.call(@handle, event) }
+      trays.event_listeners.each do |id, listener|
+        next unless event.id == id
+
+        tray = @handle.tray_by_id(id)
+        listener.call(tray, event) if tray
+      end
+      emit_run_event(RunEvent::TrayIconEvent.new(event:), callback)
     end
 
     # SPDX-SnippetEnd
@@ -517,6 +554,8 @@ module Tokra
         dispatch_webview_event(event)
       elsif event.is_a?(Native::MenuEvent)
         dispatch_menu_event(event, callback)
+      elsif event.is_a?(Native::TrayIconEvent)
+        dispatch_tray_icon_event(event, callback)
       elsif event.is_a?(Native::LoopDestroyedEvent)
         # The runtime's loop-destroyed event becomes RunEvent::Exit
         # (tauri-runtime-wry lib.rs:4046-4047, app.rs:1304-1305). A
@@ -524,6 +563,9 @@ module Tokra
         # following it (app.rs:1306-1310); one that exits does, as
         # process::exit would.
         reporting { emit_run_event(RunEvent::Exit.new, callback) }
+        # Tauri's cleanup_before_exit drops every tray here (app.rs:1303-1307;
+        # plan 043, decision 7).
+        reporting { @handle.cleanup_trays }
         Tokra::Process.restart(env) if @restart_pending
       end
     end

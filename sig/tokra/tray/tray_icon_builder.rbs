@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Tray
+    class TrayIconBuilder
+      type attribute = Native::Menu | Native::Submenu | Native::TrayIcon::Icon | String | bool | nil
+
+      @id: TrayIconId
+      @menu: (Native::Menu | Native::Submenu)?
+      @icon: Native::TrayIcon::Icon?
+      @tooltip: String?
+      @title: String?
+      @temp_dir_path: String?
+      @icon_as_template: bool
+      @menu_on_left_click: bool
+      @on_menu_event: MenuManager::app_listener?
+      @on_tray_icon_event: TrayIcon::listener?
+
+      def self.with_id: (TrayIconId | String | Symbol id) -> TrayIconBuilder
+      def initialize: () -> void
+      attr_reader id: TrayIconId
+      def menu: (Menu::Menu | Menu::Submenu menu) -> self
+      def icon: (Image icon) -> self
+      def tooltip: (String tooltip) -> self
+      def title: (String title) -> self
+      def temp_dir_path: (String | _ToPath path) -> self
+      def icon_as_template: (bool is_template) -> self
+      def menu_on_left_click: (bool enable) -> self
+      def show_menu_on_left_click: (bool enable) -> self
+      def on_menu_event: () { (AppHandle, Menu::MenuEvent) -> void } -> self
+      def on_tray_icon_event: () { (TrayIcon, TrayIconEvent::event) -> void } -> self
+      def build: (Manager manager) -> TrayIcon
+      def build_inner: (AppHandle app_handle) -> [TrayIcon, Integer]
+
+      private
+
+      attr_writer id: TrayIconId
+    end
+  end
+end

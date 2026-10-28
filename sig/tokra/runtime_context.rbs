@@ -18,9 +18,11 @@ module Tokra
     @window_target: Native::EventLoop?
     @native: Module
     @menu_natives: Menu::Natives?
+    @tray_natives: Tray::Natives?
 
     def initialize: (?main_thread: Thread, ?native: Module) -> void
     def menu_natives: () -> Menu::Natives
+    def tray_natives: () -> Tray::Natives
     def run_main_thread: [T] () { () -> T } -> T
     attr_accessor window_target: Native::EventLoop?
     def main_thread?: () -> bool

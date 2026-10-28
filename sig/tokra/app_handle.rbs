@@ -13,10 +13,17 @@ module Tokra
     @resources_table: ResourceTable?
 
     @menu_manager: MenuManager
+    @tray_manager: TrayManager
 
     def initialize: (AppManager manager, ?state_manager: StateManager?, ?runtime_context: RuntimeContext,
-                     ?menu_event_listeners: Array[MenuManager::app_listener]) -> void
+                     ?menu_event_listeners: Array[MenuManager::app_listener],
+                     ?tray_icon_event_listeners: Array[TrayManager::app_listener]) -> void
     attr_reader menu_manager: MenuManager
+    attr_reader tray_manager: TrayManager
+    def on_tray_icon_event: () { (AppHandle, Tray::TrayIconEvent::event) -> void } -> nil
+    def tray_by_id: (Tray::TrayIconId | String id) -> Tray::TrayIcon?
+    def remove_tray_by_id: (Tray::TrayIconId | String id) -> Tray::TrayIcon?
+    def cleanup_trays: () -> nil
     def on_menu_event: () { (AppHandle, Menu::MenuEvent) -> void } -> nil
     def menu: () -> Menu::Menu?
     def set_menu: (Menu::Menu menu) -> Menu::Menu?

@@ -32,6 +32,11 @@ image = { version = "0.25", default-features = false, features = ["ico", "png"] 
 # Tauri's linux-libxdo (Cargo.toml:199), built in as an additive feature.
 # common-controls-v6 stays off; plan 042, decision 2, says why.
 muda = { version = "=0.17.1", default-features = false, features = ["gtk", "libxdo"] }
+# Tray icons (plan 043): the version Tauri locks (vendor/tauri Cargo.lock),
+# which depends on the same muda 0.17, with the features
+# crates/tauri/Cargo.toml:93-95 and :199 enable but serde (Ruby owns the
+# event's wire format) and common-controls-v6 (decision 2 of plan 042).
+tray-icon = { version = "=0.21.0", default-features = false, features = ["libxdo"] }
 
 # A window's -[NSWindow windowNumber], for its AppKit handle (raw_handle.rs,
 # plan 035); -[NSWindow center], a screen's visible frame, and a webview's
@@ -48,6 +53,12 @@ objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std"
 # tauri-runtime-wry reads it. tao already locks this version.
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies]
 gtk = "0.18.2"
+
+# Whether an AppIndicator library loads, before tray-icon's
+# libappindicator-sys panics when none does (plan 043, decision 8): the
+# version libappindicator-sys 0.9.0 locks, which tray-icon uses on Linux.
+[target.'cfg(target_os = "linux")'.dependencies]
+libloading = "0.7.4"
 
 # A monitor's work area and a decorated window's frame bounds
 # (window_state.rs, plan 040), as tauri-runtime-wry reads them; a window's

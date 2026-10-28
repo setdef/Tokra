@@ -44,6 +44,9 @@ module Tokra
     def run: () { (AppHandle, run_event) -> void } -> void
          | () -> void
     def on_menu_event: () { (AppHandle, Menu::MenuEvent) -> void } -> nil
+    def on_tray_icon_event: () { (AppHandle, Tray::TrayIconEvent::event) -> void } -> nil
+    def tray_by_id: (Tray::TrayIconId | String id) -> Tray::TrayIcon?
+    def remove_tray_by_id: (Tray::TrayIconId | String id) -> Tray::TrayIcon?
     def menu: () -> Menu::Menu?
     def set_menu: (Menu::Menu menu) -> Menu::Menu?
     def remove_menu: () -> Menu::Menu?
@@ -61,6 +64,7 @@ module Tokra
     def install_app_menu: () -> void
     def prepare_window_menu: (Native::Window native_window) -> Window::WindowMenu?
     def dispatch_menu_event: (Native::MenuEvent native_event, (^(AppHandle, run_event) -> void)? callback) -> void
+    def dispatch_tray_icon_event: (Native::TrayIconEvent native_event, (^(AppHandle, run_event) -> void)? callback) -> void
     def emit_run_event: (run_event event, (^(AppHandle, run_event) -> void)? callback) -> void
     def build_ipc_responder: (json_value callback, json_value error, ?can_use_channel: bool) -> ipc_responder?
     def can_use_channel_for_response?: (String cmd, json_value options) -> bool

@@ -1,0 +1,58 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Tray
+    class Plugin < Tokra::Plugin
+      type menu_tuple = [Integer, String]
+
+      class Rejection < StandardError
+      end
+
+      OPTION_FIELDS: Array[String]
+
+      class Options < Data
+        attr_reader id: String?
+        attr_reader menu: menu_tuple?
+        attr_reader icon: JsImage?
+        attr_reader tooltip: String?
+        attr_reader title: String?
+        attr_reader temp_dir_path: String?
+        attr_reader icon_as_template: bool?
+        attr_reader menu_on_left_click: bool?
+        attr_reader show_menu_on_left_click: bool?
+
+        def self.new: (id: String?, menu: menu_tuple?, icon: JsImage?, tooltip: String?, title: String?,
+                       temp_dir_path: String?, icon_as_template: bool?, menu_on_left_click: bool?,
+                       show_menu_on_left_click: bool?) -> Options
+      end
+
+      def name: () -> String
+      def extend_api: (Ipc::Invoke invoke) -> bool
+
+      private
+
+      def new_tray: (Ipc::Invoke invoke) -> [Integer, String]
+      def send_event: (Ipc::Channel handler, TrayIconEvent::event event) -> nil
+      def remove_by_id: (Ipc::Invoke invoke) -> nil
+      def set_icon: (Ipc::Invoke invoke) -> nil
+      def set_menu: (Ipc::Invoke invoke) -> nil
+      def set_temp_dir_path: (Ipc::Invoke invoke) -> nil
+      def with_text: (Ipc::Invoke invoke, String key) { (TrayIcon, String?) -> nil } -> nil
+      def with_flag: (Ipc::Invoke invoke, String key) { (TrayIcon, bool) -> nil } -> nil
+      def tray: (Integer rid) -> TrayIcon
+      def menu_or_submenu: (ResourceTable table, Integer rid, String kind) -> (Menu::Menu | Menu::Submenu)
+      def argument: (Ipc::Invoke invoke, String key) -> Ipc::CommandItem
+      def rid_arg: (Ipc::Invoke invoke) -> Integer
+      def id_arg: (Ipc::Invoke invoke) -> String
+      def mismatch: (String message) -> Ipc::CommandItem::Mismatch
+      def string: (json_value value) -> String
+      def boolean: (json_value value) -> bool
+      def path: (json_value value) -> String
+      def menu_tuple: (json_value value) -> menu_tuple
+      def item_kind: (json_value value) -> String
+      def options: (json_value value) -> Options
+      def optional: [T] (Hash[String, json_value] hash, String key) { (json_value) -> T } -> T?
+    end
+  end
+end

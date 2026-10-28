@@ -31,6 +31,13 @@ module Tokra
     class BadMenuIcon < Error
     end
 
+    class Tray < Error
+      def initialize: (String message) -> void
+    end
+
+    class BadTrayIcon < Error
+    end
+
     class PluginInitialization < Error
       attr_reader plugin: String
 

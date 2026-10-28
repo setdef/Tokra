@@ -314,6 +314,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `Native::Window#init_menu` and its siblings, on Windows
   `Native::Window#set_menu_theme` and `Native::Menu#hpopupmenu`; and
   `Native::Window#popup_menu`
+- Tray icons (`Tokra::Tray`): `TrayIconBuilder`, `TrayIcon` with its icon,
+  tooltip, title, menu, visibility, template icon, left-click menu, temp
+  directory, `rect`, and listeners, `TrayIconId`, `TrayIconEvent` (`Click`,
+  `DoubleClick`, `Enter`, `Move`, `Leave`), `MouseButton`, and
+  `MouseButtonState`; `Tokra::Rect`
+- `App` and `AppHandle#on_tray_icon_event`, `#tray_by_id`, and
+  `#remove_tray_by_id`; `Builder#on_tray_icon_event`; `RunEvent::TrayIconEvent`
+- A closed or removed tray leaves the system tray at once, and every tray
+  leaves it as the app exits
+- The core `tray` plugin, so the `TrayIcon` class of `@tauri-apps/api` works
+- `Error::Tray` and `Error::BadTrayIcon`
+- `Native::TrayIcon`, `Native::TrayIcon::Icon`, and `Native::TrayIconEvent`;
+  on Linux `Native.refuse_unbuildable_menu`
+- Dependency: tray-icon 0.21.0; on Linux tray icons need an AppIndicator
+  library (`libayatana-appindicator3-1`) at run time
 - Dependency: muda 0.17.1, with its libxdo feature
 - On Linux, libxdo is a new build (`libxdo-dev`) and run-time (`libxdo3`)
   dependency

@@ -70,4 +70,4 @@ end
 # Import all tasks from the tasks/ directory
 Dir.glob("tasks/*.rake").each { |r| import r }
 
-task default: %w[compile:strict lint:fix test lint steep lint:rust package:check]
+task default: %w[compile:strict test:keyboard lint:fix test lint steep lint:rust package:check]

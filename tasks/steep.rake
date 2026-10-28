@@ -61,6 +61,12 @@ namespace :rbs do
     args += %w[--exclude-sig sig/tokra/menu/accelerators.rbs] unless host.match?(/mswin|mingw|cygwin/)
     # Only Windows has a context menu's HMENU and a themed menu bar.
     args += %w[--exclude-sig sig/tokra/menu/windows.rbs] unless host.match?(/mswin|mingw|cygwin/)
+    # tray-icon has a temp directory only on Linux, a template icon only
+    # on macOS, and a left-click menu switch only on macOS and Windows,
+    # where Tauri calls each (plan 043, decision 1).
+    args += %w[--exclude-sig sig/tokra/tray/linux.rbs] unless host.include?("linux")
+    args += %w[--exclude-sig sig/tokra/tray/macos.rbs] unless host.include?("darwin")
+    args += %w[--exclude-sig sig/tokra/tray/left_click_menu.rbs] if host.include?("linux")
     ruby File.expand_path("rbs_parity.rb", __dir__), *args
   end
 end

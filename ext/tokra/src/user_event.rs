@@ -27,6 +27,8 @@ pub enum Released {
     Window(Box<ThreadBound<tao::window::Window>>),
     /// A muda menu or item, in its `ThreadBound` (`menu.rs`).
     Menu(Box<dyn Send>),
+    /// A tray-icon tray, in its `ThreadBound` (`tray.rs`).
+    Tray(Box<dyn Send>),
 }
 
 impl fmt::Debug for Released {
@@ -35,6 +37,7 @@ impl fmt::Debug for Released {
             Self::WebView(_) => "Released(WebView)",
             Self::Window(_) => "Released(Window)",
             Self::Menu(_) => "Released(Menu)",
+            Self::Tray(_) => "Released(Tray)",
         })
     }
 }
@@ -162,6 +165,13 @@ pub enum UserEvent {
     /// from muda's handler (`app.rs:2196-2201`), so it reaches the app in
     /// order with the other user events.
     MenuEvent(String),
+
+    /// The pointer clicked, entered, moved over, or left a tray icon, from
+    /// tray-icon's event handler (`tray.rs`).
+    ///
+    /// Tauri's `EventLoopMessage::TrayIconEvent`, sent through the loop's
+    /// proxy from tray-icon's handler (`app.rs:2203-2210`).
+    TrayIconEvent(Box<crate::tray::TrayEvent>),
 
     // SPDX-SnippetEnd
     /// Wakes the loop for a turn that may owe Ruby the main thread. Sent

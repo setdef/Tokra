@@ -41,7 +41,13 @@ module Tokra
       def self.new: (event: Menu::MenuEvent) -> MenuEvent
                   | (Menu::MenuEvent event) -> MenuEvent
     end
+
+    class TrayIconEvent < Data
+      attr_reader event: Tray::TrayIconEvent::event
+      def self.new: (event: Tray::TrayIconEvent::event) -> TrayIconEvent
+                  | (Tray::TrayIconEvent::event event) -> TrayIconEvent
+    end
   end
 
-  type run_event = RunEvent::MenuEvent | RunEvent::Ready | RunEvent::Exit | RunEvent::ExitRequested | RunEvent::WindowEvent | RunEvent::WebviewEvent | RunEvent::Resumed | RunEvent::MainEventsCleared
+  type run_event = RunEvent::MenuEvent | RunEvent::TrayIconEvent | RunEvent::Ready | RunEvent::Exit | RunEvent::ExitRequested | RunEvent::WindowEvent | RunEvent::WebviewEvent | RunEvent::Resumed | RunEvent::MainEventsCleared
 end

@@ -46,6 +46,12 @@ module Tokra
     # Mirrors Tauri's <tt>RunEvent::MenuEvent(MenuEvent)</tt>
     # (app.rs:240-242); Ruby's Data names the tuple's value +event+.
     MenuEvent = Data.define(:event)
+
+    # The pointer acted on a tray icon. +event+ is the Tray::TrayIconEvent,
+    # which the app's and the tray's listeners heard first.
+    # Mirrors Tauri's <tt>RunEvent::TrayIconEvent(TrayIconEvent)</tt>
+    # (app.rs:243-246).
+    TrayIconEvent = Data.define(:event)
   end
 end
 

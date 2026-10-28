@@ -138,6 +138,32 @@ module Tokra
     class BadMenuIcon < Error
     end
 
+    # Raised when tray-icon refuses a tray: the platform could not add it,
+    # or could not write or encode its icon. The message says what
+    # tray-icon said.
+    #
+    # Mirrors <tt>tauri::Error::Tray</tt>, "tray icon error: {0}"
+    # (error.rs:106-110).
+    #
+    # === Example
+    #
+    #   tray.set_icon(Tokra::Image.new(rgba: "".b, width: 0, height: 0))
+    #   # raises Tokra::Error::Tray on macOS and Linux, where the PNG
+    #   # encoder refuses an image with no pixels
+    class Tray < Error
+      # Creates the error from tray-icon's own +message+.
+      def initialize(message)
+        super("tray icon error: #{message}")
+      end
+    end
+
+    # Raised when tray-icon refuses an image as a tray icon.
+    #
+    # Mirrors <tt>tauri::Error::BadTrayIcon</tt>, which shows tray-icon's
+    # <tt>BadIcon</tt> text as it is (error.rs:111-115).
+    class BadTrayIcon < Error
+    end
+
     # Raised when a plugin's setup fails.
     #
     # A plugin may need something from the system before it can work: a

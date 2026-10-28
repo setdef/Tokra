@@ -65,6 +65,7 @@ module Tokra
       @window_target = nil
       @native = native
       @menu_natives = nil
+      @tray_natives = nil
     end
 
     # The event loop whose window target answers the app handle's monitor
@@ -176,6 +177,12 @@ module Tokra
     # decision 1). Tauri's are its runtime's type parameter.
     def menu_natives # :nodoc:
       @menu_natives ||= Menu::Natives.from(@native)
+    end
+
+    # The native tray class this context's app builds trays with (plan
+    # 043, decision 1).
+    def tray_natives # :nodoc:
+      @tray_natives ||= Tray::Natives.from(@native)
     end
 
     # SPDX-SnippetBegin

@@ -5,24 +5,31 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
-require_relative "support/real_app"
+require_relative "../support/real_app"
+require_relative "../support/keyboard_notice"
 
-# Real context menus on Linux and Windows (plan 042, phase 3): the platform
-# holds the menu's items at the position asked, other Ruby threads run
-# while it tracks, blocks sent to the main thread wait for it to close, and
-# an item chosen through GTK reaches the app's listener. The fixture loads
-# no page, so it runs on Windows too.
+# Real context menus (plan 042, phase 3): the platform holds the menu's
+# items at the position asked, other Ruby threads run while it tracks,
+# blocks sent to the main thread wait for it to close, and an item chosen
+# through AppKit or GTK reaches the app's listener. The fixture loads no
+# page, so it runs on Windows too. On macOS the menu shows on screen and
+# tracks the keyboard and mouse until it closes, so KeyboardNotice asks
+# the person at the Mac to step away first; the app itself never comes to
+# the front.
 class ContextMenuTest < RealApp::TestCase
+  # The points by which AppKit may raise a menu's window above the
+  # location asked.
+  MENU_INSET = 8
+
   def self.page?
     false
   end
 
   def setup
-    # A macOS popup is modal and takes the keyboard of whoever is typing;
-    # the stub and native tests cover macOS without showing one.
-    skip "a macOS context menu is modal and takes the keyboard" if RbConfig::CONFIG["host_os"].include?("darwin")
     super
-    @run = self.class.fixture_run { RealApp.launch("context_menu") }
+    @run = self.class.fixture_run do
+      KeyboardNotice.taking_the_keyboard { RealApp.launch("context_menu") }
+    end
     assert_finished @run
     assert_equal 0, @run.status, @run.describe
     @report = @run.report
@@ -37,12 +44,22 @@ class ContextMenuTest < RealApp::TestCase
   end
 
   # muda places the menu's corner at the position, relative to the
-  # window's top-left corner (platform_impl/gtk/mod.rs:1385-1447).
+  # window's top-left corner (platform_impl/gtk/mod.rs:1385-1447,
+  # platform_impl/macos/mod.rs:1105-1130).
   def test_popup_at_places_the_menu_at_the_position
     skip "Windows places the menu by its own rules; the offset is reported, not asserted" if windows?
 
     scale = @report["scale_factor"]
-    assert_equal [(30 * scale).round, (40 * scale).round], @report.dig("menu", "offset")
+    x, y = @report.dig("menu", "offset")
+    assert_equal (30 * scale).round, x, @report.inspect
+    if macos?
+      # AppKit draws the menu's window a few points above the location,
+      # so the first item, not the window's rounded edge, starts there
+      # (5 points on macOS 27).
+      assert_includes (((40 - MENU_INSET) * scale).round)..((40 * scale).round), y, @report.inspect
+    else
+      assert_equal (40 * scale).round, y
+    end
   end
 
   # The popup releases the GVL (plan 042, decision 15): another Ruby
@@ -75,5 +92,9 @@ class ContextMenuTest < RealApp::TestCase
 
   private def windows?
     RbConfig::CONFIG["host_os"].match?(/mswin|mingw|cygwin/)
+  end
+
+  private def macos?
+    RbConfig::CONFIG["host_os"].include?("darwin")
   end
 end

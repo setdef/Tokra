@@ -27,3 +27,9 @@ gem needs Rust and Cargo:
 * On Linux, libxdo, which menus use for their Copy, Cut, Paste, and Select
   All items, as Tauri's +linux-libxdo+ feature does: +libxdo-dev+ to build
   on Debian and Ubuntu, and +libxdo3+ at run time (+xdotool+ on Arch).
+* On Linux, an AppIndicator library for tray icons, which tray-icon loads
+  at run time, so building needs nothing more: +libayatana-appindicator3-1+
+  on Debian and Ubuntu (+libayatana-appindicator+ on Arch), or the older
+  +libappindicator3-1+. Without one, building a tray raises
+  Tokra::Error::Tray. The icon shows where the desktop runs a
+  StatusNotifierItem host.

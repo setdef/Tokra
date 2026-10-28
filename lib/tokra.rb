@@ -92,6 +92,9 @@ require_relative "tokra/tokra"
 # The menu classes ask the extension which platform calls it defines.
 require_relative "tokra/menu"
 require_relative "tokra/menu_manager"
+require_relative "tokra/rect"
+require_relative "tokra/tray"
+require_relative "tokra/tray_manager"
 require_relative "tokra/activation_policy"
 require_relative "tokra/rack/handler"
 

@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class TrayManager
+    type app_listener = ^(AppHandle, Tray::TrayIconEvent::event) -> void
+
+    class Entry < Data
+      attr_reader id: Tray::TrayIconId
+      attr_reader rid: Integer
+
+      def self.new: (id: Tray::TrayIconId, rid: Integer) -> Entry
+    end
+
+    @mutex: Thread::Mutex
+    @icons: Array[Entry]
+    @global_event_listeners: Array[app_listener]
+    @event_listeners: Hash[Tray::TrayIconId, Tray::TrayIcon::listener]
+
+    def initialize: (?Array[app_listener] global_event_listeners) -> void
+    def on_tray_icon_event: (app_listener handler) -> nil
+    def set_tray_listener: (Tray::TrayIconId id, Tray::TrayIcon::listener handler) -> nil
+    def insert: (Tray::TrayIconId id, Integer rid) -> nil
+    def delete: (Tray::TrayIconId id) -> nil
+    def tray_resource_by_id: (Tray::TrayIconId | String id) -> Integer?
+    def tray_by_id: (AppHandle app, Tray::TrayIconId | String id) -> Tray::TrayIcon?
+    def remove_tray_by_id: (AppHandle app, Tray::TrayIconId | String id) -> Tray::TrayIcon?
+    def close_all: (AppHandle app) -> nil
+    def global_event_listeners: () -> Array[app_listener]
+    def event_listeners: () -> Hash[Tray::TrayIconId, Tray::TrayIcon::listener]
+  end
+end

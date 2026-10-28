@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Tray
+    class TrayIcon
+      include Resource
+
+      type listener = ^(TrayIcon, TrayIconEvent::event) -> void
+
+      @id: TrayIconId
+      @native: Native::TrayIcon
+      @app_handle: AppHandle
+
+      attr_reader id: TrayIconId
+      attr_reader app_handle: AppHandle
+      attr_reader native: Native::TrayIcon
+
+      def initialize: (id: TrayIconId, native: Native::TrayIcon, app_handle: AppHandle) -> void
+      def register: (MenuManager::app_listener? on_menu_event, listener? on_tray_icon_event) -> Integer
+      def on_menu_event: () { (AppHandle, Menu::MenuEvent) -> void } -> nil
+      def on_tray_icon_event: () { (TrayIcon, TrayIconEvent::event) -> void } -> nil
+      def set_icon: (Image? icon) -> nil
+      def set_menu: ((Menu::Menu | Menu::Submenu)? menu) -> nil
+      def set_tooltip: (String? tooltip) -> nil
+      def set_title: (String? title) -> nil
+      def set_visible: (bool visible) -> nil
+      def set_temp_dir_path: ((String | _ToPath)? path) -> nil
+      def set_icon_as_template: (bool is_template) -> nil
+      def set_show_menu_on_left_click: (bool enable) -> nil
+      def rect: () -> Rect?
+      def close: () -> nil
+
+      private
+
+      def run_item_main_thread: [T] () { () -> T } -> T
+    end
+  end
+end

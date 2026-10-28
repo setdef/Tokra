@@ -39,6 +39,7 @@ The authority is the pinned submodule `vendor/tauri` (`git submodule update --in
 ## Commands
 
 - Run Ruby with `bundle exec ruby`. Run tests with `bundle exec rake test`. Never `ruby -Ilib:test`.
+- Real-window tests that open a real menu or bring a fixture to the front on macOS go in `test/integration/keyboard/`, wrap the launch in `KeyboardNotice.taking_the_keyboard { ... }`, and run first in the gate as `rake test:keyboard`, which says aloud when to step away and come back; set `TOKRA_QUIET=1` to silence it.
 - `bundle exec rake` is the gate: tests, RuboCop, Steep, RBS parity, RDoc coverage, REUSE, Clippy, fmt, and a packaging check that loads each built gem outside the repository. It must pass with zero errors and zero warnings; every cargo step, the extension compiles included, fails on any rustc, Clippy, or Cargo warning. Every `unsafe` block or impl needs a `// SAFETY:` comment citing the source that makes it sound. Run `bundle exec rake rubocop:autocorrect` first to save time.
 - CI (`.github/workflows/ci.yml`) runs the same gate on Linux (under Xvfb, so the real-window tests run), macOS, and Windows for every supported Ruby. When a Ruby release ships, add it to the matrix; remove one only at its end of life.
 - Approved exceptions live in `rbs_exceptions.rb` and `clippy_exceptions.rb`; adding one needs a justification that it is impossible otherwise.

@@ -69,7 +69,7 @@ pub fn attach_loop(proxy: EventLoopProxy<UserEvent>) {
 
 /// A copy of the running loop's proxy, taken out of the lock before
 /// anything is sent through it.
-fn loop_proxy() -> Option<EventLoopProxy<UserEvent>> {
+pub fn loop_proxy() -> Option<EventLoopProxy<UserEvent>> {
     LOOP_PROXY.lock().ok().and_then(|proxy| proxy.clone())
 }
 
@@ -90,7 +90,7 @@ fn release<T: 'static>(inner: &mut ThreadBound<T>) {
 /// menus panic off the main thread (`MainThreadMarker`,
 /// `platform_impl/macos/mod.rs:82-83`) and GTK's belong to the thread that
 /// started GTK, the one tao's loop runs on.
-fn on_main_thread(ruby: &Ruby, class: &str) -> Result<(), Error> {
+pub fn on_main_thread(ruby: &Ruby, class: &str) -> Result<(), Error> {
     if ruby.thread_current().as_raw() == ruby.thread_main().as_raw() {
         Ok(())
     } else {
@@ -761,8 +761,29 @@ impl RbMenuIcon {
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // SPDX-SnippetCopyrightText: 2022-2022 Tauri Programme within The Commons Conservancy
 // SPDX-SnippetCopyrightText: 2014-2021 The winit contributors
-// SPDX-SnippetComment: The RGBA checks and their texts adapted from muda 0.17.1 src/icon.rs,
-//                      and the empty-dimension text from tao 0.34.5 src/icon.rs
+// SPDX-SnippetComment: The RGBA checks and their texts adapted from muda 0.17.1 src/icon.rs
+//                      and tray-icon 0.21.0 src/icon.rs, and the empty-dimension text from
+//                      tao 0.34.5 src/icon.rs
+
+/// Why muda, or tray-icon, would refuse `byte_count` bytes as a `width` by
+/// `height` RGBA icon, in their words, or `None`: both copy winit's checks
+/// and texts (muda `src/icon.rs:27-45`, `82-103`; tray-icon 0.21.0
+/// `src/icon.rs:24-55`, `92-116`). Each multiplies the dimensions as `u32`,
+/// which can wrap; this multiplies them in 64 bits.
+pub fn bad_rgba(byte_count: usize, width: u32, height: u32) -> Option<String> {
+    if !byte_count.is_multiple_of(4) {
+        return Some(format!(
+            "The length of the `rgba` argument ({byte_count:?}) isn't divisible by 4, making it impossible to interpret as 32bpp RGBA pixels."
+        ));
+    }
+    let pixel_count = byte_count / 4;
+    let width_x_height = u64::from(width) * u64::from(height);
+    (u64::try_from(pixel_count).ok() != Some(width_x_height)).then(|| {
+        format!(
+            "The specified dimensions ({width:?}x{height:?}) don't match the number of pixels supplied by the `rgba` argument ({pixel_count:?}). For those dimensions, the expected pixel count is {width_x_height:?}."
+        )
+    })
+}
 
 /// Why Tokra refuses `byte_count` bytes as a `width` by `height` icon:
 /// muda's checks in muda's words (`src/icon.rs:27-45`, `82-103`), then an
@@ -775,17 +796,8 @@ impl RbMenuIcon {
 /// asserts on it (gdk-pixbuf 0.18.5 `src/pixbuf.rs:24-26`). Tokra refuses
 /// such an icon on every platform, as it refuses the others.
 fn bad_menu_icon(byte_count: usize, width: u32, height: u32) -> Option<String> {
-    if !byte_count.is_multiple_of(4) {
-        return Some(format!(
-            "The length of the `rgba` argument ({byte_count:?}) isn't divisible by 4, making it impossible to interpret as 32bpp RGBA pixels."
-        ));
-    }
-    let pixel_count = byte_count / 4;
-    let width_x_height = u64::from(width) * u64::from(height);
-    if u64::try_from(pixel_count).ok() != Some(width_x_height) {
-        return Some(format!(
-            "The specified dimensions ({width:?}x{height:?}) don't match the number of pixels supplied by the `rgba` argument ({pixel_count:?}). For those dimensions, the expected pixel count is {width_x_height:?}."
-        ));
+    if let Some(message) = bad_rgba(byte_count, width, height) {
+        return Some(message);
     }
     if width == 0 || height == 0 {
         return Some(format!(
@@ -1327,6 +1339,20 @@ mod window_menu {
 
 pub use context_menu::define_context_menu_methods;
 
+/// Raises muda's error for a menu or submenu whose GTK context menu muda
+/// would panic building, before tray-icon builds it to attach the menu to
+/// an `AppIndicator` (plan 043, decision 8; plan 042, decision 18).
+///
+/// # Errors
+///
+/// Returns muda's error as a `RuntimeError`, and `ThreadError` off the
+/// main thread.
+#[cfg(not(any(target_os = "macos", windows)))]
+pub fn refuse_unbuildable_gtk_menu(menu: Value) -> Result<(), Error> {
+    use context_menu::gtk_refusal;
+    gtk_refusal::refuse_unbuildable(&gtk_refusal::items(menu)?)
+}
+
 /// Context menus: a `Menu` or `Submenu` shown at the pointer or at a
 /// position in a window (Tauri `menu/menu.rs:23-80`,
 /// `menu/submenu.rs:16-73`, muda 0.17.1 `src/lib.rs:324-430`).
@@ -1471,7 +1497,7 @@ mod context_menu {
     /// their accelerator group (`mod.rs:1004-1072`) and leave the scratch
     /// menu's entries behind in them (`mod.rs:155-217`).
     #[cfg(not(any(target_os = "macos", windows)))]
-    mod gtk_refusal {
+    pub(super) mod gtk_refusal {
         use magnus::{Error, TryConvert, Value};
         use muda::{ContextMenu, MenuItemKind};
 

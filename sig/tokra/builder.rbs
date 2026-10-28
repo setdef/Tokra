@@ -16,12 +16,14 @@ module Tokra
     @with_global_tauri: bool
 
     @menu_event_listeners: Array[MenuManager::app_listener]
+    @tray_icon_event_listeners: Array[TrayManager::app_listener]
     @menu_hook: (^(AppHandle) -> Menu::Menu)?
     @enable_macos_default_menu: bool
 
     def initialize: () -> void
     def menu: () { (AppHandle) -> Menu::Menu } -> self
     def on_menu_event: () { (AppHandle, Menu::MenuEvent) -> void } -> self
+    def on_tray_icon_event: () { (AppHandle, Tray::TrayIconEvent::event) -> void } -> self
     def enable_macos_default_menu: (bool enable) -> self
     def self.default: () -> Builder
     def app: (::Rack::_App rack_app) -> self
@@ -48,6 +50,7 @@ module Tokra
     attr_reader on_page_load_hook: (^(Native::WebView?, PageLoadPayload) -> void)?
     attr_reader menu_hook: (^(AppHandle) -> Menu::Menu)?
     attr_reader menu_event_listeners: Array[MenuManager::app_listener]
+    attr_reader tray_icon_event_listeners: Array[TrayManager::app_listener]
     def macos_default_menu?: () -> bool
     attr_reader window_event_listeners: Array[^(Native::Window, window_event) -> void]
     attr_reader webview_event_listeners: Array[^(Native::WebView?, webview_event) -> void]

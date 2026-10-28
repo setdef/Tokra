@@ -116,7 +116,9 @@ jobs:
       # data in (Plan 030). tokra-global-shortcut's tests start an
       # Xvfb of their own, map F17 to F19 and F24 with xmodmap (from
       # x11-xserver-utils), and press shortcuts there with xdotool; global-hotkey
-      # speaks X11 through x11rb, pure Rust (Plan 025).
+      # speaks X11 through x11rb, pure Rust (Plan 025). Tray icons load
+      # libayatana-appindicator3 at run time, so it needs no -dev package
+      # (Plan 043).
       - name: Install GTK, WebKitGTK, and a display server
         if: runner.os == 'Linux'
         run: |
@@ -124,7 +126,7 @@ jobs:
           sudo apt-get install --yes --no-install-recommends \
             libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
             pkg-config libclang-dev libwayland-dev xvfb xauth dbus dbus-x11 dunst \
-            xdotool x11-xserver-utils libxdo-dev
+            xdotool x11-xserver-utils libxdo-dev libayatana-appindicator3-1
 
       # Ruby without the bundle: on Windows, bindgen's settings come from
       # what setup-ruby exports, and bundle install already needs them to

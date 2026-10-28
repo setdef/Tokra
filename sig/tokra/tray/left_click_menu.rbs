@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Native
+    class TrayIcon
+      def set_show_menu_on_left_click: (bool enable) -> nil
+    end
+  end
+end

@@ -151,5 +151,11 @@ module Tokra
     # A menu item was clicked: +id+ is the item's id, as muda's event
     # handler sent it through the loop (ext/tokra/src/menu.rs).
     MenuEvent = Data.define(:id)
+
+    # The pointer acted on a tray icon, as tray-icon's event handler sent it
+    # through the loop (ext/tokra/src/tray.rs): +kind+ names Tauri's
+    # variant, +position+ is <tt>[x, y]</tt>, +rect+ is <tt>[x, y, width,
+    # height]</tt>, and +button+ and +button_state+ are names or +nil+.
+    TrayIconEvent = Data.define(:kind, :id, :position, :rect, :button, :button_state)
   end
 end
