@@ -115,7 +115,11 @@ class TestContextMenu < Minitest::Test
     assert_equal [nil], @window.native.requests[:set_theme], "the window takes its theme too"
   end
 
+  # Off Windows the native window has no set_menu_theme, as Tauri's cfg
+  # has it, so set_theme touches only the window.
   def test_elsewhere_set_theme_leaves_the_menu_alone
+    skip "on Windows every native window themes its menu" if Tokra::Native::Window.method_defined?(:set_menu_theme)
+
     window = Tokra::Window.new(label: "main", native: StubWindowMenusNative::Window.new(nil), app_handle: @handle)
     window.set_menu(Tokra::Menu::Menu.with_id(@handle, "bar"))
 
