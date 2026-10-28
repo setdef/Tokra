@@ -2432,6 +2432,7 @@ dependencies = [
  "dirs",
  "image",
  "magnus",
+ "objc2-app-kit",
  "rb-sys",
  "tao",
  "wry",

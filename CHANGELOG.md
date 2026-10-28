@@ -126,10 +126,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `window.confirm` with them; dialogs start on the main thread and are
   awaited off it, so the window keeps running; the builders' `set_parent`
   and `parent` take a `Tokra::Window`, and the commands parent each dialog
-  to the calling window as Tauri does, on Windows and X11 only (ferro-rfd
-  binds no macOS or Wayland handle); picked paths join no scope; it is pure
-  Ruby and depends on `ferro-rfd` 0.1.0.pre.2 (rfd 0.17.2), which apps
-  take from its git tag until it is on RubyGems.org
+  to the calling window as Tauri does, except on Wayland (ferro-rfd binds
+  no Wayland handle), so on macOS each is a sheet on that window; picked
+  paths join no scope; it is pure Ruby and depends on `ferro-rfd`
+  0.1.0.pre.3 (rfd 0.17.2), which apps take from its git tag until it is
+  on RubyGems.org
 - `tokra-notification` gem: `Tokra::Plugins::Notification::Plugin.new(app)`
   manages a `Tokra::Plugins::Notification::Notification` (reachable as
   `app.notification`) with Tauri's `NotificationBuilder`, serves Tauri's
@@ -188,9 +189,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   and `App#display_handle`, Tauri's `HasWindowHandle` and `HasDisplayHandle`:
   the window's and display's native handles as `Tokra::RawWindowHandle`
   values (`Win32WindowHandle`, `AppKitWindowHandle`, `XlibWindowHandle`,
-  `WaylandWindowHandle`, and their display handles), read on the main
-  thread, raising `RawWindowHandle::HandleError::Unavailable` from another
-  thread once the event loop has ended; on X11 every display handle is the first one tao opened
+  `WaylandWindowHandle`, and their display handles; `AppKitWindowHandle`
+  adds the window's `window_number` to raw-window-handle's `ns_view`),
+  read on the main thread, raising
+  `RawWindowHandle::HandleError::Unavailable` from another thread once the
+  event loop has ended; on X11 every display handle is the first one tao
+  opened
 - `Native::Window#raw_window_handle` and `Native::Window#raw_display_handle`
 - `App#set_activation_policy` and `Tokra::ActivationPolicy` (`Regular`,
   `Accessory`, `Prohibited`), on macOS only, as in Tauri: set before the

@@ -68,13 +68,12 @@ never return:
 
 == Differences from Tauri
 
-- A dialog's parent is the calling window on Windows and X11 only. On
-  Windows the window takes no input until the dialog closes; on X11 rfd
-  names it to the desktop portal, and zenity, rfd's fallback, takes no
-  parent. ferro-rfd binds no macOS or Wayland window handle, since rfd
-  follows those as pointers. On macOS, file dialogs still slide out of the
-  app's main window as sheets, but message dialogs are system alerts of
-  their own.
+- On Wayland a dialog has no parent: ferro-rfd binds no Wayland window
+  handle, since rfd follows its pointers. Everywhere else the parent is
+  the calling window, as in Tauri: on Windows the window takes no input
+  until the dialog closes, on macOS the dialog is a sheet on the window,
+  and on X11 rfd names it to the desktop portal (zenity, rfd's fallback,
+  takes no parent).
 - Picked paths join no fs or asset protocol scope; Tokra has neither yet.
 - On Linux, dialogs come from the portal and zenity, not GTK. On Windows,
   custom button labels show the standard ones; the commands still answer

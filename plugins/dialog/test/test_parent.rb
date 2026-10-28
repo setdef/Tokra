@@ -8,11 +8,12 @@
 require_relative "support/dialog_test"
 
 # A Tokra::Window as a dialog's parent, as Tauri's set_parent takes its
-# Window (lib.rs:287-302, 460-478; ADR 013). The window is a real
-# Tokra::Window on a real app handle, and its native stand-in answers the
-# tagged Arrays ext/tokra/src/raw_handle.rs builds. Each dialog is read
+# Window (lib.rs:287-302, 460-478; ADR 013, plan 035). The window is a
+# real Tokra::Window on a real app handle, and its native stand-in answers
+# the tagged Arrays ext/tokra/src/raw_handle.rs builds. Each dialog is read
 # back through rfd's own Debug text, so what reaches rfd is what is
-# checked. The real windows are in test_dialog_window.rb.
+# checked; on macOS ferro-rfd looks the window up first, and a stand-in's
+# number names no window. The real windows are in test_dialog_window.rb.
 class TestParent < Minitest::Test
   include DialogTest
 
@@ -28,7 +29,7 @@ class TestParent < Minitest::Test
   NATIVE = {
     linux: [[:Xlib, 0x3A00007, 0], [:Xlib, 0x9000, 0]],
     windows: [[:Win32, 7, 9], [:Windows]],
-    macos: [[:AppKit, 0x6000_0000_1000], [:AppKit]],
+    macos: [[:AppKit, 0x6000_0000_1000, 4242], [:AppKit]],
   }.freeze
 
   def setup
@@ -82,16 +83,24 @@ class TestParent < Minitest::Test
     assert_includes @dialog.message("m").parent(platform_window).to_async_message_dialog.inspect, WIN32_PARENT
   end
 
-  # ferro-rfd binds no AppKit handle, since rfd follows it as a pointer,
-  # so on macOS the window is no parent and ferro-rfd refuses nothing.
-  def test_an_appkit_window_is_no_parent_on_macos
+  # ferro-rfd reads Tokra's AppKit handle by its window number and asks
+  # AppKit for that window when the dialog runs, or here when inspect
+  # describes it. No window of this test has the stand-in's number, so
+  # ferro-rfd refuses it: the number reached the lookup.
+  def test_an_appkit_window_reaches_ferro_rfds_window_lookup_on_macos
     skip_unless_platform(:macos)
 
-    assert_includes @dialog.file.set_parent(platform_window).to_async_file_dialog.inspect, "parent: None"
-    assert_includes @dialog.message("m").parent(platform_window).to_async_message_dialog.inspect, "parent: None"
+    [
+      -> { @dialog.file.set_parent(platform_window).to_async_file_dialog },
+      -> { @dialog.message("m").parent(platform_window).to_async_message_dialog },
+    ].each do |build|
+      error = assert_raises(Ferro::Rfd::Error) { build.call.inspect }
+      assert_equal "no window of this app has window number 4242", error.message
+    end
   end
 
-  # ferro-rfd binds no Wayland handle either.
+  # ferro-rfd binds no Wayland handle, since rfd follows its pointers, so
+  # Tokra keeps a Wayland window as no parent and the dialog still shows.
   def test_a_wayland_window_is_no_parent
     wayland = window([:Wayland, 0x5000], [:Wayland, 0x7000])
 
@@ -99,30 +108,29 @@ class TestParent < Minitest::Test
     assert_nil @dialog.message("m").parent(wayland).instance_variable_get(:@parent)
   end
 
-  # Each handle ferro-rfd cannot take is no parent on its own, whatever
-  # the other handle is: a parent may be any object with the two methods.
-  def test_each_handle_ferro_rfd_cannot_take_is_no_parent_whatever_its_pair
+  # Either Wayland handle makes no parent, whatever the other handle is: a
+  # parent may be any object with the two methods.
+  def test_either_wayland_handle_is_no_parent_whatever_its_pair
     parent = Data.define(:window_handle, :display_handle)
     handles = Tokra::RawWindowHandle
-    win32 = handles::Win32WindowHandle.new(hwnd: 7, hinstance: 9)
-    windows = handles::WindowsDisplayHandle.new
     [
-      parent.new(handles::AppKitWindowHandle.new(ns_view: 0x6000), windows),
-      parent.new(handles::WaylandWindowHandle.new(surface: 0x5000), windows),
-      parent.new(win32, handles::AppKitDisplayHandle.new),
-      parent.new(win32, handles::WaylandDisplayHandle.new(display: 0x7000)),
+      parent.new(handles::WaylandWindowHandle.new(surface: 0x5000), handles::WindowsDisplayHandle.new),
+      parent.new(handles::Win32WindowHandle.new(hwnd: 7, hinstance: 9), handles::WaylandDisplayHandle.new(display: 0x7000)),
     ].each do |pair|
       assert_nil @dialog.file.set_parent(pair).instance_variable_get(:@parent), pair.inspect
     end
   end
 
-  def test_a_tokra_handle_becomes_ferro_rfds_value
+  # ferro-rfd reads a handle by its kind and raw-window-handle's field
+  # names, so Tokra's own values reach it as they are.
+  def test_tokras_handles_are_kept_as_they_are
+    handles = Tokra::RawWindowHandle
     kept = @dialog.file.set_parent(window([:Win32, 7, 9], [:Windows])).instance_variable_get(:@parent)
-    assert_equal Ferro::Rfd::Win32WindowHandle.new(hwnd: 7, hinstance: 9), kept.window_handle
-    assert_equal Ferro::Rfd::WindowsDisplayHandle.new, kept.display_handle
+    assert_equal handles::Win32WindowHandle.new(hwnd: 7, hinstance: 9), kept.window_handle
+    assert_equal handles::WindowsDisplayHandle.new, kept.display_handle
 
-    kept = @dialog.message("m").parent(window([:Xlib, 42, 33], [:Xlib, nil, 1])).instance_variable_get(:@parent)
-    assert_equal Ferro::Rfd::XlibWindowHandle.new(window: 42, visual_id: 33), kept.window_handle
-    assert_equal Ferro::Rfd::XlibDisplayHandle.new(display: nil, screen: 1), kept.display_handle
+    kept = @dialog.message("m").parent(window([:AppKit, 0x6000, 42], [:AppKit])).instance_variable_get(:@parent)
+    assert_equal handles::AppKitWindowHandle.new(ns_view: 0x6000, window_number: 42), kept.window_handle
+    assert_equal handles::AppKitDisplayHandle.new, kept.display_handle
   end
 end

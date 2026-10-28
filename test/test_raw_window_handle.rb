@@ -56,7 +56,7 @@ class TestRawWindowHandle < Minitest::Test
   def test_the_handles_are_data_with_raw_window_handles_fields
     assert_equal %i[hwnd hinstance], Handles::Win32WindowHandle.members
     assert_empty Handles::WindowsDisplayHandle.members
-    assert_equal %i[ns_view], Handles::AppKitWindowHandle.members
+    assert_equal %i[ns_view window_number], Handles::AppKitWindowHandle.members
     assert_empty Handles::AppKitDisplayHandle.members
     assert_equal %i[window visual_id], Handles::XlibWindowHandle.members
     assert_equal %i[display screen], Handles::XlibDisplayHandle.members
@@ -67,7 +67,8 @@ class TestRawWindowHandle < Minitest::Test
   def test_each_native_window_handle_becomes_its_value
     assert_equal Handles::Win32WindowHandle.new(hwnd: 7, hinstance: 9), Handles.window_handle([:Win32, 7, 9])
     assert_equal Handles::Win32WindowHandle.new(hwnd: 7, hinstance: nil), Handles.window_handle([:Win32, 7, nil])
-    assert_equal Handles::AppKitWindowHandle.new(ns_view: 0x6000), Handles.window_handle([:AppKit, 0x6000])
+    assert_equal Handles::AppKitWindowHandle.new(ns_view: 0x6000, window_number: 42),
+      Handles.window_handle([:AppKit, 0x6000, 42])
     assert_equal Handles::XlibWindowHandle.new(window: 0x3A00007, visual_id: 33),
       Handles.window_handle([:Xlib, 0x3A00007, 33])
     assert_equal Handles::WaylandWindowHandle.new(surface: 0x5000), Handles.window_handle([:Wayland, 0x5000])
@@ -79,6 +80,12 @@ class TestRawWindowHandle < Minitest::Test
     assert_equal Handles::XlibDisplayHandle.new(display: 0x9000, screen: 1), Handles.display_handle([:Xlib, 0x9000, 1])
     assert_equal Handles::XlibDisplayHandle.new(display: nil, screen: 0), Handles.display_handle([:Xlib, nil, 0])
     assert_equal Handles::WaylandDisplayHandle.new(display: 0x7000), Handles.display_handle([:Wayland, 0x7000])
+  end
+
+  # The native layer reads the window number with the view, so an AppKit
+  # handle without one is no handle Tokra answers with.
+  def test_an_appkit_handle_without_its_window_number_is_not_supported
+    assert_raises(Handles::HandleError::NotSupported) { Handles.window_handle([:AppKit, 0x6000]) }
   end
 
   def test_a_native_error_raises_the_handle_error_it_names_with_the_crates_message

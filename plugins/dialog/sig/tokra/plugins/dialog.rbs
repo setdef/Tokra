@@ -145,18 +145,17 @@ module Tokra
         end
 
         class WindowHandle < Data
-          attr_reader window_handle: Ferro::Rfd::window_handle
-          attr_reader display_handle: Ferro::Rfd::display_handle
+          attr_reader window_handle: parent_window_handle
+          attr_reader display_handle: parent_display_handle
 
-          def self.new: (Ferro::Rfd::window_handle window_handle, Ferro::Rfd::display_handle display_handle) -> instance
-                      | (window_handle: Ferro::Rfd::window_handle, display_handle: Ferro::Rfd::display_handle) -> instance
+          def self.new: (parent_window_handle window_handle, parent_display_handle display_handle) -> instance
+                      | (window_handle: parent_window_handle, display_handle: parent_display_handle) -> instance
 
           def self.of: (_Parent parent) -> WindowHandle?
 
           private
 
-          def self.rfd_window_handle: (parent_window_handle? handle) -> Ferro::Rfd::window_handle?
-          def self.rfd_display_handle: (parent_display_handle? handle) -> Ferro::Rfd::display_handle?
+          def self.wayland?: (parent_window_handle | parent_display_handle handle) -> bool
         end
 
         def self.pick_file: (FileDialogBuilder builder, ?failed? failed) { (String?) -> void } -> nil

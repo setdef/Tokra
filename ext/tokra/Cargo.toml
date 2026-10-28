@@ -28,6 +28,11 @@ ctrlc = "3.4"
 dirs = "6.0"
 image = { version = "0.25", default-features = false, features = ["ico", "png"] }
 
+# A window's -[NSWindow windowNumber], for its AppKit handle (raw_handle.rs,
+# plan 035). tao already locks this version with these features.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSResponder", "NSWindow"] }
+
 # Strict linting: deny fails builds but allows targeted #[allow] for FFI
 # constraints. Each crate states its lints itself instead of inheriting them
 # with `workspace = true`: an installed gem ships only its own crate, with no

@@ -72,6 +72,16 @@ class WindowHandleTest < RealApp::TestCase
     assert_equal @report["title"], @report["native_title"]
   end
 
+  # An AppKit handle names its window by number too, as ferro-rfd reads
+  # it (ADR 013, plan 035): the number AppKit gives the window the
+  # content view lies in.
+  def test_an_appkit_window_number_is_the_windows_own
+    skip "AppKit only" unless @report["main_window"]["kind"] == "AppKitWindowHandle"
+
+    assert_operator @report["native_window_number"], :>, 0
+    assert_equal @report["native_window_number"], @report["main_window"]["window_number"]
+  end
+
   # Window#set_always_on_top reaches the window system, as Tauri's does
   # through tao (tauri-runtime-wry lib.rs:3390; tao 0.34.5
   # platform_impl/macos/window.rs:1386-1393).

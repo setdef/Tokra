@@ -13,7 +13,7 @@ gem "tokra", path: "../.."
 
 # ferro-rfd is not on RubyGems.org yet, so Bundler takes it from Ferro's
 # repository (ADR 011).
-gem "ferro-rfd", git: "https://github.com/setdef/Ferro", tag: "ferro-rfd/v0.1.0.pre.2", glob: "gems/rfd/*.gemspec"
+gem "ferro-rfd", git: "https://github.com/setdef/Ferro", tag: "ferro-rfd/v0.1.0.pre.3", glob: "gems/rfd/*.gemspec"
 
 group :development, :test do
   # The macOS dialog tests press a sheet's buttons through AppKit.

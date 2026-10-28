@@ -116,11 +116,11 @@ module Tokra
         # keeps a parent only when it has both handles (lib.rs:460-478).
         # Returns the builder.
         #
-        # A parent keeps the dialog in front of its window on Windows, and
-        # on X11 rfd names it to the desktop portal. On macOS and Wayland
-        # the dialog has no parent: ferro-rfd binds no handle rfd follows
-        # as a pointer (ADR 013). File dialogs on macOS still slide out of
-        # the app's main window as sheets.
+        # A parent keeps the dialog in front of its window on Windows; on
+        # macOS the dialog slides out of that window as a sheet; on X11
+        # rfd names the window to the desktop portal. On Wayland the
+        # dialog has no parent: ferro-rfd binds no handle rfd follows as a
+        # pointer (ADR 013). Keep the window open until the dialog closes.
         #
         # === Example
         #

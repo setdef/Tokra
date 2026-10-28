@@ -35,6 +35,6 @@ Gem::Specification.new do |spec|
 
   # An exact pin: a prerelease promises no API between prereleases, and
   # RubyGems considers prereleases only for a requirement that names one.
-  spec.add_dependency "ferro-rfd", "= 0.1.0.pre.2"
+  spec.add_dependency "ferro-rfd", "= 0.1.0.pre.3"
   spec.add_dependency "tokra", "~> 0.0"
 end

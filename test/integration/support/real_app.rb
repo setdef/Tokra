@@ -135,7 +135,10 @@ module RealApp
   end
 
   # A thread that answers whether +pid+ was ever the frontmost app while
-  # +waiter+ was alive, or +nil+ where Frontmost cannot tell.
+  # +waiter+ was alive, or +nil+ where Frontmost cannot tell. Where it
+  # cannot, the guard is silent, so it is never the only protection: a
+  # fixture keeps the Prohibited activation policy and shows nothing that
+  # activates the app, such as an NSAlert sheet (plan 035).
   def self.watch_front(pid, waiter)
     return nil unless Frontmost.available?
 
@@ -196,7 +199,8 @@ module RealApp
 
     # Fails with the app's output unless it ended on its own, and on macOS
     # if it ever came to the front, taking the keyboard from whoever was
-    # typing.
+    # typing. Where Frontmost is not available that check passes silently
+    # (see watch_front).
     def assert_finished(run)
       refute run.timed_out, "the app hung and was killed\n#{run.describe}"
       refute run.activated, "the app came to the front instead of running in the background\n#{run.describe}"

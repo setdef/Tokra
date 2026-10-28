@@ -43,11 +43,11 @@ module Tokra
       # until the dialog closes. The plugin's commands pass the calling
       # window, as Tauri's do.
       #
-      # It works on Windows. On Linux, rfd runs message dialogs through
-      # zenity, which takes no parent. On macOS and Wayland the dialog has
-      # no parent: ferro-rfd binds no handle rfd follows as a pointer
-      # (ADR 013), so a message dialog on macOS is a system alert of its
-      # own rather than a sheet on the window.
+      # On Windows the window waits behind the dialog. On macOS the dialog
+      # is a sheet on the window; without a parent it is a system alert of
+      # its own. On Linux, rfd runs message dialogs through zenity, which
+      # takes no parent, and on Wayland Tokra keeps none: ferro-rfd binds no
+      # handle rfd follows as a pointer (ADR 013).
       #
       # Mirrors Tauri's <tt>MessageDialogBuilder</tt> (lib.rs:214-369).
       #
@@ -95,8 +95,8 @@ module Tokra
         # +window_handle+ and +display_handle+ return Tokra::RawWindowHandle
         # or ferro-rfd handle values. Kept only when both answer, as Tauri
         # keeps a parent only when it has both handles (lib.rs:287-302),
-        # and only on Windows and X11 (see Parent window above). Returns
-        # the builder.
+        # and never on Wayland (see Parent window above). Returns the
+        # builder.
         #
         # === Examples
         #

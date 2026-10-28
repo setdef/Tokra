@@ -10,6 +10,11 @@
 //! tao answers into a tagged Array of a Symbol and Integers, which
 //! `Tokra::RawWindowHandle.from_native` turns into Ruby values (ADR 013).
 //!
+//! An `AppKit` window handle carries one field raw-window-handle lacks: the
+//! window's `-[NSWindow windowNumber]`, which names the window without
+//! pointing at it, so a binding such as ferro-rfd can ask `AppKit` for the
+//! window instead of trusting an address (ADR 013, plan 035).
+//!
 //! Handing Ruby an address as an Integer reads nothing through it, so it is
 //! sound. Whoever turns the Integer back into a pointer takes on the
 //! window's lifetime and thread, as raw-window-handle's own `borrow_raw`
@@ -19,7 +24,8 @@ use std::ffi::c_int;
 use std::sync::OnceLock;
 
 use magnus::{IntoValue, RArray, Ruby, Value};
-use tao::rwh_06::{HandleError, RawDisplayHandle, RawWindowHandle};
+use tao::rwh_06::{HandleError, HasWindowHandle, RawDisplayHandle, RawWindowHandle};
+use tao::window::Window;
 
 /// The Xlib display tao opened for the first display handle Ruby asked
 /// for: its address and screen.
@@ -37,9 +43,10 @@ use tao::rwh_06::{HandleError, RawDisplayHandle, RawWindowHandle};
 /// valid.
 static XLIB_DISPLAY: OnceLock<(Option<usize>, c_int)> = OnceLock::new();
 
-/// The tagged Array for tao's window handle, or for its error.
-pub fn window_handle(ruby: &Ruby, handle: Result<RawWindowHandle, HandleError>) -> RArray {
-    let values: Vec<Value> = match handle {
+/// The tagged Array for `window`'s raw handle, or for its error. Call it
+/// on the main thread, which owns the window.
+pub fn window_handle(ruby: &Ruby, window: &Window) -> RArray {
+    let values: Vec<Value> = match window.window_handle().map(|handle| handle.as_raw()) {
         Ok(RawWindowHandle::Win32(win32)) => vec![
             tag(ruby, "Win32"),
             win32.hwnd.get().into_value_with(ruby),
@@ -48,9 +55,12 @@ pub fn window_handle(ruby: &Ruby, handle: Result<RawWindowHandle, HandleError>) 
                 .map(std::num::NonZero::get)
                 .into_value_with(ruby),
         ],
+        // tao answers AppKit only on macOS (macos/window.rs:1494-1503).
+        #[cfg(target_os = "macos")]
         Ok(RawWindowHandle::AppKit(appkit)) => vec![
             tag(ruby, "AppKit"),
             appkit.ns_view.as_ptr().addr().into_value_with(ruby),
+            window_number(window).into_value_with(ruby),
         ],
         Ok(RawWindowHandle::Xlib(xlib)) => vec![
             tag(ruby, "Xlib"),
@@ -99,6 +109,29 @@ pub fn display_handle(
         Err(error) => vec![error_tag(ruby, &error)],
     };
     ruby.ary_from_iter(values)
+}
+
+/// The window's `-[NSWindow windowNumber]` (objc2-app-kit 0.3.2
+/// `generated/NSWindow.rs:780-782`). tao creates its window with
+/// `defer: NO` (tao 0.34.5 `macos/window.rs:248-251`), so the window has a
+/// window device, and a number, from the start.
+#[cfg(target_os = "macos")]
+#[allow(unsafe_code)]
+fn window_number(window: &Window) -> isize {
+    use objc2_app_kit::NSWindow;
+    use tao::platform::macos::WindowExtMacOS;
+
+    let ns_window = window.ns_window().cast::<NSWindow>();
+    // SAFETY: `ns_window` is `&*self.ns_window as *const NSWindow`, a
+    // pointer to the `Retained<NSWindow>` tao's window holds for as long as
+    // it lives (tao 0.34.5 `platform/macos.rs:88-92`,
+    // `platform_impl/macos/window.rs:1557-1559`), so it is non-null,
+    // aligned, and live while `window` is borrowed, which outlasts this
+    // reference. `NSWindow` belongs to the main thread, and the caller
+    // reads it there: `RbWindow::window` answers only the window's own
+    // thread, the main thread (`thread_bound.rs`).
+    let ns_window = unsafe { &*ns_window };
+    ns_window.windowNumber()
 }
 
 /// The tagged Array for an Xlib display.

@@ -114,64 +114,52 @@ module Tokra
         Failure = Data.define(:error)
 
         # A parent window's raw handles, taken when the parent was set
-        # (desktop.rs:51-80), as the ferro-rfd values its +set_parent+
-        # reads back.
+        # (desktop.rs:51-80), for ferro-rfd's +set_parent+ to read back.
         #
-        # A Tokra::Window answers with Tokra::RawWindowHandle values, and
-        # ferro-rfd takes only its own, so each kind ferro-rfd binds is
-        # copied into ferro-rfd's: a Win32 window on Windows, an Xlib one
-        # on X11. ferro-rfd binds no AppKit or Wayland handle, since rfd
-        # follows those as pointers and an Integer from Ruby could point
-        # anywhere (ADR 013), so a parent that names one is no parent.
+        # ferro-rfd reads a handle by its kind, the name of its class, and
+        # by raw-window-handle's field names, so Tokra::RawWindowHandle
+        # values reach it as they are: a Win32 window on Windows, an Xlib
+        # one on X11, and on macOS an AppKit one, by its window number.
+        #
+        # ferro-rfd binds no Wayland handle, since rfd follows its pointers
+        # (ADR 013), and raises for one. Tauri shows the dialog there with
+        # its parent; Tokra shows it without one, so a Tokra window on
+        # Wayland is no parent rather than a failed dialog.
         class WindowHandle < Data.define(:window_handle, :display_handle)
           ##
           # :attr_reader: window_handle
-          # The parent's ferro-rfd window handle.
+          # The parent's window handle.
 
           ##
           # :attr_reader: display_handle
-          # The parent's ferro-rfd display handle.
+          # The parent's display handle.
 
           # The handles of +parent+, an object that answers +window_handle+
           # and +display_handle+, such as a Tokra::Window; or +nil+ when
           # either answers +nil+ or raises
           # Tokra::RawWindowHandle::HandleError, as Tauri keeps a parent only
           # when both handles are <tt>Ok</tt> (lib.rs:287-302, 460-478), or
-          # when ferro-rfd cannot take the kind.
+          # when either is a Tokra Wayland handle.
           #
           # === Example
           #
-          #   Desktop::WindowHandle.of(window)  #=> a WindowHandle on Windows and X11, nil on macOS
+          #   Desktop::WindowHandle.of(window)  #=> a WindowHandle, or nil on Wayland
           def self.of(parent)
-            window_handle = rfd_window_handle(parent.window_handle)
-            display_handle = rfd_display_handle(parent.display_handle)
-            new(window_handle:, display_handle:) if window_handle && display_handle
+            window_handle = parent.window_handle
+            display_handle = parent.display_handle
+            return nil unless window_handle && display_handle
+            return nil if wayland?(window_handle) || wayland?(display_handle)
+
+            new(window_handle:, display_handle:)
           rescue Tokra::RawWindowHandle::HandleError
             nil
           end
 
-          # ferro-rfd's value for +handle+: a copy of a Tokra handle it
-          # binds, +nil+ for one it does not, and its own values as they
-          # are.
-          private_class_method def self.rfd_window_handle(handle)
+          # Whether +handle+ is a Tokra Wayland handle.
+          private_class_method def self.wayland?(handle)
             case handle
-            when Tokra::RawWindowHandle::Win32WindowHandle
-              Ferro::Rfd::Win32WindowHandle.new(hwnd: handle.hwnd, hinstance: handle.hinstance)
-            when Tokra::RawWindowHandle::XlibWindowHandle
-              Ferro::Rfd::XlibWindowHandle.new(window: handle.window, visual_id: handle.visual_id)
-            when Tokra::RawWindowHandle::AppKitWindowHandle, Tokra::RawWindowHandle::WaylandWindowHandle then nil
-            else handle
-            end
-          end
-
-          # ferro-rfd's value for the display +handle+, as for a window.
-          private_class_method def self.rfd_display_handle(handle)
-            case handle
-            when Tokra::RawWindowHandle::WindowsDisplayHandle then Ferro::Rfd::WindowsDisplayHandle.new
-            when Tokra::RawWindowHandle::XlibDisplayHandle
-              Ferro::Rfd::XlibDisplayHandle.new(display: handle.display, screen: handle.screen)
-            when Tokra::RawWindowHandle::AppKitDisplayHandle, Tokra::RawWindowHandle::WaylandDisplayHandle then nil
-            else handle
+            when Tokra::RawWindowHandle::WaylandWindowHandle, Tokra::RawWindowHandle::WaylandDisplayHandle then true
+            else false
             end
           end
         end

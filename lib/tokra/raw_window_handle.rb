@@ -81,15 +81,33 @@ module Tokra
     end
 
     # An AppKit window, by the address of its content +NSView+
-    # (raw-window-handle <tt>src/appkit.rs:88-91</tt>).
+    # (raw-window-handle <tt>src/appkit.rs:88-91</tt>) and by its window
+    # number.
+    #
+    # An address names a view only while the view lives, and nothing in
+    # Ruby can tell a live +NSView+ from a stale or made-up Integer. A
+    # library that follows +ns_view+ trusts it blindly. The window number
+    # names the window without pointing at it: AppKit's
+    # <tt>-[NSApplication windowWithWindowNumber:]</tt> finds the window
+    # for it, or answers +nil+ for a number that names none of your app's
+    # windows. So ferro-rfd reads +window_number+, looks the window up on
+    # the main thread, and takes the content view from the live window.
+    #
+    # raw-window-handle has no +window_number+; Tokra adds it beside
+    # +ns_view+, which keeps the crate's meaning (ADR 013).
     #
     # === Example
     #
-    #   AppKitWindowHandle.new(ns_view: 0x6000_0123_4560)
-    class AppKitWindowHandle < Data.define(:ns_view)
+    #   AppKitWindowHandle.new(ns_view: 0x6000_0123_4560, window_number: 4021)
+    class AppKitWindowHandle < Data.define(:ns_view, :window_number)
       ##
       # :attr_reader: ns_view
       # The address of the window's +NSView+, a non-zero Integer.
+
+      ##
+      # :attr_reader: window_number
+      # The window's <tt>-[NSWindow windowNumber]</tt>, a positive
+      # Integer.
     end
 
     # The AppKit display. macOS has one, so this value carries nothing
@@ -199,7 +217,7 @@ module Tokra
     def self.window_handle(native) # :nodoc:
       case native
       in [:Win32, Integer => hwnd, (Integer | nil) => hinstance] then Win32WindowHandle.new(hwnd:, hinstance:)
-      in [:AppKit, Integer => ns_view] then AppKitWindowHandle.new(ns_view:)
+      in [:AppKit, Integer => ns_view, Integer => window_number] then AppKitWindowHandle.new(ns_view:, window_number:)
       in [:Xlib, Integer => window, Integer => visual_id] then XlibWindowHandle.new(window:, visual_id:)
       in [:Wayland, Integer => surface] then WaylandWindowHandle.new(surface:)
       in [:Unavailable] then raise HandleError::Unavailable

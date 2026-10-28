@@ -27,11 +27,11 @@ GIT
 
 GIT
   remote: https://github.com/setdef/Ferro
-  revision: 614968f5b3959a6096daabac6840dcd183379701
-  tag: ferro-rfd/v0.1.0.pre.2
+  revision: bb0f3be7c175692d702a7052f1806db07f599146
+  tag: ferro-rfd/v0.1.0.pre.3
   glob: gems/rfd/*.gemspec
   specs:
-    ferro-rfd (0.1.0.pre.2)
+    ferro-rfd (0.1.0.pre.3)
       rb_sys (~> 0.9.129)
 
 GIT
@@ -383,7 +383,7 @@ CHECKSUMS
   ferro-arboard (0.1.0.pre.2)
   ferro-global-hotkey (0.1.0.pre.1)
   ferro-notify-rust (0.1.0.pre.3)
-  ferro-rfd (0.1.0.pre.2)
+  ferro-rfd (0.1.0.pre.3)
   ferro-time (0.1.0.pre.1)
   ferro-url (0.1.0.pre.1)
   ffi (1.17.3) sha256=0e9f39f7bb3934f77ad6feab49662be77e87eedcdeb2a3f5c0234c2938563d4c

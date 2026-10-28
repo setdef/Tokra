@@ -158,9 +158,8 @@ class TestCommands < Minitest::Test
 
   # Tauri parents the open dialog only under cfg(any(windows, target_os =
   # "macos")) (commands.rs:129-132); save and the message commands always.
-  # On macOS the parent then drops, since ferro-rfd binds no AppKit handle,
-  # so the constant is what a test can see there; Linux's real window
-  # checks the portal call (test_dialog_window.rb).
+  # The real windows check what follows: the portal call on Linux, the
+  # sheet on macOS (test_dialog_window.rb).
   def test_open_has_a_parent_on_windows_and_macos_only
     assert_equal %i[windows macos].include?(PLATFORM), Dialog::Commands::OPEN_HAS_PARENT
   end

@@ -8,7 +8,7 @@
 
 use magnus::{function, method, prelude::*, Error, RArray, Ruby};
 use tao::event_loop::EventLoopProxy;
-use tao::rwh_06::{HasDisplayHandle, HasWindowHandle};
+use tao::rwh_06::HasDisplayHandle;
 use tao::window::{Window, WindowBuilder};
 
 use crate::event_loop::RbEventLoop;
@@ -175,11 +175,7 @@ impl RbWindow {
     ///
     /// Returns `ThreadError` off the window's thread.
     pub fn raw_window_handle(ruby: &Ruby, rb_self: &Self) -> Result<RArray, Error> {
-        let window = rb_self.window()?;
-        Ok(raw_handle::window_handle(
-            ruby,
-            window.window_handle().map(|handle| handle.as_raw()),
-        ))
+        Ok(raw_handle::window_handle(ruby, rb_self.window()?))
     }
 
     /// The raw handle of the window's display, as a tagged Array

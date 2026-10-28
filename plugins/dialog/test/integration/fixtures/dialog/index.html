@@ -73,6 +73,9 @@ SPDX-License-Identifier: AGPL-3.0-or-later
         }
       });
 
+      // macOS message dialogs are left out: with the window as parent each
+      // is an NSAlert sheet, which brings the app to the front, and a test
+      // window never takes focus (plan 035).
       if (platform === 'linux') {
         await check('message resolves the custom label pressed', async () => {
           await next({ accept: false });

@@ -68,6 +68,18 @@ module WindowHandleFixture
     send.call(title, sel.call("UTF8String")).to_s.force_encoding(Encoding::UTF_8)
   end
 
+  # -[[NSView window] windowNumber] for an AppKit +handle+, read through
+  # its content view; +nil+ for any other kind.
+  def self.native_window_number(handle)
+    return nil unless handle.is_a?(Tokra::RawWindowHandle::AppKitWindowHandle)
+
+    objc = Fiddle.dlopen("/usr/lib/libobjc.A.dylib")
+    sel = Fiddle::Function.new(objc["sel_registerName"], [Fiddle::TYPE_VOIDP], Fiddle::TYPE_VOIDP)
+    send = Fiddle::Function.new(objc["objc_msgSend"], [Fiddle::TYPE_VOIDP, Fiddle::TYPE_VOIDP], Fiddle::TYPE_VOIDP)
+    number = Fiddle::Function.new(objc["objc_msgSend"], [Fiddle::TYPE_VOIDP, Fiddle::TYPE_VOIDP], Fiddle::TYPE_LONG)
+    number.call(send.call(handle.ns_view, sel.call("window")), sel.call("windowNumber"))
+  end
+
   # GetWindowTextW(hwnd), as UTF-8.
   def self.win32_title(hwnd)
     user32 = Fiddle.dlopen("user32")
@@ -189,6 +201,7 @@ app.run do |handle, event|
         "main_display" => WindowHandleFixture.attempt { display },
         "app_display" => WindowHandleFixture.attempt { app.display_handle },
         "native_title" => WindowHandleFixture.native_title(handle_on_main),
+        "native_window_number" => WindowHandleFixture.native_window_number(handle_on_main),
       }
       if display.is_a?(Tokra::RawWindowHandle::XlibDisplayHandle) && display.display
         main["xlib_display_name"] = WindowHandleFixture.xlib_display_name(display.display)

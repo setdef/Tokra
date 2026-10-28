@@ -12,11 +12,14 @@
 #   cd plugins/dialog && bundle exec ruby test/integration/fixtures/dialog/app.rb --wait
 #
 # The page tells the plugin:answer|next command how the next dialog should
-# end. On macOS a thread finds the sheet on the main window and ends it
-# through AppKit with OK or Cancel, as the user's click would. On Linux
-# the dialogs run a fake zenity (test_dialog_window.rb puts it on PATH),
-# which answers from files this command writes. On Ready it prints the
-# window's raw handle as WINDOW_HANDLE <json>.
+# end. On macOS a thread finds the sheet on the window and ends it through
+# AppKit with OK or Cancel, as the user's click would, and prints
+# SHEET_ON <window number> for each. On
+# Linux the dialogs run a fake zenity (test_dialog_window.rb puts it on
+# PATH), which answers from files this command writes. On Ready it prints
+# the window's raw handle as WINDOW_HANDLE <json>, and on macOS PARENT
+# <json>: rfd's Debug text for a dialog with the window as parent, built
+# on the main thread and on another thread.
 
 require_relative "../../../../../../test/integration/support/fixture_app"
 require "tokra-dialog"
@@ -66,16 +69,16 @@ module DialogFixture
       !sheet.nil?
     end
 
-    # Ends the sheet with NSModalResponseOK (1) or Cancel (0); +false+
-    # when no sheet is open yet. -[NSSavePanel ok:] is not implemented for
-    # the out-of-process panels of recent macOS, so this ends the sheet as
-    # its window would.
+    # Ends the sheet with NSModalResponseOK (1) or Cancel (0) and returns
+    # the number of the window it was on; +nil+ when no sheet is open
+    # yet. -[NSSavePanel ok:] is not implemented for the out-of-process
+    # panels of recent macOS, so this ends the sheet as its window would.
     def self.finish(accept)
       window, sheet = self.sheet
-      return false unless window
+      return nil unless window
 
       @end.call(window, @sel.call("endSheet:returnCode:"), sheet, accept ? 1 : 0)
-      true
+      @count.call(window, @sel.call("windowNumber"))
     end
   end
 
@@ -97,8 +100,24 @@ module DialogFixture
     def on_event(app, event)
       return unless event.is_a?(Tokra::RunEvent::Ready)
 
-      handle = app.get_window("main").window_handle
+      window = app.get_window("main")
+      handle = window.window_handle
       puts "WINDOW_HANDLE #{JSON.generate({ 'kind' => handle.class.name.split('::').last, **handle.to_h })}"
+      print_parents(app, window) if RUBY_PLATFORM.include?("darwin")
+    end
+
+    # Prints what rfd gets as parent, from the main thread and from
+    # another, where ferro-rfd looks the window up through the main
+    # thread's run loop. The thread is not joined: the main thread has to
+    # keep running its loop for that lookup to end.
+    private def print_parents(app, window)
+      main = app.dialog.file.set_parent(window).to_async_file_dialog.inspect
+      Thread.new do
+        thread = app.dialog.message("m").parent(window).to_async_message_dialog.inspect
+        puts "PARENT #{JSON.generate(main:, thread:)}"
+      rescue => e
+        puts "PARENT #{JSON.generate(main:, thread: "#{e.class}: #{e.message}")}"
+      end
     end
 
     def extend_api(invoke)
@@ -152,8 +171,12 @@ module DialogFixture
             app.run_on_main_thread do
               next if done
 
-              done = Sheet.finish(accept)
-              finished << true if done
+              number = Sheet.finish(accept)
+              next unless number
+
+              done = true
+              puts "SHEET_ON #{number}"
+              finished << true
             end
           end
         end

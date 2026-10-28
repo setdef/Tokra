@@ -7,7 +7,7 @@ module Tokra
     type display_handle = WindowsDisplayHandle | AppKitDisplayHandle | XlibDisplayHandle | WaylandDisplayHandle
     type native_error = [:Unavailable] | [:NotSupported]
     type native_window_handle = [:Win32, Integer, Integer?]
-      | [:AppKit, Integer]
+      | [:AppKit, Integer, Integer]
       | [:Xlib, Integer, Integer]
       | [:Wayland, Integer]
       | native_error
@@ -30,8 +30,9 @@ module Tokra
 
     class AppKitWindowHandle < Data
       attr_reader ns_view: Integer
-      def self.new: (ns_view: Integer) -> AppKitWindowHandle
-                  | (Integer ns_view) -> AppKitWindowHandle
+      attr_reader window_number: Integer
+      def self.new: (ns_view: Integer, window_number: Integer) -> AppKitWindowHandle
+                  | (Integer ns_view, Integer window_number) -> AppKitWindowHandle
     end
 
     class AppKitDisplayHandle < Data

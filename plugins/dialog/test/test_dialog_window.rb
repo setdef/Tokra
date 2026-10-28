@@ -14,9 +14,12 @@ require "open3"
 # @tauri-apps/plugin-dialog builds.
 #
 # On macOS the file dialogs are real sheets on the window, which the
-# fixture ends through AppKit as a click would. Message dialogs there are
-# system alerts only a person can dismiss, so the page leaves them out. On
-# Linux every dialog runs a fake zenity that answers as the page arranged.
+# fixture ends through AppKit as a click would. A message dialog there,
+# with the window as parent, is an NSAlert sheet, which brings the app to
+# the front, and a test window never takes focus; so the page leaves
+# message dialogs out, and the fixture checks the parent rfd gets through
+# rfd's Debug text instead. On Linux every dialog runs a fake zenity that
+# answers as the page arranged.
 # rfd asks the desktop portal first, over D-Bus, naming the parent window
 # (rfd 0.17.2 src/backend/xdg_desktop_portal.rs:82-113); the app's bus is
 # one of the test's own, where no portal answers, and dbus-monitor records
@@ -142,15 +145,47 @@ class TestDialogWindow < RealApp::TestCase
   # (window_identifier/mod.rs:70-83).
   def test_on_x11_save_names_the_window_to_the_portal_and_open_does_not
     skip "Linux only" unless RUBY_PLATFORM.include?("linux")
-    line = @run.lines.find { |l| l.start_with?("WINDOW_HANDLE ") }
-    refute_nil line, @run.describe
-    handle = JSON.parse(line.delete_prefix("WINDOW_HANDLE "))
+    handle = window_handle
     skip "the window is not on X11: #{handle.inspect}" unless handle["kind"] == "XlibWindowHandle"
 
     parents = portal_parents
     assert_includes parents, ["SaveFile", "x11:#{handle['window'].to_s(16)}"], parents.inspect
     assert_includes parents, ["OpenFile", ""], parents.inspect
     refute parents.any? { |member, parent| member == "OpenFile" && !parent.empty? }, parents.inspect
+  end
+
+  # The window's handle, as the fixture printed it on Ready.
+  def window_handle
+    line = @run.lines.find { |l| l.start_with?("WINDOW_HANDLE ") }
+    refute_nil line, @run.describe
+    JSON.parse(line.delete_prefix("WINDOW_HANDLE "))
+  end
+
+  # Tauri parents every dialog to the calling window on macOS
+  # (commands.rs:129-132, 229-232), and rfd begins it as a sheet on that
+  # window (rfd 0.17.2 src/backend/macos/modal_future.rs:67-103): the
+  # save and three open panels.
+  def test_on_macos_each_file_dialog_is_a_sheet_on_the_window
+    skip "macOS only" unless RUBY_PLATFORM.include?("darwin")
+
+    number = window_handle["window_number"]
+    sheets = @run.lines.filter_map { |l| Integer(l.delete_prefix("SHEET_ON ")) if l.start_with?("SHEET_ON ") }
+    assert_equal [number] * 4, sheets, @run.describe
+  end
+
+  # ferro-rfd looks the window up by its number and gives rfd its content
+  # view, the window's own ns_view, from the main thread and, through the
+  # main thread's run loop, from another (ADR 013, plan 035).
+  def test_on_macos_rfd_gets_the_window_as_parent_from_any_thread
+    skip "macOS only" unless RUBY_PLATFORM.include?("darwin")
+
+    line = @run.lines.find { |l| l.start_with?("PARENT ") }
+    refute_nil line, @run.describe
+    parents = JSON.parse(line.delete_prefix("PARENT "))
+    expected = "parent: Some(AppKit(AppKitWindowHandle { ns_view: 0x#{window_handle['ns_view'].to_s(16)} })), " \
+      "parent_display: Some(AppKit(AppKitDisplayHandle))"
+    assert_includes parents["main"], expected
+    assert_includes parents["thread"], expected
   end
 
   def test_a_cancelled_open_resolves_null
@@ -173,7 +208,7 @@ class TestDialogWindow < RealApp::TestCase
   end
 
   def test_message_ask_and_confirm_on_linux
-    skip "macOS message dialogs are system alerts only a person can dismiss" unless RUBY_PLATFORM.include?("linux")
+    skip "a macOS message sheet brings the app to the front" unless RUBY_PLATFORM.include?("linux")
 
     message = check_detail(@run, "message resolves the custom label pressed")
     # Two custom buttons make rfd ask zenity a --question, which takes no
