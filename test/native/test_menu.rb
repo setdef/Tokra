@@ -207,10 +207,132 @@ class TestNativeMenu < Minitest::Test
     assert window.is_menu_visible(menu)
     window.remove_menu(menu)
     refute window.is_menu_visible(menu)
+    if window.respond_to?(:set_menu_theme)
+      assert_nil window.set_menu_theme(menu, "Dark")
+      assert_nil window.set_menu_theme(menu, nil)
+    end
     window.init_menu(menu, nil)
     window.close
     refute window.is_menu_visible(menu)
     assert_nil window.init_menu(menu, nil)
+    assert_nil window.set_menu_theme(menu, "Light") if window.respond_to?(:set_menu_theme)
+  end
+
+  # A popup on an open window tracks the pointer until it closes, so this
+  # file shows none (the real-window test does, on Linux and Windows). A
+  # closed window shows nothing, as Tauri's popup does without the
+  # window's platform view (menu/menu.rs:49-79), and the arguments are
+  # checked before the window is.
+  def test_a_closed_window_pops_up_nothing_and_checks_its_arguments_first
+    reason = NativeEventLoop.unavailable_reason
+    skip reason if reason
+
+    window = Tokra::Native::Window.new(NativeEventLoop.shared)
+    window.close
+    menu = Tokra::Native::Menu.new
+    submenu = Tokra::Native::Submenu.new("Nested", true)
+    menu.append(submenu)
+
+    assert_nil window.popup_menu(menu, nil)
+    assert_nil window.popup_menu(submenu, [false, 10.0, 20.5])
+    assert_nil window.popup_menu(menu, [true, 3.0, 4.0])
+    error = assert_raises(TypeError) { window.popup_menu(Tokra::Native::MenuItem.new("A", true, nil), nil) }
+    assert_equal "wrong argument type Tokra::Native::MenuItem (expected Tokra::Native::Menu or Tokra::Native::Submenu)",
+      error.message
+    assert_raises(TypeError) { window.popup_menu(menu, [1.0, 2.0]) }
+    assert_raises(TypeError) { window.popup_menu(menu, "here") }
+    used = quiet_thread { window.popup_menu(menu, nil) }
+    assert_raises(ThreadError) { used.value }
+  end
+
+  # muda's GTK context menu unwraps each item's GTK build the first time it
+  # shows (platform_impl/gtk/mod.rs:372-389), and GTK has no key for a
+  # numpad accelerator, so Tauri would panic; Tokra raises muda's error
+  # before the menu shows (plan 042, decision 18). The menu never shows,
+  # so the test needs no one to close it.
+  def test_on_linux_a_context_menu_gtk_cannot_build_raises_before_it_shows
+    skip "only GTK builds a context menu as it shows it" if RbConfig::CONFIG["host_os"].match?(/darwin|mswin|mingw|cygwin/)
+    reason = NativeEventLoop.unavailable_reason
+    skip reason if reason
+
+    window = Tokra::Native::Window.new(NativeEventLoop.shared)
+    menu = Tokra::Native::Menu.new
+    submenu = Tokra::Native::Submenu.new("Zoom", true)
+    submenu.append(Tokra::Native::MenuItem.new("In", true, "CmdOrCtrl+NumpadAdd"))
+    menu.append(Tokra::Native::MenuItem.new("Plain", true, nil))
+    menu.append(submenu)
+
+    [menu, submenu].each do |context|
+      error = assert_raises(RuntimeError) { window.popup_menu(context, [false, 1.0, 1.0]) }
+      assert_equal "Couldn't recognize \"NumpadAdd\" as a valid key for accelerator, if you feel like it should be, " \
+        "please report this to https://github.com/tauri-apps/muda", error.message
+    end
+    assert_equal 2, menu.items.size, "the scratch build leaves the menu as it was"
+  ensure
+    window&.close
+  end
+
+  # The refusal builds only throwaway items, so a submenu that also sits
+  # in a window's menu bar keeps its accelerators there: muda builds an
+  # item's GTK item with the menu's accelerator group (gtk/mod.rs:1004-1072),
+  # and building the real items for a scratch menu would leave them with
+  # none, so a later set_accelerator would change nothing on the bar.
+  def test_on_linux_the_refusal_leaves_the_menu_bars_accelerators_working
+    skip "only GTK builds a context menu as it shows it" if RbConfig::CONFIG["host_os"].match?(/darwin|mswin|mingw|cygwin/)
+    reason = NativeEventLoop.unavailable_reason
+    skip reason if reason
+
+    require_relative "../integration/support/platform_menu"
+    window = Tokra::Native::Window.new(NativeEventLoop.shared)
+    go = Tokra::Native::MenuItem.new("Go", true, "CmdOrCtrl+K")
+    edit = Tokra::Native::Submenu.new("Accelerated #{Process.pid}", true)
+    edit.append(go)
+    bar = Tokra::Native::Menu.new
+    bar.append(edit)
+    window.init_menu(bar, nil)
+    context = Tokra::Native::Menu.new
+    context.append(edit)
+    context.append(Tokra::Native::MenuItem.new("Zoom", true, "NumpadAdd"))
+
+    2.times { assert_raises(RuntimeError) { window.popup_menu(context, nil) } }
+    go.set_accelerator("CmdOrCtrl+J")
+
+    gtk = PlatformMenu::Gtk
+    # tao applies a title in its loop, which no test here runs, so the
+    # window is the one whose menu bar shows this submenu.
+    gtk_window = gtk.list(gtk.fn("gtk_window_list_toplevels", []).call).find do |top|
+      box = gtk.fn("gtk_bin_get_child", [Fiddle::TYPE_VOIDP]).call(top)
+      next false if box.null? || gtk.type_name(box) != "GtkBox"
+
+      bar = gtk.children(box).find { |child| gtk.type_name(child) == "GtkMenuBar" }
+      bar && gtk.children(bar).any? { |item| gtk.label(item) == "Accelerated #{Process.pid}" }
+    end
+    refute_nil gtk_window
+    activate = PlatformMenu::Gtk.fn("gtk_accel_groups_activate",
+      [Fiddle::TYPE_VOIDP, Fiddle::TYPE_UINT, Fiddle::TYPE_INT], Fiddle::TYPE_INT)
+    control = 1 << 2
+    assert_equal 1, activate.call(gtk_window, "J".ord, control), "the bar takes the new accelerator"
+    assert_equal 0, activate.call(gtk_window, "K".ord, control), "and drops the old one"
+  ensure
+    window&.close
+  end
+
+  # Tauri's hpopupmenu is Windows' (menu/mod.rs:741-743): muda's HMENU for
+  # the context menu, one per menu or submenu.
+  def test_on_windows_a_menu_and_a_submenu_answer_their_popup_hmenu
+    windows = RbConfig::CONFIG["host_os"].match?(/mswin|mingw|cygwin/)
+    assert_equal windows, Tokra::Native::Menu.method_defined?(:hpopupmenu)
+    assert_equal windows, Tokra::Native::Submenu.method_defined?(:hpopupmenu)
+    assert_equal windows, Tokra::Native::Window.method_defined?(:set_menu_theme)
+    skip "HMENU is Windows'" unless windows
+
+    menu = Tokra::Native::Menu.new
+    submenu = Tokra::Native::Submenu.new("Nested", true)
+    assert_kind_of Integer, menu.hpopupmenu
+    assert_operator menu.hpopupmenu, :positive?
+    refute_equal menu.hpopupmenu, submenu.hpopupmenu
+    used = quiet_thread { menu.hpopupmenu }
+    assert_raises(ThreadError) { used.value }
   end
 
   private def quiet_thread(&)

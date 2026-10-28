@@ -142,6 +142,33 @@ module StubNative
     end
   end
 
+  # Windows' menu-bar theme, recorded as <tt>[menu id, theme]</tt>, as
+  # Native::Window answers on Windows only.
+  module WindowMenuThemes
+    def menu_theme_calls
+      @menu_theme_calls ||= []
+    end
+
+    def set_menu_theme(menu, theme)
+      @closed || (menu_theme_calls << [menu.id, theme])
+      nil
+    end
+  end
+
+  # Context menus, recorded as <tt>[menu id, position, main thread?]</tt>.
+  # A real popup tracks the pointer until it closes; this one closes at
+  # once, and a closed window shows nothing, as the native one does.
+  module WindowPopups
+    def popups
+      @popups ||= []
+    end
+
+    def popup_menu(menu, position)
+      @closed || (popups << [menu.id, position, Thread.current == Thread.main])
+      nil
+    end
+  end
+
   # Stub Proxy that records respond() and drop_response() calls, and
   # queues the loop's own requests as the real proxy sends them through
   # tao's channel.
@@ -183,6 +210,8 @@ module StubNative
   # WindowDestroyedEvent, as the platform answers tao's dropped window.
   class Window
     include WindowMenus if Tokra::Native::Window.method_defined?(:init_menu)
+    include WindowMenuThemes if Tokra::Native::Window.method_defined?(:set_menu_theme)
+    include WindowPopups
 
     attr_reader :size
 
@@ -469,5 +498,15 @@ module StubWindowMenusNative
 
   class Window < StubNative::Window
     include StubNative::WindowMenus
+  end
+end
+
+# StubWindowMenusNative as Windows plays it: each window's menu bar also
+# takes a theme (plan 042, phase 3).
+module StubWindowsMenusNative
+  StubWindowMenusNative.constants.each { |name| const_set(name, StubWindowMenusNative.const_get(name)) unless name == :Window }
+
+  class Window < StubWindowMenusNative::Window
+    include StubNative::WindowMenuThemes
   end
 end

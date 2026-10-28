@@ -24,7 +24,7 @@ use crate::window::RbWindow;
 
 /// A size or position as Ruby passes it: whether it is physical, then its
 /// two numbers.
-type Dimensions = (bool, f64, f64);
+pub type Dimensions = (bool, f64, f64);
 
 /// An answer that may itself be nothing, wrapped so that `nil` alone means
 /// a closed window: `[value]` or `[nil]`.
@@ -49,7 +49,7 @@ fn size((physical, width, height): Dimensions) -> Size {
 
 /// tao's `Position` for a Ruby position: `Position::Physical` holds
 /// `i32`s, as Tauri's `PhysicalPosition<i32>` does.
-fn position((physical, x, y): Dimensions) -> Position {
+pub fn position((physical, x, y): Dimensions) -> Position {
     if physical {
         Position::Physical(PhysicalPosition::new(x, y).cast())
     } else {

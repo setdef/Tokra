@@ -76,6 +76,8 @@ class TestMenu < Minitest::Test
   def test_on_macos_the_builders_menu_goes_on_nsapp_with_its_window_and_help_menus
     skip "NSApp is macOS's" unless Tokra::Native.respond_to?(:init_menu_for_nsapp)
 
+    # Other files' apps run on this thread too and leave their calls.
+    StubNative.nsapp_calls.clear
     app = Tokra::Builder.default.build(native: StubNative)
     app.run
 

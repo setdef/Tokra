@@ -87,6 +87,28 @@ SPDX-License-Identifier: AGPL-3.0-or-later
         };
       });
 
+      // popup sends its position as dpi.ts serializes it; a window label
+      // no window has makes Tauri answer without showing the menu
+      // (plugin.rs:663-692), so no menu pops up on any platform here.
+      await check('popup reads the page position and skips an unknown window', async () => {
+        const { LogicalPosition, PhysicalPosition } = window.__TAURI__.dpi;
+        const nowhere = { label: 'nowhere' };
+        const menu = await Menu.new({ items: [{ id: 'js-popup', text: 'JS Popup' }] });
+        const submenu = await Submenu.new({ text: 'JS Popup Submenu', items: [{ text: 'Inner' }] });
+        const answers = [
+          await menu.popup(new LogicalPosition(4, 5.5), nowhere),
+          await submenu.popup(new PhysicalPosition(6, 7), nowhere),
+          await menu.popup(undefined, nowhere),
+        ];
+        let rejected;
+        try {
+          await menu.popup(new PhysicalPosition(1.5, 2), nowhere);
+        } catch (error) {
+          rejected = error;
+        }
+        return { pass: answers.every((answer) => answer === null) && rejected !== undefined, detail: { answers, rejected } };
+      });
+
       await check('a bad kind rejects in serde words', async () => {
         try {
           return { pass: false, detail: { resolved: await invoke('plugin:menu|text', { rid: 0, kind: 'Bogus' }) } };

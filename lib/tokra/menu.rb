@@ -266,6 +266,7 @@ end
 require_relative "menu/native_icon"
 require_relative "menu/about_metadata"
 require_relative "menu/menu_tree"
+require_relative "menu/context_menu"
 require_relative "menu/menu"
 require_relative "menu/submenu"
 require_relative "menu/menu_item"

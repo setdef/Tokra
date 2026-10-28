@@ -293,7 +293,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   methods, Submenu icons, `NativeIcon`, `MenuId`, `MenuEvent`,
   `AboutMetadata` and its builder, `MenuBuilder`, `SubmenuBuilder`,
   `MenuItemBuilder`, `CheckMenuItemBuilder`, `IconMenuItemBuilder`, and
-  `Menu.default`; context menus are not ported yet
+  `Menu.default`
+- Context menus: `Menu::ContextMenu#popup` and `#popup_at` on `Menu` and
+  `Submenu`, `Window#popup_menu` and `#popup_menu_at`, the menu plugin's
+  `popup`, and on Windows `#hpopupmenu`; other Ruby threads keep running
+  while a context menu is open
+- On Windows `Window#set_theme` also themes the window's menu bar
 - `App` and `AppHandle#on_menu_event`, `#menu`, `#set_menu`, `#remove_menu`,
   `#hide_menu`, and `#show_menu`; `Window#on_menu_event`, `#menu`,
   `#set_menu`, `#remove_menu`, `#hide_menu`, `#show_menu`, and
@@ -306,7 +311,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `Native::CheckMenuItem`, `Native::PredefinedMenuItem`,
   `Native::IconMenuItem`, `Native::MenuIcon`, and `Native::MenuEvent`; on
   macOS `Native.init_menu_for_nsapp` and its siblings, on Windows and Linux
-  `Native::Window#init_menu` and its siblings
+  `Native::Window#init_menu` and its siblings, on Windows
+  `Native::Window#set_menu_theme` and `Native::Menu#hpopupmenu`; and
+  `Native::Window#popup_menu`
 - Dependency: muda 0.17.1, with its libxdo feature
 - On Linux, libxdo is a new build (`libxdo-dev`) and run-time (`libxdo3`)
   dependency

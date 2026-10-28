@@ -53,3 +53,20 @@ module Tokra
 end
 
 # SPDX-SnippetEnd
+
+module Tokra
+  module Dpi
+    # The native <tt>[physical, x, y]</tt> for a LogicalPosition or a
+    # PhysicalPosition, which the native layer turns into dpi's Position;
+    # anything else raises TypeError.
+    def self.position_dimensions(position) # :nodoc:
+      case position
+      when LogicalPosition then [false, Float(position.x), Float(position.y)]
+      when PhysicalPosition then [true, Float(position.x), Float(position.y)]
+      else
+        raise TypeError,
+          "wrong argument type #{position.class} (expected Tokra::LogicalPosition or Tokra::PhysicalPosition)"
+      end
+    end
+  end
+end

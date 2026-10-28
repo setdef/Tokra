@@ -185,6 +185,63 @@ class TestMenuPlugin < Minitest::Test
     assert_equal [[:init_menu, "win"]], @window.native.menu_calls
   end
 
+  # +popup+ (plugin.rs:663-692): the caller's window or the named one, at
+  # the pointer or at the page's Position, as dpi.ts serializes it
+  # (packages/api/src/dpi.ts:391-398), and nothing for a label no window
+  # has, whatever the rid.
+  def test_popup_shows_a_menu_or_submenu_on_the_callers_or_the_named_window
+    _, (menu_rid,) = call("new", "kind" => "Menu", "options" => { "id" => "context" })
+    _, (submenu_rid,) = call("new", "kind" => "Submenu", "options" => { "id" => "nested", "text" => "Nested" })
+
+    assert_equal [true, nil], call("popup", "rid" => menu_rid, "kind" => "Menu", "window" => nil, "at" => nil)
+    assert_equal [true, nil], call("popup", "rid" => submenu_rid, "kind" => "Submenu", "window" => "main",
+      "at" => { "Logical" => { "x" => 4, "y" => 5.5 } })
+    assert_equal [true, nil], call("popup", "rid" => menu_rid, "kind" => "Menu",
+      "at" => { "Physical" => { "x" => 6, "y" => 7 } })
+    assert_equal [true, nil], call("popup", "rid" => menu_rid, "kind" => "Menu", "at" => { "Physical" => [8, 9] })
+    assert_equal [true, nil], call("popup", "rid" => 999, "kind" => "Check", "window" => "nowhere")
+
+    assert_equal [
+      ["context", nil, true],
+      ["nested", [false, 4.0, 5.5], true],
+      ["context", [true, 6.0, 7.0], true],
+      ["context", [true, 8.0, 9.0], true],
+    ], @window.native.popups
+  end
+
+  def test_popup_rejects_another_kind_a_bad_rid_and_a_bad_position_in_tauris_words
+    _, (menu_rid,) = call("new", "kind" => "Menu")
+    _, (item_rid,) = call("new", "kind" => "MenuItem", "options" => { "text" => "A" })
+    prefix = "invalid args `at` for command `popup`: "
+
+    assert_rejects "unexpected menu item kind", "popup", "rid" => item_rid, "kind" => "MenuItem"
+    assert_rejects "The resource id #{item_rid} is invalid.", "popup", "rid" => item_rid, "kind" => "Menu"
+    assert_rejects "invalid args `rid` for command `popup`: command popup missing required key rid", "popup", {}
+    assert_rejects "invalid args `window` for command `popup`: invalid type: integer `1`, expected a string",
+      "popup", "rid" => menu_rid, "kind" => "Menu", "window" => 1
+    assert_rejects "invalid args `window` for command `popup`: invalid type: integer `1`, expected a string",
+      "popup", "rid" => menu_rid, "kind" => "Menu", "window" => 1, "at" => "Bogus"
+    {
+      "Physical" => "invalid type: unit variant, expected newtype variant",
+      "Bogus" => "unknown variant `Bogus`, expected `Physical` or `Logical`",
+      { "Physical" => { "x" => 1.5, "y" => 2 } } => "invalid type: floating point `1.5`, expected i32",
+      { "Physical" => { "x" => 2 ** 31, "y" => 2 } } => "invalid value: integer `2147483648`, expected i32",
+      { "Logical" => { "x" => "1", "y" => 2 } } => "invalid type: string \"1\", expected f64",
+      { "Logical" => { "y" => "2" } } => "invalid type: string \"2\", expected f64",
+      { "Logical" => { "y" => 2 } } => "missing field `x`",
+      { "Logical" => { "x" => 2 } } => "missing field `y`",
+      { "Logical" => nil } => "invalid type: null, expected struct LogicalPosition",
+      { "Physical" => [1] } => "invalid length 1, expected struct PhysicalPosition with 2 elements",
+      { "Physical" => [1, 2, 3] } => "invalid length 3, expected fewer elements in array",
+      { "Physical" => [1.5] } => "invalid type: floating point `1.5`, expected i32",
+      { "Logical" => {}, "Physical" => {} } => "invalid value: map, expected map with a single key",
+      5 => "invalid type: integer `5`, expected string or map",
+    }.each do |at, message|
+      assert_rejects prefix + message, "popup", "rid" => menu_rid, "kind" => "Menu", "at" => at
+    end
+    assert_empty @window.native.popups
+  end
+
   def test_an_items_channels_hear_its_clicks_after_the_app_listeners
     _, (rid, id) = call("new", { "kind" => "MenuItem", "options" => { "id" => "go", "text" => "Go" } },
       "__CHANNEL__:41")

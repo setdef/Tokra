@@ -77,6 +77,7 @@ mod webview;
 mod window;
 mod window_ext;
 mod window_state;
+mod without_gvl;
 
 // Re-export for use by other modules
 pub use event_loop::RbEventLoop;

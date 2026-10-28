@@ -23,6 +23,7 @@ module Tokra
       UNREACHABLE: String
       UNWRAP_NONE: String
       ITEM_KINDS: Array[String]
+      POSITION_VARIANTS: Array[String]
       PREDEFINED: Hash[String, Symbol]
       NATIVE_ICONS: Array[String]
       KIND_NAMES: Hash[Class, String]
@@ -111,6 +112,7 @@ module Tokra
       def remove_at: (Ipc::Invoke invoke) -> [Integer, String, String]?
       def list_items: (Ipc::Invoke invoke) -> Array[[Integer, String, String]]
       def get_item: (Ipc::Invoke invoke) -> [Integer, String, String]?
+      def popup: (Ipc::Invoke invoke) -> nil
       def create_default: (Ipc::Invoke invoke) -> [Integer, String]
       def set_as_app_menu: (Ipc::Invoke invoke) -> [Integer, String]?
       def set_as_window_menu: (Ipc::Invoke invoke) -> [Integer, String]?
@@ -148,6 +150,9 @@ module Tokra
       def unit_enum: (json_value value, Array[String] variants) -> String
       def enum_variant: (json_value value, Array[String] variants) -> [String, json_value]
       def known_variant: (String name, Array[String] variants) -> String
+      def position: (json_value value) -> (LogicalPosition | PhysicalPosition)
+      def position_fields: [T] (json_value value, String name) { (json_value field) -> T } -> [T, T]
+      def f64: (json_value value) -> Float
       def item_kind: (json_value value) -> String
       def predefined: (json_value value) -> [String, about_fields?]
       def struct_fields: (json_value value, String name, Array[String] fields) -> Hash[String, json_value]

@@ -33,6 +33,8 @@ module Tokra
     def hide_menu: () -> nil
     def show_menu: () -> nil
     def is_menu_visible: () -> bool
+    def popup_menu: (Menu::ContextMenu menu) -> nil
+    def popup_menu_at: (Menu::ContextMenu menu, LogicalPosition | PhysicalPosition position) -> nil
     def has_app_wide_menu?: () -> bool
     def menu_in_use?: (Menu::MenuId id) -> bool
     def replace_window_menu: (WindowMenu? window_menu) -> WindowMenu?

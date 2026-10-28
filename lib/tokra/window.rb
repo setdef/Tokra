@@ -158,6 +158,41 @@ module Tokra
       false
     end
 
+    # Shows +menu+, a Menu or a Submenu, as a context menu on this window
+    # at the pointer, and returns +nil+ once it closes, as
+    # ContextMenu#popup does.
+    #
+    # Mirrors Tauri's Window::popup_menu (window/mod.rs:1365-1368).
+    #
+    # === Example
+    #
+    #   window.popup_menu(Tokra::Menu::Menu.with_items(window, [
+    #     Tokra::Menu::MenuItem.with_id(window, "inspect", "Inspect", true, nil),
+    #   ]))
+    def popup_menu(menu)
+      case menu
+      when Menu::ContextMenu then menu.popup(self)
+      else raise TypeError, "wrong argument type #{menu.class} (expected Tokra::Menu::ContextMenu)"
+      end
+    end
+
+    # Shows +menu+, a Menu or a Submenu, as a context menu on this window
+    # at +position+, a LogicalPosition or a PhysicalPosition relative to
+    # the window's top-left corner, and returns +nil+ once it closes, as
+    # ContextMenu#popup_at does.
+    #
+    # Mirrors Tauri's Window::popup_menu_at (window/mod.rs:1370-1379).
+    #
+    # === Example
+    #
+    #   window.popup_menu_at(menu, Tokra::LogicalPosition.new(x: 40, y: 60))
+    def popup_menu_at(menu, position)
+      case menu
+      when Menu::ContextMenu then menu.popup_at(self, position)
+      else raise TypeError, "wrong argument type #{menu.class} (expected Tokra::Menu::ContextMenu)"
+      end
+    end
+
     # Whether this window shows the app's menu.
     def has_app_wide_menu? # :nodoc:
       window_menu&.is_app_wide || false
@@ -1068,9 +1103,12 @@ module Tokra
     # +nil+, and returns +nil+. Runs as #center does; any other argument
     # raises TypeError on the calling thread.
     #
-    # Mirrors Tauri's Window::set_theme (window/mod.rs:2185;
-    # lib.rs:3539-3541, 5224-5230). On Windows Tauri also themes the
-    # window's menu, which Tokra does not have yet.
+    # On Windows the window's menu bar, if it has one, follows: Light or
+    # Dark, and for +nil+ the system's.
+    #
+    # Mirrors Tauri's Window::set_theme (window/mod.rs:2185-2206;
+    # lib.rs:3539-3541, 5224-5230), which then themes the window's menu
+    # on Windows through muda's set_theme_for_hwnd.
     #
     # === Example
     #
@@ -1080,6 +1118,12 @@ module Tokra
       expect(theme, Theme) if theme
       name = theme&.name
       dispatch { native.set_theme(name) }
+      current = menu
+      if current && native.respond_to?(:set_menu_theme)
+        native_menu = current.native #: Native::Menu
+        dispatch { native.set_menu_theme(native_menu, name) }
+      end
+      nil
     end
 
     # Whether the window takes input. Answers as #scale_factor does.
@@ -1375,13 +1419,7 @@ module Tokra
     # The native <tt>[physical, x, y]</tt> for a LogicalPosition or a
     # PhysicalPosition.
     private def position_dimensions(position)
-      case position
-      when LogicalPosition then [false, Float(position.x), Float(position.y)]
-      when PhysicalPosition then [true, Float(position.x), Float(position.y)]
-      else
-        raise TypeError,
-          "wrong argument type #{position.class} (expected Tokra::LogicalPosition or Tokra::PhysicalPosition)"
-      end
+      Dpi.position_dimensions(position)
     end
 
     # The native <tt>[physical, value]</tt> for a LogicalUnit or a

@@ -18,8 +18,10 @@ module Tokra
     # A submenu can show an icon beside its title: a Tokra::Image, or on
     # macOS a NativeIcon.
     #
-    # Mirrors Tauri's Submenu (menu/submenu.rs). Its context-menu methods
-    # are not ported yet (plan 042, phase 3).
+    # A Submenu is also a ContextMenu: #popup and #popup_at show its items
+    # where you right-click.
+    #
+    # Mirrors Tauri's Submenu (menu/submenu.rs).
     #
     # === Example
     #
@@ -30,6 +32,7 @@ module Tokra
     class Submenu
       include IsMenuItem
       include MenuTree
+      include ContextMenu
 
       class << self
         # A new, empty submenu titled +text+, enabled or not, with an id

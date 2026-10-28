@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Native
+    class Menu
+      def hpopupmenu: () -> Integer
+    end
+
+    class Submenu
+      def hpopupmenu: () -> Integer
+    end
+
+    class Window
+      def set_menu_theme: (Menu menu, String? theme) -> nil
+    end
+  end
+
+  module Menu
+    module ContextMenu
+      def hpopupmenu: () -> Integer
+    end
+  end
+end

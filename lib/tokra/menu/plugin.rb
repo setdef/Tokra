@@ -23,9 +23,9 @@ module Tokra
     # hears its clicks through a channel, which this plugin sends each
     # MenuEvent's id down, after the app's listeners heard it.
     #
-    # Mirrors Tauri's menu plugin (menu/plugin.rs). +popup+ is not ported
-    # yet (plan 042, phase 3). Where Tauri panics on what the page sends,
-    # this rejects with the panic's text (plan 042, decision 8).
+    # Mirrors Tauri's menu plugin (menu/plugin.rs). Where Tauri panics on
+    # what the page sends, this rejects with the panic's text (plan 042,
+    # decision 8).
     class Plugin < Tokra::Plugin
       # The channels of the page's items, by item id (plugin.rs:885).
       class MenuChannels # :nodoc:
@@ -58,6 +58,10 @@ module Tokra
 
       # Tauri's ItemKind (plugin.rs:22-30).
       ITEM_KINDS = %w[Menu MenuItem Predefined Submenu Check Icon].freeze
+
+      # The variants of dpi's Position, the +at+ of +popup+ (dpi 0.1.2
+      # src/lib.rs:741-746).
+      POSITION_VARIANTS = %w[Physical Logical].freeze
 
       # Tauri's Predefined variants (plugin.rs:74-94), with the
       # PredefinedMenuItem constructor each calls.
@@ -221,6 +225,7 @@ module Tokra
         when "remove_at" then remove_at(invoke)
         when "items" then list_items(invoke)
         when "get" then get_item(invoke)
+        when "popup" then popup(invoke)
         when "create_default" then create_default(invoke)
         when "set_as_app_menu" then set_as_app_menu(invoke)
         when "set_as_window_menu" then set_as_window_menu(invoke)
@@ -344,6 +349,22 @@ module Tokra
         table = invoke.webview.resources_table
         item = menu_or_submenu(table, rid, kind).get(id)
         item && item_resource(table, item)
+      end
+
+      # +popup+ (plugin.rs:663-692): the named window, or the caller's, and
+      # nothing when no window has that label. It answers once the menu
+      # closes.
+      private def popup(invoke)
+        rid = rid_arg(invoke)
+        kind = kind_arg(invoke)
+        label = argument(invoke, "window").deserialize_option { |value| string(value) }
+        at = argument(invoke, "at").deserialize_option { |value| position(value) }
+        webview = invoke.webview
+        window = label ? webview.app_handle.get_window(label) : webview.window
+        return nil unless window
+
+        menu = menu_or_submenu(webview.resources_table, rid, kind)
+        at ? menu.popup_at(window, at) : menu.popup(window)
       end
 
       # +create_default+ (plugin.rs:694-704).
@@ -652,10 +673,75 @@ module Tokra
         end
       end
 
+      # The variant +name+, or serde's unknown_variant error, which lists
+      # the variants as serde's OneOf does (serde_core 1.0.228
+      # de/mod.rs:2333-2356).
       private def known_variant(name, variants)
         return name if variants.include?(name)
 
-        raise mismatch("unknown variant `#{name}`, expected one of #{variants.map { |v| "`#{v}`" }.join(', ')}")
+        names = variants.map { |v| "`#{v}`" }
+        expected = case names.size
+        when 1 then names.first
+        when 2 then names.join(" or ")
+        else "one of #{names.join(', ')}"
+        end
+        raise mismatch("unknown variant `#{name}`, expected #{expected}")
+      end
+
+      # dpi's Position, an externally tagged enum of two newtype variants:
+      # a PhysicalPosition of +i32+ or a LogicalPosition of +f64+, as
+      # serde's derive and serde_json read it (dpi 0.1.2
+      # src/lib.rs:387-391, 463-467, 741-746; serde_json 1.0.145
+      # src/value/de.rs:1073-1083).
+      private def position(value)
+        if value.is_a?(String)
+          known_variant(value, POSITION_VARIANTS)
+          raise mismatch("invalid type: unit variant, expected newtype variant")
+        end
+
+        variant, content = enum_variant(value, POSITION_VARIANTS)
+        if variant == "Physical"
+          x, y = position_fields(content, "PhysicalPosition") { |field| Ipc::CommandItem.integer(field, "i32") }
+          PhysicalPosition.new(x:, y:)
+        else
+          x, y = position_fields(content, "LogicalPosition") { |field| f64(field) }
+          LogicalPosition.new(x:, y:)
+        end
+      end
+
+      # A position's +x+ and +y+, each read by the block, as serde's derive
+      # reads a struct: from a map, its fields' errors in key order, then
+      # the first missing field; from a sequence, element by element, then
+      # serde_json's error for elements left over (src/value/de.rs:195-211).
+      private def position_fields(value, name, &read)
+        case value
+        when Hash
+          present = %w[x y].select { |key| value.key?(key) }
+          fields = present.map { |key| read.call(value[key]) }
+          missing = (%w[x y] - present).first
+          raise mismatch("missing field `#{missing}`") if missing
+
+          [fields.fetch(0), fields.fetch(1)]
+        when Array
+          fields = Array.new(2) do |index|
+            raise mismatch("invalid length #{index}, expected struct #{name} with 2 elements") if index >= value.size
+
+            read.call(value[index])
+          end
+          raise mismatch("invalid length #{value.size}, expected fewer elements in array") if value.size > 2
+
+          [fields.fetch(0), fields.fetch(1)]
+        else raise Ipc::CommandItem::Mismatch.invalid_type(value, "struct #{name}")
+        end
+      end
+
+      # A JSON number as Rust's +f64+: serde_json gives an integer or a
+      # float to an f64 visitor, and rejects anything else.
+      private def f64(value)
+        case value
+        when Integer, Float then Float(value)
+        else raise Ipc::CommandItem::Mismatch.invalid_type(value, "f64")
+        end
       end
 
       private def item_kind(value)

@@ -7,6 +7,7 @@ module Tokra
 
     def self.validate_scale_factor: (Float | Integer scale_factor) -> bool
     def self.assert_scale_factor: (Float | Integer scale_factor) -> Float
+    def self.position_dimensions: (LogicalPosition | PhysicalPosition position) -> Native::Window::dimensions
   end
 
   type pixel = Float | Integer

@@ -22,9 +22,10 @@ module Tokra
     # for the whole app, or to Window#set_menu (or #set_as_window_menu) for
     # one window on Windows and Linux.
     #
-    # Mirrors Tauri's Menu (menu/menu.rs). Its context-menu methods,
-    # <tt>popup</tt> and <tt>popup_at</tt>, are not ported yet (plan 042,
-    # phase 3).
+    # A Menu is also a ContextMenu: #popup and #popup_at show it where you
+    # right-click.
+    #
+    # Mirrors Tauri's Menu (menu/menu.rs).
     #
     # === Example
     #
@@ -35,6 +36,7 @@ module Tokra
     class Menu
       include Wrapper
       include MenuTree
+      include ContextMenu
 
       class << self
         # A new, empty menu with an id muda makes up.

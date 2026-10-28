@@ -6,6 +6,7 @@ module Tokra
     class Menu
       include Wrapper
       include MenuTree
+      include ContextMenu
 
       def self.new: (Manager manager) -> Menu
       def self.with_id: (Manager manager, id id) -> Menu

@@ -52,6 +52,16 @@ class MenuPluginTest < RealApp::TestCase
     assert_equal "JS Native", detail["text"]
   end
 
+  # The real client's Position reaches the plugin as dpi's serde form, and
+  # a fractional physical coordinate rejects as Tauri's i32 does.
+  def test_popup_reads_the_pages_position_and_skips_an_unknown_window
+    detail = check_detail(@run, "popup reads the page position and skips an unknown window")
+
+    assert_equal [nil, nil, nil], detail["answers"]
+    assert_equal "invalid args `at` for command `popup`: invalid type: floating point `1.5`, expected i32",
+      detail["rejected"]
+  end
+
   def test_a_bad_kind_rejects_in_serdes_words
     detail = check_detail(@run, "a bad kind rejects in serde words")
 

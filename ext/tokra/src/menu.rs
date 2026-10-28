@@ -121,6 +121,55 @@ fn accelerator(text: Option<String>) -> Option<muda::accelerator::Accelerator> {
 
 // SPDX-SnippetEnd
 
+/// The accelerator Tokra gave each item, by item id, on Linux, where
+/// muda's GTK context menu can panic on one (plan 042, decision 18). muda
+/// keeps an item's accelerator but answers none, so Tokra remembers what
+/// it passed. Items are made and changed on the main thread only, so the
+/// list is that thread's. Two items with one id share an entry; the last
+/// accelerator given wins.
+mod gtk_accelerators {
+    #[cfg(not(any(target_os = "macos", windows)))]
+    use std::{cell::RefCell, collections::HashMap};
+
+    use muda::accelerator::Accelerator;
+    use muda::{IsMenuItem, MenuId};
+
+    #[cfg(not(any(target_os = "macos", windows)))]
+    thread_local! {
+        static GIVEN: RefCell<HashMap<String, Accelerator>> = RefCell::new(HashMap::new());
+    }
+
+    /// Records `accelerator` as the one Tokra gave the item with `id`.
+    #[cfg(not(any(target_os = "macos", windows)))]
+    pub fn remember(id: &MenuId, accelerator: Option<Accelerator>) {
+        GIVEN.with(|given| match accelerator {
+            Some(accelerator) => {
+                given.borrow_mut().insert(id.0.clone(), accelerator);
+            }
+            None => {
+                given.borrow_mut().remove(&id.0);
+            }
+        });
+    }
+
+    /// Elsewhere muda answers a bad accelerator as the item joins a menu,
+    /// so nothing is remembered.
+    #[cfg(any(target_os = "macos", windows))]
+    pub const fn remember(_id: &MenuId, _accelerator: Option<Accelerator>) {}
+
+    /// Records `item`'s accelerator, as `remember` does, and returns it.
+    pub fn remembered<T: IsMenuItem>(item: T, accelerator: Option<Accelerator>) -> T {
+        remember(item.id(), accelerator);
+        item
+    }
+
+    /// The accelerator Tokra last gave the item with `id`.
+    #[cfg(not(any(target_os = "macos", windows)))]
+    pub fn given(id: &str) -> Option<Accelerator> {
+        GIVEN.with(|given| given.borrow().get(id).copied())
+    }
+}
+
 /// Defines a Ruby class around one muda type, with its thread guard and
 /// its drop on the main thread.
 macro_rules! menu_class {
@@ -378,9 +427,11 @@ macro_rules! accelerator_methods {
     ($rb:ident) => {
         impl $rb {
             fn set_accelerator(&self, text: Option<String>) -> Result<(), Error> {
-                self.get()?
-                    .set_accelerator(accelerator(text))
-                    .map_err(|e| menu_error(&e))
+                let item = self.get()?;
+                let accel = accelerator(text);
+                item.set_accelerator(accel).map_err(|e| menu_error(&e))?;
+                gtk_accelerators::remember(item.id(), accel);
+                Ok(())
             }
         }
     };
@@ -445,10 +496,10 @@ impl RbMenuItem {
         accelerator_text: Option<String>,
     ) -> Result<Self, Error> {
         on_main_thread(ruby, Self::CLASS)?;
-        Ok(Self::wrap(muda::MenuItem::new(
-            text,
-            enabled,
-            accelerator(accelerator_text),
+        let accel = accelerator(accelerator_text);
+        Ok(Self::wrap(gtk_accelerators::remembered(
+            muda::MenuItem::new(text, enabled, accel),
+            accel,
         )))
     }
 
@@ -460,11 +511,10 @@ impl RbMenuItem {
         accelerator_text: Option<String>,
     ) -> Result<Self, Error> {
         on_main_thread(ruby, Self::CLASS)?;
-        Ok(Self::wrap(muda::MenuItem::with_id(
-            id,
-            text,
-            enabled,
-            accelerator(accelerator_text),
+        let accel = accelerator(accelerator_text);
+        Ok(Self::wrap(gtk_accelerators::remembered(
+            muda::MenuItem::with_id(id, text, enabled, accel),
+            accel,
         )))
     }
 }
@@ -478,11 +528,10 @@ impl RbCheckMenuItem {
         accelerator_text: Option<String>,
     ) -> Result<Self, Error> {
         on_main_thread(ruby, Self::CLASS)?;
-        Ok(Self::wrap(muda::CheckMenuItem::new(
-            text,
-            enabled,
-            checked,
-            accelerator(accelerator_text),
+        let accel = accelerator(accelerator_text);
+        Ok(Self::wrap(gtk_accelerators::remembered(
+            muda::CheckMenuItem::new(text, enabled, checked, accel),
+            accel,
         )))
     }
 
@@ -495,12 +544,10 @@ impl RbCheckMenuItem {
         accelerator_text: Option<String>,
     ) -> Result<Self, Error> {
         on_main_thread(ruby, Self::CLASS)?;
-        Ok(Self::wrap(muda::CheckMenuItem::with_id(
-            id,
-            text,
-            enabled,
-            checked,
-            accelerator(accelerator_text),
+        let accel = accelerator(accelerator_text);
+        Ok(Self::wrap(gtk_accelerators::remembered(
+            muda::CheckMenuItem::with_id(id, text, enabled, checked, accel),
+            accel,
         )))
     }
 
@@ -523,11 +570,10 @@ impl RbIconMenuItem {
         accelerator_text: Option<String>,
     ) -> Result<Self, Error> {
         on_main_thread(ruby, Self::CLASS)?;
-        Ok(Self::wrap(muda::IconMenuItem::new(
-            text,
-            enabled,
-            icon.map(RbMenuIcon::icon),
-            accelerator(accelerator_text),
+        let accel = accelerator(accelerator_text);
+        Ok(Self::wrap(gtk_accelerators::remembered(
+            muda::IconMenuItem::new(text, enabled, icon.map(RbMenuIcon::icon), accel),
+            accel,
         )))
     }
 
@@ -540,12 +586,10 @@ impl RbIconMenuItem {
         accelerator_text: Option<String>,
     ) -> Result<Self, Error> {
         on_main_thread(ruby, Self::CLASS)?;
-        Ok(Self::wrap(muda::IconMenuItem::with_id(
-            id,
-            text,
-            enabled,
-            icon.map(RbMenuIcon::icon),
-            accelerator(accelerator_text),
+        let accel = accelerator(accelerator_text);
+        Ok(Self::wrap(gtk_accelerators::remembered(
+            muda::IconMenuItem::with_id(id, text, enabled, icon.map(RbMenuIcon::icon), accel),
+            accel,
         )))
     }
 
@@ -560,11 +604,10 @@ impl RbIconMenuItem {
     ) -> Result<Self, Error> {
         on_main_thread(ruby, Self::CLASS)?;
         let icon = name.map(|name| native_icon(ruby, &name)).transpose()?;
-        Ok(Self::wrap(muda::IconMenuItem::with_native_icon(
-            text,
-            enabled,
-            icon,
-            accelerator(accelerator_text),
+        let accel = accelerator(accelerator_text);
+        Ok(Self::wrap(gtk_accelerators::remembered(
+            muda::IconMenuItem::with_native_icon(text, enabled, icon, accel),
+            accel,
         )))
     }
 
@@ -578,12 +621,10 @@ impl RbIconMenuItem {
     ) -> Result<Self, Error> {
         on_main_thread(ruby, Self::CLASS)?;
         let icon = name.map(|name| native_icon(ruby, &name)).transpose()?;
-        Ok(Self::wrap(muda::IconMenuItem::with_id_and_native_icon(
-            id,
-            text,
-            enabled,
-            icon,
-            accelerator(accelerator_text),
+        let accel = accelerator(accelerator_text);
+        Ok(Self::wrap(gtk_accelerators::remembered(
+            muda::IconMenuItem::with_id_and_native_icon(id, text, enabled, icon, accel),
+            accel,
         )))
     }
 }
@@ -1051,8 +1092,24 @@ pub fn define_classes(ruby: &Ruby, native: RModule) -> Result<(), Error> {
         )?;
     }
     #[cfg(windows)]
-    native.define_module_function("set_accelerator_menus", function!(set_accelerator_menus, 1))?;
+    define_windows_methods(native, menu, submenu)?;
     Ok(())
+}
+
+/// Defines what only Windows has: the accelerator list and the menus'
+/// popup `HMENU`.
+///
+/// # Errors
+///
+/// Returns an error if method definition fails.
+#[cfg(windows)]
+fn define_windows_methods(
+    native: RModule,
+    menu: magnus::RClass,
+    submenu: magnus::RClass,
+) -> Result<(), Error> {
+    native.define_module_function("set_accelerator_menus", function!(set_accelerator_menus, 1))?;
+    context_menu::define_hpopupmenu(menu, submenu)
 }
 
 #[cfg(any(
@@ -1222,6 +1279,34 @@ mod window_menu {
         }
     }
 
+    /// Themes the window's menu bar: "Light", "Dark", or Auto for anything
+    /// else and for `nil`, as Tauri's `Window::set_theme` maps the window's
+    /// new theme (`window/mod.rs:2191-2204`, `menu/mod.rs:775-782`).
+    /// Windows only; muda's error for a menu not on this window is
+    /// dropped, as Tauri's `let _ =` drops it.
+    #[cfg(windows)]
+    fn set_menu_theme(
+        window: &RbWindow,
+        menu: &RbMenu,
+        theme: Option<String>,
+    ) -> Result<(), Error> {
+        use tao::platform::windows::WindowExtWindows;
+        let menu = menu.get()?;
+        let Some(window) = window.open_window()? else {
+            return Ok(());
+        };
+        let theme = theme.map_or(muda::MenuTheme::Auto, |name| match name.as_str() {
+            "Light" => muda::MenuTheme::Light,
+            "Dark" => muda::MenuTheme::Dark,
+            _ => muda::MenuTheme::Auto,
+        });
+        // SAFETY: as in `init_menu`; muda sends the theme to the window it
+        // gave a menu bar (muda 0.17.1 `platform_impl/windows/mod.rs:441-450`).
+        #[allow(unsafe_code)]
+        let _ = unsafe { menu.set_theme_for_hwnd(window.hwnd(), theme) };
+        Ok(())
+    }
+
     // SPDX-SnippetEnd
 
     /// Defines the window's menu methods.
@@ -1234,7 +1319,213 @@ mod window_menu {
         class.define_method("remove_menu", method!(remove_menu, 1))?;
         class.define_method("hide_menu", method!(hide_menu, 1))?;
         class.define_method("show_menu", method!(show_menu, 1))?;
+        #[cfg(windows)]
+        class.define_method("set_menu_theme", method!(set_menu_theme, 2))?;
         class.define_method("is_menu_visible", method!(is_menu_visible, 1))
+    }
+}
+
+pub use context_menu::define_context_menu_methods;
+
+/// Context menus: a `Menu` or `Submenu` shown at the pointer or at a
+/// position in a window (Tauri `menu/menu.rs:23-80`,
+/// `menu/submenu.rs:16-73`, muda 0.17.1 `src/lib.rs:324-430`).
+mod context_menu {
+    use magnus::{method, prelude::*, Error, RClass, Ruby, TryConvert, Value};
+
+    use super::{RbMenu, RbSubmenu};
+    use crate::window::RbWindow;
+    use crate::window_state::{position, Dimensions};
+    use crate::without_gvl::without_gvl;
+
+    /// Runs `f` with the muda `ContextMenu` a Ruby value wraps.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TypeError` for a value that is neither a native menu nor a
+    /// native submenu, as Tauri's `ContextMenu` bound would not compile,
+    /// and `ThreadError` on another thread.
+    fn with_context_menu<T>(
+        menu: Value,
+        f: impl FnOnce(&dyn muda::ContextMenu) -> Result<T, Error>,
+    ) -> Result<T, Error> {
+        if let Ok(menu) = <&RbMenu>::try_convert(menu) {
+            return f(menu.get()?);
+        }
+        if let Ok(submenu) = <&RbSubmenu>::try_convert(menu) {
+            return f(submenu.get()?);
+        }
+        let ruby = Ruby::get_with(menu);
+        Err(Error::new(
+            ruby.exception_type_error(),
+            format!(
+                "wrong argument type {} (expected Tokra::Native::Menu or Tokra::Native::Submenu)",
+                menu.class().inspect()
+            ),
+        ))
+    }
+
+    // SPDX-SnippetBegin
+    // SPDX-License-Identifier: Apache-2.0 OR MIT
+    // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    // SPDX-SnippetComment: Context menus adapted from tauri/crates/tauri/src/menu/menu.rs
+
+    /// Shows `menu` as a context menu on the window, at `position`
+    /// (`[physical, x, y]`, relative to the window's top-left corner) or
+    /// at the pointer for `nil`, and returns once it closes.
+    ///
+    /// Tauri's `popup_inner` shows it on the window's `NSView`, GTK window,
+    /// or `HWND`, and does nothing when the window has none
+    /// (`menu/menu.rs:42-80`); a closed window does nothing here too. The
+    /// menu tracks the pointer in a nested run loop, so the call blocks
+    /// the main thread until the menu closes; it releases the GVL
+    /// meanwhile ([`without_gvl`]). muda's answer, whether an item was
+    /// chosen, is dropped, as Tauri drops it.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TypeError` for anything but a native menu or submenu,
+    /// `ThreadError` off the main thread, and the exception of a Ruby
+    /// interrupt pending as the GVL is released or retaken.
+    fn popup_menu(
+        window: &RbWindow,
+        menu: Value,
+        position_dimensions: Option<Dimensions>,
+    ) -> Result<(), Error> {
+        let at = position_dimensions.map(position);
+        #[cfg(not(any(target_os = "macos", windows)))]
+        let value = menu;
+        with_context_menu(menu, |menu| {
+            let Some(window) = window.open_window()? else {
+                return Ok(());
+            };
+            #[cfg(target_os = "macos")]
+            {
+                use tao::platform::macos::WindowExtMacOS;
+                let view = window.ns_view();
+                // SAFETY: `view` is the open window's content view, the
+                // view Tauri's `ns_view` answers (tao 0.34.5
+                // `platform_impl/macos/window.rs:1562-1564`), installed in
+                // that window, as muda requires (`src/lib.rs:390-405`).
+                // The call runs on the main thread that owns both; with
+                // the GVL released it touches no Ruby.
+                #[allow(unsafe_code)]
+                without_gvl(|| unsafe { menu.show_context_menu_for_nsview(view, at) })?;
+            }
+            #[cfg(windows)]
+            {
+                use tao::platform::windows::WindowExtWindows;
+                let hwnd = window.hwnd();
+                // SAFETY: `hwnd` is the open tao window's, which muda
+                // requires to be valid (`src/lib.rs:334-348`); the call
+                // runs on the thread that owns it, touching no Ruby.
+                #[allow(unsafe_code)]
+                without_gvl(|| unsafe { menu.show_context_menu_for_hwnd(hwnd, at) })?;
+            }
+            #[cfg(not(any(target_os = "macos", windows)))]
+            {
+                use tao::platform::unix::WindowExtUnix;
+                gtk_refusal::refuse_unbuildable(&gtk_refusal::items(value)?)?;
+                let gtk_window: &gtk::Window = window.gtk_window().as_ref();
+                without_gvl(|| menu.show_context_menu_for_gtk_window(gtk_window, at))?;
+            }
+            Ok(())
+        })
+    }
+
+    /// The `HMENU` muda keeps for showing the menu as a context menu,
+    /// valid as long as the menu is (Tauri `menu/mod.rs:736-743`,
+    /// `menu/menu.rs:24-27`, `menu/submenu.rs:17-20`).
+    #[cfg(windows)]
+    fn hpopupmenu(menu: Value) -> Result<isize, Error> {
+        with_context_menu(menu, |menu| Ok(menu.hpopupmenu()))
+    }
+
+    // SPDX-SnippetEnd
+
+    /// Defines `hpopupmenu` on `Native::Menu` and `Native::Submenu`,
+    /// Windows only.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if method definition fails.
+    #[cfg(windows)]
+    pub fn define_hpopupmenu(menu: RClass, submenu: RClass) -> Result<(), Error> {
+        menu.define_method("hpopupmenu", method!(hpopupmenu, 0))?;
+        submenu.define_method("hpopupmenu", method!(hpopupmenu, 0))
+    }
+
+    /// The panic muda's GTK context menu would reach, refused first (plan
+    /// 042, decision 18).
+    ///
+    /// muda builds a GTK context menu the first time it shows one, and
+    /// unwraps each item's GTK item as it goes (muda 0.17.1
+    /// `platform_impl/gtk/mod.rs:372-389`, `953-970`). An accelerator whose
+    /// key GTK has no keysym for, the numpad and volume keys, fails there
+    /// (`platform_impl/gtk/accelerator.rs:28-87`, `115-183`), and the
+    /// unwrap panics. So each accelerator Tokra gave an item in the menu,
+    /// at any depth, is built first on a throwaway item in a scratch menu
+    /// whose context menu already exists, where muda answers the error
+    /// instead (`platform_impl/gtk/mod.rs:98-127`). The menu's own items
+    /// are never touched: building them for another menu would rewrite
+    /// their accelerator group (`mod.rs:1004-1072`) and leave the scratch
+    /// menu's entries behind in them (`mod.rs:155-217`).
+    #[cfg(not(any(target_os = "macos", windows)))]
+    mod gtk_refusal {
+        use magnus::{Error, TryConvert, Value};
+        use muda::{ContextMenu, MenuItemKind};
+
+        use super::super::{gtk_accelerators, menu_error, RbMenu, RbSubmenu};
+
+        /// The items of the native menu or submenu `menu`, or none for
+        /// anything else, which `with_context_menu` refuses.
+        pub fn items(menu: Value) -> Result<Vec<MenuItemKind>, Error> {
+            if let Ok(menu) = <&RbMenu>::try_convert(menu) {
+                return Ok(menu.get()?.items());
+            }
+            if let Ok(submenu) = <&RbSubmenu>::try_convert(menu) {
+                return Ok(submenu.get()?.items());
+            }
+            Ok(Vec::new())
+        }
+
+        /// The accelerators Tokra gave `items` and the items inside them.
+        fn given(items: &[MenuItemKind], found: &mut Vec<muda::accelerator::Accelerator>) {
+            for item in items {
+                if let MenuItemKind::Submenu(submenu) = item {
+                    given(&submenu.items(), found);
+                } else if let Some(accelerator) = gtk_accelerators::given(&item.id().0) {
+                    found.push(accelerator);
+                }
+            }
+        }
+
+        /// Raises muda's error for the first accelerator GTK cannot build.
+        pub fn refuse_unbuildable(items: &[MenuItemKind]) -> Result<(), Error> {
+            let mut accelerators = Vec::new();
+            given(items, &mut accelerators);
+            if accelerators.is_empty() {
+                return Ok(());
+            }
+            let scratch = muda::Menu::new();
+            // Empty, so muda has nothing to unwrap as it builds it.
+            let _ = scratch.gtk_context_menu();
+            accelerators
+                .into_iter()
+                .try_for_each(|accelerator| {
+                    scratch.append(&muda::MenuItem::new("", true, Some(accelerator)))
+                })
+                .map_err(|error| menu_error(&error))
+        }
+    }
+
+    /// Defines `Native::Window#popup_menu`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if method definition fails.
+    pub fn define_context_menu_methods(class: RClass) -> Result<(), Error> {
+        class.define_method("popup_menu", method!(popup_menu, 2))
     }
 }
 

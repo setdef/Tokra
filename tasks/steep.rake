@@ -59,6 +59,8 @@ namespace :rbs do
     args += %w[--exclude-sig sig/tokra/menu/nsapp.rbs] unless host.include?("darwin")
     args += %w[--exclude-sig sig/tokra/menu/window_menu_bar.rbs] if host.include?("darwin")
     args += %w[--exclude-sig sig/tokra/menu/accelerators.rbs] unless host.match?(/mswin|mingw|cygwin/)
+    # Only Windows has a context menu's HMENU and a themed menu bar.
+    args += %w[--exclude-sig sig/tokra/menu/windows.rbs] unless host.match?(/mswin|mingw|cygwin/)
     ruby File.expand_path("rbs_parity.rb", __dir__), *args
   end
 end

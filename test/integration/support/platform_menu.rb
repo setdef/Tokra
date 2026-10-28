@@ -221,7 +221,8 @@ module PlatformMenu
 
     def self.window(title)
       list(fn("gtk_window_list_toplevels", []).call).find do |toplevel|
-        fn("gtk_window_get_title", [Fiddle::TYPE_VOIDP]).call(toplevel).to_s == title
+        name = fn("gtk_window_get_title", [Fiddle::TYPE_VOIDP]).call(toplevel)
+        !name.null? && name.to_s == title
       end
     end
 

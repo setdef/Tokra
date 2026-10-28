@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Menu
+    module ContextMenu : Wrapper
+      def popup: (Window window) -> nil
+      def popup_at: (Window window, LogicalPosition | PhysicalPosition position) -> nil
+
+      private
+
+      def popup_inner: (Window window, (LogicalPosition | PhysicalPosition)? position) -> nil
+    end
+  end
+
+  module Native
+    class Window
+      def popup_menu: (Menu | Submenu menu, dimensions? position) -> nil
+    end
+  end
+end

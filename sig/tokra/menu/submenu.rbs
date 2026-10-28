@@ -6,6 +6,7 @@ module Tokra
     class Submenu
       include IsMenuItem
       include MenuTree
+      include ContextMenu
 
       def self.new: (Manager manager, String text, bool enabled) -> Submenu
       def self.with_id: (Manager manager, id id, String text, bool enabled) -> Submenu
