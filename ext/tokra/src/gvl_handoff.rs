@@ -31,8 +31,8 @@
 //!
 //! Ruby implements thread-event hooks with pthreads only; on Windows
 //! `rb_internal_thread_add_event_hook` returns `NULL` (`thread_win32.c:34-45`),
-//! and [`GvlHandoff::install`] returns `None` so the loop polls instead
-//! ([`idle_control_flow`]).
+//! and [`GvlHandoff::install`] returns `None` so a ticker wakes the loop
+//! instead ([`poll_tick`]).
 //!
 //! A signal needs the main thread too, and no hook announces it; see
 //! `interrupt_check.rs`.
@@ -41,19 +41,19 @@ use std::ffi::c_void;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use rb_sys::{
     rb_event_flag_t, rb_internal_thread_add_event_hook, rb_internal_thread_event_data_t,
     rb_internal_thread_event_hook_t, rb_internal_thread_remove_event_hook,
     RUBY_INTERNAL_THREAD_EVENT_READY, VALUE,
 };
-use tao::event_loop::{ControlFlow, EventLoopProxy};
+use tao::event_loop::EventLoopProxy;
 
 use crate::user_event::UserEvent;
 
 /// How often the loop hands the GVL over where Ruby has no thread-event
-/// hooks, while other Ruby threads exist.
+/// hooks, while other Ruby threads exist ([`poll_tick`]).
 pub const POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 /// Whether a hand-off is owed: set by the hook, cleared by the loop.
@@ -81,16 +81,22 @@ pub const fn wakes_loop(thread: VALUE, main_thread: VALUE) -> bool {
     thread != main_thread
 }
 
-/// How the loop waits between events: until the next one, or, polling for
-/// lack of a hook, for at most `POLL_INTERVAL` while another Ruby thread
-/// exists, so that thread still gets the GVL.
-#[must_use]
-pub fn idle_control_flow(poll: bool, alone: bool, now: Instant) -> ControlFlow {
-    if poll && !alone {
-        ControlFlow::WaitUntil(now + POLL_INTERVAL)
-    } else {
-        ControlFlow::Wait
-    }
+/// One tick of the poll ticker where Ruby has no hook: wakes the loop
+/// through `send` while another Ruby thread exists, and answers whether
+/// to keep ticking, `false` once `send` finds the loop gone.
+///
+/// The loop itself always waits with `ControlFlow::Wait`, as Tauri's does
+/// (tauri-runtime-wry `src/lib.rs:4029-4031`). A deadline would have tao's
+/// Windows wait thread post `Tao::ProcessNewEvents` when it passes
+/// (tao 0.34.5 `platform_impl/windows/event_loop.rs:405-450`), and that
+/// message starts a new iteration without checking whether the handler is
+/// already running (`event_loop.rs:2435-2468`, `event_loop/runner.rs:204-206`,
+/// `241-245`). Inside a nested message loop that the handler started, such
+/// as a context menu's `TrackPopupMenu`, tao then panics: "either event
+/// handler is re-entrant". A user event is buffered there instead
+/// (`runner.rs:208-221`), so the ticker wakes the loop with one.
+pub fn poll_tick(others: &AtomicBool, send: impl FnOnce() -> bool) -> bool {
+    !others.load(Ordering::Acquire) || send()
 }
 
 /// What the hook reads on whichever thread runs it.
@@ -247,17 +253,20 @@ mod tests {
     }
 
     #[test]
-    fn polling_waits_a_short_while_only_when_other_threads_exist() {
-        let now = Instant::now();
-        assert_eq!(
-            idle_control_flow(true, false, now),
-            ControlFlow::WaitUntil(now + POLL_INTERVAL)
-        );
-        assert_eq!(idle_control_flow(true, true, now), ControlFlow::Wait);
-        assert_eq!(
-            idle_control_flow(false, false, now),
-            ControlFlow::Wait,
-            "with a hook the loop sleeps until woken"
-        );
+    fn the_poll_ticker_wakes_the_loop_only_while_other_threads_exist() {
+        let others = AtomicBool::new(false);
+        let mut sent = 0;
+        assert!(poll_tick(&others, || {
+            sent += 1;
+            true
+        }));
+        assert_eq!(sent, 0, "alone, the loop sleeps until woken");
+        others.store(true, Ordering::Release);
+        assert!(poll_tick(&others, || {
+            sent += 1;
+            true
+        }));
+        assert_eq!(sent, 1);
+        assert!(!poll_tick(&others, || false), "the loop is gone");
     }
 }

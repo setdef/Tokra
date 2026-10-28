@@ -10,7 +10,6 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Instant;
 
 use magnus::{
     error::ErrorType, function, kwargs, method, prelude::*, rb_sys::AsRawValue, ArgList, Error,
@@ -22,7 +21,7 @@ use tao::{
     platform::run_return::EventLoopExtRunReturn,
 };
 
-use crate::gvl_handoff::{idle_control_flow, GvlHandoff};
+use crate::gvl_handoff::{poll_tick, GvlHandoff, POLL_INTERVAL};
 use crate::interrupt_check::{InterruptTicker, INTERRUPT_CHECK};
 use crate::proxy::RbProxy;
 use crate::runtime_error;
@@ -207,6 +206,17 @@ impl RbEventLoop {
             ticks.send_event(UserEvent::Yield).is_ok()
         });
         let poll = handoff.is_none();
+        // Without a hook (Windows), wake the loop with a user event every
+        // POLL_INTERVAL while another Ruby thread exists, so that thread
+        // gets the GVL; never with a deadline (`poll_tick`).
+        let others = Arc::new(AtomicBool::new(false));
+        let poll_ticker = poll.then(|| {
+            let proxy = self.proxy.clone();
+            let others = Arc::clone(&others);
+            InterruptTicker::start(POLL_INTERVAL, move || {
+                poll_tick(&others, || proxy.send_event(UserEvent::Yield).is_ok())
+            })
+        });
         let mut raised = None;
         let mut inbox = VecDeque::new();
 
@@ -227,8 +237,7 @@ impl RbEventLoop {
             // loop, for one, calls back again after an exit is set
             // (linux/event_loop.rs:1113-1126).
             if !turn.exiting() {
-                let alone = poll && ruby.thread_alone();
-                *turn.control_flow = idle_control_flow(poll, alone, Instant::now());
+                *turn.control_flow = ControlFlow::Wait;
             }
             // SPDX-SnippetEnd
             if matches!(event, Event::MainEventsCleared) {
@@ -248,6 +257,10 @@ impl RbEventLoop {
             } else {
                 turn.handle(event);
             }
+            if poll {
+                // Ruby may have started or ended a thread in this event.
+                others.store(!ruby.thread_alone(), Ordering::Release);
+            }
         };
         // Run the event loop - this is a blocking call. Each event's
         // callback may ask the window target for monitors and the cursor,
@@ -257,6 +270,7 @@ impl RbEventLoop {
         });
         // Unregister before the loop and its proxy go.
         drop(ticker);
+        drop(poll_ticker);
         drop(handoff);
 
         // An interrupt that ended the loop (a signal's SignalException,
