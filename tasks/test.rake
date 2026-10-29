@@ -5,7 +5,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
+require "English"
 require "minitest/test_task"
+require "shellwords"
+require_relative "test_order"
 
 # Clear the default test task created by Minitest::TestTask if it exists
 Rake::Task["test"].clear if Rake::Task.task_defined?("test")
@@ -53,6 +56,46 @@ namespace :test do
         abort "test:#{name} failed: #{status.inspect}, raw status 0x#{raw.to_s(16)}, code bits 0x#{(raw >> 8).to_s(16)}"
       end
     end
+  end
+
+  # Runs the core batch again in each order a crashed run logged
+  # (test/fixtures/test_orders, Plan 043), and reports each process's
+  # status, so one CI run shows whether an order brings the crash back.
+  # With TOKRA_REPLAY_DEBUGGER naming cdb.exe, each order then runs once
+  # more under it, which prints the stack of every access violation as it
+  # is raised, on whatever thread raises it. A process started under a
+  # debugger also gets Windows' debug heap, which fills freed blocks, so a
+  # read of freed memory faults there instead of reading stale data.
+  desc "Replay the core test orders recorded from crashed runs"
+  task replay: %w[compile package:fetch] do
+    FileUtils.mkdir_p("tmp/replay")
+    extra = Shellwords.split(ENV.fetch("A", ""))
+    runs = Dir["test/fixtures/test_orders/*.txt"].map do |path|
+      order = TestOrder.read(path)
+      script = "tmp/replay/#{File.basename(path, '.txt')}.rb"
+      File.write(script, order.program(core))
+      [path, order.ruby_args(core, script, extra:)]
+    end
+    failed = runs.filter_map do |path, args|
+      puts "== #{path}"
+      ok = system(RbConfig.ruby, *args)
+      status = $CHILD_STATUS
+      puts "== #{path}: #{ok ? 'passed' : 'failed'}, #{status.inspect}, raw status 0x#{status.to_i.to_s(16)}"
+      path unless ok
+    end
+    if (cdb = ENV.fetch("TOKRA_REPLAY_DEBUGGER", nil))
+      File.write("tmp/replay/av.cdb", <<~CDB)
+        sxe -c ".lastevent; r; kn 60; gn" -c2 ".lastevent; r; kn 60; q" av
+        g
+      CDB
+      symbols = "srv*#{File.expand_path('tmp/symbols')}*https://msdl.microsoft.com/download/symbols"
+      runs.each do |path, args|
+        puts "== #{path} under #{cdb}"
+        system(cdb, "-G", "-y", symbols, "-cf", "tmp/replay/av.cdb", RbConfig.ruby, *args, in: File::NULL)
+        puts "== #{path} under the debugger: #{$CHILD_STATUS.inspect}"
+      end
+    end
+    abort "test:replay failed for #{failed.join(', ')}" unless failed.empty?
   end
 
   # The packaging check's tests resolve fixture crates with cargo metadata

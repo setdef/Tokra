@@ -198,6 +198,22 @@ jobs:
           RUST_BACKTRACE: ${{ runner.os == 'Windows' && '1' || '' }}
         run: bundle exec rake
 
+      # The core batch's intermittent native crash on Windows (Plan 043)
+      # ended runs in some test orders and not others. This runs the batch
+      # again in each order recorded from a crashed run and prints each
+      # process's status, then once more under cdb, when the runner has it,
+      # for the stack of any access violation (tasks/test.rake).
+      - name: Replay the crashed test orders
+        if: ${{ !cancelled() && runner.os == 'Windows' }}
+        timeout-minutes: 45
+        env:
+          A: --verbose
+          RUST_BACKTRACE: '1'
+        run: |
+          cdb="/c/Program Files (x86)/Windows Kits/10/Debuggers/x64/cdb.exe"
+          if [ -f "$cdb" ]; then export TOKRA_REPLAY_DEBUGGER="$(cygpath -w "$cdb")"; else echo "No cdb on this runner"; fi
+          bundle exec rake test:replay
+
       # Windows logs each crashed process in its Application log (event
       # 1000, "Application Error", and 1001, Windows Error Reporting): the
       # faulting module, the exception code, and the offset in it.
