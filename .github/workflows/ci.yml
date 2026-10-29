@@ -185,6 +185,22 @@ jobs:
         if: runner.os == 'Linux'
         run: xvfb-run --auto-servernum dbus-run-session -- bundle exec rake
 
+      # On Windows a native crash ends a test process with no Ruby error,
+      # and Rake reports no status for it (Plan 043). There each test's
+      # name prints as it finishes, so the crash's test is the next one,
+      # and Windows' own record of the crash is printed when a step fails.
       - name: Run the gate
         if: runner.os != 'Linux'
+        env:
+          A: ${{ runner.os == 'Windows' && '--verbose' || '' }}
         run: bundle exec rake
+
+      # Windows logs each crashed process in its Application log (event
+      # 1000, "Application Error", and 1001, Windows Error Reporting): the
+      # faulting module, the exception code, and the offset in it.
+      - name: Show native crashes
+        if: failure() && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Id = 1000, 1001; StartTime = (Get-Date).AddHours(-3) } -ErrorAction SilentlyContinue |
+            Format-List TimeCreated, Id, ProviderName, Message
