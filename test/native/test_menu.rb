@@ -6,6 +6,8 @@
 #++
 
 require "test_helper"
+require "fiddle"
+require "weakref"
 require_relative "../support/native_event_loop"
 
 # The native menu classes, against the real extension and muda 0.17.1
@@ -315,6 +317,33 @@ class TestNativeMenu < Minitest::Test
     assert_equal 0, activate.call(gtk_window, "K".ord, control), "and drops the old one"
   ensure
     window&.close
+  end
+
+  # muda puts a menu on a window by subclassing the window with a pointer to
+  # the menu, and never takes the subclass off; a menu freed while its
+  # window lives leaves the window calling into freed memory, which ended
+  # the Windows core batch (plan 043). So a window holds each menu put on
+  # it until it closes. Without that, the freed menu takes its bar off the
+  # window as muda drops it.
+  def test_on_windows_a_window_holds_its_menu_after_ruby_lets_go
+    skip "only Windows subclasses a window for its menu" unless RbConfig::CONFIG["host_os"].match?(/mswin|mingw|cygwin/)
+
+    window = Tokra::Native::Window.new(NativeEventLoop.shared)
+    menu = put_a_menu_on_and_let_go(window)
+    3.times { GC.start(full_mark: true, immediate_sweep: true) }
+    skip "Ruby kept the menu through the collection" if menu.weakref_alive?
+
+    get_menu = Fiddle::Function.new(Fiddle.dlopen("user32")["GetMenu"], [Fiddle::TYPE_INTPTR_T], Fiddle::TYPE_INTPTR_T)
+    refute_equal 0, get_menu.call(window.raw_window_handle[1]), "the window lost its menu bar with Ruby's menu"
+  ensure
+    window&.close
+  end
+
+  private def put_a_menu_on_and_let_go(window)
+    menu = Tokra::Native::Menu.new
+    menu.append(Tokra::Native::Submenu.new("File", true))
+    window.init_menu(menu, nil)
+    WeakRef.new(menu)
   end
 
   # Tauri's hpopupmenu is Windows' (menu/mod.rs:741-743): muda's HMENU for

@@ -44,6 +44,10 @@ pub struct RbWindow {
     /// Carries the window back to its thread if Ruby frees this object on
     /// another (see `Drop`).
     proxy: EventLoopProxy<UserEvent>,
+    /// The menus put on the window, held until it closes
+    /// ([`WindowMenus`](crate::menu::WindowMenus)).
+    #[cfg(windows)]
+    menus: RefCell<ThreadBound<crate::menu::WindowMenus>>,
 }
 
 impl Drop for RbWindow {
@@ -58,6 +62,12 @@ impl Drop for RbWindow {
             let _ = self
                 .proxy
                 .send_event(UserEvent::Release(Released::Window(Box::new(inner.take()))));
+            #[cfg(windows)]
+            let _ = self
+                .proxy
+                .send_event(UserEvent::Release(Released::Menu(Box::new(
+                    self.menus.get_mut().take(),
+                ))));
         }
     }
 }
@@ -86,6 +96,8 @@ impl RbWindow {
         Ok(Self {
             inner: RefCell::new(ThreadBound::new(window)),
             proxy: event_loop.proxy().clone(),
+            #[cfg(windows)]
+            menus: RefCell::new(ThreadBound::new(crate::menu::WindowMenus::default())),
         })
     }
 
@@ -105,6 +117,19 @@ impl RbWindow {
             return Err(wrong_thread(CLASS));
         }
         Ok(Ref::filter_map(inner, ThreadBound::get).ok())
+    }
+
+    /// Holds `menu`, which muda just put on this window as `hwnd`, until
+    /// the window closes ([`WindowMenus`](crate::menu::WindowMenus)). Off the
+    /// window's thread, or once closed, there is nothing to hold it in,
+    /// and no menu was put on the window.
+    #[cfg(windows)]
+    pub(crate) fn hold_menu(&self, hwnd: isize, menu: &muda::Menu) {
+        if let Ok(mut menus) = self.menus.try_borrow_mut() {
+            if let Some(menus) = menus.get_mut() {
+                menus.hold(hwnd, menu);
+            }
+        }
     }
 
     /// The tao window, on the thread that created it.
@@ -146,6 +171,10 @@ impl RbWindow {
         };
         // Dropped here, on the owner's thread, after the borrow ends.
         drop(closed);
+        #[cfg(windows)]
+        if let Ok(mut menus) = self.menus.try_borrow_mut() {
+            drop(menus.take());
+        }
         Ok(())
     }
     // SPDX-SnippetEnd

@@ -9,7 +9,7 @@
 # Each entry must explain WHY the exception is unavoidable.
 # Review carefully before adding new entries.
 
-allow "ext/tokra/src/window.rs", line: 160, reason: <<~END
+allow "ext/tokra/src/window.rs", line: 189, reason: <<~END
   Magnus FFI requires owned types at the Ruby-Rust boundary. RbWindow::set_title
   receives a Ruby string that must be converted to an owned Rust String because
   Magnus's TryConvert trait only implements String, not &str.
@@ -37,7 +37,7 @@ allow "ext/tokra/src/webview.rs", line: 392, reason: <<~END
   provides TryConvert for owned String types.
 END
 
-allow "ext/tokra/src/thread_bound.rs", line: 125, reason: <<~END
+allow "ext/tokra/src/thread_bound.rs", line: 136, reason: <<~END
   ThreadBound<T> exists to make a value that is not Send safe to hold in a
   Send type: magnus wraps only Send types (magnus/src/typed_data.rs:411-413),
   and tao's EventLoop and wry's WebView are not Send. The lint flags exactly

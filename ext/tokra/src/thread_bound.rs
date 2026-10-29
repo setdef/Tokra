@@ -90,6 +90,17 @@ impl<T> ThreadBound<T> {
         }
     }
 
+    /// The value, mutably, on its own thread; `None` on any other, or once
+    /// taken.
+    #[must_use]
+    pub fn get_mut(&mut self) -> Option<&mut T> {
+        if self.owner.is_current() {
+            self.value.as_mut()
+        } else {
+            None
+        }
+    }
+
     /// Moves the value into a new `ThreadBound` with the same owner, leaving
     /// this one empty. Any thread may call it: the value moves between two
     /// wrappers and is never reached.
@@ -173,6 +184,17 @@ mod tests {
         .unwrap();
         assert!(!reached.0, "another thread reached the value");
         assert!(reached.1.get().is_some(), "the owner still reaches it");
+    }
+
+    #[test]
+    fn only_the_owner_thread_gets_the_value_mutably() {
+        let (mut bound, _) = platform();
+        assert!(bound.get_mut().is_some());
+        let (reached, bound) = thread::spawn(move || (bound.get_mut().is_some(), bound))
+            .join()
+            .unwrap();
+        assert!(!reached, "another thread reached the value mutably");
+        drop(bound);
     }
 
     #[test]

@@ -1134,6 +1134,72 @@ fn define_windows_methods(
 ))]
 pub use window_menu::define_window_methods;
 
+/// The menus a window was given, which the window holds until it closes,
+/// so none of them is freed while its window can still call into it.
+///
+/// muda puts a menu on a window by subclassing the window with a pointer
+/// to the menu's platform object (muda 0.17.1
+/// `platform_impl/windows/mod.rs:337-358`, `1087-1089`), and its
+/// subclass procedure follows that pointer for the window's
+/// `WM_NCACTIVATE`, `WM_NCPAINT`, and `WM_COMMAND` (`:1099-1175`). Nothing
+/// in muda removes the subclass: `remove_for_hwnd` leaves it (`:365-376`),
+/// and `Menu`'s `Drop` removes the window from its map before the loop that
+/// would remove it, so that loop finds nothing (`:113-153`). A menu freed
+/// while its window lives leaves the window calling into freed memory, as
+/// Ruby frees a `Tokra::Native::Menu` it no longer reaches, in any order
+/// with its window. tao only posts a dropped window's destruction to its
+/// loop (`platform_impl/windows/window.rs:1104-1113`), so a closed window
+/// lives on, with its subclass, until the loop next runs (plan 043).
+///
+/// Holding a clone keeps each menu's platform object alive, since muda's
+/// `Menu` is an `Rc` over it (`src/menu.rs:12-15`), and dropping the holder
+/// removes the subclass from the window before any menu can go. As in
+/// Tauri, where the window holds its menu (`window/mod.rs:1199-1235`), a
+/// window's menu then lives as long as the window, even after Ruby lets go
+/// of it; unlike Tauri's, a menu taken off the window stays held until the
+/// window closes, since a later menu's subclass may have replaced its own.
+#[cfg(windows)]
+#[derive(Default)]
+pub struct WindowMenus {
+    hwnd: isize,
+    menus: Vec<muda::Menu>,
+}
+
+#[cfg(windows)]
+impl WindowMenus {
+    /// Holds `menu`, just put on the window `hwnd`, once.
+    pub fn hold(&mut self, hwnd: isize, menu: &muda::Menu) {
+        use muda::ContextMenu;
+        self.hwnd = hwnd;
+        let handle = menu.hpopupmenu();
+        if !self.menus.iter().any(|held| held.hpopupmenu() == handle) {
+            self.menus.push(menu.clone());
+        }
+    }
+}
+
+#[cfg(windows)]
+impl Drop for WindowMenus {
+    /// Removes muda's subclass from the window, then lets the menus go.
+    /// Every muda menu subclasses with the same procedure and id, so one
+    /// call removes whichever menu set it last.
+    fn drop(&mut self) {
+        use muda::ContextMenu;
+        if let Some(menu) = self.menus.first() {
+            // SAFETY: `hwnd` is the window this holder's menus were put on,
+            // and the holder drops only on that window's thread (it lives
+            // in a `ThreadBound` the window's thread made), the thread
+            // `RemoveWindowSubclass` must be called on. A window already
+            // destroyed lost its subclasses with it, and the call then
+            // fails without effect.
+            #[allow(unsafe_code)]
+            unsafe {
+                menu.detach_menu_subclass_from_hwnd(self.hwnd);
+            }
+        }
+    }
+}
+
 /// A window's own menu bar, on Windows and Linux; macOS has only the app's
 /// (Tauri `window/mod.rs:1199-1363`, `manager/menu.rs:54-95`).
 ///
@@ -1169,9 +1235,9 @@ mod window_menu {
     /// Tauri themes a new window's menu with the configured theme or Auto
     /// (`manager/menu.rs:74-79`), and `Window::set_menu` with the window's
     /// theme (`window/mod.rs:1205-1224`).
-    fn init_menu(window: &RbWindow, menu: &RbMenu, theme: Option<String>) -> Result<(), Error> {
+    fn init_menu(rb_window: &RbWindow, menu: &RbMenu, theme: Option<String>) -> Result<(), Error> {
         let menu = menu.get()?;
-        let Some(window) = window.open_window()? else {
+        let Some(window) = rb_window.open_window()? else {
             return Ok(());
         };
         #[cfg(windows)]
@@ -1193,7 +1259,12 @@ mod window_menu {
             // the thread that owns it; muda subclasses that window and
             // gives it a menu bar (muda 0.17.1 `src/menu.rs:226-256`).
             #[allow(unsafe_code)]
-            let _ = unsafe { menu.init_for_hwnd_with_theme(window.hwnd(), theme) };
+            let initialized = unsafe { menu.init_for_hwnd_with_theme(window.hwnd(), theme) };
+            // The window now calls into the menu, so it holds the menu
+            // until it closes (`WindowMenus`, plan 043).
+            if initialized.is_ok() {
+                rb_window.hold_menu(window.hwnd(), menu);
+            }
         }
         #[cfg(not(windows))]
         {
