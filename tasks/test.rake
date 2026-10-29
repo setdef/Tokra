@@ -26,16 +26,35 @@ namespace :test do
   end
 
   # Create a specific Minitest task for Ruby core tests
-  Minitest::TestTask.create(:core) do |t|
+  core = Minitest::TestTask.create(:core) do |t|
     # Test files only: fixture apps under test/integration/fixtures are .rb
     # files that open a real window, and must run only in a child process.
     # The keyboard-taking tests run apart, in test:keyboard.
     t.test_globs = Dir["test/**/test_*.rb", "test/**/*_test.rb"] - Dir[KEYBOARD_TESTS]
   end
 
-  Minitest::TestTask.create(:keyboard) do |t|
+  keyboard = Minitest::TestTask.create(:keyboard) do |t|
     t.test_globs = [KEYBOARD_TESTS]
   end
+  # A test process that a native crash ends has no exit status Rake can
+  # print ("Command failed with status ()"). On Windows Ruby keeps the
+  # exit code shifted left by eight bits, and maps an access violation,
+  # an illegal instruction, or a floating-point fault to a signal, which
+  # is when the status has none (Ruby win32/win32.c, waitpid). Each Ruby
+  # test task prints the whole status when it fails, so its signal, or
+  # the low 24 bits of any other NTSTATUS, show (Plan 043).
+  { core:, keyboard: }.each do |name, test_task|
+    Rake::Task["test:#{name}"].clear_actions
+    Rake::Task["test:#{name}"].enhance do
+      ruby test_task.make_test_cmd, verbose: test_task.verbose do |ok, status|
+        next if ok
+
+        raw = status.to_i
+        abort "test:#{name} failed: #{status.inspect}, raw status 0x#{raw.to_s(16)}, code bits 0x#{(raw >> 8).to_s(16)}"
+      end
+    end
+  end
+
   # The packaging check's tests resolve fixture crates with cargo metadata
   # --offline, which needs every platform's dependencies in Cargo's cache;
   # compiling downloads only this machine's.

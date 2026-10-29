@@ -187,12 +187,15 @@ jobs:
 
       # On Windows a native crash ends a test process with no Ruby error,
       # and Rake reports no status for it (Plan 043). There each test's
-      # name prints as it finishes, so the crash's test is the next one,
-      # and Windows' own record of the crash is printed when a step fails.
+      # name prints as it finishes, so the crash's test is the next one, a
+      # Rust panic prints its backtrace, the test task prints the raw
+      # status (tasks/test.rake), and Windows' own record of the crash is
+      # printed when a step fails.
       - name: Run the gate
         if: runner.os != 'Linux'
         env:
           A: ${{ runner.os == 'Windows' && '--verbose' || '' }}
+          RUST_BACKTRACE: ${{ runner.os == 'Windows' && '1' || '' }}
         run: bundle exec rake
 
       # Windows logs each crashed process in its Application log (event
