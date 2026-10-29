@@ -54,16 +54,23 @@ module PlatformTray
     end
   end
 
-  # Opens the one tray's menu the way tray-icon does for a click, and
-  # returns once the menu closes: -[NSStatusBarButton performClick:] on
-  # macOS (platform_impl/macos/mod.rs:467-488), and on Windows the
-  # WM_RBUTTONDOWN message Shell_NotifyIcon posts, after which tray-icon
-  # sends the click and calls TrackPopupMenu (platform_impl/windows/mod.rs:
-  # 286-396). The call keeps the GVL, as the main thread holds it when the
+  # Opens the one tray's menu the way tray-icon does for a click.
+  #
+  # On macOS it calls -[NSStatusBarButton performClick:]
+  # (platform_impl/macos/mod.rs:467-488) and returns once the menu
+  # closes. The call keeps the GVL, as the main thread holds it when the
   # platform delivers a real click to tao's loop, so whether other Ruby
-  # threads run while the menu tracks is Tokra's doing, not Fiddle's.
-  # Answers whether it found the tray. Call it from a platform timer on
-  # the main thread, outside tao's handler, as a click arrives.
+  # threads run while the menu tracks is Tokra's doing, not Fiddle's. Call
+  # it from a platform timer on the main thread, outside tao's handler, as
+  # a click arrives.
+  #
+  # On Windows it posts the WM_RBUTTONDOWN that Shell_NotifyIcon posts for
+  # a click and returns at once; tao's loop dispatches it to tray-icon's
+  # window, which sends the click and calls TrackPopupMenu
+  # (platform_impl/windows/mod.rs:286-396). Posting, from any thread,
+  # never waits on the menu.
+  #
+  # Answers whether it found the tray.
   def self.open_menu
     case Tokra::Menu.os
     when :macos then Appkit.open_menu
@@ -255,10 +262,8 @@ module PlatformTray
       windows = tray_windows
       return false unless windows.size == 1
 
-      Fiddle::Function.new(user32["SendMessageW"],
-        [Fiddle::TYPE_INTPTR_T, Fiddle::TYPE_INT, Fiddle::TYPE_INTPTR_T, Fiddle::TYPE_INTPTR_T],
-        Fiddle::TYPE_INTPTR_T, need_gvl: true).call(windows.first, WM_USER_TRAYICON, 0, WM_RBUTTONDOWN)
-      true
+      fn("PostMessageW", [Fiddle::TYPE_INTPTR_T, Fiddle::TYPE_INT, Fiddle::TYPE_INTPTR_T, Fiddle::TYPE_INTPTR_T],
+        Fiddle::TYPE_INT).call(windows.first, WM_USER_TRAYICON, 0, WM_RBUTTONDOWN) != 0
     end
 
     # Chooses the item at +index+ of +hmenu+ as TrackPopupMenu does: a

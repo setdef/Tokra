@@ -108,16 +108,13 @@ class TestNativeTray < Minitest::Test
     assert_raises(TypeError) { tray("native-bad-menu", menu: "menu") }
   end
 
-  # tray-icon's PNG encoder refuses an image with no pixels on macOS and
-  # Linux; Windows' CreateIcon refuses it as the icon is made.
-  def test_an_icon_with_no_pixels_is_tray_icons_own_error
-    made = tray
-    if RbConfig::CONFIG["host_os"].match?(/mswin|mingw|cygwin/)
-      assert_raises(RuntimeError) { Tokra::Native::TrayIcon::Icon.from_rgba("".b, 0, 0) }
-    else
-      empty = Tokra::Native::TrayIcon::Icon.from_rgba("".b, 0, 0)
-      error = assert_raises(RuntimeError) { made.set_icon(empty) }
-      assert_match(/zero width/i, error.message)
+  # An icon with no pixels passes tray-icon's checks, and on Windows its
+  # empty buffer reaches CreateIcon, which reads past it; Tokra refuses it
+  # first on every platform, with tao's text (plan 043, decision 8).
+  def test_an_icon_with_no_pixels_is_refused_before_tray_icon_makes_it
+    [[0, 0], [7, 0], [0, 3]].each do |width, height|
+      error = assert_raises(RuntimeError) { Tokra::Native::TrayIcon::Icon.from_rgba("".b, width, height) }
+      assert_equal "The specified dimensions (#{width}x#{height}) must be greater than zero.", error.message
     end
   end
 

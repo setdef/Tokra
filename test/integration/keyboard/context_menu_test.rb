@@ -63,11 +63,13 @@ class ContextMenuTest < RealApp::TestCase
   end
 
   # The popup releases the GVL (plan 042, decision 15): another Ruby
-  # thread kept ticking while the menu tracked, and closed it.
+  # thread ran while the menu tracked and closed it, and a third ticked
+  # meanwhile. Order proves it, not rate: with the GVL held, the fallback
+  # timer, not the thread, would close the menu.
   def test_other_ruby_threads_run_while_a_menu_tracks
     %w[menu submenu].each do |name|
       assert_equal "thread", @report.dig(name, "dismissed_by"), @report.inspect
-      assert_operator @report.dig(name, "ticks_while_tracking"), :>=, 10, @report.inspect
+      assert_operator @report.dig(name, "ticks_while_tracking"), :>=, 1, @report.inspect
     end
   end
 

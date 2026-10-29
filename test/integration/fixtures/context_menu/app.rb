@@ -12,7 +12,7 @@
 # submenu at the pointer from the main thread. While each tracks, a timer
 # on the main thread finds the platform's menu and reads its items and
 # position, and a second Ruby thread, which runs only if the popup let go
-# of the GVL, counts ticks and then closes the menu: on macOS by choosing
+# of the GVL, sees a ticker thread tick once and then closes the menu: on macOS by choosing
 # an item of the first (-[NSMenu performActionForItemAtIndex:], sent
 # through GCD's main queue) and cancelling each (-[NSMenu
 # cancelTracking]), on Linux by choosing an item of the first
@@ -87,7 +87,11 @@ module ContextMenuFixture
 
       at_shown = ticks
       handle.run_on_main_thread { LOG << "task sent while tracking" }
-      sleep 0.3
+      # Running at all proves the popup let go of the GVL; one tick of the
+      # other thread shows it too, by order rather than by rate, which a
+      # loaded machine cannot meet on time.
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 3
+      Thread.pass until ticks > at_shown || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
       seen["ticks_while_tracking"] = ticks - at_shown
       close(menu, hwnd, choose, on_main: false)
       dismissed_by << "thread"

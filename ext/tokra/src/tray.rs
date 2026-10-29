@@ -184,17 +184,30 @@ impl RbTrayIconIcon {
     /// the wrapped icon then reaches `CreateIcon` with fewer bytes than its
     /// size, which reads past them (`platform_impl/windows/icon.rs:21-49`).
     /// Linux's tray-icon checks nothing (`platform_impl/gtk/icon.rs:16-24`).
-    /// So Tokra runs the checks first on every platform, with tray-icon's
-    /// texts (plan 043, decision 8).
+    /// An icon with no pixels passes those checks, and on Windows tray-icon
+    /// hands `CreateIcon` its empty buffer, a dangling pointer, with a zero
+    /// size, for which GDI makes a 1-by-1 bitmap from those bits (the rule
+    /// `CreateBitmap` documents), so it reads memory nothing owns. So Tokra
+    /// runs the checks first on every platform, with tray-icon's texts,
+    /// then refuses an empty dimension with tao's text for it, as the menu
+    /// icons do (plan 043, decision 8; plan 042, decision 13).
     ///
     /// # Errors
     ///
-    /// Returns a `RuntimeError` with tray-icon's text, which Ruby raises as
+    /// Returns a `RuntimeError` with that text, which Ruby raises as
     /// `Error::BadTrayIcon`.
     fn from_rgba(rgba: RString, width: u32, height: u32) -> Result<Self, Error> {
         let rgba = rgba.to_bytes().to_vec();
         if let Some(message) = crate::menu::bad_rgba(rgba.len(), width, height) {
             return Err(Error::new(runtime_error(), message));
+        }
+        if width == 0 || height == 0 {
+            return Err(Error::new(
+                runtime_error(),
+                format!(
+                    "The specified dimensions ({width:?}x{height:?}) must be greater than zero."
+                ),
+            ));
         }
         tray_icon::Icon::from_rgba(rgba, width, height)
             .map(Self)

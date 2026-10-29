@@ -8,12 +8,14 @@
 # Fixture for keyboard/tray_menu_test.rb: a real tray menu, opened the way
 # tray-icon opens it for a click (plan 043), on macOS and Windows.
 #
-# A platform timer on the main thread, outside tao's handler as a click
-# would be, opens the tray's menu (PlatformTray.open_menu) while keeping
-# the GVL, as the main thread holds it when a click reaches tao's loop.
+# On macOS a platform timer on the main thread, outside tao's handler as
+# a click would be, opens the tray's menu (PlatformTray.open_menu) while
+# keeping the GVL, as the main thread holds it when a click reaches tao's
+# loop; on Windows the click's message is posted, and tao's loop delivers
+# it to tray-icon's window as the shell's would be.
 # While the menu tracks, another timer finds it and reads its items, and a
 # second Ruby thread, which runs only if something lets go of the GVL,
-# counts ticks and then closes the menu: on macOS by choosing an item
+# sees the ticker tick once and then closes the menu: on macOS by choosing an item
 # (-[NSMenu performActionForItemAtIndex:]) and cancelling
 # (-[NSMenu cancelTracking]) through GCD's main queue, on Windows by
 # posting WM_CANCELMODE and then the chosen item's WM_COMMAND. A fallback
@@ -33,6 +35,11 @@ require_relative "../../support/platform_tray"
 $stdout.sync = true
 
 module TrayMenuFixture
+  # Prints a progress line, so a hang shows how far the fixture got.
+  def self.progress(stage)
+    puts "PROGRESS #{stage}"
+  end
+
   # What the listeners and the main thread did, in order.
   LOG = Thread::Queue.new
   LABELS = %w[Show Hide].freeze
@@ -116,17 +123,28 @@ app.run do |handle, event|
     returned = Thread::Queue.new
     dismissed_by = Thread::Queue.new
     done = false
+    seen_open = false
+    opening = false
+    macos = Tokra::Menu.os == :macos
+    TrayMenuFixture.progress("setting up")
     TrayMenuFixture.on_main(handle) do
-      PlatformPopup::Appkit.observe if Tokra::Menu.os == :macos
+      PlatformPopup::Appkit.observe if macos
       PlatformPopup.every(window, 50) do
         next false if done
 
         found = PlatformPopup.find(TrayMenuFixture::LABELS)
-        next true unless found
-
-        report["labels"] = PlatformPopup.labels(found, hmenu)
-        shown << found
-        false
+        if found && !seen_open
+          seen_open = true
+          report["labels"] = PlatformPopup.labels(found, hmenu)
+          shown << found
+        elsif !found && seen_open && !macos
+          # TrackPopupMenu has returned: the posted click's handling is over.
+          done = true
+          TrayMenuFixture::LOG << "menu returned"
+          returned << true
+          next false
+        end
+        true
       end
       PlatformPopup.every(window, 8000) do
         unless done
@@ -136,14 +154,23 @@ app.run do |handle, event|
         end
         false
       end
-      PlatformPopup.every(window, 10) do
-        report["opened"] = PlatformTray.open_menu
-        done = true
-        TrayMenuFixture::LOG << "menu returned"
-        returned << true
-        false
+      if macos
+        PlatformPopup.every(window, 10) do
+          # A timer may fire again while the menu it opened tracks; only the
+          # first opens it.
+          next false if opening
+
+          opening = true
+          report["opened"] = PlatformTray.open_menu
+          done = true
+          TrayMenuFixture::LOG << "menu returned"
+          returned << true
+          false
+        end
       end
     end
+    report["opened"] = PlatformTray.open_menu unless macos
+    TrayMenuFixture.progress("opening")
 
     ticks = 0
     ticker = Thread.new do
@@ -156,15 +183,19 @@ app.run do |handle, event|
       found = shown.pop(timeout: 20)
       next unless found
 
+      TrayMenuFixture.progress("tracking")
       at_shown = ticks
+      # Running at all proves the GVL was let go while the menu tracks;
+      # one tick of the other thread shows it too, by order, not by rate.
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 3
-      sleep 0.01 until ticks >= at_shown + 10 || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+      Thread.pass until ticks > at_shown || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
       report["ticks_while_tracking"] = ticks - at_shown
       TrayMenuFixture.close(found, hmenu, choose: true, on_main: false)
       dismissed_by << "thread"
     end
 
     returned.pop(timeout: 30)
+    TrayMenuFixture.progress("closed")
     closer.join(5)
     ticker.kill
     report["dismissed_by"] = dismissed_by.pop(timeout: 1)

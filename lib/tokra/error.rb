@@ -147,9 +147,10 @@ module Tokra
     #
     # === Example
     #
-    #   tray.set_icon(Tokra::Image.new(rgba: "".b, width: 0, height: 0))
-    #   # raises Tokra::Error::Tray on macOS and Linux, where the PNG
-    #   # encoder refuses an image with no pixels
+    #   Tokra::Tray::TrayIconBuilder.new.build(app)  # before App#run
+    #   # raises Tokra::Error::Tray: "tray icon error: no event loop exists
+    #   #   yet; build tray icons once App#run has built it, such as in the
+    #   #   setup hook"
     class Tray < Error
       # Creates the error from tray-icon's own +message+.
       def initialize(message)
@@ -157,7 +158,8 @@ module Tokra
       end
     end
 
-    # Raised when tray-icon refuses an image as a tray icon.
+    # Raised when tray-icon refuses an image as a tray icon: its bytes do
+    # not make its size, or it has no pixels.
     #
     # Mirrors <tt>tauri::Error::BadTrayIcon</tt>, which shows tray-icon's
     # <tt>BadIcon</tt> text as it is (error.rs:111-115).

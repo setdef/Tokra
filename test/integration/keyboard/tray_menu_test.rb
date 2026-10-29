@@ -44,10 +44,11 @@ class TrayMenuTest < RealApp::TestCase
 
   # The menu tracks in a nested loop inside the platform's click handling;
   # tao's handler is not running then, so it keeps handing the GVL to
-  # other Ruby threads (ADR 012), and one of them closed the menu.
+  # other Ruby threads (ADR 012): one of them closed the menu while it
+  # tracked, and another ticked meanwhile. Order proves it, not rate.
   def test_other_ruby_threads_run_while_the_tray_menu_tracks
     assert_equal "thread", @report["dismissed_by"], @report.inspect
-    assert_operator @report["ticks_while_tracking"], :>=, 10, @report.inspect
+    assert_operator @report["ticks_while_tracking"], :>=, 1, @report.inspect
   end
 
   # A chosen item is a menu event: the app's listeners, then the tray
