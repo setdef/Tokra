@@ -9,7 +9,17 @@ module Tokra
     attr_reader windows: Hash[String, Window]
     attr_reader plugins: PluginStore
     attr_reader invoke_key: String
+    attr_reader listeners: Event::Listeners
 
-    def self.new: (config: Config, webviews: Hash[String, Webview], windows: Hash[String, Window], ?plugins: PluginStore, ?invoke_key: String) -> AppManager
+    def self.new: (config: Config, webviews: Hash[String, Webview], windows: Hash[String, Window], ?plugins: PluginStore, ?invoke_key: String, ?listeners: Event::Listeners) -> AppManager
+
+    def listen: (String event, event_target target) { (Event) -> void } -> Integer
+    def once: (String event, event_target target) { (Event) -> void } -> Integer
+    def unlisten: (Integer id) -> nil
+    def emit: (Event::EmitArgs emit_args) -> nil
+    def emit_filter: (Event::EmitArgs emit_args, Event::Listeners::filter? filter) -> nil
+    def emit_to: (event_target target, Event::EmitArgs emit_args) -> nil
+    def self.filter_target: (event_target target, event_target candidate) -> bool
+    private def self.same_label?: (event_target candidate, Class kind, String label) -> bool
   end
 end

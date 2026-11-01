@@ -73,13 +73,16 @@ class TestMainThreadDispatch < Minitest::Test
   end
 
   def test_emit_from_another_thread_evaluates_on_the_main_thread
+    listened = nil
     run_app do |handle|
+      handle.get_webview("main").listen_js("ready", Tokra::EventTarget.any, 1)
+      listened = native_webview.evals.size
       Thread.new { handle.emit("ready", { "n" => 1 }) }.join
-      assert_empty native_webview.evals
+      assert_equal listened, native_webview.evals.size, "the page heard it off the main thread"
     end
 
-    assert_equal 1, native_webview.evals.size
-    assert_includes native_webview.evals.first, "ready"
+    assert_equal listened + 1, native_webview.evals.size
+    assert_includes native_webview.evals.last, "{event: 'ready', payload: {\"n\":1}}"
   end
 
   def test_title_from_another_thread_returns_the_main_threads_answer

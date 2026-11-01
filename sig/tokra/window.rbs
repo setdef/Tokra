@@ -6,6 +6,8 @@ module Tokra
   # Mirrors Tauri's Window<R> struct.
   class Window
     include Manager
+    include Listener
+    include Emitter
 
     @label: String
     @native: Native::Window
@@ -24,8 +26,15 @@ module Tokra
 
     @menu_mutex: Thread::Mutex
     @window_menu: WindowMenu?
+    @window_event_listeners: Array[^(window_event) -> void]
+    @window_event_mutex: Thread::Mutex
 
     def initialize: (label: String, native: Native::Window, app_handle: AppHandle, ?menu: WindowMenu?) -> void
+    def on_window_event: () { (window_event) -> void } -> nil
+    def window_event_listeners: () -> Array[^(window_event) -> void]
+    def listen: (String event) { (Event) -> void } -> Integer
+    def once: (String event) { (Event) -> void } -> Integer
+    def unlisten: (Integer id) -> nil
     def on_menu_event: () { (Window, Menu::MenuEvent) -> void } -> nil
     def menu: () -> Menu::Menu?
     def set_menu: (Menu::Menu menu) -> Menu::Menu?

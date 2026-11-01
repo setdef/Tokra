@@ -26,6 +26,8 @@ module Tokra
   #
   class Webview
     include Manager
+    include Listener
+    include Emitter
 
     # The unique label identifying this webview.
     attr_reader :label
@@ -115,6 +117,64 @@ module Tokra
         warn("failed to set webview background color: #{e.message}")
       end
     end
+
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: Page listeners and Listener for Webview adapted from
+    #                      tauri/crates/tauri/src/webview/mod.rs
+
+    # Records a page listener for +event+ and +target+, whose callback is
+    # +handler+, a callback id from the page: the listener script runs in
+    # this webview first, then the registry keeps it. Answers its id.
+    #
+    # Mirrors Tauri's Webview::listen_js (webview/mod.rs:1904-1927).
+    def listen_js(event, target, handler) # :nodoc:
+      listeners = @app_handle.manager.listeners
+      id = listeners.next_event_id
+      evaluate(Event.listen_js_script(listeners.listeners_object_name, target.to_json, event, id, handler))
+      listeners.listen_js(event, @label, target, id)
+      id
+    end
+
+    # Forgets the page listener with +id+ (webview/mod.rs:1929-1935).
+    def unlisten_js(event, id) # :nodoc:
+      @app_handle.manager.listeners.unlisten_js(event, id)
+    end
+
+    # Hands +emit_args+ to the page listeners with +ids+
+    # (webview/mod.rs:1937-1944).
+    def emit_js(emit_args, ids) # :nodoc:
+      evaluate(Event.emit_js_script(@app_handle.manager.listeners.function_name, emit_args, JSON.generate(ids)))
+    end
+
+    # Calls the block with each +event+ sent to this webview, by
+    # Emitter#emit, or to its label as a Webview or an AnyLabel, and
+    # returns the handler's id. Raises Error::IllegalEventName for a bad
+    # name.
+    #
+    # Mirrors Tauri's Webview::listen (webview/mod.rs:2180-2203).
+    #
+    # === Example
+    #
+    #   webview.listen("component-loaded") { |event| puts event.payload }
+    def listen(event, &handler)
+      @app_handle.manager.listen(Event::Name.check(event), EventTarget.webview(@label), &handler)
+    end
+
+    # Calls the block with the next +event+ sent to this webview, as
+    # #listen does, and returns the handler's id (webview/mod.rs:2205-2219).
+    def once(event, &handler)
+      @app_handle.manager.once(Event::Name.check(event), EventTarget.webview(@label), &handler)
+    end
+
+    # Removes the handler with +id+, whichever target it listens for
+    # (webview/mod.rs:2221-2251).
+    def unlisten(id)
+      @app_handle.manager.unlisten(id)
+    end
+
+    # SPDX-SnippetEnd
 
     # Runs the block on the main thread and returns +nil+, as
     # AppHandle#run_on_main_thread does.

@@ -158,6 +158,13 @@ pub enum UserEvent {
     /// run the oldest one.
     Task,
 
+    /// The webview gained focus, `true`, or the window lost it, `false`:
+    /// on Windows, `WebView2`'s `GotFocus` and `LostFocus`, which Tauri's
+    /// runtime sends as `SynthesizedWindowEvent::Focused`
+    /// (tauri-runtime-wry `src/lib.rs:5070-5128`; `webview_focus.rs`).
+    #[cfg(windows)]
+    Focused(bool),
+
     /// A menu item was activated: its id, from muda's event handler
     /// (`menu.rs`).
     ///

@@ -12,6 +12,39 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Tauri's event system: `Listener` (`listen`, `once`, `unlisten`,
+  `listen_any`, `once_any`) and `Emitter` (`emit`, `emit_str`, `emit_to`,
+  `emit_str_to`, `emit_filter`, `emit_str_filter`) on `App`, `AppHandle`,
+  `Window`, and `Webview`, with `Tokra::Event`, `Tokra::EventTarget`, and
+  `Error::IllegalEventName`
+- The `event` core plugin, so `listen`, `once`, `emit`, and `emitTo` from
+  `@tauri-apps/api/event` reach Ruby and hear it
+- `Window#on_window_event`, and `Builder#on_window_event`, whose blocks receive
+  the `Tokra::Window` and each `WindowEvent` after the run callback, except
+  `CloseRequested`, which they hear first
+- `WindowEvent::Resized(size)`, `Moved(position)`, `Focused`,
+  `ScaleFactorChanged(scale_factor, new_inner_size)`, `ThemeChanged(theme)`,
+  `DragDrop(event)`, `CloseRequested`, and `Destroyed`, delivered to
+  `RunEvent::WindowEvent`, `on_window_event` blocks, and the page as
+  `tauri://resize`, `tauri://move`, `tauri://focus`, `tauri://blur`,
+  `tauri://scale-change`, `tauri://theme-changed`, `tauri://drag-enter`,
+  `-over`, `-drop`, `-leave`, `tauri://close-requested`, and
+  `tauri://destroyed`; drops on the window's webview are the window's, as in
+  Tauri, and a page listening for `tauri://close-requested` on its window
+  keeps it open when it is asked to close
+- `Plugin#on_event(app, event)`, `Plugin#window_created(window)`, and
+  `Plugin#webview_created(webview)` hooks
+- `Tokra::Ipc::Invoke`, whose responders receive the response as JSON text; a
+  value JSON cannot encode rejects the invoke with the serializer's message
+- `Window#set_title`, `Window#set_size`, `Webview#eval`, and `AppHandle#emit`
+  called from another thread run on the main thread and return `nil` without
+  waiting, as in Tauri; `Webview#eval` logs a script the webview fails to
+  evaluate instead of raising; `Window#title` on a closed window raises
+  `Error::Runtime` (`failed to receive message from webview`)
+- `Native::WindowResizedEvent`, `WindowMovedEvent`, `WindowFocusedEvent`,
+  `WindowScaleFactorChangedEvent`, `WindowThemeChangedEvent`, and
+  `Native::WebView#set_theme` (Windows)
+- Dependency: webview2-com 0.38.2 on Windows
 - `Tokra::Webview` wrapper class with per-webview `ResourceTable`
 - `Tokra::Window` wrapper class with per-window `ResourceTable`
 - `Tokra::ResourceTable` with full lifecycle management:
@@ -25,7 +58,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Tokra::Resource` mixin module (mirrors Tauri's Resource trait)
 - `Tokra::Image` data class for RGBA images with ResourceTable integration
 - `Tokra::Error` base class with nested `BadResourceId` exception
-- `Invoke#webview` accessor returns calling webview (now required parameter)
+- `Invoke#webview` returns the calling webview
 - `AppHandle#windows` returns all managed windows
 - `AppHandle#get_window(label)` fetches window by label
 - `AppHandle#get_webview(label)` fetches webview by label
@@ -69,7 +102,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `Exit` is emitted from the native loop's `Native::LoopDestroyedEvent`,
   since tao's event loop never returns, and a `Kernel#exit` in its handler
   sets the process's exit status
-- Frontend `invoke` promises now resolve and reject: `App` evaluates Tauri's
+- Frontend `invoke` promises resolve and reject: `App` evaluates Tauri's
   `runCallback` in the WebView, so `@tauri-apps/api` works end to end
 - `Tokra::Ipc::FormatCallback` formats invoke responses as callback scripts
 - Injected `__TAURI_INTERNALS__` initialization scripts (vendored from Tauri
@@ -349,12 +382,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-- `Plugin#on_event` now receives the app handle: `on_event(app, event)` (breaking)
-- `Plugin#on_window_created` renamed to `Plugin#window_created` (breaking)
-- `Plugin#on_webview_created` renamed to `Plugin#webview_created` (breaking)
-- `Tokra::Invoke` is now `Tokra::Ipc::Invoke` (breaking)
-- `Invoke#payload` is now the message's `payload` member, not the whole IPC
-  message (breaking)
 - `Rack::Handler::Tokra.run` now builds a `Tokra::Builder`, so Rack apps get
   IPC responses and injected scripts; its `invoke_handler` receives an
   `Ipc::Invoke` and must be Ractor-shareable (breaking)
@@ -364,9 +391,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Native::IpcEvent` gains a required `url` member (breaking)
 - `Native::HttpRequestEvent#body` is a binary (ASCII-8BIT) string holding the
   exact request bytes, no longer UTF-8 (breaking)
-- `Ipc::Invoke` responders receive the response serialized as JSON text, and a
-  value JSON cannot encode rejects the invoke with the serializer's message
-  (breaking for code that builds an `Invoke` with its own responder)
 - `ipc://` and `postMessage` invokes from any origin other than the app's own
   (`tokra://localhost`; `http://tokra.localhost` on Windows) are rejected with
   `Command <name> not allowed by ACL` until capabilities exist (breaking)
@@ -380,11 +404,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `linux-body` feature)
 - `tokra` no longer strips its native extension's symbols, so a panic
   backtrace names its functions
-- `Window#set_title`, `Window#set_size`, `Webview#eval`, and
-  `AppHandle#emit` called from another thread run on the main thread and
-  return `nil` without waiting, as in Tauri
-- `Webview#eval` logs a script the webview fails to evaluate instead of
-  raising
 - `Native::EventLoop`, `Native::Window`, and `Native::WebView` raise
   `ThreadError` when called from a thread other than the one that created
   them (breaking)
@@ -403,9 +422,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   that drives `Native::EventLoop` directly, which now closes the window on
   `WindowCloseEvent` and answers `true` to `WindowDestroyedEvent`)
 - A closed `Native::Window` ignores its setters and answers `nil` for its
-  title and id, and `Window#title` then raises `Error::Runtime` (`failed to
-  receive message from webview`); a closed `Native::WebView` ignores `eval`
-  (breaking)
+  title and id, and a closed `Native::WebView` ignores `eval` (breaking)
 
 ### Fixed
 

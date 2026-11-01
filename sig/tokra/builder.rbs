@@ -8,7 +8,7 @@ module Tokra
     @uri_scheme_protocols: Hash[String, ^(UriSchemeContext, Native::HttpRequestEvent) -> Response]
     @setup: (^(App) -> void)?
     @on_page_load: (^(Native::WebView?, PageLoadPayload) -> void)?
-    @window_event_listeners: Array[^(Native::Window, window_event) -> void]
+    @window_event_listeners: Array[^(Window, window_event) -> void]
     @webview_event_listeners: Array[^(Native::WebView?, webview_event) -> void]
     @state_manager: StateManager
     @rack_app: ::Rack::_App?
@@ -36,7 +36,7 @@ module Tokra
     def register_asynchronous_uri_scheme_protocol: (String uri_scheme) { (UriSchemeContext, Native::HttpRequestEvent, UriSchemeResponder) -> void } -> self
     def setup: () { (App) -> void } -> self
     def on_page_load: () { (Native::WebView?, PageLoadPayload) -> void } -> self
-    def on_window_event: () { (Native::Window, window_event) -> void } -> self
+    def on_window_event: () { (Window, window_event) -> void } -> self
     def on_webview_event: () { (Native::WebView?, webview_event) -> void } -> self
     def build: (?native: Module) -> App
     def run: (?native: Module) ?{ (AppHandle, run_event) -> void } -> void
@@ -52,7 +52,7 @@ module Tokra
     attr_reader menu_event_listeners: Array[MenuManager::app_listener]
     attr_reader tray_icon_event_listeners: Array[TrayManager::app_listener]
     def macos_default_menu?: () -> bool
-    attr_reader window_event_listeners: Array[^(Native::Window, window_event) -> void]
+    attr_reader window_event_listeners: Array[^(Window, window_event) -> void]
     attr_reader webview_event_listeners: Array[^(Native::WebView?, webview_event) -> void]
     attr_reader state_manager: StateManager
     attr_reader rack_app: ::Rack::_App?

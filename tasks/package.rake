@@ -23,7 +23,9 @@ PACKAGES = [
       # template (Native.load_js_template).
       app = Tokra::Builder.default.with_global_tauri.build
       scripts = app.__send__(:initialization_scripts)
-      Tokra::Native.emit_js_script("tokra://smoke", "null")
+      # The event scripts a listen and an emit render (plan 047).
+      Tokra::Event.listen_js_script("o", '{"kind":"Any"}', "tokra://smoke", 0, 1)
+      Tokra::Event.emit_js_script("f", Tokra::Event::EmitArgs.new(event: "tokra://smoke", payload: "null"), "[]")
       abort "no home directory from the native extension" unless Tokra::Native.home_dir.is_a?(String)
       abort "Native::EventLoop missing" unless Tokra::Native::EventLoop.method_defined?(:run)
       puts "tokra \#{Tokra::VERSION} loads; \#{scripts.size} initialization scripts render"

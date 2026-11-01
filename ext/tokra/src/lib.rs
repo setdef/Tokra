@@ -78,6 +78,7 @@ mod undecorated_resizing;
 mod user_event;
 mod vibrancy;
 mod webview;
+mod webview_focus;
 mod window;
 mod window_ext;
 mod window_state;

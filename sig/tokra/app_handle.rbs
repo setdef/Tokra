@@ -4,6 +4,8 @@
 module Tokra
   class AppHandle
     include Manager
+    include Listener
+    include Emitter
 
     @manager: AppManager
     @state_manager: StateManager?
@@ -22,6 +24,7 @@ module Tokra
                      ?tray_icon_event_listeners: Array[TrayManager::app_listener]) -> void
     attr_reader menu_manager: MenuManager
     attr_reader tray_manager: TrayManager
+    attr_reader manager: AppManager
     def on_tray_icon_event: () { (AppHandle, Tray::TrayIconEvent::event) -> void } -> nil
     def tray_by_id: (Tray::TrayIconId | String id) -> Tray::TrayIcon?
     def remove_tray_by_id: (Tray::TrayIconId | String id) -> Tray::TrayIcon?
@@ -54,7 +57,9 @@ module Tokra
     def resources_table: -> ResourceTable
     def plugin: (_Plugin plugin) -> bool
     def remove_plugin: (String name) -> bool
-    def emit: (String event_name, ::_ToJson payload) -> void
+    def listen: (String event) { (Event) -> void } -> Integer
+    def once: (String event) { (Event) -> void } -> Integer
+    def unlisten: (Integer id) -> nil
     def exit: (?Integer code) -> nil
     def restart: () -> bot
     def request_restart: () -> nil
@@ -66,7 +71,5 @@ module Tokra
     def remove_menu_from_stash_by_id: (Menu::MenuId? id) -> nil
     def on_nsapp: () { () -> void } -> nil
     def window_target_getter: [T < Object] () { (Native::EventLoop) -> T? } -> T
-
-    def manager: () -> AppManager
   end
 end

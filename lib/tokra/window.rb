@@ -17,6 +17,8 @@ module Tokra
   # resources_table, used as fallback if webview table doesn't have resource.
   class Window
     include Manager
+    include Listener
+    include Emitter
 
     # The unique label identifying this window.
     attr_reader :label
@@ -40,7 +42,72 @@ module Tokra
       @resources_table = ResourceTable.new
       @menu_mutex = Thread::Mutex.new
       @window_menu = menu
+      @window_event_listeners = [] #: Array[^(window_event) -> void]
+      @window_event_mutex = Thread::Mutex.new
     end
+
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: Window events and Listener for Window adapted from
+    #                      tauri/crates/tauri/src/window/mod.rs and tauri-runtime-wry/src/lib.rs
+
+    # Calls the block with each WindowEvent this window gets, and returns
+    # +nil+.
+    #
+    # The block hears the event after the App#run block and plugins have,
+    # except WindowEvent::CloseRequested, which it hears first, so it can
+    # call <tt>api.prevent_close</tt> before the window goes. Blocks run
+    # in the order they were added, after the ones Builder#on_window_event
+    # added, on the main thread. A block added from any thread hears the
+    # next event: Tauri sends it to the event loop, which holds its
+    # listeners, and Ruby holds them here instead (plan 047, decision 8).
+    #
+    # Mirrors Tauri's Window::on_window_event (window/mod.rs:1101-1107;
+    # tauri-runtime-wry lib.rs:1866-1873, 4126-4148, 4262-4290).
+    #
+    # === Example
+    #
+    #   window.on_window_event do |event|
+    #     puts "now #{event.size.width} wide" if event.is_a?(Tokra::WindowEvent::Resized)
+    #   end
+    def on_window_event(&handler)
+      @window_event_mutex.synchronize { @window_event_listeners << handler }
+      nil
+    end
+
+    # The blocks #on_window_event added, in order.
+    def window_event_listeners # :nodoc:
+      @window_event_mutex.synchronize { @window_event_listeners.dup }
+    end
+
+    # Calls the block with each +event+ sent to this window, by
+    # Emitter#emit, or to its label as a Window or an AnyLabel, and
+    # returns the handler's id. Raises Error::IllegalEventName for a bad
+    # name.
+    #
+    # Mirrors Tauri's Window::listen (window/mod.rs:2235-2259).
+    #
+    # === Example
+    #
+    #   window.listen("component-loaded") { |event| puts event.payload }
+    def listen(event, &handler)
+      @app_handle.manager.listen(Event::Name.check(event), EventTarget.window(@label), &handler)
+    end
+
+    # Calls the block with the next +event+ sent to this window, as
+    # #listen does, and returns the handler's id (window/mod.rs:2261-2275).
+    def once(event, &handler)
+      @app_handle.manager.once(Event::Name.check(event), EventTarget.window(@label), &handler)
+    end
+
+    # Removes the handler with +id+, whichever target it listens for
+    # (window/mod.rs:2277-2307).
+    def unlisten(id)
+      @app_handle.manager.unlisten(id)
+    end
+
+    # SPDX-SnippetEnd
 
     # SPDX-SnippetBegin
     # SPDX-License-Identifier: Apache-2.0 OR MIT

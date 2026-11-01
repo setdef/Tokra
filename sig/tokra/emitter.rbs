@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Emitter : _Listener
+    def emit: (String event, Object? payload) -> nil
+    def emit_str: (String event, String payload) -> nil
+    def emit_to: (String | event_target target, String event, Object? payload) -> nil
+    def emit_str_to: (String | event_target target, String event, String payload) -> nil
+    def emit_filter: (String event, Object? payload) { (event_target) -> boolish } -> nil
+    def emit_str_filter: (String event, String payload) { (event_target) -> boolish } -> nil
+  end
+end

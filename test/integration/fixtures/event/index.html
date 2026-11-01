@@ -1,0 +1,105 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>events</title>
+  <script src="/harness.js"></script>
+</head>
+<body>
+  <ol id="checks"></ol>
+  <script>
+    const { listen, once, emit, emitTo } = window.__TAURI__.event;
+    const { getCurrentWindow } = window.__TAURI__.window;
+    const { invoke } = window.__TAURI__.core;
+    const { check, finish, withTimeout } = window.fixture;
+
+    // Resolves with the first event the predicate accepts.
+    function next(name, accept = () => true, options) {
+      let resolve;
+      const heard = new Promise((r) => { resolve = r; });
+      const unlisten = listen(name, (event) => { if (accept(event)) resolve(event); }, options);
+      return { heard: withTimeout(heard, 10000, name), unlisten };
+    }
+
+    (async () => {
+      await check('listen hears what Ruby emits', async () => {
+        const { heard, unlisten } = next('ruby-says');
+        await unlisten;
+        await invoke('plugin:event-fixture|emit', { names: ['ruby-says'], payload: { n: 1, f: 1.5 } });
+        const event = await heard;
+        return {
+          pass: event.event === 'ruby-says' && event.payload.n === 1,
+          detail: { event: event.event, payload: event.payload, id: typeof event.id },
+        };
+      });
+
+      await check('once hears one event', async () => {
+        const seen = [];
+        await once('ruby-twice', (event) => seen.push(event.payload));
+        const { heard } = next('ruby-after');
+        await invoke('plugin:event-fixture|emit', { names: ['ruby-twice', 'ruby-twice', 'ruby-after'], payload: 'x' });
+        await heard;
+        return { pass: seen.length === 1, detail: { seen } };
+      });
+
+      await check('unlisten stops delivery', async () => {
+        const seen = [];
+        const unlisten = await listen('drop-me', (event) => seen.push(event.payload));
+        await unlisten();
+        const { heard } = next('after-drop');
+        await invoke('plugin:event-fixture|emit', { names: ['drop-me', 'after-drop'], payload: 1 });
+        await heard;
+        return { pass: seen.length === 0, detail: { seen } };
+      });
+
+      await check('Ruby hears what the page emits, by target', async () => {
+        const echoes = [];
+        const done = next('ruby-heard', (event) => { echoes.push(event.payload); return event.payload.payload === '7'; });
+        await done.unlisten;
+        await emit('page-says', { x: [1] });
+        await emitTo({ kind: 'App' }, 'to-window', 6);
+        await emitTo({ kind: 'Window', label: 'main' }, 'to-window', 7);
+        await done.heard;
+        return { pass: true, detail: { echoes } };
+      });
+
+      await check('a resize reaches the page as tauri://resize', async () => {
+        const size = { width: 640, height: 480 };
+        const resized = new Promise((resolve) => {
+          getCurrentWindow().onResized((event) => {
+            if (event.payload.width === size.width && event.payload.height === size.height) resolve(event);
+          });
+        });
+        await invoke('plugin:event-fixture|resize', size);
+        const event = await withTimeout(resized, 10000, 'tauri://resize');
+        return {
+          pass: true,
+          detail: { event: event.event, payload: event.payload, inner: await invoke('plugin:event-fixture|inner_size') },
+        };
+      });
+
+      await check('a move reaches the page as tauri://move', async () => {
+        const at = { x: 80, y: 120 };
+        const moved = new Promise((resolve) => {
+          getCurrentWindow().onMoved((event) => {
+            if (event.payload.x === at.x && event.payload.y === at.y) resolve(event);
+          });
+        });
+        await invoke('plugin:event-fixture|move', at);
+        const event = await withTimeout(moved, 10000, 'tauri://move');
+        return {
+          pass: true,
+          detail: { event: event.event, payload: event.payload, outer: await invoke('plugin:event-fixture|outer_position') },
+        };
+      });
+
+      await finish();
+    })();
+  </script>
+</body>
+</html>

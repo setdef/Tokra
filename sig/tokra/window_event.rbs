@@ -2,8 +2,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 module Tokra
-  # Window event types dispatched to on_window_event callbacks.
-  # Each is a Data.define class.
   module WindowEvent
     class CloseRequested < Data
       attr_reader api: CloseRequestApi
@@ -15,27 +13,36 @@ module Tokra
     class Focused < Data
       attr_reader focused: bool
       def self.new: (bool focused) -> Focused
+                  | (focused: bool) -> Focused
     end
     class Moved < Data
-      attr_reader x: Integer
-      attr_reader y: Integer
-      def self.new: (Integer x, Integer y) -> Moved
+      attr_reader position: PhysicalPosition
+      def self.new: (PhysicalPosition position) -> Moved
+                  | (position: PhysicalPosition) -> Moved
     end
     class Resized < Data
-      attr_reader width: Integer
-      attr_reader height: Integer
-      def self.new: (Integer width, Integer height) -> Resized
+      attr_reader size: PhysicalSize
+      def self.new: (PhysicalSize size) -> Resized
+                  | (size: PhysicalSize) -> Resized
     end
     class ScaleFactorChanged < Data
       attr_reader scale_factor: Float
-      def self.new: (Float scale_factor) -> ScaleFactorChanged
+      attr_reader new_inner_size: PhysicalSize
+      def self.new: (Float scale_factor, PhysicalSize new_inner_size) -> ScaleFactorChanged
+                  | (scale_factor: Float, new_inner_size: PhysicalSize) -> ScaleFactorChanged
+    end
+    class DragDrop < Data
+      attr_reader event: drag_drop_event
+      def self.new: (drag_drop_event event) -> DragDrop
+                  | (event: drag_drop_event) -> DragDrop
     end
     class ThemeChanged < Data
-      attr_reader theme: String
-      def self.new: (String theme) -> ThemeChanged
+      attr_reader theme: Theme
+      def self.new: (Theme theme) -> ThemeChanged
+                  | (theme: Theme) -> ThemeChanged
     end
   end
 
-  # Type alias for window events
-  type window_event = WindowEvent::CloseRequested | WindowEvent::Destroyed | WindowEvent::Focused | WindowEvent::Moved | WindowEvent::Resized | WindowEvent::ScaleFactorChanged | WindowEvent::ThemeChanged
+  type window_event = WindowEvent::CloseRequested | WindowEvent::Destroyed | WindowEvent::Focused | WindowEvent::Moved
+                    | WindowEvent::Resized | WindowEvent::ScaleFactorChanged | WindowEvent::DragDrop | WindowEvent::ThemeChanged
 end

@@ -59,6 +59,40 @@ module Tokra
     #   end
     WindowDestroyedEvent = Data.define
 
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: Window events adapted from tauri-runtime-wry/src/lib.rs (WindowEventWrapper)
+
+    # The window's inner area changed size: tao's
+    # <tt>WindowEvent::Resized</tt>. It carries no size, since Tauri's
+    # runtime asks the window for its inner size instead of trusting
+    # tao's, which wry's NSView makes unreliable on macOS
+    # (tauri-runtime-wry lib.rs:557-575).
+    WindowResizedEvent = Data.define
+
+    # The window moved to (+x+, +y+), physical pixels: tao's
+    # <tt>WindowEvent::Moved</tt>.
+    WindowMovedEvent = Data.define(:x, :y)
+
+    # The window gained focus, +focused+ +true+, or lost it: tao's
+    # <tt>WindowEvent::Focused</tt> off Windows, and WebView2's GotFocus
+    # and LostFocus on Windows, as Tauri's runtime takes them
+    # (tauri-runtime-wry lib.rs:521-549, 5070-5128).
+    WindowFocusedEvent = Data.define(:focused)
+
+    # The window's scale factor changed to +scale_factor+, and its inner
+    # area to +width+ by +height+ physical pixels: tao's
+    # <tt>WindowEvent::ScaleFactorChanged</tt>.
+    WindowScaleFactorChangedEvent = Data.define(:scale_factor, :width, :height)
+
+    # The system's theme changed: tao's <tt>WindowEvent::ThemeChanged</tt>,
+    # +theme+ <tt>"light"</tt>, <tt>"dark"</tt>, or another name tao may
+    # add.
+    WindowThemeChangedEvent = Data.define(:theme)
+
+    # SPDX-SnippetEnd
+
     # Code asked the app to exit with +code+.
     #
     # Created for each Proxy#request_exit, Tauri's

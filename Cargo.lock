@@ -2554,6 +2554,7 @@ dependencies = [
  "rb-sys",
  "tao",
  "tray-icon",
+ "webview2-com",
  "window-vibrancy",
  "windows",
  "wry",

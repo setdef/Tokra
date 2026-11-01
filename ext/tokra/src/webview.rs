@@ -246,6 +246,9 @@ impl RbWebView {
         let webview = build_in(builder, &tao_window)
             .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
         attach_resize_handler(&tao_window, &webview);
+        #[cfg(windows)]
+        crate::webview_focus::attach(&webview, proxy.inner())
+            .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
         drop(tao_window);
 
         Ok(Self {
@@ -439,6 +442,43 @@ impl RbWebView {
     // SPDX-SnippetBegin
     // SPDX-License-Identifier: Apache-2.0 OR MIT
     // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    // SPDX-SnippetComment: The webview's theme on ThemeChanged adapted from tauri-runtime-wry/src/lib.rs handle_event_loop
+    /// wry's `WebViewExtWindows::set_theme`, which Tauri's runtime calls
+    /// for each of a window's webviews when the system theme changes
+    /// (`src/lib.rs:4153-4166`): `"Dark"` is dark and anything else
+    /// light, as its match maps tao's theme. A closed webview ignores it.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ThreadError` off the webview's thread, or a `RuntimeError`
+    /// with wry's message when `WebView2` refuses the theme.
+    #[cfg(windows)]
+    pub fn set_theme(&self, name: magnus::RString) -> Result<(), Error> {
+        use wry::WebViewExtWindows;
+
+        let theme = if name.to_string()? == "Dark" {
+            wry::Theme::Dark
+        } else {
+            wry::Theme::Light
+        };
+        let inner = self
+            .inner
+            .try_borrow()
+            .map_err(|_| Error::new(runtime_error(), "WebView is closing"))?;
+        if !inner.owner().is_current() {
+            return Err(wrong_thread(CLASS));
+        }
+        inner.get().map_or(Ok(()), |webview| {
+            webview
+                .set_theme(theme)
+                .map_err(|e| Error::new(runtime_error(), e.to_string()))
+        })
+    }
+    // SPDX-SnippetEnd
+
+    // SPDX-SnippetBegin
+    // SPDX-License-Identifier: Apache-2.0 OR MIT
+    // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
     // SPDX-SnippetComment: Dropping a closed window's webviews adapted from tauri-runtime-wry/src/lib.rs handle_event_loop
     /// Close the webview by dropping it, as Tauri's runtime drops a
     /// destroyed window's webviews with its store entry (tauri-runtime-wry
@@ -503,6 +543,8 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
         "set_background_color",
         method!(RbWebView::set_background_color, 1),
     )?;
+    #[cfg(windows)]
+    webview_class.define_method("set_theme", method!(RbWebView::set_theme, 1))?;
     Ok(())
 }
 

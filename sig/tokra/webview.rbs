@@ -6,6 +6,8 @@ module Tokra
   # Mirrors Tauri's Webview<R> struct.
   class Webview
     include Manager
+    include Listener
+    include Emitter
 
     @label: String
     @native: Native::WebView
@@ -24,5 +26,11 @@ module Tokra
     alias eval evaluate
     def set_background_color: (Color? color) -> nil
     def run_on_main_thread: () { () -> void } -> nil
+    def listen_js: (String event, event_target target, Integer handler) -> Integer
+    def unlisten_js: (String event, Integer id) -> nil
+    def emit_js: (Event::EmitArgs emit_args, Array[Integer] ids) -> nil
+    def listen: (String event) { (Event) -> void } -> Integer
+    def once: (String event) { (Event) -> void } -> Integer
+    def unlisten: (Integer id) -> nil
   end
 end

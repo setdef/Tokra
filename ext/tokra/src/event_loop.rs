@@ -314,7 +314,32 @@ enum ForRuby {
     User(UserEvent),
     CloseRequested,
     Destroyed,
+    /// tao's size is not passed on: Ruby asks the window for its inner
+    /// size, as tauri-runtime-wry's `WindowEventWrapper::parse` does
+    /// (`lib.rs:557-575`).
+    Resized,
+    Moved(i32, i32),
+    /// Off Windows only: there the webview's focus stands in for the
+    /// window's (`lib.rs:521-549`; `webview_focus.rs`).
+    #[cfg(not(windows))]
+    Focused(bool),
+    ScaleFactorChanged(f64, u32, u32),
+    ThemeChanged(&'static str),
 }
+
+// SPDX-SnippetBegin
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+// SPDX-SnippetComment: Theme mapping adapted from tauri-runtime-wry/src/lib.rs map_theme
+/// tao's theme as Ruby names it, any theme but dark being light, as
+/// tauri-runtime-wry's `map_theme` maps it (`lib.rs:578-584`).
+const fn theme_name(theme: tao::window::Theme) -> &'static str {
+    match theme {
+        tao::window::Theme::Dark => "dark",
+        _ => "light",
+    }
+}
+// SPDX-SnippetEnd
 
 /// Whether to hand the GVL over this turn: only when another thread is
 /// owed it, or an interrupt is pending, and no exit is set, so an exit
@@ -353,6 +378,43 @@ impl Turn<'_> {
                 event: WindowEvent::Destroyed,
                 ..
             } => self.inbox.push_back(ForRuby::Destroyed),
+            // SPDX-SnippetBegin
+            // SPDX-License-Identifier: Apache-2.0 OR MIT
+            // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+            // SPDX-SnippetComment: The window events Tauri passes on, adapted from
+            //                      tauri-runtime-wry/src/lib.rs WindowEventWrapper::map_from_tao
+            Event::WindowEvent {
+                event: WindowEvent::Resized(_),
+                ..
+            } => self.inbox.push_back(ForRuby::Resized),
+            Event::WindowEvent {
+                event: WindowEvent::Moved(position),
+                ..
+            } => self.inbox.push_back(ForRuby::Moved(position.x, position.y)),
+            #[cfg(not(windows))]
+            Event::WindowEvent {
+                event: WindowEvent::Focused(focused),
+                ..
+            } => self.inbox.push_back(ForRuby::Focused(focused)),
+            Event::WindowEvent {
+                event:
+                    WindowEvent::ScaleFactorChanged {
+                        scale_factor,
+                        new_inner_size,
+                    },
+                ..
+            } => self.inbox.push_back(ForRuby::ScaleFactorChanged(
+                scale_factor,
+                new_inner_size.width,
+                new_inner_size.height,
+            )),
+            Event::WindowEvent {
+                event: WindowEvent::ThemeChanged(theme),
+                ..
+            } => self
+                .inbox
+                .push_back(ForRuby::ThemeChanged(theme_name(theme))),
+            // SPDX-SnippetEnd
             // SPDX-SnippetBegin
             // SPDX-License-Identifier: Apache-2.0 OR MIT
             // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
@@ -414,6 +476,24 @@ impl Turn<'_> {
                         self.exit_with(0);
                     }
                 } // SPDX-SnippetEnd
+                // Data.define; Ruby asks the window for its inner size.
+                ForRuby::Resized => self.deliver("::Tokra::Native::WindowResizedEvent", ()),
+                // Data.define(:x, :y)
+                ForRuby::Moved(x, y) => self.deliver("::Tokra::Native::WindowMovedEvent", (x, y)),
+                // Data.define(:focused)
+                #[cfg(not(windows))]
+                ForRuby::Focused(focused) => {
+                    self.deliver("::Tokra::Native::WindowFocusedEvent", (focused,));
+                }
+                // Data.define(:scale_factor, :width, :height)
+                ForRuby::ScaleFactorChanged(scale_factor, width, height) => self.deliver(
+                    "::Tokra::Native::WindowScaleFactorChangedEvent",
+                    (scale_factor, width, height),
+                ),
+                // Data.define(:theme)
+                ForRuby::ThemeChanged(theme) => {
+                    self.deliver("::Tokra::Native::WindowThemeChangedEvent", (theme,));
+                }
             }
         }
     }
@@ -450,6 +530,12 @@ impl Turn<'_> {
             UserEvent::WakeUp(payload) => {
                 // Data.define(:payload)
                 self.deliver("::Tokra::Native::WakeUpEvent", (payload,));
+            }
+            // WebView2's focus, which Windows takes for the window's
+            // (`webview_focus.rs`). Data.define(:focused)
+            #[cfg(windows)]
+            UserEvent::Focused(focused) => {
+                self.deliver("::Tokra::Native::WindowFocusedEvent", (focused,));
             }
             UserEvent::Task => {
                 // Data.define; the App runs the oldest queued task.

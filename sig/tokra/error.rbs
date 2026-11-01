@@ -44,6 +44,12 @@ module Tokra
       def initialize: (String plugin, String message) -> void
     end
 
+    class IllegalEventName < Error
+      attr_reader name: String
+
+      def initialize: (String name) -> void
+    end
+
     class InvalidArgs < Error
       attr_reader command: String
       attr_reader key: String

@@ -33,15 +33,25 @@ class TestWindowEvent < Minitest::Test
     assert event.focused
   end
 
-  def test_moved_stores_coordinates
-    event = Tokra::WindowEvent::Moved.new(x: 100, y: 200)
-    assert_equal 100, event.x
-    assert_equal 200, event.y
+  def test_moved_carries_a_physical_position
+    position = Tokra::PhysicalPosition.new(x: 100, y: 200)
+    assert_equal position, Tokra::WindowEvent::Moved.new(position).position
   end
 
-  def test_resized_stores_dimensions
-    event = Tokra::WindowEvent::Resized.new(width: 800, height: 600)
-    assert_equal 800, event.width
-    assert_equal 600, event.height
+  def test_resized_carries_a_physical_size
+    size = Tokra::PhysicalSize.new(width: 800, height: 600)
+    assert_equal size, Tokra::WindowEvent::Resized.new(size).size
+  end
+
+  def test_scale_factor_changed_carries_both_fields
+    size = Tokra::PhysicalSize.new(width: 800, height: 600)
+    event = Tokra::WindowEvent::ScaleFactorChanged.new(scale_factor: 2.0, new_inner_size: size)
+    assert_in_delta 2.0, event.scale_factor
+    assert_equal size, event.new_inner_size
+  end
+
+  def test_drag_drop_carries_its_event
+    inner = Tokra::DragDropEvent::Leave.new
+    assert_same inner, Tokra::WindowEvent::DragDrop.new(inner).event
   end
 end

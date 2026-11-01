@@ -9,9 +9,18 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
 # SPDX-SnippetComment: WindowEvent adapted from tauri/crates/tauri/src/window/mod.rs
+#                      and tauri-runtime/src/window.rs
 
 module Tokra
-  # Window event types dispatched to on_window_event callbacks.
+  # What happened to a window: the events Window#on_window_event,
+  # Builder#on_window_event, and RunEvent::WindowEvent carry.
+  #
+  # Each variant is a value class. A Rust variant with one unnamed field
+  # names it after what it holds (+size+, +position+, +focused+, +theme+,
+  # +event+); one with named fields keeps them.
+  #
+  # Mirrors Tauri's <tt>WindowEvent</tt> (tauri-runtime window.rs, re-exported
+  # as tauri::WindowEvent).
   module WindowEvent
     # The window has been requested to close, by its close button or by
     # Window#close. Call <tt>api.prevent_close</tt>, a CloseRequestApi, to
@@ -25,19 +34,36 @@ module Tokra
     # (app.rs:119-120).
     Destroyed = Data.define
 
-    # Window focus changed. +focused+ is true if gained focus.
+    # The window gained focus, +focused+ +true+, or lost it. On Windows it
+    # follows the webview's focus, as Tauri's runtime does. Mirrors
+    # Tauri's <tt>WindowEvent::Focused(bool)</tt>.
     Focused = Data.define(:focused)
 
-    # Window was moved to position (+x+, +y+).
-    Moved = Data.define(:x, :y)
+    # The window moved; +position+ is the PhysicalPosition of its inner
+    # area's top-left corner. Mirrors Tauri's
+    # <tt>WindowEvent::Moved(PhysicalPosition<i32>)</tt>.
+    Moved = Data.define(:position)
 
-    # Window was resized to (+width+, +height+).
-    Resized = Data.define(:width, :height)
+    # The window's inner area changed size; +size+ is the PhysicalSize
+    # Window#inner_size answers, which on macOS is the webview's, as Tauri's
+    # runtime reports it. Mirrors Tauri's
+    # <tt>WindowEvent::Resized(PhysicalSize<u32>)</tt>.
+    Resized = Data.define(:size)
 
-    # Display scale factor changed.
-    ScaleFactorChanged = Data.define(:scale_factor)
+    # The window's scale factor changed, to +scale_factor+, for example
+    # when it moved to another monitor; +new_inner_size+ is the
+    # PhysicalSize its inner area takes. Mirrors Tauri's
+    # <tt>WindowEvent::ScaleFactorChanged { scale_factor, new_inner_size }</tt>.
+    ScaleFactorChanged = Data.define(:scale_factor, :new_inner_size)
 
-    # System theme changed (light/dark).
+    # Files are being dragged over the window, or were dropped on it;
+    # +event+ is a DragDropEvent. Tokra's webview fills its window, so its
+    # drops are the window's, as a Tauri webview window's are. Mirrors
+    # Tauri's <tt>WindowEvent::DragDrop(DragDropEvent)</tt>.
+    DragDrop = Data.define(:event)
+
+    # The system's theme changed; +theme+ is a Theme. Mirrors Tauri's
+    # <tt>WindowEvent::ThemeChanged(Theme)</tt>.
     ThemeChanged = Data.define(:theme)
   end
 end

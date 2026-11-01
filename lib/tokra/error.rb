@@ -231,6 +231,30 @@ module Tokra
       end
     end
 
+    # Raised when an event name holds a character Tauri does not permit.
+    #
+    # Event names cross into the page as JavaScript string literals, so
+    # they are kept to Unicode letters and digits, '-', '/', ':', and '_'.
+    # Emitter and Listener check each name before they act on it, and
+    # raise this for one that fails. Mirrors
+    # <tt>tauri::Error::IllegalEventName</tt> (error.rs:163-165), the
+    # name quoted as Rust's Debug quotes it.
+    #
+    # === Example
+    #
+    #   app.emit("bad name", nil)
+    #   # message: only alphanumeric, '-', '/', ':', '_' permitted for event names: "bad name"
+    class IllegalEventName < Error
+      # The name that was refused.
+      attr_reader :name
+
+      # Creates the error for +name+.
+      def initialize(name)
+        @name = name
+        super("only alphanumeric, '-', '/', ':', '_' permitted for event names: #{Ipc::Unexpected.debug(name)}")
+      end
+    end
+
     # SPDX-SnippetEnd
 
     # Raised when a resource ID is not found in a ResourceTable.

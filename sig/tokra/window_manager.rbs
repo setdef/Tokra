@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module WindowManager
+    WINDOW_RESIZED_EVENT: String
+    WINDOW_MOVED_EVENT: String
+    WINDOW_CLOSE_REQUESTED_EVENT: String
+    WINDOW_DESTROYED_EVENT: String
+    WINDOW_FOCUS_EVENT: String
+    WINDOW_BLUR_EVENT: String
+    WINDOW_SCALE_FACTOR_CHANGED_EVENT: String
+    WINDOW_THEME_CHANGED: String
+    DRAG_ENTER_EVENT: String
+    DRAG_OVER_EVENT: String
+    DRAG_DROP_EVENT: String
+    DRAG_LEAVE_EVENT: String
+
+    def self.on_window_event: (Window window, window_event event) -> nil
+    def self.emit_to_window: (Window window, String event, json_value payload) -> nil
+    def self.has_js_listener?: (Window window, String event) -> bool
+    def self.drag_drop: (Window window, drag_drop_event event) -> nil
+    def self.drag_drop_payload: (Array[Pathname]? paths, PhysicalPosition position) -> Hash[String, json_value]
+    def self.size_json: (PhysicalSize size) -> Hash[String, json_value]
+  end
+end

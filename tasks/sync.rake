@@ -22,60 +22,59 @@ namespace :sync do
     abort "Tauri submodule not found. Run: git submodule update --init" unless tauri_event.exist?
 
     content = tauri_event.read
-
-    # Extract emit_js_script format string
-    # Pattern: format!("(function () { const fn = window['{}']...
-    emit_match = content.match(/fn emit_js_script.*?format!\(\s*"([^"]+)"/m)
-    abort "Could not find emit_js_script in #{tauri_event}" unless emit_match
-
-    # Original format: "(function () {{ const fn = window['{}']; fn && fn({{event: '{}', payload: {}}}, {ids}) }})()"
-    # Placeholders in order: emit_function_name, event, payload, ids
-    emit_template = emit_match[1]
-      .gsub('\n', "\n")
-      .sub("window['{}']", "window['%<emit_fn>s']")       # First '{}' is emit_fn
-      .sub("event: '{}'", "event: '%<event>s'")           # Second '{}' is event
-      .sub("payload: {}", "payload: %<payload>s")         # Third {} is payload
-      .gsub("{ids}", "%<ids>s")
-
     output_dir.mkpath
-    emit_file = output_dir.join("emit.js.erb")
-    emit_file.write(<<~JS)
+    event_banner = <<~JS
       // Auto-generated from Tauri source. Do not edit manually.
       // Source: vendor/tauri/crates/tauri/src/event/mod.rs
       // Regenerate with: rake sync:tauri
       //
       // SPDX-FileCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
       // SPDX-License-Identifier: Apache-2.0 OR MIT
-
-      #{emit_template}
     JS
 
-    puts "Generated #{emit_file}"
+    # Each event script is a format! string (event/mod.rs): its first
+    # string literal becomes an ERB template, Rust's doubled braces
+    # unescaped and each named {placeholder} an ERB tag. emit_js_script's
+    # three positional {} name the emit function, the event, and the
+    # payload, in the order its arguments give them (Plan 047).
+    {
+      "emit_js_script" => ["emit.js.erb", %w[function_name event payload]],
+      "listen_js_script" => ["listen.js.erb", []],
+      "unlisten_js_script" => ["unlisten.js.erb", []],
+      "event_initialization_script" => ["event_init.js.erb", []],
+    }.each do |function, (file, positional)|
+      match = content.match(/fn #{function}\b.*?format!\(\s*"([^"]+)"/m)
+      abort "Could not find #{function} in #{tauri_event}" unless match
 
-    # Extract event_initialization_script (a plain format! string with
-    # named interpolations, not a raw string literal)
-    init_match = content.match(/fn event_initialization_script.*?format!\(\s*"([^"]+)"/m)
-    abort "Could not find event_initialization_script in #{tauri_event}" unless init_match
+      names = positional.dup
+      # One left-to-right pass, as Rust's format parser reads it.
+      template = match[1].gsub(/\{\{|\}\}|\{(\w*)\}/) do |token|
+        case token
+        when "{{" then "{"
+        when "}}" then "}"
+        else "<%= #{Regexp.last_match(1).to_s.empty? ? names.shift : Regexp.last_match(1)} %>"
+        end
+      end
+      target = output_dir.join(file)
+      target.write("#{event_banner}\n#{template}\n")
+      puts "Generated #{target}"
+    end
 
-    init_template = init_match[1]
-      .gsub("{{", "\x00").gsub("}}", "\x01")
-      .gsub("{function_name}", "<%= function_name %>")
-      .gsub("{listeners}", "<%= listeners %>")
-      .gsub("\x00", "{").gsub("\x01", "}")
-
-    init_file = output_dir.join("event_init.js.erb")
-    init_file.write(<<~JS)
+    # The event plugin's init script (event/init.js), whose one RAW marker
+    # takes the unregister function event/plugin.rs builds.
+    plugin_init = Pathname("vendor/tauri/crates/tauri/src/event/init.js")
+    plugin_init_file = output_dir.join("event_plugin_init.js.erb")
+    plugin_init_file.write(<<~JS)
       // Auto-generated from Tauri source. Do not edit manually.
-      // Source: vendor/tauri/crates/tauri/src/event/mod.rs
+      // Source: vendor/tauri/crates/tauri/src/event/init.js
       // Regenerate with: rake sync:tauri
       //
       // SPDX-FileCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
       // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-      #{init_template}
+      #{plugin_init.read.gsub(/__RAW_(\w+)__/) { "<%= #{Regexp.last_match(1)} %>" }}
     JS
-
-    puts "Generated #{init_file}"
+    puts "Generated #{plugin_init_file}"
 
     # Vendor the webview initialization scripts verbatim, converting
     # Tauri's serialize-to-javascript markers into ERB tags. Template

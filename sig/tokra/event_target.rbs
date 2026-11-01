@@ -1,0 +1,63 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module EventTarget
+    class Any < Data
+      def self.new: () -> Any
+      def to_json: (*JSON::State state) -> String
+    end
+
+    class AnyLabel < Data
+      attr_reader label: String
+      def self.new: (label: String) -> AnyLabel
+      def to_json: (*JSON::State state) -> String
+    end
+
+    class App < Data
+      def self.new: () -> App
+      def to_json: (*JSON::State state) -> String
+    end
+
+    class Window < Data
+      attr_reader label: String
+      def self.new: (label: String) -> Window
+      def to_json: (*JSON::State state) -> String
+    end
+
+    class Webview < Data
+      attr_reader label: String
+      def self.new: (label: String) -> Webview
+      def to_json: (*JSON::State state) -> String
+    end
+
+    class WebviewWindow < Data
+      attr_reader label: String
+      def self.new: (label: String) -> WebviewWindow
+      def to_json: (*JSON::State state) -> String
+    end
+
+    VARIANTS: Array[singleton(Any) | singleton(AnyLabel) | singleton(App) | singleton(Window) | singleton(Webview) | singleton(WebviewWindow)]
+
+    def self.any: () -> Any
+    def self.app: () -> App
+    def self.labeled: (String label) -> AnyLabel
+    def self.window: (String label) -> Window
+    def self.webview: (String label) -> Webview
+    def self.webview_window: (String label) -> WebviewWindow
+    def self.from: (String | event_target value) -> event_target
+    NAMES: Array[String]
+    LABELED: Array[String]
+
+    def self.as_json: (event_target target) -> Hash[String, String]
+    def self.read: (Ipc::CommandItem item) -> event_target
+    private def self.from_map: (Hash[String, json_value] map) -> event_target
+    private def self.from_seq: (Array[json_value] seq) -> event_target
+    private def self.variant: (json_value tag) -> String
+    private def self.build: (String kind, String? label) -> event_target
+    private def self.label: (json_value value) -> String
+  end
+
+  type event_target = EventTarget::Any | EventTarget::AnyLabel | EventTarget::App | EventTarget::Window
+                    | EventTarget::Webview | EventTarget::WebviewWindow
+end

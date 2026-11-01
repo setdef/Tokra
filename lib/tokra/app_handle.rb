@@ -17,6 +17,8 @@ module Tokra
   # Includes the Manager module for shared interface.
   class AppHandle
     include Manager
+    include Listener
+    include Emitter
 
     # Creates a new AppHandle with the given AppManager.
     #
@@ -43,7 +45,9 @@ module Tokra
     # holds (manager/tray.rs).
     attr_reader :tray_manager # :nodoc:
 
-    private attr_reader :manager
+    # The app's AppManager, which Tauri's handles reach through
+    # ManagerBase::manager (lib.rs).
+    attr_reader :manager # :nodoc:
 
     # The dispatcher that carries window and webview calls to the main
     # thread. Window and Webview reach it here, as Tauri's handles reach
@@ -368,13 +372,37 @@ module Tokra
       @path ||= Path::Resolver.new(config)
     end
 
-    # Emits an event to all webviews.
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: Listener for AppHandle adapted from tauri/crates/tauri/src/app.rs
+
+    # Calls the block with each +event+ sent to the app, by Emitter#emit
+    # or to EventTarget.app, and returns the handler's id. Raises
+    # Error::IllegalEventName for a bad name.
     #
-    # Mirrors Tauri's AppHandle#emit which broadcasts to all webviews.
-    def emit(event_name, payload)
-      js = Tokra::Native.emit_js_script(event_name, payload.to_json)
-      webviews.each_value { |wv| wv.eval(js) }
+    # Mirrors Tauri's AppHandle::listen (app.rs:1055-1074).
+    #
+    # === Example
+    #
+    #   handle.listen("component-loaded") { |event| puts event.payload }
+    def listen(event, &handler)
+      @manager.listen(Event::Name.check(event), EventTarget.app, &handler)
     end
+
+    # Calls the block with the next +event+ sent to the app, as #listen
+    # does, and returns the handler's id (app.rs:1076-1086).
+    def once(event, &handler)
+      @manager.once(Event::Name.check(event), EventTarget.app, &handler)
+    end
+
+    # Removes the handler with +id+, whichever target it listens for
+    # (app.rs:1088-1107).
+    def unlisten(id)
+      @manager.unlisten(id)
+    end
+
+    # SPDX-SnippetEnd
 
     # Asks the app to exit with +code+ and returns +nil+.
     #

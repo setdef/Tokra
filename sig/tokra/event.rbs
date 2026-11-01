@@ -1,0 +1,120 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class Event < Data
+    attr_reader id: Integer
+    attr_reader payload: String
+    def self.new: (id: Integer, payload: String) -> Event
+                | (Integer id, String payload) -> Event
+
+    module Name
+      VALID: Regexp
+      DESERIALIZE_MESSAGE: String
+      def self.valid?: (String name) -> bool
+      def self.check: (String name) -> String
+      def self.read: (Ipc::CommandItem item) -> String
+    end
+
+    class EmitArgs < Data
+      attr_reader event: String
+      attr_reader payload: String
+      def self.new: (event: String, payload: String) -> EmitArgs
+      def self.serialize: (String event, Object? payload) -> EmitArgs
+      private def self.generate: (Object? value) -> String
+      private def self.without_non_finite_floats: (Object? value) -> Object?
+    end
+
+    def self.listen_js_script: (String listeners_object_name, String serialized_target, String event, Integer event_id, Integer handler) -> String
+    def self.emit_js_script: (String event_emit_function_name, EmitArgs emit_args, String serialized_ids) -> String
+    def self.unlisten_js_script: (String listeners_object_name, String event_arg, String event_id_arg) -> String
+    def self.event_initialization_script: (String function_name, String listeners) -> String
+    private def self.render: (String name, Hash[Symbol, String | Integer] values) -> String
+
+    class Listeners
+      type pending = Unlisten | Listen | Emit
+      type filter = ^(event_target) -> boolish
+
+      interface _JsWebview
+        def label: () -> String
+        def emit_js: (EmitArgs emit_args, Array[Integer] ids) -> void
+      end
+
+      class Handler < Data
+        attr_reader target: event_target
+        attr_reader callback: ^(Event) -> void
+        def self.new: (target: event_target, callback: ^(Event) -> void) -> Handler
+      end
+
+      class JsHandler < Data
+        attr_reader target: event_target
+        attr_reader id: Integer
+        def self.new: (target: event_target, id: Integer) -> JsHandler
+      end
+
+      class Unlisten < Data
+        attr_reader id: Integer
+        def self.new: (id: Integer) -> Unlisten
+      end
+
+      class Listen < Data
+        attr_reader id: Integer
+        attr_reader event: String
+        attr_reader handler: Handler
+        def self.new: (id: Integer, event: String, handler: Handler) -> Listen
+      end
+
+      class Emit < Data
+        attr_reader emit_args: EmitArgs
+        def self.new: (emit_args: EmitArgs) -> Emit
+      end
+
+      ID_MASK: Integer
+
+      @pending: Array[pending]
+      @pending_mutex: Thread::Mutex
+      @handlers: Hash[String, Hash[Integer, Handler]]
+      @handlers_mutex: Thread::Mutex
+      @js_event_listeners: Hash[String, Hash[String, Hash[JsHandler, true]]]
+      @js_mutex: Thread::Mutex
+      @next_event_id: Integer
+      @id_mutex: Thread::Mutex
+
+      def initialize: (?next_event_id: Integer) -> void
+      def next_event_id: () -> Integer
+      def function_name: () -> String
+      def listeners_object_name: () -> String
+      def listen: (String event, event_target target) { (Event) -> void } -> Integer
+      def once: (String event, event_target target) { (Event) -> void } -> Integer
+      def unlisten: (Integer id) -> nil
+      def emit_filter: (EmitArgs emit_args, ?filter? filter) -> nil
+      def emit: (EmitArgs emit_args) -> nil
+      def listen_js: (String event, String source_webview_label, event_target target, Integer id) -> nil
+      def unlisten_js: (String event, Integer id) -> nil
+      def has_js_listener?: (String event) { (event_target) -> boolish } -> bool
+      def emit_js_filter: (Array[_JsWebview] webviews, EmitArgs emit_args, ?filter? filter) -> nil
+      def emit_js: (Array[_JsWebview] webviews, EmitArgs emit_args) -> nil
+
+      private
+
+      def listen_with_id: (Integer id, String event, Handler handler) -> nil
+      def insert_pending: (pending action) -> nil
+      def flush_pending: () -> nil
+      def match_any_or_filter: (event_target target, filter? filter) -> boolish
+    end
+
+    class Plugin < Tokra::Plugin
+      def name: () -> String
+      def initialization_script: () -> String
+      def extend_api: (Ipc::Invoke invoke) -> bool
+
+      private
+
+      def listen: (Ipc::Invoke invoke) -> void
+      def unlisten: (Ipc::Invoke invoke) -> void
+      def emit: (Ipc::Invoke invoke) -> void
+      def emit_to: (Ipc::Invoke invoke) -> void
+      def item: (Ipc::Invoke invoke, String key) -> Ipc::CommandItem
+    end
+  end
+end

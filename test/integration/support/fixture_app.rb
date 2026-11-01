@@ -12,6 +12,7 @@
 # The contract between the two halves is a few stdout lines:
 #
 #   EVENT ready | EVENT window <class>                run events a plugin heard
+#                                                     (a window's close and destruction)
 #   EVENT exit-requested <code> | EVENT exit
 #   REPORT <json>                                     the page's check results
 #
@@ -89,7 +90,13 @@ module FixtureApp
       when Tokra::RunEvent::Ready
         FixtureApp.keep_in_sight(app.get_window("main"))
         puts "EVENT ready"
-      when Tokra::RunEvent::WindowEvent then puts "EVENT window #{event.event.class.name}"
+      # The close and its end only: when the platform reports a resize, a
+      # move, or a focus change depends on its window manager.
+      when Tokra::RunEvent::WindowEvent
+        case event.event
+        when Tokra::WindowEvent::CloseRequested, Tokra::WindowEvent::Destroyed
+          puts "EVENT window #{event.event.class.name}"
+        end
       when Tokra::RunEvent::ExitRequested then puts "EVENT exit-requested #{event.code.inspect}"
       when Tokra::RunEvent::Exit then puts "EVENT exit"
       end

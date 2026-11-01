@@ -148,6 +148,33 @@ module Tokra
       def self.new: () -> WindowDestroyedEvent
     end
 
+    class WindowResizedEvent < Data
+      def self.new: () -> WindowResizedEvent
+    end
+
+    class WindowMovedEvent < Data
+      attr_reader x: Integer
+      attr_reader y: Integer
+      def self.new: (Integer x, Integer y) -> WindowMovedEvent
+    end
+
+    class WindowFocusedEvent < Data
+      attr_reader focused: bool
+      def self.new: (bool focused) -> WindowFocusedEvent
+    end
+
+    class WindowScaleFactorChangedEvent < Data
+      attr_reader scale_factor: Float
+      attr_reader width: Integer
+      attr_reader height: Integer
+      def self.new: (Float scale_factor, Integer width, Integer height) -> WindowScaleFactorChangedEvent
+    end
+
+    class WindowThemeChangedEvent < Data
+      attr_reader theme: String
+      def self.new: (String theme) -> WindowThemeChangedEvent
+    end
+
     class ExitRequestedEvent < Data
       attr_reader code: Integer
       def self.new: (Integer code) -> ExitRequestedEvent
@@ -168,8 +195,6 @@ module Tokra
       def started?: () -> bool
       def finished?: () -> bool
     end
-
-    def self.emit_js_script: (String event, String payload) -> String
 
     def self.load_js_template: (String name) -> String
 

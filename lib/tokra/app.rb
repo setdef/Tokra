@@ -17,6 +17,8 @@ module Tokra
   # handle and runs the event loop.
   class App
     include Manager
+    include Listener
+    include Emitter
 
     # The application handle, safe to pass between Ractors.
     attr_reader :handle
@@ -171,7 +173,10 @@ module Tokra
       # Set when a requested restart ends the loop (#exit_requested).
       @restart_pending = false
 
-      # Register core plugins, mirroring Tauri app.rs (App::build)
+      # Register core plugins, mirroring Tauri app.rs (App::build,
+      # register_core_plugins at app.rs:1122-1135); Tokra has no path
+      # plugin, so the event plugin comes first.
+      @handle.plugin(Event::Plugin.new(@handle))
       @handle.plugin(Resources::Plugin.new(@handle))
       @handle.plugin(Image::Plugin.new(@handle))
       # The channel-data queue and its fetch command (app.rs:2260-2261)
@@ -193,8 +198,8 @@ module Tokra
     #
     # Creates the native window and webview, then runs the event loop.
     # The block receives (handle, event) for each runtime event:
-    # RunEvent::Ready before the loop starts, RunEvent::WindowEvent when
-    # the window is asked to close and when it is destroyed,
+    # RunEvent::Ready before the loop starts, RunEvent::WindowEvent for
+    # each WindowEvent (a resize, a move, focus, a close request, ...),
     # RunEvent::ExitRequested when the last window has closed or code
     # called AppHandle#exit, and RunEvent::Exit as the loop ends.
     # Registered plugins hear each one first.
@@ -261,6 +266,13 @@ module Tokra
       # Wrap the native window and register in manager
       window = Window.new(label: "main", native: native_window, app_handle: @handle, menu: window_menu)
       @window = window
+      # The manager's listener comes first: it tells the page and Ruby
+      # listeners, then calls the builder's (manager/window.rs:93-100).
+      window_event_listeners = @builder.__send__(:window_event_listeners)
+      window.on_window_event do |event|
+        WindowManager.on_window_event(window, event)
+        window_event_listeners&.each { |listener| listener.call(window, event) }
+      end
       @handle.windows["main"] = window
 
       # Create and wrap the webview, register in manager
@@ -288,6 +300,37 @@ module Tokra
         @runtime_context.close
       end
     end
+
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: Listener for App adapted from tauri/crates/tauri/src/app.rs
+
+    # Calls the block with each +event+ sent to the app, as
+    # AppHandle#listen does, and returns the handler's id.
+    #
+    # Mirrors Tauri's App::listen (app.rs:1055-1074).
+    #
+    # === Example
+    #
+    #   app.listen("component-loaded") { |event| puts event.payload }
+    def listen(event, &)
+      @handle.listen(event, &)
+    end
+
+    # Calls the block with the next +event+ sent to the app, as
+    # AppHandle#once does (app.rs:1076-1086).
+    def once(event, &)
+      @handle.once(event, &)
+    end
+
+    # Removes the handler with +id+, as AppHandle#unlisten does
+    # (app.rs:1088-1107).
+    def unlisten(id)
+      @handle.unlisten(id)
+    end
+
+    # SPDX-SnippetEnd
 
     # SPDX-SnippetBegin
     # SPDX-License-Identifier: Apache-2.0 OR MIT
@@ -431,14 +474,6 @@ module Tokra
     # SPDX-SnippetComment: Initialization script assembly adapted from
     # tauri/crates/tauri/src/manager/webview.rs and app.rs
 
-    # The window[...] function the emit script calls; the injected event
-    # script defines it. Tauri generates random names per app
-    # (listeners.rs); Tokra fixes them, matching Native.emit_js_script.
-    EMIT_FUNCTION_NAME = "__TAURI_EMIT__"
-
-    # The window[...] object holding event listeners by event name.
-    LISTENERS_OBJECT_NAME = "__TAURI_LISTENERS__"
-
     # Assembles the webview initialization scripts in Tauri's injection
     # order (manager/webview.rs:160-192): the __TAURI_INTERNALS__
     # bootstrap, the invoke transport, webview metadata, and the init.js
@@ -525,9 +560,9 @@ module Tokra
         core_script: render_js_template("core.js.erb",
           os_name: JSON.generate(os_name),
           protocol_scheme: JSON.generate("http")),
-        event_initialization_script: render_js_template("event_init.js.erb",
-          function_name: EMIT_FUNCTION_NAME,
-          listeners: LISTENERS_OBJECT_NAME))
+        event_initialization_script: Event.event_initialization_script(
+          @manager.listeners.function_name, @manager.listeners.listeners_object_name
+        ))
     end
 
     # Renders a vendored Tauri script template. Values arrive as JS
@@ -550,7 +585,13 @@ module Tokra
 
     # SPDX-SnippetEnd
 
+    # Hands a native event to its handler. Answers the loop only for the
+    # events whose answer it reads, +true+ ending it, and +nil+ otherwise.
     private def dispatch_event(event, callback, window, proxy)
+      # Only these two answer the loop (ext/tokra/src/event_loop.rs ask).
+      return window_destroyed(window, callback) if event.is_a?(Native::WindowDestroyedEvent)
+      return exit_requested(event.code, callback) if event.is_a?(Native::ExitRequestedEvent)
+
       # Use is_a? instead of case/when to support mock event injection in tests
       if event.is_a?(Native::TaskEvent)
         @runtime_context.handle_task
@@ -562,12 +603,19 @@ module Tokra
         dispatch_page_load(event)
       elsif event.is_a?(Native::WindowCloseEvent)
         close_requested(window, callback)
-      elsif event.is_a?(Native::WindowDestroyedEvent)
-        window_destroyed(window, callback)
-      elsif event.is_a?(Native::ExitRequestedEvent)
-        exit_requested(event.code, callback)
       elsif event.is_a?(Native::DragDropEvent)
-        dispatch_webview_event(event)
+        dispatch_window_event(WindowEvent::DragDrop.new(event: drag_drop_event(event)), callback)
+      elsif event.is_a?(Native::WindowResizedEvent)
+        window_resized(callback)
+      elsif event.is_a?(Native::WindowMovedEvent)
+        dispatch_window_event(WindowEvent::Moved.new(position: PhysicalPosition.new(x: event.x, y: event.y)), callback)
+      elsif event.is_a?(Native::WindowFocusedEvent)
+        dispatch_window_event(WindowEvent::Focused.new(focused: event.focused), callback)
+      elsif event.is_a?(Native::WindowScaleFactorChangedEvent)
+        dispatch_window_event(WindowEvent::ScaleFactorChanged.new(scale_factor: event.scale_factor,
+          new_inner_size: PhysicalSize.new(width: event.width, height: event.height)), callback)
+      elsif event.is_a?(Native::WindowThemeChangedEvent)
+        theme_changed(event.theme, callback)
       elsif event.is_a?(Native::MenuEvent)
         dispatch_menu_event(event, callback)
       elsif event.is_a?(Native::TrayIconEvent)
@@ -584,6 +632,7 @@ module Tokra
         reporting { @handle.cleanup_trays }
         Tokra::Process.restart(env) if @restart_pending
       end
+      nil
     end
 
     private def dispatch_http_request(event, proxy)
@@ -1126,35 +1175,38 @@ module Tokra
     # tauri-runtime-wry/src/lib.rs (handle_event_loop, on_close_requested,
     # on_window_close) and tauri/crates/tauri/src/app.rs (on_event_loop_event)
 
-    # Asks the window's listeners, plugins, and the run callback whether
-    # the window may close, then closes the native window unless one
-    # prevented it (on_close_requested, lib.rs:4262-4290). Its Destroyed
-    # event follows from the platform. A window already closed is no
-    # longer in the store, and the request is dropped, as Tauri's is.
-    private def close_requested(window, callback)
-      return unless @handle.windows.key?("main")
+    # Asks the window's listeners, then plugins and the run callback,
+    # whether the window may close, then closes the native window unless
+    # one prevented it (on_close_requested, lib.rs:4262-4290). Its
+    # Destroyed event follows from the platform. A window already closed
+    # is no longer in the store, and the request is dropped, as Tauri's
+    # is.
+    private def close_requested(native_window, callback)
+      window = @handle.windows["main"]
+      return unless window
 
       api = CloseRequestApi.new
-      reporting { dispatch_window_event(window, WindowEvent::CloseRequested.new(api:), callback) }
-      window.close unless api.prevented?
+      event = WindowEvent::CloseRequested.new(api:)
+      reporting do
+        window.window_event_listeners.each { |listener| listener.call(event) }
+        emit_run_event(RunEvent::WindowEvent.new(label: window.label, event:), callback)
+      end
+      native_window.close unless api.prevented?
     end
 
     # The native window is gone. The manager drops it and its webviews
     # first (on_window_close, manager/mod.rs:651-658), then the run
     # callback hears Destroyed, then the window's listeners
-    # (lib.rs:4134-4150), and the runtime drops the webviews
+    # (lib.rs:4126-4148), and the runtime drops the webviews
     # (lib.rs:4172). With no window left the app asks to exit with no code
     # (lib.rs:4172-4185). Answers the loop: +true+ ends it.
-    private def window_destroyed(window, callback)
-      return false unless @handle.windows.delete("main")
+    private def window_destroyed(_native_window, callback)
+      window = @handle.windows.delete("main")
+      return false unless window
 
       webviews = @handle.webviews.select { |_label, webview| webview.window.label == "main" }
       webviews.each_key { |label| @handle.webviews.delete(label) }
-      reporting do
-        event = WindowEvent::Destroyed.new
-        emit_run_event(RunEvent::WindowEvent.new(label: "main", event:), callback)
-        @builder.__send__(:window_event_listeners)&.each { |listener| listener.call(window, event) }
-      end
+      reporting { notify_window_event(window, WindowEvent::Destroyed.new, callback) }
       webviews.each_value { |webview| webview.native.close }
       return false unless @handle.windows.empty?
 
@@ -1188,43 +1240,71 @@ module Tokra
       warn(e.full_message(highlight: false))
     end
 
-    private def dispatch_window_event(window, event, callback)
-      # Notify window event listeners
-      @builder.__send__(:window_event_listeners)&.each do |listener|
-        listener.call(window, event)
-      end
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: Window events adapted from tauri-runtime-wry/src/lib.rs (handle_event_loop)
 
-      # Also emit as RunEvent::WindowEvent
-      emit_run_event(RunEvent::WindowEvent.new(label: "main", event:), callback)
+    # Tells the run callback, then the window's listeners, of +event+
+    # (lib.rs:4126-4148). A window already closed hears nothing more.
+    private def dispatch_window_event(event, callback)
+      window = @handle.windows["main"]
+      notify_window_event(window, event, callback) if window
     end
 
-    private def dispatch_webview_event(native_event)
-      listeners = @builder.__send__(:webview_event_listeners)
-      return unless listeners&.any?
+    private def notify_window_event(window, event, callback)
+      emit_run_event(RunEvent::WindowEvent.new(label: window.label, event:), callback)
+      window.window_event_listeners.each { |listener| listener.call(event) }
+    end
 
-      # Convert Native::DragDropEvent to WebviewEvent::DragDrop
-      # Paths come from Rust as strings, convert to Pathname per Tauri's PathBuf semantics
-      drag_event = case native_event.event
-      when "enter"
-        paths = native_event.paths.map { |p| Pathname.new(p) }
-        DragDropEvent::Enter.new(paths, PhysicalPosition.new(native_event.x, native_event.y))
-      when "over"
-        DragDropEvent::Over.new(PhysicalPosition.new(native_event.x, native_event.y))
-      when "drop"
-        paths = native_event.paths.map { |p| Pathname.new(p) }
-        DragDropEvent::Drop.new(paths, PhysicalPosition.new(native_event.x, native_event.y))
-      when "leave"
-        DragDropEvent::Leave.new
-      else
-        return # Unknown event type, ignore
-      end
+    # The theme tao reports, mapped as map_theme maps it, any theme but
+    # dark being light (lib.rs:578-584). On Windows the webview takes the
+    # theme too, once the listeners have heard it (lib.rs:4153-4166).
+    private def theme_changed(name, callback)
+      theme = (name == "dark") ? Theme::Dark : Theme::Light
+      dispatch_window_event(WindowEvent::ThemeChanged.new(theme:), callback)
+      native = @webview&.native
+      return unless native && native.respond_to?(:set_theme)
 
-      webview_event = WebviewEvent::DragDrop.new(drag_event)
-
-      listeners.each do |listener|
-        listener.call(nil, webview_event) # webview object not yet wired
+      begin
+        native.set_theme(theme.name)
+      rescue RuntimeError => e
+        warn("failed to set theme: #{e.message}")
       end
     end
+
+    # The window's inner size, as tauri-runtime-wry's parse reads it in
+    # place of tao's; a window whose native window is already closed has
+    # none, and its Resized is dropped (lib.rs:557-575).
+    private def window_resized(callback)
+      window = @handle.windows["main"]
+      return unless window
+
+      size = inner_size_of(window)
+      dispatch_window_event(WindowEvent::Resized.new(size:), callback) if size
+    end
+
+    # The window's inner size, or +nil+ once its native window is gone.
+    private def inner_size_of(window)
+      window.inner_size
+    rescue Error::Runtime
+      nil
+    end
+
+    # wry's drag and drop as Tauri's DragDropEvent, with Pathnames and
+    # f64 positions (lib.rs:4669-4692).
+    private def drag_drop_event(native_event)
+      position = PhysicalPosition.new(x: native_event.x.to_f, y: native_event.y.to_f)
+      paths = native_event.paths.map { |path| Pathname.new(path) }
+      case native_event.event
+      when "enter" then DragDropEvent::Enter.new(paths, position)
+      when "over" then DragDropEvent::Over.new(position)
+      when "drop" then DragDropEvent::Drop.new(paths, position)
+      else DragDropEvent::Leave.new
+      end
+    end
+
+    # SPDX-SnippetEnd
   end
 end
 

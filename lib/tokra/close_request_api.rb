@@ -15,8 +15,11 @@ module Tokra
   #
   # A click on the close button, or Window#close, asks first: Tokra emits
   # WindowEvent::CloseRequested carrying one of these to your
-  # Builder#on_window_event listeners, then to plugins and the App#run
-  # callback. Call #prevent_close to keep the window, say to ask about
+  # Builder#on_window_event and Window#on_window_event listeners, then to
+  # plugins and the App#run callback. A page listening for
+  # <tt>tauri://close-requested</tt> on the window prevents the close
+  # itself, as Tauri does, since the page's <tt>onCloseRequested</tt>
+  # closes the window when its handler is done. Call #prevent_close to keep the window, say to ask about
   # unsaved work or to hide it to the tray instead. Otherwise the window
   # closes once every handler has returned. Window#destroy skips the
   # question.

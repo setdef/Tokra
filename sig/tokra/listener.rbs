@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Listener : _Listener
+    def listen_any: (String event) { (Event) -> void } -> Integer
+    def once_any: (String event) { (Event) -> void } -> Integer
+  end
+
+  interface _Listener
+    def app_handle: () -> AppHandle
+  end
+end

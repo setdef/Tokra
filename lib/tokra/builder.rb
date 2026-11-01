@@ -246,7 +246,13 @@ module Tokra
 
     # Registers a window event handler for all windows.
     #
-    # The block receives (window, event).
+    # The block receives the Tokra::Window and each WindowEvent it gets,
+    # after the App#run block and plugins have heard it and the page has
+    # heard its <tt>tauri://</tt> event, except
+    # WindowEvent::CloseRequested, which it hears before them. Blocks run
+    # in the order they were added, before the window's own
+    # Window#on_window_event blocks. Mirrors Tauri's
+    # Builder::on_window_event (app.rs; manager/window.rs:93-100).
     # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
     def on_window_event(&block)
       require_shareable!(block, "on_window_event")
@@ -256,7 +262,9 @@ module Tokra
 
     # Registers a webview event handler for all webviews.
     #
-    # The block receives (webview, webview_event).
+    # The block receives (webview, webview_event). Tokra's webview fills its
+    # window, and Tauri reports such a webview's drops as the window's
+    # (WindowEvent::DragDrop), so no event reaches this block yet.
     # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
     def on_webview_event(&block)
       require_shareable!(block, "on_webview_event")

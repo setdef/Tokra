@@ -40,14 +40,14 @@ class TestBuilderInitializationScripts < Minitest::Test
     app = Tokra::Builder.default.build(native: StubNative)
     scripts = scripts_for(app)
 
-    assert_equal 4, scripts.size, "bootstrap, invoke transport, metadata, init.js"
+    assert_equal 5, scripts.size, "bootstrap, invoke transport, metadata, init.js, the event plugin's"
     assert_includes scripts[0], "Object.defineProperty(window, 'isTauri'"
     assert_includes scripts[0], "Object.defineProperty(window, '__TAURI_INTERNALS__'"
     assert_includes scripts[1], "Object.defineProperty(window.__TAURI_INTERNALS__, 'postMessage'"
     assert_includes scripts[2], "Object.defineProperty(window.__TAURI_INTERNALS__, 'metadata'"
     assert_includes scripts[2], 'currentWindow: { label: "main" }'
     assert_includes scripts[3], "Object.defineProperty(window.__TAURI_INTERNALS__, 'invoke'", "init.js carries core.js"
-    assert_includes scripts[3], "Object.defineProperty(window, '__TAURI_EMIT__'", "init.js carries the event script"
+    assert_includes scripts[3], "Object.defineProperty(window, '__internal_unstable_listeners_function_id__'", "init.js carries the event script"
   end
 
   def test_invoke_key_is_templated_into_the_transport_only
@@ -80,18 +80,22 @@ class TestBuilderInitializationScripts < Minitest::Test
     app.handle.plugin(ScriptPlugin.new(app.handle, "second", "window.second = 2"))
     scripts = scripts_for(app)
 
-    assert_equal 7, scripts.size, "four core scripts, two plugin scripts, the API bundle"
+    assert_equal 8, scripts.size, "four core scripts, the event plugin's, two plugin scripts, the API bundle"
     assert_includes scripts[3], "Object.defineProperty(window.__TAURI_INTERNALS__, 'invoke'", "init.js precedes plugin scripts"
-    assert_equal "(function () { window.first = 1 })();", scripts[4]
-    assert_equal "(function () { window.second = 2 })();", scripts[5],
+    assert_includes scripts[4], "__TAURI_EVENT_PLUGIN_INTERNALS__", "the event core plugin registers first"
+    assert_equal "(function () { window.first = 1 })();", scripts[5]
+    assert_equal "(function () { window.second = 2 })();", scripts[6],
       "plugins contribute in registration order and nil contributes nothing"
-    assert_includes scripts[6], "__TAURI_IIFE__", "the API bundle comes last"
+    assert_includes scripts[7], "__TAURI_IIFE__", "the API bundle comes last"
   end
 
-  def test_core_plugins_contribute_no_scripts
+  # Of Tauri's core plugins only the event plugin has a js_init_script
+  # (event/plugin.rs:60-81).
+  def test_only_the_event_plugin_among_the_core_plugins_contributes_a_script
     app = Tokra::Builder.default.build(native: StubNative)
+    scripts = app.handle.manager.plugins.initialization_script
 
-    assert_empty app.handle.__send__(:manager).plugins.initialization_script,
-      "the resources and image plugins inject nothing"
+    assert_equal 1, scripts.size
+    assert_includes scripts.first, "Object.defineProperty(window, '__TAURI_EVENT_PLUGIN_INTERNALS__'"
   end
 end
