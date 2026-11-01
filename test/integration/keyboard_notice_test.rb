@@ -97,7 +97,8 @@ class KeyboardNoticeTest < Minitest::Test
     end
   end
 
-  # Quiet still locks, so that two projects' tests never collide.
+  # Quiet still locks, so that two projects' tests never collide, but a
+  # speaking span in a process that cannot announce writes no marker.
   def test_quiet_still_takes_the_lock_but_never_speaks
     desk = new_desk
     KeyboardNotice.stub(:locks?, true) do
@@ -185,6 +186,83 @@ class KeyboardNoticeTest < Minitest::Test
     refute_path_exists @marker_path
   end
 
+  # A watcher that finds the lock busy keeps trying at each poll, so a
+  # silent span elsewhere only delays the call back.
+  def test_a_watcher_that_finds_the_lock_busy_calls_back_once_it_is_released
+    desk = new_desk
+    desk.taking_the_keyboard
+    @now += KeyboardNotice::SETTLE + 1
+    File.open(@lock_path, File::RDONLY | File::CREAT) do |other|
+      other.flock(File::LOCK_EX)
+      desk.tick
+      assert_equal [KeyboardNotice::STEP_AWAY], @said
+    end
+    desk.tick
+    assert_equal [KeyboardNotice::STEP_AWAY, KeyboardNotice::COME_BACK], @said
+    refute_path_exists @marker_path
+  end
+
+  def test_a_watcher_stops_trying_once_the_marker_is_gone
+    desk = new_desk
+    desk.taking_the_keyboard
+    @now += KeyboardNotice::SETTLE + 1
+    File.delete(@marker_path)
+    desk.tick
+    File.write(@marker_path, "#{ended_pid} 0")
+    desk.tick
+    assert_equal [KeyboardNotice::STEP_AWAY], @said
+  end
+
+  # The child starts while this process holds the lock, so it blocks on
+  # it. The exiting process waits out the rest of SETTLE, and the fake
+  # wait returns only once the child has taken the lock, so the exit's
+  # check finds it busy and leaves the call back to whoever holds it.
+  def test_an_exit_before_it_settles_lets_a_waiting_process_take_the_lock_first
+    waits = []
+    child_in = child_out = child = nil
+    desk = new_desk(sleep: lambda { |seconds|
+      waits << seconds
+      assert_equal "locked", child_out.gets&.chomp
+    })
+    desk.taking_the_keyboard do
+      child_in, child_out, child = Open3.popen2(RbConfig.ruby, "-e", HOLDER, @lock_path)
+      assert_nil child_out.wait_readable(0.5), "the child took a held lock"
+    end
+    @now += 1
+    desk.finish
+    assert_equal [KeyboardNotice::SETTLE - 1], waits
+    assert_equal [KeyboardNotice::STEP_AWAY], @said
+    assert_path_exists @marker_path
+
+    child_in.puts "go"
+    assert_equal "releasing", child_out.gets&.chomp
+    assert_predicate child.value, :success?
+  ensure
+    [child_in, child_out].each { it&.close }
+  end
+
+  def test_an_exit_after_it_settles_calls_back_without_waiting
+    waits = []
+    desk = new_desk(sleep: -> (seconds) { waits << seconds })
+    desk.taking_the_keyboard
+    @now += KeyboardNotice::SETTLE
+    desk.finish
+    assert_empty waits
+    assert_equal [KeyboardNotice::STEP_AWAY, KeyboardNotice::COME_BACK], @said
+  end
+
+  def test_the_lock_and_marker_are_shared_with_every_user_whatever_the_umask
+    skip "Windows has no Unix file modes" if Gem.win_platform?
+    umask = File.umask(0o022)
+    begin
+      new_desk.taking_the_keyboard
+    ensure
+      File.umask(umask)
+    end
+    assert_equal 0o666, File.stat(@lock_path).mode & 0o777
+    assert_equal 0o666, File.stat(@marker_path).mode & 0o777
+  end
+
   def test_silent_spans_neither_speak_nor_touch_the_marker
     desk = new_desk
     desk.taking_the_keyboard(speak: false) { refute lock_free?, "the lock was not held" }
@@ -264,10 +342,12 @@ class KeyboardNoticeTest < Minitest::Test
     end
   end
 
-  private def new_desk(settle: KeyboardNotice::SETTLE, err: StringIO.new, clock: -> { @now }, watcher: false, voice: nil)
+  private def new_desk(settle: KeyboardNotice::SETTLE, err: StringIO.new, clock: -> { @now }, watcher: false, voice: nil,
+    sleep: KeyboardNotice::Desk::SLEEP
+  )
     voice ||= method(:record_voice)
     desk = KeyboardNotice::Desk.new(lock_path: @lock_path, marker_path: @marker_path, settle:, err:, clock:, watcher:, voice:,
-      banner: -> (words) { @events << [:banner, words] })
+      sleep:, banner: -> (words) { @events << [:banner, words] })
     @desks << desk
     desk
   end

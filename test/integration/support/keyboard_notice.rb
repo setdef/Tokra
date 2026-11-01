@@ -30,7 +30,13 @@
 # - Once SETTLE seconds pass with none of its blocks running, a process
 #   tries the lock without waiting. If it gets it and the marker is
 #   there, it removes the marker and says COME_BACK. If the lock is
-#   busy, someone else is still working, and will call the person back.
+#   busy, it tries again at each poll until it calls back or finds the
+#   marker gone, so a busy lock only delays the call back.
+# - On exit it first waits out the rest of SETTLE from its last release,
+#   so a process blocked waiting for the lock takes it first, then tries
+#   once more.
+# - Both files are made mode 0666 whatever the umask, so every user's
+#   processes can open the lock and rewrite the marker.
 #
 # The lock is taken on macOS unless CI is set, even when quiet, since its
 # purpose is that two projects' tests never collide. Each notice is first
@@ -72,13 +78,17 @@ module KeyboardNotice
   # the watcher that calls the person back. Blocks nest, and blocks on
   # other threads of the same process share the one lock held while any
   # runs. Its watcher is a thread polling #tick; <tt>watcher: false</tt> leaves
-  # the polls to the caller, and +clock+ replaces the monotonic clock.
+  # the polls to the caller, +clock+ replaces the monotonic clock, and
+  # +sleep+ replaces the waits.
   class Desk
     # Reads the monotonic clock, in seconds.
     CLOCK = -> { ::Process.clock_gettime(::Process::CLOCK_MONOTONIC) }
 
     # Speaks +words+ with macOS's +say+, waiting until they are said.
     SAY = -> (words) { File.executable?(SAY_PATH) && system(SAY_PATH, words, exception: false) }
+
+    # Sleeps for +seconds+.
+    SLEEP = -> (seconds) { sleep(seconds) }
 
     # Posts +words+ as a Notification Center banner, which takes no focus
     # and so is safe to show while a person types. A missing or refused
@@ -90,7 +100,7 @@ module KeyboardNotice
     end
 
     def initialize(lock_path: LOCK_PATH, marker_path: MARKER_PATH, settle: SETTLE, voice: SAY, banner: BANNER, err: $stderr,
-      clock: CLOCK, watcher: true
+      clock: CLOCK, sleep: SLEEP, watcher: true
     )
       @lock_path = lock_path
       @marker_path = marker_path
@@ -99,6 +109,7 @@ module KeyboardNotice
       @banner = banner
       @err = err
       @clock = clock
+      @sleep = sleep
       @watches = watcher
       @mutex = Mutex.new
       @depth = 0
@@ -126,6 +137,17 @@ module KeyboardNotice
     # they were sent away. Never waits for the lock.
     def call_back
       @mutex.synchronize { come_back }
+    end
+
+    # What a process does as it exits: stops the watcher, waits out what is
+    # left of SETTLE since it last let go of the lock, so a process
+    # already waiting for the lock takes it first, and then calls back.
+    def finish
+      stop
+      last_done = @mutex.synchronize { @last_done }
+      left = last_done && (@settle - (@clock.call - last_done))
+      @sleep.call(left) if left&.positive?
+      call_back
     end
 
     # Stops the watcher.
@@ -174,12 +196,23 @@ module KeyboardNotice
     end
 
     private def open_lock
-      File.open(@lock_path, File::RDONLY | File::CREAT, 0o666)
+      file = File.open(@lock_path, File::RDONLY | File::CREAT, 0o666)
+      share(file.path)
+      file
     end
 
     private def step_away
       File.write(@marker_path, "#{::Process.pid} #{Time.now.to_i}")
+      share(@marker_path)
       announce(STEP_AWAY)
+    end
+
+    # Makes +path+ readable and writable by every user, whatever the umask.
+    # A file another user created stays as they made it.
+    private def share(path)
+      File.chmod(0o666, path)
+    rescue Errno::EPERM
+      nil
     end
 
     # Shows +words+ as a banner, so a muted person still sees them, then
@@ -206,31 +239,38 @@ module KeyboardNotice
     end
 
     # What the watcher does on each poll: once a speaking span has run and
-    # none has for SETTLE seconds, calls the person back, once.
+    # none has for SETTLE seconds, calls the person back, once. While the
+    # lock is busy and the marker is there, it tries again at the next.
     def tick
       @mutex.synchronize do
         next unless @pending && @depth.zero?
         next if @clock.call - @last_done < @settle
 
-        @pending = false
-        come_back
+        @pending = come_back == :busy
       end
     end
 
     private def watch
       loop do
-        sleep [@settle / 4.0, 0.25].min
+        @sleep.call([@settle / 4.0, 0.25].min)
         tick
       end
     end
 
+    # Calls the person back if the lock is free and the marker is there.
+    # Returns +:called+, +:busy+ when someone holds the lock and the marker
+    # is there, or +:gone+ when the marker is not.
     private def come_back
-      File.open(@lock_path, File::RDONLY | File::CREAT, 0o666) do |file|
-        next unless file.flock(File::LOCK_EX | File::LOCK_NB)
-        next unless File.exist?(@marker_path)
+      file = open_lock
+      begin
+        return (File.exist?(@marker_path) ? :busy : :gone) unless file.flock(File::LOCK_EX | File::LOCK_NB)
+        return :gone unless File.exist?(@marker_path)
 
         File.delete(@marker_path)
         announce(COME_BACK)
+        :called
+      ensure
+        file.close
       end
     end
   end
@@ -270,10 +310,7 @@ module KeyboardNotice
       return if @calling_back
 
       @calling_back = true
-      at_exit do
-        desk.stop
-        desk.call_back
-      end
+      at_exit { desk.finish }
     end
   end
 end
