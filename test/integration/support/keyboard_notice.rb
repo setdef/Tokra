@@ -6,7 +6,7 @@
 #++
 
 # Keeps tests that take a Mac's keyboard and mouse out of each other's
-# way, and tells the person at the Mac, aloud, when to step away and when
+# way, and tells the person at the Mac, by banner and aloud, when to step away and when
 # to come back.
 #
 # Some real-window tests must open a real menu, which tracks the keyboard
@@ -33,9 +33,11 @@
 #   busy, someone else is still working, and will call the person back.
 #
 # The lock is taken on macOS unless CI is set, even when quiet, since its
-# purpose is that two projects' tests never collide. Speaking needs
-# macOS's own +say+, and stops when DESKTOP_INPUT_QUIET or TOKRA_QUIET is
-# set.
+# purpose is that two projects' tests never collide. Each notice is first
+# posted as a Notification Center banner with +osascript+, so a muted
+# person still sees it, and then said with +say+; either is skipped where
+# its command is missing, and both stop when DESKTOP_INPUT_QUIET or
+# TOKRA_QUIET is set.
 #
 # === Example
 #
@@ -46,6 +48,12 @@ module KeyboardNotice
 
   # The line written to standard error while another process holds the lock.
   WAITING = "waiting for the desktop input lock"
+
+  # macOS's speech command.
+  SAY_PATH = "/usr/bin/say"
+
+  # macOS's scripting command, which posts the banner.
+  OSASCRIPT_PATH = "/usr/bin/osascript"
 
   # The lock every project's keyboard-taking tests share. Literally +/tmp+,
   # not Dir.tmpdir, which differs between processes on macOS.
@@ -70,15 +78,25 @@ module KeyboardNotice
     CLOCK = -> { ::Process.clock_gettime(::Process::CLOCK_MONOTONIC) }
 
     # Speaks +words+ with macOS's +say+, waiting until they are said.
-    SAY = -> (words) { system("/usr/bin/say", words, exception: false) }
+    SAY = -> (words) { File.executable?(SAY_PATH) && system(SAY_PATH, words, exception: false) }
 
-    def initialize(lock_path: LOCK_PATH, marker_path: MARKER_PATH, settle: SETTLE, voice: SAY, err: $stderr,
+    # Posts +words+ as a Notification Center banner, which takes no focus
+    # and so is safe to show while a person types. A missing or refused
+    # +osascript+ is ignored.
+    BANNER = lambda do |words|
+      File.executable?(OSASCRIPT_PATH) &&
+        system(OSASCRIPT_PATH, "-e", "display notification #{words.dump} with title \"Tests\"",
+          exception: false, out: File::NULL, err: File::NULL)
+    end
+
+    def initialize(lock_path: LOCK_PATH, marker_path: MARKER_PATH, settle: SETTLE, voice: SAY, banner: BANNER, err: $stderr,
       clock: CLOCK, watcher: true
     )
       @lock_path = lock_path
       @marker_path = marker_path
       @settle = settle
       @voice = voice
+      @banner = banner
       @err = err
       @clock = clock
       @watches = watcher
@@ -161,7 +179,14 @@ module KeyboardNotice
 
     private def step_away
       File.write(@marker_path, "#{::Process.pid} #{Time.now.to_i}")
-      @voice.call(STEP_AWAY)
+      announce(STEP_AWAY)
+    end
+
+    # Shows +words+ as a banner, so a muted person still sees them, then
+    # says them.
+    private def announce(words)
+      @banner.call(words)
+      @voice.call(words)
     end
 
     private def live_marker?
@@ -205,7 +230,7 @@ module KeyboardNotice
         next unless File.exist?(@marker_path)
 
         File.delete(@marker_path)
-        @voice.call(COME_BACK)
+        announce(COME_BACK)
       end
     end
   end
@@ -229,9 +254,11 @@ module KeyboardNotice
     end
 
     # Whether this machine is one a person may be typing at: it locks, has
-    # +say+, and is silenced by neither DESKTOP_INPUT_QUIET nor TOKRA_QUIET.
+    # +osascript+ for the banner or +say+ for the voice, and is silenced by
+    # neither DESKTOP_INPUT_QUIET nor TOKRA_QUIET.
     def speaks?
-      locks? && !ENV["DESKTOP_INPUT_QUIET"] && !ENV["TOKRA_QUIET"] && File.executable?("/usr/bin/say")
+      locks? && !ENV["DESKTOP_INPUT_QUIET"] && !ENV["TOKRA_QUIET"] &&
+        (File.executable?(OSASCRIPT_PATH) || File.executable?(SAY_PATH))
     end
 
     # This process's Desk, on the shared paths.

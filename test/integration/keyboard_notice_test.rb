@@ -37,6 +37,7 @@ class KeyboardNoticeTest < Minitest::Test
     @lock_path = File.join(@dir, "desktop-input.lock")
     @marker_path = File.join(@dir, "desktop-input.away")
     @said = []
+    @events = []
     @spoken = Thread::Queue.new
     @desks = []
     @now = 0.0
@@ -70,9 +71,30 @@ class KeyboardNoticeTest < Minitest::Test
     refute_predicate KeyboardNotice, :speaks?
   end
 
-  def test_it_speaks_on_a_mac_with_say_and_no_quieting_variable
-    expected = RbConfig::CONFIG["host_os"].include?("darwin") && File.executable?("/usr/bin/say")
+  def test_it_announces_on_a_mac_with_osascript_or_say_and_no_quieting_variable
+    expected = RbConfig::CONFIG["host_os"].include?("darwin") &&
+      (File.executable?("/usr/bin/osascript") || File.executable?("/usr/bin/say"))
     assert_equal expected, KeyboardNotice.speaks?
+  end
+
+  def test_a_mac_without_say_still_announces_by_banner
+    only_osascript = -> (path) { path == KeyboardNotice::OSASCRIPT_PATH }
+    KeyboardNotice.stub(:locks?, true) do
+      File.stub(:executable?, only_osascript) { assert_predicate KeyboardNotice, :speaks? }
+    end
+  end
+
+  def test_a_mac_with_neither_osascript_nor_say_stays_silent
+    KeyboardNotice.stub(:locks?, true) do
+      File.stub(:executable?, false) { refute_predicate KeyboardNotice, :speaks? }
+    end
+  end
+
+  def test_the_real_banner_and_voice_do_nothing_where_their_commands_are_missing
+    File.stub(:executable?, false) do
+      refute KeyboardNotice::Desk::BANNER.call("x")
+      refute KeyboardNotice::Desk::SAY.call("x")
+    end
   end
 
   # Quiet still locks, so that two projects' tests never collide.
@@ -98,6 +120,33 @@ class KeyboardNoticeTest < Minitest::Test
     desk.call_back
     assert_equal [KeyboardNotice::STEP_AWAY, KeyboardNotice::COME_BACK], @said
     refute_path_exists @marker_path
+  end
+
+  def test_the_banner_is_shown_before_each_notice_is_said
+    desk = new_desk
+    desk.taking_the_keyboard
+    desk.call_back
+    assert_equal [
+      [:banner, KeyboardNotice::STEP_AWAY],
+      [:voice, KeyboardNotice::STEP_AWAY],
+      [:banner, KeyboardNotice::COME_BACK],
+      [:voice, KeyboardNotice::COME_BACK],
+], @events
+  end
+
+  def test_the_banner_is_shown_when_there_is_no_voice
+    desk = new_desk(voice: -> (_) {})
+    desk.taking_the_keyboard
+    desk.call_back
+    assert_equal [[:banner, KeyboardNotice::STEP_AWAY], [:banner, KeyboardNotice::COME_BACK]], @events
+  end
+
+  def test_silent_spans_show_no_banner
+    desk = new_desk
+    desk.taking_the_keyboard(speak: false)
+    @now += KeyboardNotice::SETTLE + 1
+    desk.tick
+    assert_empty @events
   end
 
   def test_a_marker_from_an_ended_process_is_replaced_and_warned
@@ -215,11 +264,17 @@ class KeyboardNoticeTest < Minitest::Test
     end
   end
 
-  private def new_desk(settle: KeyboardNotice::SETTLE, err: StringIO.new, clock: -> { @now }, watcher: false)
-    desk = KeyboardNotice::Desk.new(lock_path: @lock_path, marker_path: @marker_path, settle:, err:, clock:, watcher:,
-      voice: -> (words) { @spoken << (@said << words) })
+  private def new_desk(settle: KeyboardNotice::SETTLE, err: StringIO.new, clock: -> { @now }, watcher: false, voice: nil)
+    voice ||= method(:record_voice)
+    desk = KeyboardNotice::Desk.new(lock_path: @lock_path, marker_path: @marker_path, settle:, err:, clock:, watcher:, voice:,
+      banner: -> (words) { @events << [:banner, words] })
     @desks << desk
     desk
+  end
+
+  private def record_voice(words)
+    @events << [:voice, words]
+    @spoken << (@said << words)
   end
 
   private def lock_free?
