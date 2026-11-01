@@ -67,6 +67,10 @@ namespace :rbs do
     args += %w[--exclude-sig sig/tokra/tray/linux.rbs] unless host.include?("linux")
     args += %w[--exclude-sig sig/tokra/tray/macos.rbs] unless host.include?("darwin")
     args += %w[--exclude-sig sig/tokra/tray/left_click_menu.rbs] if host.include?("linux")
+    # Tauri compiles Window::set_badge_label only for macOS and
+    # Window::set_overlay_icon only for Windows (plan 045, decision 5).
+    args += %w[--exclude-sig sig/tokra/window/macos.rbs] unless host.include?("darwin")
+    args += %w[--exclude-sig sig/tokra/window/windows.rbs] unless host.match?(/mswin|mingw|cygwin/)
     ruby File.expand_path("rbs_parity.rb", __dir__), *args
   end
 end

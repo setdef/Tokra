@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class TitleBarStyle < Data
+    extend ClosedEnum
+    include ClosedEnum::With
+
+    attr_reader name: String
+
+    private def self.new: (name: String) -> TitleBarStyle
+
+    Visible: TitleBarStyle
+    Transparent: TitleBarStyle
+    Overlay: TitleBarStyle
+  end
+end

@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The event loop's window target, which answers the app handle's monitor
-//! and cursor getters (plan 041, decision 1).
+//! and cursor getters (plan 041, decision 1) and takes the app's theme
+//! (plan 045, decision 7).
 //!
 //! Tauri reads `primary_monitor`, `monitor_from_point`, and
 //! `available_monitors` from its runtime context's window target, and asks
@@ -17,7 +18,7 @@
 
 use std::cell::Cell;
 
-use magnus::{method, prelude::*, Error, RClass};
+use magnus::{method, prelude::*, Error, RClass, RString};
 use tao::event_loop::EventLoopWindowTarget;
 
 use crate::event_loop::RbEventLoop;
@@ -140,6 +141,21 @@ impl RbEventLoop {
         self.with_target(|target| target.available_monitors().map(|m| monitor(&m)).collect())
     }
 
+    /// tao's `EventLoopWindowTarget::set_theme`, the app's theme; `nil`
+    /// follows the system (`src/lib.rs:4006-4008`, `5222-5228`). A loop
+    /// that has ended ignores it.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ThreadError` off the loop's thread, or `ArgumentError` for
+    /// a name `Tokra::Theme` does not have.
+    pub fn set_theme(&self, name: Option<RString>) -> Result<(), Error> {
+        let name = name.map(RString::to_string).transpose()?;
+        let theme = crate::window_state::theme(name.as_deref())?;
+        self.with_target(|target| target.set_theme(theme))?;
+        Ok(())
+    }
+
     // SPDX-SnippetEnd
 }
 
@@ -159,5 +175,6 @@ pub fn define_methods(class: RClass) -> Result<(), Error> {
         "available_monitors",
         method!(RbEventLoop::available_monitors, 0),
     )?;
+    class.define_method("set_theme", method!(RbEventLoop::set_theme, 1))?;
     Ok(())
 }

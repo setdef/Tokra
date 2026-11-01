@@ -325,5 +325,7 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
     ))]
     crate::menu::define_window_methods(window_class)?;
     crate::menu::define_context_menu_methods(window_class)?;
+    crate::vibrancy::define_methods(window_class)?;
+    crate::taskbar::define_methods(window_class)?;
     crate::window_ext::define_methods(window_class)
 }

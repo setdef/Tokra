@@ -368,7 +368,7 @@ module Tokra
     #   window.inner_size  #=> #<data Tokra::PhysicalSize width=1600, height=1200>
     def inner_size
       native = @native
-      webview = webviews.each_value.find { |candidate| candidate.window.equal?(self) }&.native
+      webview = webviews.find { |candidate| candidate.window.equal?(self) }&.native
       width, height = getter { native.inner_size(webview) }
       PhysicalSize.new(width:, height:)
     end
@@ -1118,12 +1118,20 @@ module Tokra
       expect(theme, Theme) if theme
       name = theme&.name
       dispatch { native.set_theme(name) }
+      theme_menu(name)
+    end
+
+    # Themes the window's menu bar on Windows, +name+ a Theme's name or
+    # +nil+ for the system's, as Window#set_theme and AppHandle#set_theme
+    # do through muda's set_theme_for_hwnd (window/mod.rs:2194-2204,
+    # app.rs:849-863). Elsewhere the native window has no menu theme.
+    def theme_menu(name) # :nodoc:
+      native = @native
       current = menu
-      if current && native.respond_to?(:set_menu_theme)
-        native_menu = current.native #: Native::Menu
-        dispatch { native.set_menu_theme(native_menu, name) }
-      end
-      nil
+      return nil unless current && native.respond_to?(:set_menu_theme)
+
+      native_menu = current.native #: Native::Menu
+      dispatch { native.set_menu_theme(native_menu, name) }
     end
 
     # Whether the window takes input. Answers as #scale_factor does.
@@ -1264,6 +1272,148 @@ module Tokra
       native = @native
       dispatch { native.set_shadow(enable) }
     end
+
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: Effects, the taskbar, and the title bar adapted from tauri/crates/tauri/src/window/mod.rs
+
+    # Shows the desktop through the window, blurred, with the platform
+    # material +effects+, a WindowEffectsConfig, names, and returns +nil+.
+    # +nil+ clears the effects on Windows; macOS and Linux keep them.
+    #
+    # The window's own background must be transparent for an effect to
+    # show. Each platform applies the first effect in the list it has:
+    # macOS adds an NSVisualEffectView behind the webview with the
+    # config's state and radius, and Windows applies Mica, Tabbed, Blur,
+    # or Acrylic, the last two tinted with the config's color. Linux has
+    # no effects. An effect the platform's version lacks does nothing, as
+    # in Tauri, which drops the failure. Runs as #center does; anything
+    # but a WindowEffectsConfig or +nil+ raises TypeError on the calling
+    # thread. On Windows, a decorated or shadowed window may need tao's
+    # workaround: https://github.com/tauri-apps/tao/issues/72#issuecomment-975607891
+    #
+    # Mirrors Tauri's Window::set_effects (window/mod.rs:1817-1855), which
+    # runs its vibrancy module on the main thread (vibrancy/mod.rs,
+    # macos.rs, windows.rs; plan 045, decisions 1-3).
+    #
+    # === Example
+    #
+    #   window.set_effects(Tokra::EffectsBuilder.new.effect(Tokra::Effect::Sidebar).effect(Tokra::Effect::Mica).build)
+    def set_effects(effects)
+      native = @native
+      expect(effects, WindowEffectsConfig) if effects
+      config = effects && [
+        effects.effects.map(&:name),
+        effects.state&.name,
+        effects.radius,
+        effects.color&.then { |color| [color.red, color.green, color.blue, color.alpha] },
+      ] #: Native::Window::effects?
+      dispatch { native.set_effects(config) }
+    end
+
+    # Shows +progress_state+, a ProgressBarState, on the taskbar button or
+    # the Dock icon, and returns +nil+. Runs as #center does; anything
+    # else raises TypeError on the calling thread.
+    #
+    # On Windows the bar is this window's. On macOS and Linux it is the
+    # app's, whichever window sets it, and Linux shows it only in desktops
+    # with libunity, such as GNOME, which find the app by its
+    # <tt>.desktop</tt> file: the config's product name, or the program's
+    # file name, followed by <tt>.desktop</tt>.
+    #
+    # Mirrors Tauri's Window::set_progress_bar (window/mod.rs:2151-2168),
+    # which names the desktop file after the package (plan 045, decision
+    # 4), and tauri-runtime-wry's ProgressBarStateWrapper
+    # (lib.rs:755-782, 3508-3510).
+    #
+    # === Example
+    #
+    #   window.set_progress_bar(Tokra::ProgressBarState.new(status: Tokra::ProgressBarStatus::Normal, progress: 40))
+    def set_progress_bar(progress_state)
+      native = @native
+      expect(progress_state, ProgressBarState)
+      status = progress_state.status&.name
+      progress = progress_state.progress
+      desktop_filename = self.desktop_filename
+      dispatch { native.set_progress_bar(status, progress, desktop_filename) }
+    end
+
+    # Shows +count+, an Integer, as a badge on the Dock icon or the
+    # launcher, and returns +nil+. +nil+ takes the badge away. Runs as
+    # #center does; anything else raises TypeError, and a count outside a
+    # 64-bit signed integer RangeError, on the calling thread.
+    #
+    # Tauri's docs say +0+ takes the badge away too, but its runtime
+    # passes +0+ on as a count (tauri-runtime-wry lib.rs:3482-3499), so
+    # macOS shows the label "0" (tao platform_impl/macos/badge.rs) and
+    # Linux a visible zero (platform_impl/linux/taskbar.rs:127-158), here
+    # as in Tauri.
+    #
+    # On macOS the badge is the count as text. On Linux it shows in
+    # desktops with libunity, which find the app by its desktop file, as
+    # #set_progress_bar names it. Windows has no badge count; use
+    # #set_overlay_icon there.
+    #
+    # Mirrors Tauri's Window::set_badge_count (window/mod.rs:2126-2138;
+    # tauri-runtime-wry lib.rs:3482-3499).
+    #
+    # === Example
+    #
+    #   window.set_badge_count(3)
+    def set_badge_count(count)
+      native = @native
+      if count
+        expect(count, Integer)
+        raise RangeError, "integer #{count} out of range of i64" unless count.between?(-(2 ** 63), (2 ** 63) - 1)
+      end
+      desktop_filename = self.desktop_filename
+      dispatch { native.set_badge_count(count, desktop_filename) }
+    end
+
+    # Draws the macOS title bar in +style+, a TitleBarStyle, and returns
+    # +nil+. Other platforms ignore it. Runs as #center does; anything
+    # else raises TypeError on the calling thread.
+    #
+    # Visible draws an opaque title bar over a content view that fills
+    # the whole window, Transparent a transparent title bar above the
+    # content, and Overlay a transparent title bar over it.
+    #
+    # Mirrors Tauri's Window::set_title_bar_style (window/mod.rs:2170-2177;
+    # tauri-runtime-wry lib.rs:3511-3534).
+    #
+    # === Example
+    #
+    #   window.set_title_bar_style(Tokra::TitleBarStyle::Transparent)
+    def set_title_bar_style(style)
+      native = @native
+      expect(style, TitleBarStyle)
+      name = style.name
+      dispatch { native.set_title_bar_style(name) }
+    end
+
+    # The webviews in this window, as an Array of Webview. Tokra's window
+    # holds one webview, which fills it, until it closes.
+    #
+    # Mirrors Tauri's Window::webviews (window/mod.rs:1071-1081), which
+    # answers the app's webviews whose window is this one, in place of
+    # Manager#webviews' Hash of every webview (plan 045, decision 8).
+    #
+    # === Example
+    #
+    #   window.webviews.map(&:label)  #=> ["main"]
+    def webviews
+      @app_handle.webviews.each_value.select { |webview| webview.window.label == @label }
+    end
+
+    # The desktop file a Unity launcher knows the app by, as Tauri names
+    # it from the package (plan 045, decision 4; plan 042, decision 6).
+    private def desktop_filename
+      name = @app_handle.config.product_name || File.basename($PROGRAM_NAME, ".*")
+      "#{name}.desktop"
+    end
+
+    # SPDX-SnippetEnd
 
     # Asks to close this window and returns +nil+.
     #

@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class EffectsBuilder
+    @effects: Array[Effect]
+    @state: EffectState?
+    @radius: Numeric?
+    @color: Color?
+
+    def self.from: (WindowEffectsConfig config) -> EffectsBuilder
+    def initialize: () -> void
+    def effect: (Effect effect) -> self
+    def effects: (_ToA[Effect] effects) -> self
+    def clear_effects: () -> self
+    def state: (EffectState state) -> self
+    def radius: (Numeric radius) -> self
+    def color: (Color color) -> self
+    def build: () -> WindowEffectsConfig
+  end
+end

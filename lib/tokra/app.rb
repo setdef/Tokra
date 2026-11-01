@@ -128,6 +128,17 @@ module Tokra
       @handle.cursor_position
     end
 
+    # Shows the whole app in +theme+, as AppHandle#set_theme does.
+    #
+    # Mirrors Tauri's App::set_theme (app.rs:842-869).
+    #
+    # === Example
+    #
+    #   app.set_theme(Tokra::Theme::Dark)
+    def set_theme(theme)
+      @handle.set_theme(theme)
+    end
+
     # Default window configuration when not specified.
     DEFAULT_CONFIG = {
       title: "Tokra",
@@ -211,6 +222,11 @@ module Tokra
       # (plan 041, decision 1).
       event_loop = @event_loop_class.new
       @runtime_context.window_target = event_loop
+      # A theme the app asked for before its loop existed, which Tauri's
+      # App sets on its loop at once (app.rs:864-868; plan 045,
+      # decision 7).
+      loop_theme = @handle.take_loop_theme
+      event_loop.set_theme(loop_theme.first) if loop_theme
 
       # The builder's menu, now that tao has made NSApp (plan 042,
       # decision 7), before the setup hook, as Tauri's Builder::build does.

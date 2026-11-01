@@ -28,6 +28,9 @@ module Tokra
       @state_manager = state_manager
       @runtime_context = runtime_context
       @restart_on_exit = false
+      # The theme #set_theme kept for an event loop not yet built.
+      @loop_theme = nil
+      @loop_theme_mutex = Thread::Mutex.new
       @menu_manager = MenuManager.new(runtime_context, menu_event_listeners)
       @tray_manager = TrayManager.new(tray_icon_event_listeners)
     end
@@ -264,6 +267,61 @@ module Tokra
 
       x, y = position
       PhysicalPosition.new(x:, y:)
+    end
+
+    # Shows the whole app in +theme+, a Theme, or in the system's theme
+    # for +nil+, and returns +nil+. Anything else raises TypeError.
+    #
+    # Window#set_theme themes one window, though on macOS and Linux the
+    # theme is the app's anyway. This themes them all, and on Windows each
+    # window's menu bar as well, Light or Dark, or the system's for +nil+.
+    # From another thread it reaches the main thread as Window#set_theme
+    # does, and a failure to get there is dropped, as Tauri drops it.
+    # Called before App#run has built the event loop, the theme waits for
+    # the loop, and App#run gives it to the loop it builds (plan 045,
+    # decision 7).
+    #
+    # Mirrors Tauri's AppHandle::set_theme (app.rs:842-869), which themes
+    # each window's menu on Windows and then sends the theme to the event
+    # loop (tauri-runtime-wry lib.rs:2697-2702, 4006-4008, 5222-5228).
+    #
+    # === Example
+    #
+    #   handle.set_theme(Tokra::Theme::Dark)
+    def set_theme(theme)
+      raise TypeError, "wrong argument type #{theme.class} (expected Tokra::Theme)" unless theme.nil? || theme.is_a?(Theme)
+
+      name = theme&.name
+      windows.each_value do |window|
+        window.theme_menu(name)
+      rescue Error::Runtime
+        nil
+      end
+      context = @runtime_context
+      unless context.window_target
+        @loop_theme_mutex.synchronize { @loop_theme = [name] }
+        # App#run may have built the loop and taken the kept theme between
+        # the check and the store; then the theme is still here, and the
+        # loop takes it now. Whichever of the two takes it sends it once.
+        return nil unless context.window_target && take_loop_theme
+      end
+      begin
+        context.run_on_main_thread { context.window_target&.set_theme(name) }
+      rescue Error::Runtime
+        nil
+      end
+      nil
+    end
+
+    # The theme #set_theme kept before the event loop existed, as
+    # <tt>[name]</tt>, or +nil+, and forgets it. App#run hands it to the
+    # loop it builds (plan 045, decision 7).
+    def take_loop_theme # :nodoc:
+      @loop_theme_mutex.synchronize do
+        theme = @loop_theme
+        @loop_theme = nil
+        theme
+      end
     end
 
     # Returns the app-level resources table.

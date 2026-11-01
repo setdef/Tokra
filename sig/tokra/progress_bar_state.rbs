@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class ProgressBarState < Data
+    attr_reader status: ProgressBarStatus?
+    attr_reader progress: Integer?
+
+    def self.new: (?ProgressBarStatus? status, ?Integer? progress) -> ProgressBarState
+                | (?status: ProgressBarStatus?, ?progress: Integer?) -> ProgressBarState
+  end
+end

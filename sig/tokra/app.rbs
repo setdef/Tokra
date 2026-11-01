@@ -58,6 +58,7 @@ module Tokra
     def monitor_from_point: (Float | Integer x, Float | Integer y) -> Monitor?
     def available_monitors: () -> Array[Monitor]
     def cursor_position: () -> PhysicalPosition
+    def set_theme: (Theme? theme) -> nil
 
     private
 

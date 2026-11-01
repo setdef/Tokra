@@ -9,6 +9,8 @@ module Tokra
     @state_manager: StateManager?
     @runtime_context: RuntimeContext
     @restart_on_exit: bool
+    @loop_theme: [String?]?
+    @loop_theme_mutex: Thread::Mutex
     @path: Path::Resolver?
     @resources_table: ResourceTable?
 
@@ -31,6 +33,8 @@ module Tokra
     def hide_menu: () -> nil
     def show_menu: () -> nil
     def init_app_menu: (Menu::Menu menu) -> nil
+    def set_theme: (Theme? theme) -> nil
+    def take_loop_theme: () -> [String?]?
     attr_reader runtime_context: RuntimeContext
     def run_on_main_thread: () { () -> void } -> nil
     def app_handle: -> AppHandle

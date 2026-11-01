@@ -16,6 +16,10 @@ class TestClosedEnum < Minitest::Test
     Tokra::ResizeDirection,
     Tokra::UserAttentionType,
     Tokra::Menu::NativeIcon,
+    Tokra::Effect,
+    Tokra::EffectState,
+    Tokra::TitleBarStyle,
+    Tokra::ProgressBarStatus,
     # ActivationPolicy exists only on macOS, as Tauri's cfg has it
     # (plan 029), so it is checked only where it is defined.
     *(Tokra.const_defined?(:ActivationPolicy) ? [Tokra.const_get(:ActivationPolicy)] : []),

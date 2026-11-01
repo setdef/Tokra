@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class Effect < Data
+    extend ClosedEnum
+    include ClosedEnum::With
+
+    attr_reader name: String
+
+    private def self.new: (name: String) -> Effect
+
+    AppearanceBased: Effect
+    Light: Effect
+    Dark: Effect
+    MediumLight: Effect
+    UltraDark: Effect
+    Titlebar: Effect
+    Selection: Effect
+    Menu: Effect
+    Popover: Effect
+    Sidebar: Effect
+    HeaderView: Effect
+    Sheet: Effect
+    WindowBackground: Effect
+    HudWindow: Effect
+    FullScreenUI: Effect
+    Tooltip: Effect
+    ContentBackground: Effect
+    UnderWindowBackground: Effect
+    UnderPageBackground: Effect
+    Mica: Effect
+    MicaDark: Effect
+    MicaLight: Effect
+    Tabbed: Effect
+    TabbedDark: Effect
+    TabbedLight: Effect
+    Blur: Effect
+    Acrylic: Effect
+  end
+end

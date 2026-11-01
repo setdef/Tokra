@@ -48,6 +48,10 @@ tray-icon = { version = "=0.21.0", default-features = false, features = ["libxdo
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6.3"
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "block2", "objc2-core-foundation", "NSApplication", "NSGraphics", "NSResponder", "NSScreen", "NSView", "NSWindow"] }
+# Window effects (plan 045): the version Tauri locks (vendor/tauri
+# Cargo.lock), which crates/tauri/Cargo.toml:129 and :134 add on macOS and
+# Windows, the two platforms its vibrancy module applies effects on.
+window-vibrancy = "=0.6.0"
 
 # A monitor's work area from GDK (window_state.rs, plan 040), as
 # tauri-runtime-wry reads it. tao already locks this version.
@@ -66,6 +70,7 @@ libloading = "0.7.4"
 # undecorated_resizing.rs, plan 041). tao already locks this version with
 # these features.
 [target.'cfg(windows)'.dependencies]
+window-vibrancy = "=0.6.0"
 windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_System_LibraryLoader", "Win32_UI_HiDpi", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 # Strict linting: deny fails builds but allows targeted #[allow] for FFI

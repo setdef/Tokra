@@ -33,7 +33,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Manager#resources_table` abstract method for unified interface
 - `App`, `Window`, and `Webview` are full `Manager`s, as in Tauri: `manage`,
   `state`, `try_state`, `config`, and the window and webview lookups reach the
-  app from whichever handle you hold
+  app from whichever handle you hold; `Window#webviews` answers that window's
+  own webviews as an Array, as Tauri's does
 - `Tokra::PluginStore` routes `plugin:NAME|command` invokes to the named plugin
 - `AppHandle#plugin(plugin)` registers a plugin for IPC dispatch
 - `AppHandle#remove_plugin(name)` unregisters a plugin by name
@@ -332,6 +333,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Dependency: muda 0.17.1, with its libxdo feature
 - On Linux, libxdo is a new build (`libxdo-dev`) and run-time (`libxdo3`)
   dependency
+- `Window#set_effects` with `Tokra::Effect`, `EffectState`,
+  `WindowEffectsConfig`, and `EffectsBuilder`: macOS vibrancy and Windows
+  Mica, Tabbed, Blur, and Acrylic
+- `Window#set_progress_bar` with `Tokra::ProgressBarState` and
+  `ProgressBarStatus`; `Window#set_badge_count`; on macOS
+  `Window#set_badge_label`; on Windows `Window#set_overlay_icon`
+- `Window#set_title_bar_style` with `Tokra::TitleBarStyle`
+- `App#set_theme` and `AppHandle#set_theme`, which theme the whole app and,
+  on Windows, every window's menu bar
+- `Native::Window#set_effects`, `#set_progress_bar`, `#set_badge_count`,
+  `#set_title_bar_style`, `#set_badge_label` (macOS), and
+  `#set_overlay_icon` (Windows); `Native::EventLoop#set_theme`
+- Dependency: window-vibrancy 0.6.0 on macOS and Windows
 
 ### Changed
 

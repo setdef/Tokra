@@ -52,8 +52,16 @@ class TestManagerDelegation < Minitest::Test
       assert_same @handle.get_window("main"), manager.get_window("main"), kind
       assert_same @handle.get_webview("main"), manager.get_webview("main"), kind
       assert_equal @handle.windows, manager.windows, kind
+      next if kind == "Window"
+
       assert_equal @handle.webviews, manager.webviews, kind
     end
+  end
+
+  # Tauri's Window has its own webviews, the ones in that window, as a
+  # list (window/mod.rs:1071-1081), in place of the trait's map.
+  def test_a_windows_webviews_are_its_own
+    assert_equal [@handle.get_webview("main")], @handle.get_window("main").webviews
   end
 
   def test_each_manager_reaches_the_app_handle

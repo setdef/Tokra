@@ -405,8 +405,18 @@ set_enabled: :is_enabled,
       set_window_icon
       set_background_color
       set_shadow
+      set_effects
+      set_progress_bar
+      set_badge_count
+      set_title_bar_style
     ].each do |setter|
       define_method(setter) { |*args| request(setter, *args) }
+    end
+
+    # The platform-only setters, defined only where Native::Window has
+    # them (plan 045, decision 5).
+    %i[set_badge_label set_overlay_icon].each do |setter|
+      define_method(setter) { |*args| request(setter, *args) } if Tokra::Native::Window.method_defined?(setter)
     end
 
     # Records a setter's arguments, and runs its change, unless closed.
@@ -507,6 +517,13 @@ set_enabled: :is_enabled,
       return nil if @ended
 
       [[Window::MONITOR, Window::SIDE_MONITOR].find { |(_, (left, top), (width, height))| x.between?(left, left + width - 1) && y.between?(top, top + height - 1) }]
+    end
+
+    # Records the app's theme, as tao's window target takes it, until the
+    # run has ended.
+    def set_theme(name)
+      StubNative.event_loop_calls << [:set_theme, name] unless @ended
+      nil
     end
 
     # Records the policy's name, as tao's macOS loop keeps it for launch.

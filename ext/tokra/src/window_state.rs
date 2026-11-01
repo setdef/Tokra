@@ -62,7 +62,7 @@ pub fn position((physical, x, y): Dimensions) -> Position {
 /// # Panics
 ///
 /// Panics outside the Ruby VM, as `runtime_error` does.
-fn argument_error(message: String) -> Error {
+pub fn argument_error(message: String) -> Error {
     let ruby = magnus::Ruby::get().expect("Ruby VM not initialized");
     Error::new(ruby.exception_arg_error(), message)
 }
@@ -83,7 +83,7 @@ const fn theme_name(theme: Theme) -> &'static str {
 
 /// tao's theme for a `Tokra::Theme` name, or `None` to follow the system,
 /// as `to_tao_theme` maps it (`src/lib.rs:5224-5230`).
-fn theme(name: Option<&str>) -> Result<Option<Theme>, Error> {
+pub fn theme(name: Option<&str>) -> Result<Option<Theme>, Error> {
     match name {
         None => Ok(None),
         Some("Light") => Ok(Some(Theme::Light)),

@@ -96,6 +96,7 @@ module Tokra
     def start_dragging: () -> nil
     def start_resize_dragging: (ResizeDirection direction) -> nil
     def set_theme: (Theme? theme) -> nil
+    def theme_menu: (String? name) -> nil
     def is_enabled: () -> bool
     def set_enabled: (bool enabled) -> nil
     def cursor_position: () -> PhysicalPosition
@@ -103,6 +104,11 @@ module Tokra
     def set_icon: (Image image) -> nil
     def set_background_color: (Color? color) -> nil
     def set_shadow: (bool enable) -> nil
+    def set_effects: (WindowEffectsConfig? effects) -> nil
+    def set_progress_bar: (ProgressBarState progress_state) -> nil
+    def set_badge_count: (Integer? count) -> nil
+    def set_title_bar_style: (TitleBarStyle style) -> nil
+    def webviews: () -> Array[Webview]
     def close: () -> nil
     def destroy: () -> nil
     def window_handle: () -> RawWindowHandle::window_handle
@@ -121,5 +127,6 @@ module Tokra
     def position_dimensions: (LogicalPosition | PhysicalPosition position) -> Native::Window::dimensions
     def unit_dimension: (pixel_unit unit) -> Native::Window::unit
     def expect: (Object value, Module type) -> nil
+    def desktop_filename: () -> String
   end
 end

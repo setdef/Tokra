@@ -11,6 +11,7 @@ module Tokra
       def primary_monitor: () -> [Window::monitor?]?
       def monitor_from_point: (Float, Float) -> [Window::monitor?]?
       def available_monitors: () -> Array[Window::monitor]?
+      def set_theme: (String?) -> nil
     end
 
     class Icon
@@ -92,6 +93,13 @@ module Tokra
       def set_window_icon: (Icon) -> nil
       def set_background_color: (rgba?) -> nil
       def set_shadow: (bool) -> nil
+
+      type effects = [Array[String], String?, Float?, rgba?]
+
+      def set_effects: (effects?) -> nil
+      def set_progress_bar: (String?, Integer?, String?) -> nil
+      def set_badge_count: (Integer?, String?) -> nil
+      def set_title_bar_style: (String) -> nil
     end
 
     class WebView
