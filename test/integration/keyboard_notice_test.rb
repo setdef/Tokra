@@ -108,6 +108,14 @@ class KeyboardNoticeTest < Minitest::Test
   end
 
   def test_a_marker_from_a_live_process_means_someone_already_warned
+    File.write(@marker_path, "#{::Process.pid} 0")
+    new_desk.taking_the_keyboard
+    assert_empty @said
+    assert_equal ::Process.pid, marker_pid
+  end
+
+  def test_a_marker_from_a_process_we_may_not_signal_still_means_someone_already_warned
+    skip "Windows has no pid 1 to refuse the signal with EPERM" if Gem.win_platform?
     File.write(@marker_path, "1 0")
     new_desk.taking_the_keyboard
     assert_empty @said
@@ -194,7 +202,7 @@ class KeyboardNoticeTest < Minitest::Test
     log_reader, log_writer = IO.pipe
     desk = new_desk(err: log_writer)
     Open3.popen2(RbConfig.ruby, "-e", HOLDER, @lock_path) do |child_in, child_out, child|
-      assert_equal "locked\n", child_out.gets
+      assert_equal "locked", child_out.gets&.chomp
       span = Thread.new do
         desk.taking_the_keyboard(speak: false) { child_out.read_nonblock(100, exception: false) }
       end
@@ -202,7 +210,7 @@ class KeyboardNoticeTest < Minitest::Test
       assert_equal "#{KeyboardNotice::WAITING}\n", log_reader.gets
 
       child_in.puts "go"
-      assert_equal "releasing\n", span.value
+      assert_equal "releasing", span.value.chomp
       assert_predicate child.value, :success?
     end
   end
