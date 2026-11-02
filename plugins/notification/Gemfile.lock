@@ -1,19 +1,19 @@
 GIT
   remote: https://github.com/setdef/Ferro
-  revision: 38dcdcb35402b0fac0d645da6f3de4f4c4be82f2
-  tag: ferro-notify-rust/v0.1.0.pre.3
+  revision: e21d037a4ff0e06f3f8472620fabbfddce220160
+  tag: ferro-notify-rust/v0.1.0.pre.4
   glob: gems/notify-rust/*.gemspec
   specs:
-    ferro-notify-rust (0.1.0.pre.3)
+    ferro-notify-rust (0.1.0.pre.4)
       rb_sys (~> 0.9.129)
 
 GIT
   remote: https://github.com/setdef/Ferro
-  revision: dac0c6104362cadd5dca4d1fc6dcbdf003b0cc80
-  tag: ferro-time/v0.1.0.pre.1
+  revision: 1ddea26291a34c1f6fcd64b5d0411f64dcb2710c
+  tag: ferro-time/v0.1.0.pre.3
   glob: gems/time/*.gemspec
   specs:
-    ferro-time (0.1.0.pre.1)
+    ferro-time (0.1.0.pre.3)
       rb_sys (~> 0.9.129)
 
 GIT
@@ -35,8 +35,8 @@ PATH
   remote: .
   specs:
     tokra-notification (0.0.1.pre.1)
-      ferro-notify-rust (= 0.1.0.pre.3)
-      ferro-time (= 0.1.0.pre.1)
+      ferro-notify-rust (= 0.1.0.pre.4)
+      ferro-time (= 0.1.0.pre.3)
       ferro-url (= 0.1.0.pre.1)
       tokra (~> 0.0)
 
@@ -73,8 +73,8 @@ DEPENDENCIES
 CHECKSUMS
   bundler (4.0.20) sha256=7978a8ac648767f5e635bc522445b79e80a52b907a39a36c2d8085ed6bc762ae
   drb (2.2.3) sha256=0b00d6fdb50995fe4a45dea13663493c841112e4068656854646f418fda13373
-  ferro-notify-rust (0.1.0.pre.3)
-  ferro-time (0.1.0.pre.1)
+  ferro-notify-rust (0.1.0.pre.4)
+  ferro-time (0.1.0.pre.3)
   ferro-url (0.1.0.pre.1)
   fiddle (1.1.8) sha256=7fa8ee3627271497f3add5503acdbc3f40b32f610fc1cf49634f083ef3f32eee
   minitest (6.0.6) sha256=153ea36d1d987a62942382b61075745042a2b3123b1cd48f4c3675af9cc7d6f1

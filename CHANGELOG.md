@@ -182,8 +182,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   macOS names the app by its identifier, Windows names none; an
   `Attachment` holds its URL as a `Ferro::Url::Url`, and `Schedule::At`
   its date as a `Ferro::Time::OffsetDateTime`; it is pure Ruby and
-  depends on `ferro-notify-rust` 0.1.0.pre.3 (notify-rust 4.18.2),
-  `ferro-url` 0.1.0.pre.1 (url 2.5.8), and `ferro-time` 0.1.0.pre.1 (time
+  depends on `ferro-notify-rust` 0.1.0.pre.4 (notify-rust 4.18.2),
+  `ferro-url` 0.1.0.pre.1 (url 2.5.8), and `ferro-time` 0.1.0.pre.3 (time
   0.3.55), which apps take from their git tags until they are on
   RubyGems.org
 - `Tokra::PermissionState` (`Granted`, `Denied`, `Prompt`,
