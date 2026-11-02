@@ -44,9 +44,9 @@ class TestBuilderIpcProtocol < Minitest::Test
     )
   end
 
-  private def run_with(app, event)
+  private def run_with(app, event, &)
     StubNative.inject_event(event)
-    app.run
+    app.run(&)
   end
 
   private def last_response
@@ -78,12 +78,16 @@ class TestBuilderIpcProtocol < Minitest::Test
   def test_percent_encoded_plugin_command_resolves_rid
     app = Tokra::Builder.default.build(native: StubNative)
     # convertFileSrc percent-encodes the whole command into the path.
+    # Read as the run callback hears Exit: cleanup_before_exit clears the
+    # table right after (app.rs:1304-1307).
+    rid = nil
     run_with(app, ipc_request(app,
       cmd: "plugin:image|new",
       uri: "ipc://localhost/plugin%3Aimage%7Cnew",
-      body: JSON.generate("rgba" => [255, 0, 0, 255], "width" => 1, "height" => 1)))
+      body: JSON.generate("rgba" => [255, 0, 0, 255], "width" => 1, "height" => 1))) do |handle, event|
+      rid = handle.webviews["main"].resources_table.names.to_a.first[0] if event.is_a?(Tokra::RunEvent::Exit)
+    end
 
-    rid = app.handle.webviews["main"].resources_table.names.to_a.first[0]
     _id, status, headers, body = last_response
     assert_equal 200, status
     assert_equal "ok", headers.to_h["Tauri-Response"]

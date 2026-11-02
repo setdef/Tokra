@@ -44,7 +44,7 @@ class ExitPathsTest < RealApp::TestCase
 
   def exited
     self.class.fixture_run(:exited) do
-      RealApp.launch("exit_paths", "--exit-code=#{EXIT_CODE}", "--raise-on-page-load")
+      RealApp.launch("exit_paths", "--exit-code=#{EXIT_CODE}", "--raise-on-page-load", "--report-visibility")
     end
   end
 
@@ -68,8 +68,19 @@ class ExitPathsTest < RealApp::TestCase
   def test_plugins_hear_ready_then_the_exit_request_then_exit_and_ruby_runs_its_own_exit
     run = exited
     assert_finished run
-    assert_equal ["EVENT ready", "REPORT", "EVENT exit-requested #{EXIT_CODE}", "EVENT exit", "AT_EXIT"], run.kinds,
-      run.describe
+    assert_equal ["EVENT ready", "REPORT", "EVENT exit-requested #{EXIT_CODE}", "EVENT exit", "AT_EXIT"],
+      run.kinds.grep_v(/\AVISIBLE /), run.describe
+  end
+
+  # Tauri's cleanup_before_exit hides each window on Windows only, to stop
+  # WebView2's white flash as the window closes (app.rs:1030-1034, commit
+  # 6c047aee1; plan 049, decision 3). The window is still alive when
+  # Ruby's at_exit runs, so it answers.
+  def test_the_cleanup_hides_the_window_on_windows_only
+    run = exited
+    assert_finished run
+    windows = RbConfig::CONFIG["host_os"].match?(/mswin|mingw|cygwin/)
+    assert_equal "VISIBLE #{!windows}", run.lines.last, run.describe
   end
 
   def test_an_exception_in_an_event_handler_is_reported_and_the_loop_survives

@@ -38,6 +38,7 @@ module Tokra
     attr_reader handle: AppHandle
 
     def invoke_key: () -> String
+    def cleanup_before_exit: () -> nil
     def app_handle: () -> AppHandle
     def resources_table: () -> ResourceTable
     def initialize: (Builder builder, ?native: Module) -> void

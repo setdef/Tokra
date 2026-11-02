@@ -61,6 +61,21 @@ module Tokra
       @manager.invoke_key
     end
 
+    # Runs necessary cleanup tasks before exiting the process, and returns
+    # +nil+, as AppHandle#cleanup_before_exit does. <b>You should always
+    # exit the Tokra app immediately after this method returns and not use
+    # any Tokra APIs.</b>
+    #
+    # Mirrors Tauri's App::cleanup_before_exit (app.rs:1024-1038, 1114).
+    #
+    # === Example
+    #
+    #   app.cleanup_before_exit
+    #   Process.exit!(0)
+    def cleanup_before_exit
+      @handle.cleanup_before_exit
+    end
+
     # Runs the block on the main thread and returns +nil+, as
     # AppHandle#run_on_main_thread does.
     #
@@ -627,9 +642,9 @@ module Tokra
         # following it (app.rs:1306-1310); one that exits does, as
         # process::exit would.
         reporting { emit_run_event(RunEvent::Exit.new, callback) }
-        # Tauri's cleanup_before_exit drops every tray here (app.rs:1303-1307;
-        # plan 043, decision 7).
-        reporting { @handle.cleanup_trays }
+        # Then Tauri's cleanup_before_exit, before a requested restart
+        # (app.rs:1304-1311; plan 049, decision 4).
+        reporting { @handle.cleanup_before_exit }
         Tokra::Process.restart(env) if @restart_pending
       end
       nil

@@ -127,9 +127,13 @@ class TestBuilderPluginRouting < Minitest::Test
       "cmd" => "plugin:image|new",
       "payload" => { "rgba" => [255, 0, 0, 255], "width" => 1, "height" => 1 })
 
-    app.run
+    # Read as the run callback hears Exit: cleanup_before_exit clears the
+    # table right after (app.rs:1304-1307).
+    entries = nil
+    app.run do |handle, event|
+      entries = handle.webviews["main"].resources_table.names.to_a if event.is_a?(Tokra::RunEvent::Exit)
+    end
 
-    entries = app.handle.webviews["main"].resources_table.names.to_a
     assert_equal 1, entries.size, "plugin:image|new should store an image without user setup"
     assert_equal "Tokra::Image", entries.first[1]
   ensure

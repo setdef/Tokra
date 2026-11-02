@@ -28,7 +28,7 @@ module Tokra
     def on_tray_icon_event: () { (AppHandle, Tray::TrayIconEvent::event) -> void } -> nil
     def tray_by_id: (Tray::TrayIconId | String id) -> Tray::TrayIcon?
     def remove_tray_by_id: (Tray::TrayIconId | String id) -> Tray::TrayIcon?
-    def cleanup_trays: () -> nil
+    def cleanup_before_exit: () -> nil
     def on_menu_event: () { (AppHandle, Menu::MenuEvent) -> void } -> nil
     def menu: () -> Menu::Menu?
     def set_menu: (Menu::Menu menu) -> Menu::Menu?
@@ -71,5 +71,6 @@ module Tokra
     def remove_menu_from_stash_by_id: (Menu::MenuId? id) -> nil
     def on_nsapp: () { () -> void } -> nil
     def window_target_getter: [T < Object] () { (Native::EventLoop) -> T? } -> T
+    def hide_before_exit: (Window window) -> nil
   end
 end

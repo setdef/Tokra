@@ -295,11 +295,13 @@ class TestTray < Minitest::Test
     assert_equal [:second], Thread.current[:heard]
   end
 
-  # Tauri's cleanup_before_exit drops every tray once the run callback has
-  # heard Exit (app.rs:1303-1307; plan 043, decision 7).
+  # Tauri's cleanup_before_exit drops every tray and clears the app's
+  # table once the run callback has heard Exit (app.rs:1304-1311; plan
+  # 043, decision 7; plan 049, decision 4).
   def test_the_exit_takes_every_tray_off_after_the_run_callback_hears_it
     Thread.current[:at_exit] = nil
     trays = []
+    rid = nil
     @app.run do |handle, event|
       case event
       when Tokra::RunEvent::Ready
@@ -307,11 +309,14 @@ class TestTray < Minitest::Test
         trays << Tokra::Tray::TrayIconBuilder.with_id("b").build(handle)
         Tokra::Tray::TrayIconBuilder.with_id("taken").build(handle)
         handle.resources_table.take(handle.tray_manager.tray_resource_by_id("taken"))
-      when Tokra::RunEvent::Exit then Thread.current[:at_exit] = trays.map { |tray| tray.native.removed? }
+        rid = handle.resources_table.add(image)
+      when Tokra::RunEvent::Exit
+        Thread.current[:at_exit] = [*trays.map { |tray| tray.native.removed? }, handle.resources_table.has?(rid)]
       end
     end
 
-    assert_equal [false, false], Thread.current[:at_exit]
+    assert_equal [false, false, true], Thread.current[:at_exit]
+    refute @handle.resources_table.has?(rid), "cleanup_before_exit clears the app's table (app.rs:1029)"
     assert(trays.all? { |tray| tray.native.removed? })
     assert_nil @handle.tray_by_id("a")
     assert_nil @handle.tray_manager.tray_resource_by_id("taken"),

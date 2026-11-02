@@ -95,8 +95,10 @@ module Tokra
     end
 
     # Closes every tray, as Tauri's cleanup_before_exit drops them by
-    # clearing the app's resources table (app.rs:1026-1028; plan 043,
-    # decision 7).
+    # clearing the app's resources table (app.rs:1026-1029; plan 043,
+    # decision 7). This is the first step of
+    # AppHandle#cleanup_before_exit, before it clears the tables (plan 049,
+    # decision 2).
     def close_all(app)
       entries = @mutex.synchronize { @icons.dup }
       entries.each do |entry|

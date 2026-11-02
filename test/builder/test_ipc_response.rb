@@ -78,9 +78,13 @@ class TestBuilderIpcResponse < Minitest::Test
       "error" => 66,
       "payload" => { "rgba" => [255, 0, 0, 255], "width" => 1, "height" => 1 })
 
-    app.run
+    # Read as the run callback hears Exit: cleanup_before_exit clears the
+    # table right after (app.rs:1304-1307).
+    rid = nil
+    app.run do |handle, event|
+      rid = handle.webviews["main"].resources_table.names.to_a.first[0] if event.is_a?(Tokra::RunEvent::Exit)
+    end
 
-    rid = app.handle.webviews["main"].resources_table.names.to_a.first[0]
     assert_equal ["window.__TAURI_INTERNALS__.runCallback(55, #{rid})"],
       webview_evals(app), "plugin:image|new should resolve its rid through the callback"
   ensure

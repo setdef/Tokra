@@ -434,7 +434,7 @@ module Tokra
     def exit(code = 0)
       @runtime_context.request_exit(code)
     rescue Error::Runtime
-      cleanup_trays
+      cleanup_before_exit
       Kernel.exit(code)
     end
 
@@ -449,9 +449,13 @@ module Tokra
     # be delivered in order, so this skips them and restarts at once; the
     # Kernel.exit that ends the process still runs +ensure+ clauses, and
     # inside the event loop RunEvent::Exit follows it as it follows any
-    # exit. Called on any other thread, it asks the loop and then waits
-    # there for the loop to end the process. Use #request_restart to have
-    # the events delivered reliably.
+    # exit. That RunEvent::Exit runs after #cleanup_before_exit, so its
+    # handlers find the app's, windows', and webviews' resource tables
+    # empty (and on Windows the windows hidden); Tauri never reaches that
+    # state, because its process::restart never returns. Called on any
+    # other thread, it asks the loop and then waits there for the loop to
+    # end the process. Use #request_restart to have the events delivered
+    # reliably.
     #
     # Mirrors Tauri's AppHandle::restart (app.rs:540-570).
     #
@@ -462,7 +466,7 @@ module Tokra
       if @runtime_context.main_thread?
         # The process ends here, so the loop's end must not restart it again.
         @restart_on_exit = false
-        cleanup_trays
+        cleanup_before_exit
         Tokra::Process.restart(env)
       end
 
@@ -471,7 +475,7 @@ module Tokra
       begin
         @runtime_context.request_exit(RESTART_EXIT_CODE)
       rescue Error::Runtime
-        cleanup_trays
+        cleanup_before_exit
         Tokra::Process.restart(env)
       end
       loop { sleep }
@@ -500,9 +504,63 @@ module Tokra
       @runtime_context.request_exit(RESTART_EXIT_CODE)
       nil
     rescue Error::Runtime
-      cleanup_trays
+      cleanup_before_exit
       Tokra::Process.restart(env)
     end
+
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: cleanup_before_exit adapted from tauri/crates/tauri/src/app.rs
+
+    # Runs necessary cleanup tasks before exiting the process, and returns
+    # +nil+. <b>You should always exit the Tokra app immediately after this
+    # method returns and not use any Tokra APIs.</b>
+    #
+    # Call it when you end the process yourself, without the event loop:
+    # #exit and #request_restart call it themselves only once the loop has
+    # ended, and otherwise the loop's end calls it (App#run); #restart
+    # calls it on the main thread. In order it takes every tray off the
+    # system tray, then clears the app's resources table, then each
+    # window's, hiding each window on Windows, then each webview's.
+    # Clearing calls no resource's +close+: a rid simply stops resolving,
+    # so a later <tt>resources_table.get</tt> raises Error::BadResourceId.
+    # A tray that fails to close, or a window that fails to hide, is
+    # skipped: the app is ending. Running it twice does no harm.
+    #
+    # The hide stops the white flash a closing WebView2 window shows on
+    # Windows. From another thread once the event loop has ended, it cannot
+    # reach the window, and the window stays as it was.
+    #
+    # Mirrors Tauri's cleanup_before_exit (app.rs:1024-1038). Tauri's
+    # cleared table drops each tray, its last owner; Ruby's collector would
+    # free one only later, so the trays are closed first (plan 043,
+    # decision 7; plan 049, decisions 2-3).
+    #
+    # === Example
+    #
+    #   handle.cleanup_before_exit
+    #   Process.exit!(0)
+    def cleanup_before_exit
+      @tray_manager.close_all(self)
+      resources_table.clear
+      windows.values.each do |window|
+        window.resources_table.clear
+        hide_before_exit(window) if Menu.os == :windows
+      end
+      webviews.values.each { |webview| webview.resources_table.clear }
+      nil
+    end
+
+    # Hides +window+, ignoring a failure, as Tauri's <tt>let _ =
+    # window.hide()</tt> does (app.rs:1032-1033).
+    private def hide_before_exit(window)
+      window.hide
+    rescue Error
+      nil
+    end
+
+    # SPDX-SnippetEnd
 
     # SPDX-SnippetBegin
     # SPDX-License-Identifier: Apache-2.0 OR MIT
@@ -692,14 +750,6 @@ module Tokra
     #   handle.remove_tray_by_id("main")
     def remove_tray_by_id(id)
       @tray_manager.remove_tray_by_id(self, id)
-    end
-
-    # Takes every tray off the system tray, as Tauri's cleanup_before_exit
-    # does by dropping them before the process ends (app.rs:1026-1028;
-    # plan 043, decision 7). A tray that fails to close is skipped: the
-    # app is ending.
-    def cleanup_trays # :nodoc:
-      @tray_manager.close_all(self)
     end
 
     # SPDX-SnippetEnd

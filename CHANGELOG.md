@@ -357,6 +357,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `#remove_tray_by_id`; `Builder#on_tray_icon_event`; `RunEvent::TrayIconEvent`
 - A closed or removed tray leaves the system tray at once, and every tray
   leaves it as the app exits
+- `App#cleanup_before_exit` and `AppHandle#cleanup_before_exit`, for an app
+  that ends its process itself
 - The core `tray` plugin, so the `TrayIcon` class of `@tauri-apps/api` works
 - `Error::Tray` and `Error::BadTrayIcon`
 - `Native::TrayIcon`, `Native::TrayIcon::Icon`, and `Native::TrayIconEvent`;
@@ -382,6 +384,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- As the app exits, the app's, each window's, and each webview's resources
+  tables are cleared without calling `close`, and on Windows each window is
+  hidden
 - `Rack::Handler::Tokra.run` now builds a `Tokra::Builder`, so Rack apps get
   IPC responses and injected scripts; its `invoke_handler` receives an
   `Ipc::Invoke` and must be Ractor-shareable (breaking)

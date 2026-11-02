@@ -17,14 +17,23 @@
 # --run-callback passes Builder#run a callback that prints RUN exit when it
 # hears RunEvent::Exit.
 #
+# --report-visibility prints VISIBLE true or VISIBLE false after AT_EXIT:
+# whether the native main window is still shown once the loop has ended
+# and App#cleanup_before_exit has run, which hides it on Windows only
+# (plan 049, decision 3).
+#
 # To close the window by hand (the one exit path the tests cannot drive):
 #
 #   bundle exec ruby test/integration/fixtures/exit_paths/app.rb --wait
 
 require_relative "../../support/fixture_app"
 
-options = FixtureApp.options(ARGV, :raise_on_page_load, :run_callback)
-at_exit { puts "AT_EXIT" }
+options = FixtureApp.options(ARGV, :raise_on_page_load, :run_callback, :report_visibility)
+app = nil
+at_exit do
+  puts "AT_EXIT"
+  puts "VISIBLE #{app.get_window('main').native.is_visible}" if options[:report_visibility] && app
+end
 
 builder = FixtureApp.builder(FixtureApp::Site.new(__dir__, options), "exit paths")
   .invoke_handler(&Ractor.shareable_proc { |invoke|
@@ -40,8 +49,9 @@ if options[:raise_on_page_load]
   })
 end
 
+app = builder.build
 if options[:run_callback]
-  builder.run { |_app, event| puts "RUN exit" if event.is_a?(Tokra::RunEvent::Exit) }
+  app.run { |_app, event| puts "RUN exit" if event.is_a?(Tokra::RunEvent::Exit) }
 else
-  builder.run
+  app.run
 end
