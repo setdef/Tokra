@@ -174,6 +174,21 @@ module Tokra
         icon
 ].freeze
 
+      # The AboutMetadata keyword each page field fills.
+      ABOUT_KEYWORDS = {
+        "name" => :name,
+        "version" => :version,
+        "shortVersion" => :short_version,
+        "authors" => :authors,
+        "comments" => :comments,
+        "copyright" => :copyright,
+        "license" => :license,
+        "website" => :website,
+        "websiteLabel" => :website_label,
+        "credits" => :credits,
+        "icon" => :icon,
+      }.freeze
+
       # A page's existing item: <tt>[rid, kind]</tt>.
       ExistingItem = Data.define(:rid, :kind) # :nodoc:
       # A Predefined item to make (plugin.rs:270-274).
@@ -357,7 +372,7 @@ module Tokra
       private def popup(invoke)
         rid = rid_arg(invoke)
         kind = kind_arg(invoke)
-        label = argument(invoke, "window").deserialize_option { |value| string(value) }
+        label = argument(invoke, "window").deserialize_option { |value| Ipc::Serde.string(value) }
         at = argument(invoke, "at").deserialize_option { |value| position(value) }
         webview = invoke.webview
         window = label ? webview.app_handle.get_window(label) : webview.window
@@ -385,7 +400,7 @@ module Tokra
       # caller's, and +nil+ when no window has that label.
       private def set_as_window_menu(invoke)
         rid = rid_arg(invoke)
-        label = argument(invoke, "window").deserialize_option { |value| string(value) }
+        label = argument(invoke, "window").deserialize_option { |value| Ipc::Serde.string(value) }
         webview = invoke.webview
         window = label ? webview.app_handle.get_window(label) : webview.window
         return nil unless window
@@ -398,21 +413,21 @@ module Tokra
       # +set_text+ (plugin.rs:750-759).
       private def set_text(invoke)
         text = nil #: String?
-        read = -> { text = argument(invoke, "text").deserialize { |value| string(value) } }
+        read = -> { text = argument(invoke, "text").deserialize { |value| Ipc::Serde.string(value) } }
         with_menu_item(invoke, ALL_ITEMS, after: read) { |item| item.set_text(text.to_s) }
       end
 
       # +set_enabled+ (plugin.rs:771-786).
       private def set_enabled(invoke)
         enabled = nil #: bool?
-        read = -> { enabled = argument(invoke, "enabled").deserialize { |value| boolean(value) } }
+        read = -> { enabled = argument(invoke, "enabled").deserialize { |value| Ipc::Serde.boolean(value) } }
         with_menu_item(invoke, ALL_ITEMS - ["Predefined"], after: read) { |item| enableable(item).set_enabled(enabled == true) }
       end
 
       # +set_accelerator+ (plugin.rs:788-803).
       private def set_accelerator(invoke)
         accelerator = nil #: String?
-        read = -> { accelerator = argument(invoke, "accelerator").deserialize_option { |value| string(value) } }
+        read = -> { accelerator = argument(invoke, "accelerator").deserialize_option { |value| Ipc::Serde.string(value) } }
         with_menu_item(invoke, %w[MenuItem Check Icon], after: read) do |item|
           with_accelerator = item #: MenuItem | CheckMenuItem | IconMenuItem
           with_accelerator.set_accelerator(accelerator)
@@ -453,7 +468,7 @@ module Tokra
       # +set_checked+ (plugin.rs:847-856).
       private def set_checked(invoke)
         item = check_item(invoke)
-        checked = argument(invoke, "checked").deserialize { |value| boolean(value) }
+        checked = argument(invoke, "checked").deserialize { |value| Ipc::Serde.boolean(value) }
         item.set_checked(checked)
         nil
       end
@@ -621,205 +636,74 @@ module Tokra
         argument(invoke, "kind").deserialize { |value| item_kind(value) }
       end
 
-      private def mismatch(message)
-        Ipc::CommandItem::Mismatch.new(message)
-      end
-
-      private def string(value)
-        value.is_a?(String) ? value : raise(Ipc::CommandItem::Mismatch.invalid_type(value, "a string"))
-      end
-
-      private def boolean(value)
-        case value
-        when true, false then value
-        else raise Ipc::CommandItem::Mismatch.invalid_type(value, "a boolean")
-        end
-      end
-
       private def usize(value)
         unless value.is_a?(Integer) && Ipc::Unexpected::JSON_INTEGERS.cover?(value)
           raise Ipc::CommandItem::Mismatch.invalid_type(value, "usize")
         end
-        raise mismatch("invalid value: integer `#{value}`, expected usize") if value.negative?
+        raise Ipc::CommandItem::Mismatch, "invalid value: integer `#{value}`, expected usize" if value.negative?
 
         value
       end
 
       private def menu_id(value)
-        MenuId.new(value: string(value))
-      end
-
-      # A unit-variant enum such as ItemKind, as serde_json reads it: a
-      # string, or a map of the one variant to +null+.
-      private def unit_enum(value, variants)
-        variant, content = enum_variant(value, variants)
-        raise Ipc::CommandItem::Mismatch.invalid_type(content, "unit") unless content.nil?
-
-        variant
-      end
-
-      # The variant and content of an externally tagged enum, as
-      # serde_json's deserialize_enum takes it; +content+ is +nil+ for a
-      # bare string.
-      private def enum_variant(value, variants)
-        case value
-        when String then [known_variant(value, variants), nil]
-        when Hash
-          raise mismatch("invalid value: map, expected map with a single key") unless value.size == 1
-
-          name, content = value.first #: [String, json_value]
-          [known_variant(name, variants), content]
-        else raise Ipc::CommandItem::Mismatch.invalid_type(value, "string or map")
-        end
-      end
-
-      # The variant +name+, or serde's unknown_variant error, which lists
-      # the variants as serde's OneOf does (serde_core 1.0.228
-      # de/mod.rs:2333-2356).
-      private def known_variant(name, variants)
-        return name if variants.include?(name)
-
-        names = variants.map { |v| "`#{v}`" }
-        expected = case names.size
-        when 1 then names.first
-        when 2 then names.join(" or ")
-        else "one of #{names.join(', ')}"
-        end
-        raise mismatch("unknown variant `#{name}`, expected #{expected}")
+        MenuId.new(value: Ipc::Serde.string(value))
       end
 
       # dpi's Position, an externally tagged enum of two newtype variants:
       # a PhysicalPosition of +i32+ or a LogicalPosition of +f64+, as
       # serde's derive and serde_json read it (dpi 0.1.2
-      # src/lib.rs:387-391, 463-467, 741-746; serde_json 1.0.145
-      # src/value/de.rs:1073-1083).
+      # src/lib.rs:387-391, 463-467, 741-746).
       private def position(value)
-        if value.is_a?(String)
-          known_variant(value, POSITION_VARIANTS)
-          raise mismatch("invalid type: unit variant, expected newtype variant")
-        end
-
-        variant, content = enum_variant(value, POSITION_VARIANTS)
+        variant, content = Ipc::Serde.enum_variant(value, POSITION_VARIANTS, newtype: POSITION_VARIANTS)
         if variant == "Physical"
-          x, y = position_fields(content, "PhysicalPosition") { |field| Ipc::CommandItem.integer(field, "i32") }
+          fields = Ipc::Serde.struct_fields(content, "PhysicalPosition", %w[x y]) { |_, raw| Ipc::CommandItem.integer(raw, "i32") }
+          x = fields["x"] #: Integer
+          y = fields["y"] #: Integer
           PhysicalPosition.new(x:, y:)
         else
-          x, y = position_fields(content, "LogicalPosition") { |field| f64(field) }
+          fields = Ipc::Serde.struct_fields(content, "LogicalPosition", %w[x y]) { |_, raw| Ipc::Serde.f64(raw) }
+          x = fields["x"] #: Float
+          y = fields["y"] #: Float
           LogicalPosition.new(x:, y:)
         end
       end
 
-      # A position's +x+ and +y+, each read by the block, as serde's derive
-      # reads a struct: from a map, its fields' errors in key order, then
-      # the first missing field; from a sequence, element by element, then
-      # serde_json's error for elements left over (src/value/de.rs:195-211).
-      private def position_fields(value, name, &read)
-        case value
-        when Hash
-          present = %w[x y].select { |key| value.key?(key) }
-          fields = present.map { |key| read.call(value[key]) }
-          missing = (%w[x y] - present).first
-          raise mismatch("missing field `#{missing}`") if missing
-
-          [fields.fetch(0), fields.fetch(1)]
-        when Array
-          fields = Array.new(2) do |index|
-            raise mismatch("invalid length #{index}, expected struct #{name} with 2 elements") if index >= value.size
-
-            read.call(value[index])
-          end
-          raise mismatch("invalid length #{value.size}, expected fewer elements in array") if value.size > 2
-
-          [fields.fetch(0), fields.fetch(1)]
-        else raise Ipc::CommandItem::Mismatch.invalid_type(value, "struct #{name}")
-        end
-      end
-
-      # A JSON number as Rust's +f64+: serde_json gives an integer or a
-      # float to an f64 visitor, and rejects anything else.
-      private def f64(value)
-        case value
-        when Integer, Float then Float(value)
-        else raise Ipc::CommandItem::Mismatch.invalid_type(value, "f64")
-        end
-      end
-
       private def item_kind(value)
-        unit_enum(value, ITEM_KINDS)
+        Ipc::Serde.unit_variant(value, ITEM_KINDS)
       end
 
-      # A Predefined variant, and the About item's metadata Hash or +nil+.
+      # A Predefined variant, and the About item's metadata Hash or +nil+:
+      # About is the one newtype variant, of an Option (plugin.rs:74-94).
       private def predefined(value)
-        if value.is_a?(String) && value == "About"
-          raise mismatch("invalid type: unit variant, expected newtype variant")
-        end
-
-        variant, content = enum_variant(value, PREDEFINED.keys)
-        if variant == "About"
-          [variant, content.nil? ? nil : about_fields(content)]
-        else
-          raise Ipc::CommandItem::Mismatch.invalid_type(content, "unit") unless content.nil?
-
-          [variant, nil]
-        end
+        variant, content = Ipc::Serde.enum_variant(value, PREDEFINED.keys, newtype: ["About"])
+        [variant, content.nil? ? nil : about_fields(content)]
       end
 
-      # The fields of a struct, from a map or, as serde's derive also
-      # takes, a sequence of exactly its fields in order.
-      private def struct_fields(value, name, fields)
-        case value
-        when Hash then value
-        when Array
-          unless value.size == fields.size
-            raise mismatch("invalid length #{value.size}, expected struct #{name} with #{fields.size} elements")
-          end
-
-          fields.zip(value).to_h
-        else raise Ipc::CommandItem::Mismatch.invalid_type(value, "struct #{name}")
-        end
-      end
-
-      private def required(hash, key)
-        raise mismatch("missing field `#{key}`") unless hash.key?(key)
-
-        yield hash[key]
-      end
-
-      private def optional(hash, key)
-        value = hash[key]
-        value.nil? ? nil : yield(value)
-      end
-
-      # AboutMetadata (plugin.rs:32-46), as keyword arguments.
+      # AboutMetadata (plugin.rs:32-46), every field an Option, as keyword
+      # arguments.
       private def about_fields(value)
-        hash = struct_fields(value, "AboutMetadata", ABOUT_FIELDS)
-        text = -> (key) { optional(hash, key) { |v| string(v) } }
-        {
-          name: text.call("name"),
-          version: text.call("version"),
-          short_version: text.call("shortVersion"),
-          authors: optional(hash, "authors") { |v| strings(v) },
-          comments: text.call("comments"),
-          copyright: text.call("copyright"),
-          license: text.call("license"),
-          website: text.call("website"),
-          website_label: text.call("websiteLabel"),
-          credits: text.call("credits"),
-          icon: optional(hash, "icon") { |v| JsImage.deserialize(v) },
-        }
+        fields = Ipc::Serde.struct_fields(value, "AboutMetadata", ABOUT_FIELDS, optional: ABOUT_FIELDS) do |field, raw|
+          case field
+          when "authors" then strings(raw)
+          when "icon" then JsImage.deserialize(raw)
+          else Ipc::Serde.string(raw)
+          end
+        end
+        ABOUT_FIELDS.to_h { |field| [ABOUT_KEYWORDS.fetch(field), fields[field]] }
       end
 
       private def strings(value)
         raise Ipc::CommandItem::Mismatch.invalid_type(value, "a sequence") unless value.is_a?(Array)
 
-        value.map { |item| string(item) }
+        value.map { |item| Ipc::Serde.string(item) }
       end
 
       private def channel_id(value)
-        text = string(value)
+        text = Ipc::Serde.string(value)
         Ipc::JavaScriptChannelId.from_str(text)
       rescue ArgumentError
-        raise mismatch("invalid channel value `#{text}`, expected a string in the `#{Ipc::Channel::IPC_PAYLOAD_PREFIX}ID` format")
+        raise Ipc::CommandItem::Mismatch,
+          "invalid channel value `#{text}`, expected a string in the `#{Ipc::Channel::IPC_PAYLOAD_PREFIX}ID` format"
       end
 
       # The Icon untagged enum (plugin.rs:175-180): a NativeIcon, by its
@@ -829,23 +713,43 @@ module Tokra
 
         JsImage.deserialize(value)
       rescue Ipc::CommandItem::Mismatch
-        raise mismatch("data did not match any variant of untagged enum Icon")
+        raise Ipc::CommandItem::Mismatch, "data did not match any variant of untagged enum Icon"
       end
 
-      # NewOptions (plugin.rs:342-354).
+      # The fields of the payload struct +name+ (Ipc::Serde.struct_fields),
+      # each read by #payload_field: every payload names a field the same
+      # way and gives it the same type.
+      private def payload_fields(value, name, fields, optional)
+        Ipc::Serde.struct_fields(value, name, fields, optional:) { |field, raw| payload_field(field, raw) }
+      end
+
+      # The payload field +field+, read from +raw+.
+      private def payload_field(field, raw)
+        case field
+        when "handler" then channel_id(raw)
+        when "id" then menu_id(raw)
+        when "enabled", "checked" then Ipc::Serde.boolean(raw)
+        when "icon" then icon(raw)
+        when "items" then payload_kinds(raw)
+        when "item" then predefined(raw)
+        else Ipc::Serde.string(raw)
+        end
+      end
+
+      # NewOptions (plugin.rs:342-354), every field an Option.
       private def new_options(value)
-        hash = struct_fields(value, "NewOptions", %w[id text enabled checked accelerator item icon items])
-        item, about = optional(hash, "item") { |v| predefined(v) }
-        NewOptions.new(
-          id: optional(hash, "id") { |v| menu_id(v) },
-          text: optional(hash, "text") { |v| string(v) },
-          enabled: optional(hash, "enabled") { |v| boolean(v) },
-          checked: optional(hash, "checked") { |v| boolean(v) },
-          accelerator: optional(hash, "accelerator") { |v| string(v) },
-          item:, about:,
-          icon: optional(hash, "icon") { |v| icon(v) },
-          items: optional(hash, "items") { |v| payload_kinds(v) }
-        )
+        names = %w[id text enabled checked accelerator item icon items]
+        fields = payload_fields(value, "NewOptions", names, names)
+        id = fields["id"] #: MenuId?
+        text = fields["text"] #: String?
+        enabled = fields["enabled"] #: bool?
+        checked = fields["checked"] #: bool?
+        accelerator = fields["accelerator"] #: String?
+        predefined = fields["item"] #: [String, about_fields?]?
+        item, about = predefined
+        icon = fields["icon"] #: icon?
+        items = fields["items"] #: Array[payload]?
+        NewOptions.new(id:, text:, enabled:, checked:, accelerator:, item:, about:, icon:, items:)
       end
 
       # A sequence of MenuItemPayloadKind.
@@ -857,11 +761,15 @@ module Tokra
 
       # The <tt>(ResourceId, ItemKind)</tt> tuple.
       private def existing_item(value)
-        raise Ipc::CommandItem::Mismatch.invalid_type(value, "a tuple of size 2") unless value.is_a?(Array)
-        raise mismatch("invalid length #{value.size}, expected a tuple of size 2") if value.size < 2
-        raise mismatch("invalid length #{value.size}, expected fewer elements in array") if value.size > 2
-
-        [Ipc::CommandItem.integer(value[0], "u32"), item_kind(value[1])]
+        elements = Ipc::Serde.tuple(value, 2) do |index, raw|
+          case index
+          when 0 then Ipc::CommandItem.integer(raw, "u32")
+          else item_kind(raw)
+          end
+        end
+        rid = elements[0] #: Integer
+        kind = elements[1] #: String
+        [rid, kind]
       end
 
       # MenuItemPayloadKind, the untagged enum (plugin.rs:310-320): the
@@ -872,7 +780,7 @@ module Tokra
         rescue Ipc::CommandItem::Mismatch
           next
         end
-        raise mismatch("data did not match any variant of untagged enum MenuItemPayloadKind")
+        raise Ipc::CommandItem::Mismatch, "data did not match any variant of untagged enum MenuItemPayloadKind"
       end
 
       private def existing_payload(value)
@@ -881,55 +789,56 @@ module Tokra
       end
 
       private def predefined_payload(value)
-        hash = struct_fields(value, "PredefinedMenuItemPayload", %w[item text])
-        item, about = required(hash, "item") { |v| predefined(v) }
-        PredefinedPayload.new(item:, about:, text: optional(hash, "text") { |v| string(v) })
+        fields = payload_fields(value, "PredefinedMenuItemPayload", %w[item text], %w[text])
+        predefined = fields["item"] #: [String, about_fields?]
+        item, about = predefined
+        text = fields["text"] #: String?
+        PredefinedPayload.new(item:, about:, text:)
       end
 
       private def check_payload(value)
-        hash = struct_fields(value, "CheckMenuItemPayload", %w[handler id text checked enabled accelerator])
-        CheckPayload.new(
-          handler: optional(hash, "handler") { |v| channel_id(v) },
-          id: optional(hash, "id") { |v| menu_id(v) },
-          text: required(hash, "text") { |v| string(v) },
-          checked: required(hash, "checked") { |v| boolean(v) },
-          enabled: optional(hash, "enabled") { |v| boolean(v) },
-          accelerator: optional(hash, "accelerator") { |v| string(v) }
-        )
+        fields = payload_fields(value, "CheckMenuItemPayload", %w[handler id text checked enabled accelerator],
+          %w[handler id enabled accelerator])
+        handler = fields["handler"] #: Ipc::JavaScriptChannelId?
+        id = fields["id"] #: MenuId?
+        text = fields["text"] #: String
+        checked = fields["checked"] #: bool
+        enabled = fields["enabled"] #: bool?
+        accelerator = fields["accelerator"] #: String?
+        CheckPayload.new(handler:, id:, text:, checked:, enabled:, accelerator:)
       end
 
       private def icon_payload(value)
-        hash = struct_fields(value, "IconMenuItemPayload", %w[handler id text icon enabled accelerator])
-        IconPayload.new(
-          handler: optional(hash, "handler") { |v| channel_id(v) },
-          id: optional(hash, "id") { |v| menu_id(v) },
-          text: required(hash, "text") { |v| string(v) },
-          icon: required(hash, "icon") { |v| icon(v) },
-          enabled: optional(hash, "enabled") { |v| boolean(v) },
-          accelerator: optional(hash, "accelerator") { |v| string(v) }
-        )
+        fields = payload_fields(value, "IconMenuItemPayload", %w[handler id text icon enabled accelerator],
+          %w[handler id enabled accelerator])
+        handler = fields["handler"] #: Ipc::JavaScriptChannelId?
+        id = fields["id"] #: MenuId?
+        text = fields["text"] #: String
+        icon = fields["icon"] #: icon
+        enabled = fields["enabled"] #: bool?
+        accelerator = fields["accelerator"] #: String?
+        IconPayload.new(handler:, id:, text:, icon:, enabled:, accelerator:)
       end
 
       private def submenu_payload(value)
-        hash = struct_fields(value, "SubmenuPayload", %w[id text enabled items icon])
-        SubmenuPayload.new(
-          id: optional(hash, "id") { |v| menu_id(v) },
-          text: required(hash, "text") { |v| string(v) },
-          enabled: optional(hash, "enabled") { |v| boolean(v) },
-          items: required(hash, "items") { |v| payload_kinds(v) },
-          icon: optional(hash, "icon") { |v| icon(v) }
-        )
+        fields = payload_fields(value, "SubmenuPayload", %w[id text enabled items icon], %w[id enabled icon])
+        id = fields["id"] #: MenuId?
+        text = fields["text"] #: String
+        enabled = fields["enabled"] #: bool?
+        items = fields["items"] #: Array[payload]
+        icon = fields["icon"] #: icon?
+        SubmenuPayload.new(id:, text:, enabled:, items:, icon:)
       end
 
       private def menu_item_payload(value)
-        hash = struct_fields(value, "MenuItemPayload", %w[handler id text enabled accelerator])
-        MenuItemPayload.new(
-          handler: optional(hash, "handler") { |v| channel_id(v) },
-          id: optional(hash, "id") { |v| menu_id(v) },
-          text: required(hash, "text") { |v| string(v) },
-          enabled: optional(hash, "enabled") { |v| boolean(v) },
-          accelerator: optional(hash, "accelerator") { |v| string(v) }
-        )
+        fields = payload_fields(value, "MenuItemPayload", %w[handler id text enabled accelerator],
+          %w[handler id enabled accelerator])
+        handler = fields["handler"] #: Ipc::JavaScriptChannelId?
+        id = fields["id"] #: MenuId?
+        text = fields["text"] #: String
+        enabled = fields["enabled"] #: bool?
+        accelerator = fields["accelerator"] #: String?
+        MenuItemPayload.new(handler:, id:, text:, enabled:, accelerator:)
       end
     end
   end

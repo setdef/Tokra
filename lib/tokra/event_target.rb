@@ -149,23 +149,17 @@ module Tokra
 
     # The target a command argument holds, read as serde reads an
     # internally tagged enum from serde_json's Value: an object whose
-    # +kind+ names the variant, or a sequence whose first element does,
-    # then the variant's +label+ from the rest (serde private/de.rs:810-886;
-    # serde_derive de/enum_internally.rs:46, de/struct_.rs:50).
+    # +kind+ names the variant, or a sequence whose first element does
+    # (Ipc::Serde.internally_tagged), then the variant's +label+ from the
+    # rest (serde_derive de/enum_internally.rs:46, de/struct_.rs:50).
     def self.read(item) # :nodoc:
       item.deserialize do |value|
-        case value
-        when Hash then from_map(value)
-        when Array then from_seq(value)
-        else raise Ipc::CommandItem::Mismatch.invalid_type(value, "internally tagged enum EventTarget")
-        end
+        kind, rest = Ipc::Serde.internally_tagged(value, "kind", "EventTarget", NAMES)
+        rest.is_a?(Hash) ? from_map(kind, rest) : from_seq(kind, rest)
       end
     end
 
-    def self.from_map(map)
-      raise Ipc::CommandItem::Mismatch, "missing field `kind`" unless map.key?("kind")
-
-      kind = variant(map["kind"])
+    def self.from_map(kind, map)
       return build(kind, nil) unless LABELED.include?(kind)
       raise Ipc::CommandItem::Mismatch, "missing field `label`" unless map.key?("label")
 
@@ -173,11 +167,7 @@ module Tokra
     end
     private_class_method :from_map
 
-    def self.from_seq(seq)
-      raise Ipc::CommandItem::Mismatch, "missing field `kind`" if seq.empty?
-
-      kind = variant(seq.first)
-      rest = seq.drop(1)
+    def self.from_seq(kind, rest)
       unless LABELED.include?(kind)
         # A unit variant reads the rest as an empty sequence (serde
         # private/de.rs:1092-1101; serde_core de/value.rs:1030-1042).
@@ -195,19 +185,6 @@ module Tokra
       build(kind, label)
     end
     private_class_method :from_seq
-
-    # The variant +tag+ names, as serde's variant identifier reads a
-    # string (serde_json value/de.rs:1025-1030).
-    def self.variant(tag)
-      raise Ipc::CommandItem::Mismatch.invalid_type(tag, "variant identifier") unless tag.is_a?(String)
-      unless NAMES.include?(tag)
-        raise Ipc::CommandItem::Mismatch,
-          "unknown variant `#{tag}`, expected one of #{NAMES.map { |name| "`#{name}`" }.join(', ')}"
-      end
-
-      tag
-    end
-    private_class_method :variant
 
     def self.build(kind, label)
       case kind

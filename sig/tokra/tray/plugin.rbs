@@ -45,14 +45,10 @@ module Tokra
       def argument: (Ipc::Invoke invoke, String key) -> Ipc::CommandItem
       def rid_arg: (Ipc::Invoke invoke) -> Integer
       def id_arg: (Ipc::Invoke invoke) -> String
-      def mismatch: (String message) -> Ipc::CommandItem::Mismatch
-      def string: (json_value value) -> String
-      def boolean: (json_value value) -> bool
       def path: (json_value value) -> String
       def menu_tuple: (json_value value) -> menu_tuple
-      def item_kind: (json_value value) -> String
       def options: (json_value value) -> Options
-      def optional: [T] (Hash[String, json_value] hash, String key) { (json_value) -> T } -> T?
+      def option_field: (String field, json_value raw) -> (String | menu_tuple | JsImage | bool)
     end
   end
 end

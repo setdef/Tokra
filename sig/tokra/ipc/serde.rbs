@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Ipc
+    module Serde
+      def self.known_variant: (String name, Array[String] variants) -> String
+      def self.unit_variant: (json_value value, Array[String] variants) -> String
+      def self.enum_variant: (json_value value, Array[String] variants, ?newtype: Array[String]) -> [String, json_value]
+      def self.internally_tagged: (json_value value, String tag, String enum_name, Array[String] variants)
+                                  -> [String, Hash[String, json_value] | Array[json_value]]
+      def self.struct_fields: [T] (json_value value, String name, Array[String] fields, ?optional: Array[String],
+                                   ?deny_unknown: bool) { (String field, json_value raw) -> T } -> Hash[String, T?]
+      def self.tuple: [T] (json_value value, Integer size) { (Integer index, json_value raw) -> T } -> Array[T]
+      def self.string: (json_value value) -> String
+      def self.borrowed_str: (json_value value) -> String
+      def self.boolean: (json_value value) -> bool
+      def self.f64: (json_value value) -> Float
+
+      private def self.one_of: (Array[String] names) -> String
+      private def self.variant_identifier: (json_value tag, Array[String] variants) -> String
+      private def self.map_fields: [T] (Hash[String, json_value] map, Array[String] fields, Array[String] optional, bool deny_unknown)
+                                   { (String field, json_value raw) -> T } -> Hash[String, T?]
+      private def self.seq_fields: [T] (Array[json_value] seq, String name, Array[String] fields, Array[String] optional)
+                                   { (String field, json_value raw) -> T } -> Hash[String, T?]
+      private def self.field: [T] (String key, json_value raw, Array[String] optional) { (String field, json_value raw) -> T } -> T?
+    end
+  end
+end

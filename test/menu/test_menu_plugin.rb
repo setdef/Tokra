@@ -81,6 +81,47 @@ class TestMenuPlugin < Minitest::Test
       "new", { "kind" => "MenuItem" }, false
   end
 
+  # serde's derive reads the fields it wants from a sequence, and
+  # serde_json then rejects any left over (serde_json 1.0.145
+  # src/value/de.rs:731-746).
+  def test_a_struct_sequence_with_elements_left_over_rejects_as_serde_json_does
+    assert_rejects "invalid args `options` for command `new`: invalid length 9, expected fewer elements in array",
+      "new", "kind" => "MenuItem", "options" => Array.new(9)
+    assert_rejects "invalid args `options` for command `new`: invalid length 12, expected fewer elements in array",
+      "new", "kind" => "Predefined", "options" => { "item" => { "About" => Array.new(12) } }
+  end
+
+  # serde's derive reads a sequence element by element, so a bad element
+  # fails before the sequence runs short (serde_derive 1.0.228
+  # src/de.rs:450-505).
+  def test_a_struct_sequence_reads_element_by_element
+    assert_rejects "invalid args `options` for command `new`: invalid type: integer `1`, expected a string",
+      "new", "kind" => "MenuItem", "options" => [nil, 1]
+    assert_rejects "invalid args `options` for command `new`: invalid length 2, expected struct NewOptions with 8 elements",
+      "new", "kind" => "MenuItem", "options" => [nil, "Open"]
+  end
+
+  # serde's derive reads a map's fields in the map's key order, which
+  # serde_json's BTreeMap sorts, so of two bad fields the first key fails
+  # (serde_derive 1.0.228 src/de/struct_.rs).
+  def test_a_struct_map_reads_its_fields_in_key_order
+    assert_rejects "invalid args `options` for command `new`: invalid type: string \"yes\", expected a boolean",
+      "new", "kind" => "MenuItem", "options" => { "enabled" => "yes", "text" => 1 }
+  end
+
+  # remove's item is a (ResourceId, ItemKind) tuple, which serde reads
+  # element by element (serde_core 1.0.228 src/de/impls.rs:1411-1423)
+  # before serde_json rejects any left over (src/value/de.rs:731-746).
+  def test_remove_reads_its_item_tuple_element_by_element
+    prefix = "invalid args `item` for command `remove`: "
+    assert_rejects "#{prefix}invalid type: string \"x\", expected u32", "remove", "rid" => 1, "kind" => "Menu", "item" => ["x"]
+    assert_rejects "#{prefix}invalid type: string \"x\", expected u32",
+      "remove", "rid" => 1, "kind" => "Menu", "item" => ["x", "Menu", 3]
+    assert_rejects "#{prefix}invalid length 1, expected a tuple of size 2", "remove", "rid" => 1, "kind" => "Menu", "item" => [1]
+    assert_rejects "#{prefix}invalid length 3, expected fewer elements in array",
+      "remove", "rid" => 1, "kind" => "Menu", "item" => [1, "Menu", 3]
+  end
+
   # Tauri panics in these two places; Tokra rejects with the panic's text
   # (plan 042, decision 8).
   def test_what_tauri_panics_on_rejects_with_the_panics_text
@@ -230,6 +271,7 @@ class TestMenuPlugin < Minitest::Test
       { "Logical" => { "y" => "2" } } => "invalid type: string \"2\", expected f64",
       { "Logical" => { "y" => 2 } } => "missing field `x`",
       { "Logical" => { "x" => 2 } } => "missing field `y`",
+      { "Logical" => {} } => "missing field `x`",
       { "Logical" => nil } => "invalid type: null, expected struct LogicalPosition",
       { "Physical" => [1] } => "invalid length 1, expected struct PhysicalPosition with 2 elements",
       { "Physical" => [1, 2, 3] } => "invalid length 3, expected fewer elements in array",

@@ -87,6 +87,39 @@ class TestTrayPlugin < Minitest::Test
       "new", "options" => Array.new(10)
   end
 
+  # serde's derive reads a sequence element by element, so a bad first
+  # element fails before the sequence runs short (serde_derive 1.0.228
+  # src/de.rs:450-505).
+  def test_new_reads_a_sequence_of_options_element_by_element
+    assert_rejects "invalid args `options` for command `new`: invalid type: integer `1`, expected a string",
+      "new", "options" => [1]
+  end
+
+  # serde's derive reads a map's fields in the map's key order, which
+  # serde_json's BTreeMap sorts (serde_derive 1.0.228 src/de/struct_.rs).
+  def test_new_reads_its_options_in_key_order
+    assert_rejects "invalid args `options` for command `new`: invalid type: string \"yes\", expected a boolean",
+      "new", "options" => { "iconAsTemplate" => "yes", "id" => 1 }
+  end
+
+  # serde's tuple visitor reads element by element (serde_core 1.0.228
+  # src/de/impls.rs:1411-1423), and serde_json then rejects any left
+  # over (src/value/de.rs:731-746, 970-985).
+  def test_new_reads_the_menu_tuple_element_by_element
+    assert_rejects "invalid args `options` for command `new`: invalid type: string \"x\", expected u32",
+      "new", "options" => { "menu" => ["x"] }
+    assert_rejects "invalid args `options` for command `new`: invalid type: string \"x\", expected u32",
+      "new", "options" => { "menu" => ["x", "Menu", 3] }
+    assert_rejects "invalid args `options` for command `new`: unknown variant `Tray`, expected one of `Menu`, " \
+      "`MenuItem`, `Predefined`, `Submenu`, `Check`, `Icon`", "new", "options" => { "menu" => [1, "Tray", 3] }
+    assert_rejects "invalid args `options` for command `new`: invalid length 0, expected a tuple of size 2",
+      "new", "options" => { "menu" => [] }
+    assert_rejects "invalid args `options` for command `new`: invalid length 3, expected fewer elements in array",
+      "new", "options" => { "menu" => [1, "Menu", 3] }
+    assert_rejects "invalid args `options` for command `new`: invalid type: string \"x\", expected a tuple of size 2",
+      "new", "options" => { "menu" => "x" }
+  end
+
   def test_new_rejects_options_in_serdes_words
     assert_rejects "invalid args `options` for command `new`: invalid type: integer `5`, expected struct TrayIconOptions",
       "new", "options" => 5

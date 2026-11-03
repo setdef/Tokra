@@ -146,14 +146,14 @@ module Tokra
       # (plugin.rs:155-175).
       private def with_text(invoke, key)
         rid = rid_arg(invoke)
-        text = argument(invoke, key).deserialize_option { |value| string(value) }
+        text = argument(invoke, key).deserialize_option { |value| Ipc::Serde.string(value) }
         yield tray(rid), text
       end
 
       # The commands that take a rid and a boolean (plugin.rs:177-215).
       private def with_flag(invoke, key)
         rid = rid_arg(invoke)
-        flag = argument(invoke, key).deserialize { |value| boolean(value) }
+        flag = argument(invoke, key).deserialize { |value| Ipc::Serde.boolean(value) }
         yield tray(rid), flag
       end
 
@@ -193,24 +193,7 @@ module Tokra
       # The +id+ of get_by_id and remove_by_id, a Rust <tt>&str</tt>: serde's
       # borrowed-string visitor names what it expected (plugin.rs:97-108).
       private def id_arg(invoke)
-        argument(invoke, "id").deserialize do |value|
-          value.is_a?(String) ? value : raise(Ipc::CommandItem::Mismatch.invalid_type(value, "a borrowed string"))
-        end
-      end
-
-      private def mismatch(message)
-        Ipc::CommandItem::Mismatch.new(message)
-      end
-
-      private def string(value)
-        value.is_a?(String) ? value : raise(Ipc::CommandItem::Mismatch.invalid_type(value, "a string"))
-      end
-
-      private def boolean(value)
-        case value
-        when true, false then value
-        else raise Ipc::CommandItem::Mismatch.invalid_type(value, "a boolean")
-        end
+        argument(invoke, "id").deserialize { |value| Ipc::Serde.borrowed_str(value) }
       end
 
       # A PathBuf, which serde reads from a string (serde de/impls.rs
@@ -221,70 +204,45 @@ module Tokra
 
       # The <tt>(ResourceId, ItemKind)</tt> tuple of a menu.
       private def menu_tuple(value)
-        raise Ipc::CommandItem::Mismatch.invalid_type(value, "a tuple of size 2") unless value.is_a?(Array)
-        raise mismatch("invalid length #{value.size}, expected a tuple of size 2") if value.size < 2
-        raise mismatch("invalid length #{value.size}, expected fewer elements in array") if value.size > 2
-
-        [Ipc::CommandItem.integer(value[0], "u32"), item_kind(value[1])]
-      end
-
-      # Tauri's ItemKind, a unit-variant enum: a string, or a map of the one
-      # variant to +null+, as serde_json reads it.
-      private def item_kind(value)
-        name = nil #: String?
-        content = nil #: json_value
-        case value
-        when String then name = value
-        when Hash
-          raise mismatch("invalid value: map, expected map with a single key") unless value.size == 1
-
-          name, content = value.first
-        else raise Ipc::CommandItem::Mismatch.invalid_type(value, "string or map")
-        end
-        name = name.to_s
-        unless Menu::Plugin::ITEM_KINDS.include?(name)
-          variants = Menu::Plugin::ITEM_KINDS.map { |v| "`#{v}`" }.join(", ")
-          raise mismatch("unknown variant `#{name}`, expected one of #{variants}")
-        end
-        raise Ipc::CommandItem::Mismatch.invalid_type(content, "unit") unless content.nil?
-
-        name
-      end
-
-      # TrayIconOptions (plugin.rs:23-35), from a map or, as serde's derive
-      # also takes, a sequence of exactly its fields in order.
-      private def options(value)
-        hash = case value
-        when Hash then value
-        when Array
-          if value.size < OPTION_FIELDS.size
-            raise mismatch("invalid length #{value.size}, expected struct TrayIconOptions with #{OPTION_FIELDS.size} elements")
+        elements = Ipc::Serde.tuple(value, 2) do |index, raw|
+          case index
+          when 0 then Ipc::CommandItem.integer(raw, "u32")
+          else Ipc::Serde.unit_variant(raw, Menu::Plugin::ITEM_KINDS)
           end
-          # serde_json's visit_array, once the struct has its fields
-          # (serde_json 1.0.145 src/value/de.rs).
-          raise mismatch("invalid length #{value.size}, expected fewer elements in array") if value.size > OPTION_FIELDS.size
-
-          OPTION_FIELDS.zip(value).to_h
-        else raise Ipc::CommandItem::Mismatch.invalid_type(value, "struct TrayIconOptions")
         end
-        Options.new(
-          id: optional(hash, "id") { |v| string(v) },
-          menu: optional(hash, "menu") { |v| menu_tuple(v) },
-          icon: optional(hash, "icon") { |v| JsImage.deserialize(v) },
-          tooltip: optional(hash, "tooltip") { |v| string(v) },
-          title: optional(hash, "title") { |v| string(v) },
-          temp_dir_path: optional(hash, "tempDirPath") { |v| path(v) },
-          icon_as_template: optional(hash, "iconAsTemplate") { |v| boolean(v) },
-          menu_on_left_click: optional(hash, "menuOnLeftClick") { |v| boolean(v) },
-          show_menu_on_left_click: optional(hash, "showMenuOnLeftClick") { |v| boolean(v) }
-        )
+        rid = elements[0] #: Integer
+        kind = elements[1] #: String
+        [rid, kind]
       end
 
-      # The field +key+ of +hash+ read with the block, or +nil+ when it is
-      # missing or null, as serde reads an Option.
-      private def optional(hash, key)
-        value = hash[key]
-        value.nil? ? nil : yield(value)
+      # TrayIconOptions (plugin.rs:23-35), every field an Option, read as
+      # serde's derive reads a struct (Ipc::Serde.struct_fields).
+      private def options(value)
+        fields = Ipc::Serde.struct_fields(value, "TrayIconOptions", OPTION_FIELDS, optional: OPTION_FIELDS) do |field, raw|
+          option_field(field, raw)
+        end
+        id = fields["id"] #: String?
+        menu = fields["menu"] #: menu_tuple?
+        icon = fields["icon"] #: JsImage?
+        tooltip = fields["tooltip"] #: String?
+        title = fields["title"] #: String?
+        temp_dir_path = fields["tempDirPath"] #: String?
+        icon_as_template = fields["iconAsTemplate"] #: bool?
+        menu_on_left_click = fields["menuOnLeftClick"] #: bool?
+        show_menu_on_left_click = fields["showMenuOnLeftClick"] #: bool?
+        Options.new(id:, menu:, icon:, tooltip:, title:, temp_dir_path:, icon_as_template:, menu_on_left_click:,
+          show_menu_on_left_click:)
+      end
+
+      # The TrayIconOptions field +field+, read from +raw+.
+      private def option_field(field, raw)
+        case field
+        when "menu" then menu_tuple(raw)
+        when "icon" then JsImage.deserialize(raw)
+        when "tempDirPath" then path(raw)
+        when "iconAsTemplate", "menuOnLeftClick", "showMenuOnLeftClick" then Ipc::Serde.boolean(raw)
+        else Ipc::Serde.string(raw)
+        end
       end
     end
   end
