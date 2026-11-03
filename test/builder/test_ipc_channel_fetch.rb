@@ -8,6 +8,7 @@
 require "test_helper"
 require_relative "../support/local_origin"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # Tests the channel-data fetch command, plugin:__TAURI_CHANNEL__|fetch,
 # through App's router, and the postMessage results Tauri sends over a
@@ -59,7 +60,7 @@ class TestBuilderIpcChannelFetch < Minitest::Test
   # channel.rs:318-337: the data leaves the queue as a Response, raw bytes
   # as application/octet-stream.
   def test_fetch_answers_queued_bytes_once
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     app.handle.state(Queue).insert(41, "\x00\xFF".b)
 
     first, second = run_events(app, [fetch_request(app, channel_id: "41"), fetch_request(app, channel_id: "41")])
@@ -72,7 +73,7 @@ class TestBuilderIpcChannelFetch < Minitest::Test
   end
 
   def test_fetch_answers_queued_json_as_json
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     app.handle.state(Queue).insert(42, '{"big":true}')
 
     _, headers, body = run_events(app, [fetch_request(app, channel_id: "+42")]).first
@@ -82,7 +83,7 @@ class TestBuilderIpcChannelFetch < Minitest::Test
   # A header that is missing, not visible ASCII, or not a u32 is the same
   # error, as Tauri chains the three checks with and_then.
   def test_fetch_without_a_readable_id_rejects
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     ids = [nil, "x", "-1", "4294967296", "\u00e91"]
     replies = run_events(app, ids.map { |channel_id| fetch_request(app, channel_id:) })
     assert_equal [["error", '"missing channel id header"']] * ids.size,
@@ -92,7 +93,7 @@ class TestBuilderIpcChannelFetch < Minitest::Test
   # The plugin answers fetch and nothing else (channel.rs:339-345), so
   # another command is not found.
   def test_the_channel_plugin_handles_only_fetch
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     event = fetch_request(app, channel_id: "1")
     event = event.with(uri: "ipc://localhost/plugin%3A__TAURI_CHANNEL__%7Cother")
     _, headers, body = run_events(app, [event]).first
@@ -102,7 +103,7 @@ class TestBuilderIpcChannelFetch < Minitest::Test
   # webview/mod.rs:1802-1806: the fetch command skips the ACL check, so it
   # skips the stopgap that stands in for it (ADR 010).
   def test_fetch_is_not_subject_to_the_origin_stopgap
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     _, headers, body = run_events(app, [fetch_request(app, channel_id: "9999999", origin: "https://example.com")]).first
     assert_equal ["error", '"data not found"'], [headers["Tauri-Response"], body]
   end
@@ -121,7 +122,7 @@ class TestBuilderIpcChannelFetch < Minitest::Test
       end
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     app.stub(:os_name, "linux") do
       run_events(app, %w[obj text bytes big fail long_text].map { |cmd| ipc_message(app, "cmd" => cmd, "callback" => 1, "error" => 2) })
     end
@@ -147,7 +148,7 @@ class TestBuilderIpcChannelFetch < Minitest::Test
       invoke.resolve(Tokra::Ipc::Response.new("\x01\x02".b))
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     app.handle.state(Queue).insert(77, "\x01\x02".b)
     # Built inside the stub, so the page's origin is Windows' own.
     app.stub(:os_name, "windows") do
@@ -160,7 +161,7 @@ class TestBuilderIpcChannelFetch < Minitest::Test
     end
     assert_equal ["window.__TAURI_INTERNALS__.runCallback(1, [1,2])"] * 2, webview_evals(app)
 
-    mac = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    mac = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     mac.stub(:os_name, "macos") { run_events(mac, [ipc_message(mac, "cmd" => "bytes", "callback" => 1, "error" => 2)]) }
     assert_equal ["window.__TAURI_INTERNALS__.runCallback(1, [1,2])"], webview_evals(mac)
   end

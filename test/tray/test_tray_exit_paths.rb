@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # Every path that ends the process without the loop's RunEvent::Exit
 # takes the trays off and clears the app's table first, as Tauri calls
@@ -17,7 +18,7 @@ class TestTrayExitPaths < Minitest::Test
   ENV_FOR_TESTS = Tokra::Env.new(args_os: [RbConfig.ruby, __FILE__].freeze)
 
   def setup
-    @app = Tokra::Env.stub(:default, ENV_FOR_TESTS) { Tokra::Builder.default.build(native: StubNative) }
+    @app = Tokra::Env.stub(:default, ENV_FOR_TESTS) { build_test_app }
     @handle = @app.handle
   end
 

@@ -7,12 +7,13 @@
 
 require "test_helper"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # The plugin:menu commands, routed through the app's own plugin store with
 # real muda menus, as the JavaScript API sends them (menu/plugin.rs).
 class TestMenuPlugin < Minitest::Test
   def setup
-    @app = Tokra::Builder.default.build(native: StubWindowMenusNative)
+    @app = build_test_app(native: StubWindowMenusNative)
     @handle = @app.handle
     @window = Tokra::Window.new(label: "main", native: StubWindowMenusNative::Window.new(nil, "main"), app_handle: @handle)
     @handle.windows["main"] = @window
@@ -307,7 +308,7 @@ class TestMenuPlugin < Minitest::Test
   def test_both_nsapp_commands_make_the_submenu_nsapps_help_menu
     skip "NSApp is macOS's" unless Tokra::Native.respond_to?(:init_menu_for_nsapp)
 
-    @app = Tokra::Builder.default.build(native: StubNative)
+    @app = build_test_app
     @handle = @app.handle
     @webview = Tokra::Webview.new(label: "main", native: StubNative::WebView.new, window: @window, app_handle: @handle)
     _, (rid, id) = call("new", "kind" => "Submenu", "options" => { "text" => "Window" })

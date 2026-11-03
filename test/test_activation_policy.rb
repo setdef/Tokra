@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "support/stub_native"
+require_relative "support/test_app"
 
 # App#set_activation_policy and Tokra::ActivationPolicy, which Tauri
 # defines only on macOS (tauri-runtime src/lib.rs:245-256, tauri
@@ -49,14 +50,14 @@ class TestActivationPolicy < Minitest::Test
   def test_a_policy_set_in_setup_reaches_the_loop_before_it_runs
     skip_unless_macos
     hook = Ractor.shareable_proc { |app| app.set_activation_policy(Tokra::ActivationPolicy::Prohibited) }
-    Tokra::Builder.default.setup(&hook).run(native: StubNative)
+    run_test_app(Tokra::Builder.default.setup(&hook))
 
     assert_equal [[:set_activation_policy, "Prohibited"], [:run]], StubNative.event_loop_calls
   end
 
   def test_a_policy_set_before_run_reaches_the_loop
     skip_unless_macos
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     app.set_activation_policy(Tokra::ActivationPolicy::Accessory)
     app.run
 
@@ -65,7 +66,7 @@ class TestActivationPolicy < Minitest::Test
 
   def test_the_last_policy_set_wins
     skip_unless_macos
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     app.set_activation_policy(Tokra::ActivationPolicy::Accessory)
     app.set_activation_policy(Tokra::ActivationPolicy::Regular)
     app.run
@@ -74,14 +75,14 @@ class TestActivationPolicy < Minitest::Test
   end
 
   def test_without_a_policy_the_loop_keeps_taos_default
-    Tokra::Builder.default.run(native: StubNative)
+    run_test_app
 
     assert_equal [[:run]], StubNative.event_loop_calls
   end
 
   def test_returns_nil
     skip_unless_macos
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
 
     assert_nil app.set_activation_policy(Tokra::ActivationPolicy::Prohibited)
   end

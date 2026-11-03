@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # Menu icons through a real App and AppHandle with real muda items
 # (plan 042, phase 2): IconMenuItem, NativeIcon, Submenu's icons, the
@@ -23,7 +24,7 @@ class TestMenuIcons < Minitest::Test
     "argument (1). For those dimensions, the expected pixel count is 4."
 
   def setup
-    @handle = Tokra::Builder.default.build(native: StubNative).handle
+    @handle = build_test_app.handle
   end
 
   def teardown
@@ -149,7 +150,7 @@ class TestMenuIcons < Minitest::Test
   # to the main thread, which a thread with no running loop would fail to
   # reach.
   def test_set_native_icon_does_nothing_where_menus_belong_to_windows
-    handle = Tokra::Builder.default.build(native: StubWindowMenusNative).handle
+    handle = build_test_app(native: StubWindowMenusNative).handle
     item = Tokra::Menu::IconMenuItem.new(handle, "I", true, nil, nil)
     submenu = Tokra::Menu::Submenu.new(handle, "S", true)
 

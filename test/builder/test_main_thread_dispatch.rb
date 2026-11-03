@@ -9,6 +9,7 @@
 require "test_helper"
 require "timeout"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # A real App, AppHandle, Window, and Webview dispatching native calls to the
 # main thread, as Tauri's runtime does (tauri-runtime-wry send_user_message).
@@ -35,7 +36,7 @@ class TestMainThreadDispatch < Minitest::Test
   # delivering +tasks+ TaskEvents after it.
   def run_app(tasks: 1, &on_ready)
     StubNative.inject_event(Array.new(tasks) { Tokra::Native::TaskEvent.new })
-    Tokra::Builder.default.run(native: StubNative) do |handle, event|
+    run_test_app do |handle, event|
       on_ready&.call(handle) if event.is_a?(Tokra::RunEvent::Ready)
     end
   end
@@ -128,7 +129,7 @@ class TestMainThreadDispatch < Minitest::Test
 
   def test_app_run_on_main_thread_runs_at_once_on_the_main_thread
     ran_on = nil
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     app.run_on_main_thread { ran_on = Thread.current }
 
     assert_same Thread.current, ran_on

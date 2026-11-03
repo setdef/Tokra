@@ -8,6 +8,7 @@
 require "test_helper"
 require "timeout"
 require_relative "support/stub_native"
+require_relative "support/test_app"
 
 # AppHandle's monitors and cursor (plan 041, decision 1): Tauri reads them
 # from the event loop's window target (tauri-runtime-wry
@@ -18,7 +19,7 @@ class TestAppHandleMonitors < Minitest::Test
   end
 
   def app
-    @app ||= Tokra::Builder.default.build(native: StubNative)
+    @app ||= build_test_app
   end
 
   def handle
@@ -74,7 +75,7 @@ class TestAppHandleMonitors < Minitest::Test
   # Tauri's runtime exists before the setup hook runs, so the hook can ask.
   def test_the_setup_hook_and_the_run_callback_can_ask
     setup = Ractor.shareable_proc { |built| Thread.current[:setup_monitor] = built.primary_monitor }
-    app = Tokra::Builder.default.setup(&setup).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.setup(&setup))
     ready = nil
     begin
       app.run do |handle, event|

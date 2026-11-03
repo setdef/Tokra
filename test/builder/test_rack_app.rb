@@ -8,6 +8,7 @@
 require "test_helper"
 require_relative "../support/local_origin"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # Tests for Builder#app: serving a Rack app over the tokra:// protocol
 # through the unified App path (ADR 004 porcelain over Rack::Handler).
@@ -29,7 +30,7 @@ class TestBuilderRackApp < Minitest::Test
   end
 
   def test_title_and_size_configure_the_window
-    Tokra::Builder.new.title("Configured").size(1024, 768).build(native: StubNative).run
+    build_test_app(Tokra::Builder.new, title: "Configured", width: 1024, height: 768).run
     window = StubNative.windows.first
 
     assert_equal "Configured", window.title
@@ -37,7 +38,7 @@ class TestBuilderRackApp < Minitest::Test
   end
 
   def test_defaults_apply_when_window_unconfigured
-    Tokra::Builder.new.build(native: StubNative).run
+    build_test_app(Tokra::Builder.new).run
     window = StubNative.windows.first
 
     assert_equal "Tokra", window.title
@@ -49,7 +50,7 @@ class TestBuilderRackApp < Minitest::Test
       "main",
       7, "GET", "tokra://localhost/greet", {}, ""
     ))
-    Tokra::Builder.new.app(ECHO_APP).run(native: StubNative)
+    run_test_app(Tokra::Builder.new.app(ECHO_APP))
 
     responses = StubNative.responses
     assert_equal 1, responses.size, "the Rack app should answer the request through the proxy"
@@ -67,10 +68,11 @@ class TestBuilderRackApp < Minitest::Test
       1, "GET", "tokra://localhost/", {}, ""
     ))
     handler = Ractor.shareable_proc { |_ctx, _event| Tokra::Response.ok("from protocol handler") }
-    Tokra::Builder.new
-      .app(ECHO_APP)
-      .register_uri_scheme_protocol("tokra", &handler)
-      .run(native: StubNative)
+    run_test_app(
+      Tokra::Builder.new
+        .app(ECHO_APP)
+        .register_uri_scheme_protocol("tokra", &handler)
+    )
 
     _id, _status, _headers, body = StubNative.responses.first
     assert_equal "from protocol handler", body,
@@ -87,7 +89,7 @@ class TestBuilderRackApp < Minitest::Test
       invoke.resolve("pong:#{invoke.payload['ping']}")
       true
     }
-    app = Tokra::Builder.new.app(ECHO_APP).invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.new.app(ECHO_APP).invoke_handler(&handler))
     message = {
       "cmd" => "ping",
       "callback" => 10,

@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "support/stub_native"
+require_relative "support/test_app"
 
 # WebviewWindowBuilder makes a window and its webview at run time, as
 # Tauri's does (plan 052, phase 2): the labels checked in Tauri's order and
@@ -44,7 +45,7 @@ class TestWebviewWindowBuilder < Minitest::Test
   # Ruby listeners and the created plugin log into the same Array.
   def run_app(tasks: 0, &on_ready)
     log = []
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     app.handle.plugin(CreatedPlugin.new(app.handle, log))
     %w[tauri://webview-created tauri://window-created].each do |name|
       app.handle.listen_any(name) { |event| log << [:heard, name, event.payload] }
@@ -227,7 +228,7 @@ class TestWebviewWindowBuilder < Minitest::Test
     events = []
     StubNative.inject_event(Tokra::Native::WindowCloseEvent.new("main"))
     assert_output(nil, /failed to create window/) do
-      Tokra::Builder.default.run(native: StubNative) do |handle, event|
+      run_test_app do |handle, event|
         events << event.class
         if event.is_a?(Tokra::RunEvent::Ready)
           StubNative.fail_next_open = "no window for you"
@@ -247,7 +248,7 @@ class TestWebviewWindowBuilder < Minitest::Test
   def test_a_window_outside_the_store_does_not_ask_to_exit_again
     asked = 0
     StubNative.inject_event([Tokra::Native::WindowCloseEvent.new("main"), Tokra::Native::WindowCloseEvent.new("frame")])
-    Tokra::Builder.default.run(native: StubNative) do |handle, event|
+    run_test_app do |handle, event|
       case event
       when Tokra::RunEvent::Ready
         native = StubNative::Window.new(handle.runtime_context.window_target, "frame")
@@ -269,7 +270,7 @@ class TestWebviewWindowBuilder < Minitest::Test
     events = []
     StubNative.inject_event(Tokra::Native::WindowCloseEvent.new("main"))
     assert_output(nil, "failed to create webview: no webview for you\n") do
-      Tokra::Builder.default.run(native: StubNative) do |handle, event|
+      run_test_app do |handle, event|
         events << [event.class, (event.label if event.respond_to?(:label))]
         if event.is_a?(Tokra::RunEvent::Ready)
           StubNative.fail_next_webview_open = "no webview for you"
@@ -285,7 +286,7 @@ class TestWebviewWindowBuilder < Minitest::Test
   end
 
   def test_build_before_the_app_runs_raises_runtime_error
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     error = assert_raises(Tokra::Error::Runtime) { Tokra::WebviewWindowBuilder.new(app, "early", page).build }
 
     assert_equal "runtime error: the event loop does not exist yet", error.message
@@ -294,7 +295,7 @@ class TestWebviewWindowBuilder < Minitest::Test
 
   def test_the_setup_hook_finds_main_built
     hook = Ractor.shareable_proc { |app| Thread.current[:found_main] = app.get_webview_window("main") }
-    Tokra::Builder.default.setup(&hook).run(native: StubNative)
+    run_test_app(Tokra::Builder.default.setup(&hook))
     found = Thread.current[:found_main]
 
     assert_instance_of Tokra::WebviewWindow, found

@@ -8,6 +8,7 @@
 require "test_helper"
 require_relative "../support/local_origin"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # Tests the ipc:// custom-protocol transport (Plan 015).
 #
@@ -59,7 +60,7 @@ class TestBuilderIpcProtocol < Minitest::Test
       invoke.resolve("PONG: #{invoke.payload['message']}")
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     run_with(app, ipc_request(app, cmd: "ping", body: JSON.generate("message" => "hi")))
 
     id, status, headers, body = last_response
@@ -77,7 +78,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   end
 
   def test_percent_encoded_plugin_command_resolves_rid
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     # convertFileSrc percent-encodes the whole command into the path.
     # Read as the run callback hears Exit: cleanup_before_exit clears the
     # table right after (app.rs:1304-1307).
@@ -98,7 +99,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   end
 
   def test_unhandled_command_rejects_with_error_response
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     run_with(app, ipc_request(app, cmd: "missing"))
 
     _id, status, headers, body = last_response
@@ -110,7 +111,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   end
 
   def test_missing_callback_header_is_malformed_500
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     run_with(app, ipc_request(app, cmd: "ping", omit: [:callback]))
 
     _id, status, headers, body = last_response
@@ -123,7 +124,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   end
 
   def test_non_numeric_callback_header_is_malformed_500
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     run_with(app, ipc_request(app, cmd: "ping", callback: "abc"))
 
     _id, status, _headers, body = last_response
@@ -134,7 +135,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   end
 
   def test_unimplemented_content_type_is_malformed_500
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     run_with(app, ipc_request(app, cmd: "ping", content_type: "text/plain", body: "hello"))
 
     _id, status, _headers, body = last_response
@@ -147,7 +148,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   def test_key_mismatch_drops_without_replying
     Thread.current[:handler_called] = false
     handler = Ractor.shareable_proc { |_invoke| Thread.current[:handler_called] = true }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
 
     _out, err = capture_subprocess_io do
       run_with(app, ipc_request(app, cmd: "ping", key: "wrong"))
@@ -163,7 +164,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   end
 
   def test_options_request_is_a_cors_preflight
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     run_with(app, ipc_request(app, cmd: "ping", method: "OPTIONS", body: ""))
 
     _id, status, headers, body = last_response
@@ -178,7 +179,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   end
 
   def test_non_post_method_is_405
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     run_with(app, ipc_request(app, cmd: "ping", method: "GET", body: ""))
 
     _id, status, headers, body = last_response
@@ -196,7 +197,7 @@ class TestBuilderIpcProtocol < Minitest::Test
       invoke.resolve(invoke.payload["n"] + 1)
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     run_with(app, ipc_request(app, cmd: "inc", body: '{"n":41}', lowercase: true))
 
     _id, status, headers, body = last_response
@@ -214,7 +215,7 @@ class TestBuilderIpcProtocol < Minitest::Test
     origin: "missing Origin header",
   }.each do |header, message|
     define_method(:"test_missing_#{header}_header_is_malformed_500") do
-      app = Tokra::Builder.default.build(native: StubNative)
+      app = build_test_app
       run_with(app, ipc_request(app, cmd: "ping", omit: [header]))
 
       _id, status, headers, body = last_response
@@ -227,7 +228,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   end
 
   def test_origin_that_is_not_a_url_is_malformed_500
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     # Sandboxed frames send the opaque origin "null", which is no URL.
     run_with(app, ipc_request(app, cmd: "ping", origin: "null"))
 
@@ -239,7 +240,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   end
 
   def test_invalid_json_body_is_malformed_500
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     run_with(app, ipc_request(app, cmd: "ping", body: "{not json"))
 
     _id, status, headers, body = last_response
@@ -270,7 +271,7 @@ class TestBuilderIpcProtocol < Minitest::Test
       "{\"a\":#{'[' * 127}#{']' * 127}}" => "recursion limit exceeded at line 1 column 132",
     }.each do |body, message|
       # An App runs once, as its loop never returns.
-      app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+      app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
       run_with(app, ipc_request(app, cmd: "echo", body:))
 
       _id, status, headers, response = last_response
@@ -291,7 +292,7 @@ class TestBuilderIpcProtocol < Minitest::Test
       invoke.resolve(nil)
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     deep = "#{'[' * 126}#{']' * 126}"
     run_with(app, ipc_request(app, cmd: "echo",
       body: "{\"zero\":-0,\"big\":123456789012345678901234567890,\"deep\":#{deep}}"))
@@ -313,7 +314,7 @@ class TestBuilderIpcProtocol < Minitest::Test
       invoke.resolve(nil)
       true
     }
-    Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    build_test_app(Tokra::Builder.default.invoke_handler(&handler))
   end
 
   # ipc-protocol.js sends a top-level ArrayBuffer or typed array as an
@@ -412,7 +413,7 @@ class TestBuilderIpcProtocol < Minitest::Test
       invoke.resolve(Tokra::Ipc::Response.new(request.body.reverse))
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     run_with(app, ipc_request(app, cmd: "ping", content_type: "application/octet-stream", body: "\x01\x02\xFF".b))
 
     _id, status, headers, body = last_response
@@ -433,7 +434,7 @@ class TestBuilderIpcProtocol < Minitest::Test
       invoke.resolve(Tokra::Ipc::Response.new('{"b":1,"a":2}'))
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     run_with(app, ipc_request(app, cmd: "ping"))
 
     _id, _status, headers, body = last_response
@@ -446,7 +447,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   # A named argument read from a raw body fails with Tauri's bytes message
   # (ipc/command.rs:92-96), here through a core plugin command.
   def test_named_argument_of_a_raw_body_rejects_with_the_bytes_message
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     run_with(app, ipc_request(app, cmd: "plugin%3Aresources%7Cclose",
       content_type: "application/octet-stream", body: "\x01".b))
 
@@ -465,7 +466,7 @@ class TestBuilderIpcProtocol < Minitest::Test
       invoke.resolve(Tokra::Ipc::Response.new(invoke.body))
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     bytes = Random.new(1).bytes(1024 * 1024)
     parses = 0
     counter = TracePoint.new(:call) { |tp| parses += 1 if tp.defined_class == Tokra::Ipc::Json.singleton_class }
@@ -486,7 +487,7 @@ class TestBuilderIpcProtocol < Minitest::Test
       invoke.resolve(nil)
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     run_with(app, ipc_request(app, cmd: "ping", body: ""))
 
     assert_equal({}, Thread.current[:payload])
@@ -515,7 +516,7 @@ class TestBuilderIpcProtocol < Minitest::Test
       invoke.resolve(invoke.payload["text"])
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     # The native layer delivers bodies as binary strings of the exact bytes.
     run_with(app, ipc_request(app, cmd: "echo", body: '{"text":"こんにちは"}'.b))
 
@@ -528,7 +529,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   # mime's PartialEq compares parameters, so Tauri does not treat a
   # charset-qualified type as JSON.
   def test_content_type_parameters_are_not_stripped
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     run_with(app, ipc_request(app, cmd: "ping", content_type: "application/json; charset=utf-8"))
 
     _id, status, _headers, body = last_response
@@ -539,7 +540,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   end
 
   def test_content_type_essence_is_case_insensitive
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     run_with(app, ipc_request(app, cmd: "missing", content_type: "Application/JSON"))
 
     assert_equal 200, last_response[1], "Application/JSON is application/json"
@@ -548,7 +549,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   end
 
   def test_unparseable_content_type_is_unknown
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     run_with(app, ipc_request(app, cmd: "ping", content_type: "garbage"))
 
     _id, status, _headers, body = last_response
@@ -561,7 +562,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   # Rust's u32::from_str: an optional +, ASCII digits, within range.
   ["+12", "0", "4294967295"].each do |id|
     define_method(:"test_callback_id_#{id.delete('+')}_is_a_valid_u32") do
-      app = Tokra::Builder.default.build(native: StubNative)
+      app = build_test_app
       run_with(app, ipc_request(app, cmd: "missing", callback: id, error: id))
 
       assert_equal 200, last_response[1], "#{id.inspect} parses as a u32"
@@ -572,13 +573,13 @@ class TestBuilderIpcProtocol < Minitest::Test
 
   [" 12 ", "-5", "1_0", "4294967296", "", "0x1F"].each_with_index do |id, index|
     define_method(:"test_callback_id_variant_#{index}_is_not_a_u32") do
-      app = Tokra::Builder.default.build(native: StubNative)
+      app = build_test_app
       run_with(app, ipc_request(app, cmd: "ping", callback: id))
       _id, status, _headers, body = last_response
       assert_equal 500, status, "#{id.inspect} is not a u32"
       assert_equal "Tauri callback header value must be a numeric string", body
 
-      app = Tokra::Builder.default.build(native: StubNative)
+      app = build_test_app
       run_with(app, ipc_request(app, cmd: "ping", error: id))
       assert_equal "Tauri error header value must be a numeric string", last_response[3]
     ensure
@@ -587,7 +588,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   end
 
   def test_405_carries_cors_headers
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     run_with(app, ipc_request(app, cmd: "ping", method: "PUT", body: ""))
 
     h = last_response[2].to_h
@@ -603,7 +604,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   def test_foreign_origin_is_rejected_before_dispatch
     Thread.current[:handler_called] = false
     handler = Ractor.shareable_proc { |_invoke| Thread.current[:handler_called] = true }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     run_with(app, ipc_request(app, cmd: "ping", origin: "https://evil.example"))
 
     refute Thread.current[:handler_called], "a foreign origin must not reach the handler"
@@ -616,7 +617,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   end
 
   def test_plugin_command_from_foreign_origin_is_rejected_with_full_name
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     run_with(app, ipc_request(app, cmd: "plugin:image|new", origin: "tokra://other-host"))
 
     assert_equal '"Command plugin:image|new not allowed by ACL"', last_response[3]
@@ -625,14 +626,14 @@ class TestBuilderIpcProtocol < Minitest::Test
   end
 
   def test_windows_origin_is_local_only_on_windows
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     app.stub(:os_name, "macos") do
       run_with(app, ipc_request(app, cmd: "missing", origin: "http://tokra.localhost"))
     end
     assert_equal '"Command missing not allowed by ACL"', last_response[3],
       "http://tokra.localhost is foreign off Windows"
 
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     app.stub(:os_name, "windows") do
       run_with(app, ipc_request(app, cmd: "missing", origin: "http://tokra.localhost"))
     end
@@ -644,7 +645,7 @@ class TestBuilderIpcProtocol < Minitest::Test
 
   def test_handler_exception_rejects_and_logs
     handler = Ractor.shareable_proc { |_invoke| raise ArgumentError, "boom" }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     _out, err = capture_subprocess_io do
       run_with(app, ipc_request(app, cmd: "explode"))
     end
@@ -663,7 +664,7 @@ class TestBuilderIpcProtocol < Minitest::Test
       invoke.resolve("done")
       raise "late"
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     capture_subprocess_io { run_with(app, ipc_request(app, cmd: "late")) }
 
     assert_equal 1, StubNative.responses.size, "the request is answered exactly once"
@@ -677,7 +678,7 @@ class TestBuilderIpcProtocol < Minitest::Test
       invoke.resolve("\xFF".b)
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     run_with(app, ipc_request(app, cmd: "bytes"))
 
     _id, status, headers, body = last_response
@@ -699,7 +700,7 @@ class TestBuilderIpcProtocol < Minitest::Test
         true
       end
     end
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     app.handle.plugin(plugin.new(app.handle))
     run_with(app, ipc_request(app, cmd: "plugin:multi|b|c", uri: "ipc://localhost/plugin%3Amulti%7Cb%7Cc"))
 
@@ -717,7 +718,7 @@ class TestBuilderIpcProtocol < Minitest::Test
       invoke.resolve(nil)
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     run_with(app, ipc_request(app, cmd: "x", uri: "ipc://localhost/a%ZZb%FF?q=1"))
 
     assert_equal "a%ZZb\uFFFD", Thread.current[:command]
@@ -729,7 +730,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   # wry reverts WebView2's http://ipc.localhost/ before the handler runs,
   # so that form never reaches Ruby and is not an ipc:// request.
   def test_http_ipc_localhost_is_not_the_ipc_transport
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     run_with(app, ipc_request(app, cmd: "ping", uri: "http://ipc.localhost/ping"))
 
     assert_empty StubNative.responses, "only ipc:// URIs are invokes"

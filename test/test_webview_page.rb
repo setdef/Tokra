@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "support/stub_native"
+require_relative "support/test_app"
 
 # A webview's page and its cookies, as Tauri's Webview reaches them
 # (plan 052, 052e-2): url parses wry's answer as a URL or raises
@@ -29,7 +30,7 @@ class TestWebviewPage < Minitest::Test
   # task another thread queued.
   def run_app(tasks: 0, &on_ready)
     StubNative.inject_event(Array.new(tasks) { Tokra::Native::TaskEvent.new })
-    Tokra::Builder.default.run(native: StubNative) do |handle, event|
+    run_test_app do |handle, event|
       on_ready&.call(handle.get_webview("main"), handle) if event.is_a?(Tokra::RunEvent::Ready)
     end
   end

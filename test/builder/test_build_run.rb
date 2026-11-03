@@ -8,25 +8,26 @@
 
 require "test_helper"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # Tests for Tokra::Builder build and run behavior.
 class TestBuilderBuildRun < Minitest::Test
   def test_build_returns_app_instance
     builder = Tokra::Builder.default
-    app = builder.build(native: StubNative)
+    app = build_test_app(builder)
     assert_instance_of Tokra::App, app
   end
 
   def test_build_creates_new_app_each_time
     builder = Tokra::Builder.default
-    app1 = builder.build(native: StubNative)
-    app2 = builder.build(native: StubNative)
+    app1 = build_test_app(builder)
+    app2 = build_test_app(builder)
     refute_same app1, app2
   end
 
   def test_run_invokes_callback_with_lifecycle_events
     events = []
-    Tokra::Builder.default.run(native: StubNative) do |handle, event|
+    run_test_app do |handle, event|
       events << [handle.class, event.class]
     end
     assert_equal [

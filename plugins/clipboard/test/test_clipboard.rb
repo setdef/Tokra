@@ -15,6 +15,7 @@ require "tokra-clipboard"
 # real AppHandle built on it instead of a hand-rolled stand-in.
 $LOAD_PATH.unshift File.expand_path("../../../test", __dir__)
 require "support/stub_native"
+require "support/test_app"
 
 # Tests for Tokra::Plugins::Clipboard::Plugin.
 #
@@ -44,7 +45,7 @@ class TestClipboard < Minitest::Test
 
   # A real app handle, built exactly as an app builds one.
   private def build_app
-    Tokra::Builder.default.build(native: StubNative)
+    build_test_app
   end
 
   private def build_plugin(app = build_app)

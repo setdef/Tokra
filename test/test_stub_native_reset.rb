@@ -7,12 +7,13 @@
 
 require "test_helper"
 require_relative "support/stub_native"
+require_relative "support/test_app"
 
 # StubNative's recorders belong to one test: a test that runs an App and
 # leaves its calls behind must not hand them to the next.
 class TestStubNativeReset < Minitest::Test
   def test_a_test_starts_without_the_calls_an_earlier_run_left
-    Tokra::Builder.default.run(native: StubNative)
+    run_test_app
     refute_empty StubNative.event_loop_calls
     refute_empty StubNative.nsapp_calls if Tokra::Native.respond_to?(:init_menu_for_nsapp)
 

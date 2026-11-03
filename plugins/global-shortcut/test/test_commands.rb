@@ -81,7 +81,7 @@ class TestCommands < Minitest::Test
   # The handler ignores a channel that can no longer send, as Tauri's
   # let _ = does (lib.rs:300).
   def test_an_event_after_the_loop_ends_is_dropped_quietly
-    handle = Tokra::Builder.default.build(native: StubNative).handle
+    handle = build_test_app.handle
     webview = recording_webview(handle)
     channel = Tokra::Ipc::Channel.from_command(build_invoke(webview, "register", { "handler" => "__CHANNEL__:14" }).first, "handler")
     handle.runtime_context.close

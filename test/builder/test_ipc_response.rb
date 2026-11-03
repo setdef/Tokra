@@ -8,6 +8,7 @@
 require "test_helper"
 require_relative "../support/local_origin"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # Tests that IPC responses reach the WebView.
 #
@@ -32,7 +33,7 @@ class TestBuilderIpcResponse < Minitest::Test
       invoke.resolve("pong")
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     inject_ipc(app, "cmd" => "ping", "callback" => 100, "error" => 200)
 
     app.run
@@ -48,7 +49,7 @@ class TestBuilderIpcResponse < Minitest::Test
       invoke.reject("nope")
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     inject_ipc(app, "cmd" => "ping", "callback" => 100, "error" => 200)
 
     app.run
@@ -60,7 +61,7 @@ class TestBuilderIpcResponse < Minitest::Test
   end
 
   def test_unhandled_command_rejects_through_error_id
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     inject_ipc(app, "cmd" => "missing", "callback" => 1, "error" => 2)
 
     app.run
@@ -72,7 +73,7 @@ class TestBuilderIpcResponse < Minitest::Test
   end
 
   def test_core_image_plugin_resolves_rid_to_the_webview
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     inject_ipc(app,
       "cmd" => "plugin:image|new",
       "callback" => 55,
@@ -97,7 +98,7 @@ class TestBuilderIpcResponse < Minitest::Test
       invoke.resolve("ignored")
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     # A hand-rolled window.ipc.postMessage without callback ids
     inject_ipc(app, "cmd" => "ping")
 
@@ -112,7 +113,7 @@ class TestBuilderIpcResponse < Minitest::Test
   def test_mismatched_invoke_key_is_dropped_without_response
     Thread.current[:handler_called] = false
     handler = Ractor.shareable_proc { |_invoke| Thread.current[:handler_called] = true }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     # Deliberately wrong key
     StubNative.inject_event(Tokra::Native::IpcEvent.new("main", JSON.generate(
       { "cmd" => "ping", "callback" => 1, "error" => 2, "__TAURI_INVOKE_KEY__" => "wrong" }
@@ -138,7 +139,7 @@ class TestBuilderIpcResponse < Minitest::Test
   def test_message_serde_json_rejects_is_reported_in_the_page
     Thread.current[:handler_called] = false
     handler = Ractor.shareable_proc { |_invoke| Thread.current[:handler_called] = true }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     StubNative.inject_event(Tokra::Native::IpcEvent.new(
       "main",
       '{"cmd":"ping","callback":1,"error":2,"payload":{"text":"\udc00"},' \
@@ -163,7 +164,7 @@ class TestBuilderIpcResponse < Minitest::Test
     Thread.current[:handler_called] = false
     handler = Ractor.shareable_proc { |_invoke| Thread.current[:handler_called] = true }
     { 5 => "integer `5`", nil => "null" }.each do |cmd, described|
-      app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+      app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
       StubNative.inject_event(Tokra::Native::IpcEvent.new("main", JSON.generate(
         { "cmd" => cmd, "callback" => 1, "error" => 2, "__TAURI_INVOKE_KEY__" => "wrong" }
       ), LocalOrigin.url(app:)))
@@ -181,7 +182,7 @@ class TestBuilderIpcResponse < Minitest::Test
   # The report is the message as serde_json writes a string value, so the
   # backslashes in serde_json's control-character message are escaped.
   def test_message_error_report_is_a_json_string_literal
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     StubNative.inject_event(Tokra::Native::IpcEvent.new("main", "{\"cmd\":\"a\tb\"}", LocalOrigin.url(app:)))
     app.run
 
@@ -198,7 +199,7 @@ class TestBuilderIpcResponse < Minitest::Test
   def test_foreign_page_is_rejected_through_error_id
     Thread.current[:handler_called] = false
     handler = Ractor.shareable_proc { |_invoke| Thread.current[:handler_called] = true }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     inject_ipc(app, { "cmd" => "ping", "callback" => 1, "error" => 2 }, "https://evil.example/page")
 
     app.run
@@ -211,7 +212,7 @@ class TestBuilderIpcResponse < Minitest::Test
   end
 
   def test_unparseable_page_url_is_foreign
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     inject_ipc(app, { "cmd" => "ping", "callback" => 1, "error" => 2 }, "not a url at all")
 
     app.run
@@ -223,7 +224,7 @@ class TestBuilderIpcResponse < Minitest::Test
   end
 
   def test_page_in_app_with_path_and_uppercase_scheme_is_local
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     inject_ipc(app, { "cmd" => "missing", "callback" => 1, "error" => 2 },
       "#{LocalOrigin.url(app:).upcase.delete_suffix('/')}/deep/page?x=1")
 
@@ -237,7 +238,7 @@ class TestBuilderIpcResponse < Minitest::Test
 
   def test_handler_exception_rejects_through_error_id
     handler = Ractor.shareable_proc { |_invoke| raise "kaput" }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     inject_ipc(app, "cmd" => "explode", "callback" => 1, "error" => 2)
 
     _out, err = capture_subprocess_io { app.run }
@@ -253,7 +254,7 @@ class TestBuilderIpcResponse < Minitest::Test
       invoke.resolve("\xFF".b)
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     inject_ipc(app, "cmd" => "bytes", "callback" => 1, "error" => 2)
 
     app.run
@@ -272,7 +273,7 @@ class TestBuilderIpcResponse < Minitest::Test
       invoke.resolve({ "nan" => Float::NAN, "values" => [1.5, Float::INFINITY, -Float::INFINITY] })
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     inject_ipc(app, "cmd" => "floats", "callback" => 1, "error" => 2)
 
     app.run
@@ -288,7 +289,7 @@ class TestBuilderIpcResponse < Minitest::Test
       invoke.resolve(Float::NAN)
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     inject_ipc(app, "cmd" => "nan", "callback" => 1, "error" => 2)
 
     app.run
@@ -307,7 +308,7 @@ class TestBuilderIpcResponse < Minitest::Test
       invoke.resolve([exploding])
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     inject_ipc(app, "cmd" => "explode", "callback" => 1, "error" => 2)
 
     app.run
@@ -326,7 +327,7 @@ class TestBuilderIpcResponse < Minitest::Test
       invoke.resolve(nil)
       true
     }
-    Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    build_test_app(Tokra::Builder.default.invoke_handler(&handler))
   end
 
   # Over postMessage the client JSON-encodes a Uint8Array as a number
@@ -413,7 +414,7 @@ class TestBuilderIpcResponse < Minitest::Test
       invoke.resolve(Tokra::Ipc::Response.new("\x03\x02\xFF".b))
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     app.stub(:os_name, "macos") do
       inject_ipc(app, "cmd" => "ping", "callback" => 100, "error" => 200)
       app.run
@@ -431,7 +432,7 @@ class TestBuilderIpcResponse < Minitest::Test
       invoke.resolve("pong")
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     inject_ipc(app, "cmd" => "ping", "callback" => 100, "error" => 200)
     format_raw = Tokra::Ipc::FormatCallback.method(:format_raw)
     failing = -> (id, json) { (id == 100) ? raise(ArgumentError, "cannot format") : format_raw.call(id, json) }

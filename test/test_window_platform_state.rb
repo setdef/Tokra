@@ -7,13 +7,14 @@
 
 require "test_helper"
 require_relative "support/stub_native"
+require_relative "support/test_app"
 
 # The window state plan 040 deferred (plan 041): Tauri's own WindowExt
 # code, size constraints, icons, background colors, and shadows, through a
 # real AppHandle and the stub native window.
 class TestWindowPlatformState < Minitest::Test
   def app_handle
-    @app_handle ||= Tokra::Builder.default.build(native: StubNative).handle
+    @app_handle ||= build_test_app.handle
   end
 
   def native

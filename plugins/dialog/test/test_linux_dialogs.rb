@@ -154,7 +154,7 @@ class TestLinuxDialogs < Minitest::Test
   # setup hook or event handler would: each returns at once and answers
   # on another thread (lib.rs:319-348, 510-654).
   CALLBACKS = <<~RUBY
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = TestApp.build_test_app
     handle = app.handle
     handle.plugin(Tokra::Plugins::Dialog::Plugin.new(handle))
     buttons = Tokra::Plugins::Dialog::MessageDialogButtons::OkCancelCustom.new(ok: "Keep", cancel: "Drop")

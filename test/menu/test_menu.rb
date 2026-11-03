@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # Tokra::Menu through a real App and AppHandle, with real muda menus and
 # StubNative's window and NSApp (plan 042). StubWindowMenusNative plays a
@@ -22,7 +23,7 @@ class TestMenu < Minitest::Test
     Thread.current[:heard] = []
     builder = Tokra::Builder.default
       .on_menu_event(&Ractor.shareable_proc { |handle, event| Thread.current[:heard] << [:builder, handle.class, event.id.to_s] })
-    app = builder.build(native: StubNative)
+    app = build_test_app(builder)
     app.on_menu_event { |_handle, event| Thread.current[:heard] << [:app, event.id.to_s] }
 
     app.run do |handle, event|
@@ -43,7 +44,7 @@ class TestMenu < Minitest::Test
     StubNative.inject_event(Tokra::Native::MenuEvent.new("save"))
     Thread.current[:heard] = []
 
-    Tokra::Builder.default.build(native: StubNative).run do |handle, event|
+    build_test_app.run do |handle, event|
       next unless event.is_a?(Tokra::RunEvent::Ready)
 
       window = handle.get_window("main")
@@ -56,10 +57,12 @@ class TestMenu < Minitest::Test
 
   def test_the_builders_menu_is_the_apps_before_the_setup_hook_and_goes_on_the_new_window
     Thread.current[:setup_menu] = nil
-    app = Tokra::Builder.default
-      .menu(&Ractor.shareable_proc { |handle| Tokra::Menu::MenuBuilder.with_id(handle, "bar").text("open", "Open").build })
-      .setup(&Ractor.shareable_proc { |a| Thread.current[:setup_menu] = a.menu&.id&.to_s })
-      .build(native: StubWindowMenusNative)
+    app = build_test_app(
+      Tokra::Builder.default
+        .menu(&Ractor.shareable_proc { |handle| Tokra::Menu::MenuBuilder.with_id(handle, "bar").text("open", "Open").build })
+        .setup(&Ractor.shareable_proc { |a| Thread.current[:setup_menu] = a.menu&.id&.to_s }),
+      native: StubWindowMenusNative
+    )
 
     assert_nil app.menu
     app.run
@@ -78,7 +81,7 @@ class TestMenu < Minitest::Test
 
     # Other files' apps run on this thread too and leave their calls.
     StubNative.nsapp_calls.clear
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     app.run
 
     menu = app.menu
@@ -92,8 +95,8 @@ class TestMenu < Minitest::Test
   end
 
   def test_the_default_menu_is_macos_only_and_can_be_turned_off
-    with_default = Tokra::Builder.default.build(native: StubNative).tap(&:run)
-    without = Tokra::Builder.default.enable_macos_default_menu(false).build(native: StubNative).tap(&:run)
+    with_default = build_test_app.tap(&:run)
+    without = build_test_app(Tokra::Builder.default.enable_macos_default_menu(false)).tap(&:run)
 
     if Tokra::Menu.os == :macos
       assert_equal %w[File Edit View Window Help], with_default.menu.items.drop(1).map(&:text)
@@ -104,7 +107,7 @@ class TestMenu < Minitest::Test
   end
 
   def test_the_default_menu_follows_tauris_layout_for_each_platform
-    handle = Tokra::Builder.default.build(native: StubNative).handle
+    handle = build_test_app.handle
     layouts = %i[macos windows linux].to_h do |os|
       menu = Tokra::Menu::Menu.__send__(:default_for, handle, os)
       [os, menu.items.map { |submenu| [submenu.id.to_s, submenu.text, submenu.items.map(&:text)] }]
@@ -218,7 +221,7 @@ class TestMenu < Minitest::Test
   def test_on_macos_set_menu_waits_for_the_event_loop_to_reach_nsapp
     skip "NSApp is macOS's" unless Tokra::Native.respond_to?(:init_menu_for_nsapp)
 
-    app = Tokra::Builder.default.enable_macos_default_menu(false).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.enable_macos_default_menu(false))
     menu = Tokra::Menu::Menu.with_id(app.handle, "early")
     app.set_menu(menu)
     assert_empty StubNative.nsapp_calls, "no NSApp before the loop"
@@ -230,7 +233,7 @@ class TestMenu < Minitest::Test
   end
 
   def test_a_menus_items_come_back_as_their_own_classes_with_their_ids
-    handle = Tokra::Builder.default.build(native: StubNative).handle
+    handle = build_test_app.handle
     menu = Tokra::Menu::MenuBuilder.new(handle)
       .text("open", "Open").check("wrap", "Wrap").separator.item(Tokra::Menu::Submenu.with_id(handle, "sub", "Sub", true))
       .build
@@ -249,7 +252,7 @@ class TestMenu < Minitest::Test
   end
 
   def test_a_muda_error_is_a_menu_error_with_tauris_prefix
-    handle = Tokra::Builder.default.build(native: StubNative).handle
+    handle = build_test_app.handle
     menu = Tokra::Menu::Menu.new(handle)
 
     error = assert_raises(Tokra::Error::Menu) { menu.remove(Tokra::Menu::MenuItem.new(handle, "A", true, nil)) }
@@ -259,7 +262,7 @@ class TestMenu < Minitest::Test
   end
 
   def test_item_builders_start_enabled_and_check_items_start_checked
-    handle = Tokra::Builder.default.build(native: StubNative).handle
+    handle = build_test_app.handle
 
     plain = Tokra::Menu::MenuItemBuilder.with_id("save", "Save").accelerator("CmdOrCtrl+S").build(handle)
     check = Tokra::Menu::CheckMenuItemBuilder.new("Wrap").build(handle)
@@ -278,7 +281,7 @@ class TestMenu < Minitest::Test
   # Tauri keeps a builder item's Result and raises it from build
   # (builders/menu.rs:30-37).
   def test_a_builder_keeps_an_items_error_for_build
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     context = app.handle.runtime_context
     context.attach(StubNative::Proxy.new)
     context.close
@@ -290,7 +293,7 @@ class TestMenu < Minitest::Test
   end
 
   def test_a_call_from_another_thread_runs_on_the_main_thread_or_fails_to_receive
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     handle = app.handle
     item = Tokra::Menu::MenuItem.new(handle, "Open", true, nil)
     context = handle.runtime_context
@@ -339,7 +342,7 @@ class TestMenu < Minitest::Test
     assert_equal %i[name version short_version authors comments copyright license website website_label credits icon],
       Tokra::Menu::AboutMetadata.members
     assert_equal "Notes", metadata.name
-    handle = Tokra::Builder.default.build(native: StubNative).handle
+    handle = build_test_app.handle
     assert_instance_of Tokra::Native::MenuIcon, metadata.to_native(handle)[:icon]
     assert_nil Tokra::Menu::AboutMetadata.new.to_native(handle)[:icon]
     assert_nil Tokra::Menu::AboutMetadata.new.name
@@ -348,7 +351,7 @@ class TestMenu < Minitest::Test
 
   # Tauri's query goes unanswered and answers false (window/mod.rs:1334-1363).
   def test_a_menu_visibility_query_the_main_thread_never_answers_is_false
-    app = Tokra::Builder.default.build(native: StubWindowMenusNative)
+    app = build_test_app(native: StubWindowMenusNative)
     handle = app.handle
     window = Tokra::Window.new(label: "main", native: StubWindowMenusNative::Window.new(nil, "main"), app_handle: handle)
     window.set_menu(Tokra::Menu::Menu.with_id(handle, "bar"))
@@ -366,7 +369,7 @@ class TestMenu < Minitest::Test
   # Tauri's message hook translates the stashed menus' accelerators
   # (app.rs:2145-2162), so the event loop's list follows the stash.
   def test_the_windows_accelerator_list_follows_the_stash
-    app = Tokra::Builder.default.build(native: AcceleratorNative)
+    app = build_test_app(native: AcceleratorNative)
     handle = app.handle
     AcceleratorNative.lists.clear
 
@@ -392,6 +395,6 @@ class TestMenu < Minitest::Test
   end
 
   private def run_app(native)
-    Tokra::Builder.default.enable_macos_default_menu(false).build(native:).tap(&:run)
+    build_test_app(Tokra::Builder.default.enable_macos_default_menu(false), native:).tap(&:run)
   end
 end

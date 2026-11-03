@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # Tests the initialization scripts App hands the webview.
 #
@@ -37,7 +38,7 @@ class TestBuilderInitializationScripts < Minitest::Test
   end
 
   def test_core_scripts_come_in_tauris_order
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     scripts = scripts_for(app)
 
     assert_equal 5, scripts.size, "bootstrap, invoke transport, metadata, init.js, the event plugin's"
@@ -51,7 +52,7 @@ class TestBuilderInitializationScripts < Minitest::Test
   end
 
   def test_invoke_key_is_templated_into_the_transport_only
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     scripts = scripts_for(app)
 
     assert_includes scripts[1], "const __TAURI_INVOKE_KEY__ = #{JSON.generate(app.invoke_key)}"
@@ -63,7 +64,7 @@ class TestBuilderInitializationScripts < Minitest::Test
   end
 
   def test_no_template_markers_survive_rendering
-    plugin_app = Tokra::Builder.default.with_global_tauri.build(native: StubNative)
+    plugin_app = build_test_app(Tokra::Builder.default.with_global_tauri)
     scripts_for(plugin_app).each_with_index do |script, index|
       refute_match(/__(TEMPLATE|RAW)_\w+__/, script, "script #{index} has a Tauri marker left")
       # The invoke key is Z85 text (lib.rs:1252-1256), whose alphabet holds
@@ -74,7 +75,7 @@ class TestBuilderInitializationScripts < Minitest::Test
   end
 
   def test_plugin_scripts_follow_init_js_wrapped_in_iifes_before_the_api_bundle
-    app = Tokra::Builder.default.with_global_tauri.build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.with_global_tauri)
     app.handle.plugin(ScriptPlugin.new(app.handle, "first", "window.first = 1"))
     app.handle.plugin(ScriptPlugin.new(app.handle, "silent", nil))
     app.handle.plugin(ScriptPlugin.new(app.handle, "second", "window.second = 2"))
@@ -92,7 +93,7 @@ class TestBuilderInitializationScripts < Minitest::Test
   # Of Tauri's core plugins only the event plugin has a js_init_script
   # (event/plugin.rs:60-81).
   def test_only_the_event_plugin_among_the_core_plugins_contributes_a_script
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     scripts = app.handle.manager.plugins.initialization_script
 
     assert_equal 1, scripts.size

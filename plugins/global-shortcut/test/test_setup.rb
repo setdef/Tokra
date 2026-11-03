@@ -15,7 +15,7 @@ class TestSetup < Minitest::Test
 
   # The child's app handle, as an app builds one.
   PRELUDE = <<~RUBY
-    HANDLE = Tokra::Builder.default.build(native: StubNative).handle
+    HANDLE = TestApp.build_test_app.handle
     def event(shortcut, state)
       G::ShortcutEvent.new(G::Shortcut.from_str(shortcut).id, state)
     end

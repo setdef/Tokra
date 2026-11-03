@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # Listener and Emitter on App, AppHandle, Window, and Webview (lib.rs:829-1048,
 # app.rs:1055-1112, window/mod.rs:2235-2310, webview/mod.rs:2180-2255), and
@@ -16,7 +17,7 @@ class TestEventEmitter < Minitest::Test
 
   def setup
     StubNative::WebView.instances.clear
-    @app = Tokra::Builder.default.build(native: StubNative)
+    @app = build_test_app
     @handle = @app.handle
     @native_webview = StubNative::WebView.new
     @window = Tokra::Window.new(label: "main", native: StubNative::Window.new(nil, "main"), app_handle: @handle)

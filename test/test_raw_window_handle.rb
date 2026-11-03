@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "support/stub_native"
+require_relative "support/test_app"
 
 # Tests for Tokra::RawWindowHandle and the window_handle and display_handle
 # methods Tauri's HasWindowHandle and HasDisplayHandle impls become
@@ -29,7 +30,7 @@ class TestRawWindowHandle < Minitest::Test
   # SPDX-SnippetEnd
 
   def setup
-    @app = Tokra::Builder.default.build(native: StubNative)
+    @app = build_test_app
     @handle = @app.handle
     @native = StubNative::Window.new(nil, "main")
     @window = Tokra::Window.new(label: "main", native: @native, app_handle: @handle)

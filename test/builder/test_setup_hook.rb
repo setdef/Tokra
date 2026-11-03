@@ -8,6 +8,7 @@
 
 require "test_helper"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # Tests for Tokra::Builder setup hook behavior.
 # Verifies that Builder#setup hook is called when App#run executes.
@@ -19,9 +20,10 @@ class TestBuilderSetupHook < Minitest::Test
       Thread.current[:setup_called] = true
       Thread.current[:app_received] = app
     }
-    Tokra::Builder.default
-      .setup(&hook)
-      .run(native: StubNative)
+    run_test_app(
+      Tokra::Builder.default
+        .setup(&hook)
+    )
 
     assert Thread.current[:setup_called], "setup hook should be called"
     assert_instance_of Tokra::App, Thread.current[:app_received]
@@ -31,9 +33,10 @@ class TestBuilderSetupHook < Minitest::Test
     Thread.current[:setup_app] = nil
     hook = Ractor.shareable_proc { |app| Thread.current[:setup_app] = app }
 
-    Tokra::Builder.default
-      .setup(&hook)
-      .run(native: StubNative)
+    run_test_app(
+      Tokra::Builder.default
+        .setup(&hook)
+    )
 
     assert_instance_of Tokra::App, Thread.current[:setup_app]
   end
@@ -42,11 +45,12 @@ class TestBuilderSetupHook < Minitest::Test
     Thread.current[:order] = []
     setup_hook = Ractor.shareable_proc { |_app| Thread.current[:order] << :setup }
 
-    Tokra::Builder.default
-      .setup(&setup_hook)
-      .run(native: StubNative) { |_handle, event|
-        Thread.current[:order] << :ready if event.is_a?(Tokra::RunEvent::Ready)
-      }
+    run_test_app(
+      Tokra::Builder.default
+        .setup(&setup_hook)
+    ) { |_handle, event|
+      Thread.current[:order] << :ready if event.is_a?(Tokra::RunEvent::Ready)
+    }
 
     assert_equal [:setup, :ready], Thread.current[:order]
   end

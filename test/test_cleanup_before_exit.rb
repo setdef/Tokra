@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "support/stub_native"
+require_relative "support/test_app"
 
 # App#cleanup_before_exit and AppHandle#cleanup_before_exit through a real
 # App and AppHandle: Tauri's cleanup_before_exit (app.rs:1024-1038; plan
@@ -26,7 +27,7 @@ class TestCleanupBeforeExit < Minitest::Test
   end
 
   def setup
-    @app = Tokra::Builder.default.build(native: StubNative)
+    @app = build_test_app
     @handle = @app.handle
   end
 

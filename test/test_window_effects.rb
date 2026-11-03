@@ -7,13 +7,14 @@
 
 require "test_helper"
 require_relative "support/stub_native"
+require_relative "support/test_app"
 
 # Window effects (plan 045): Tauri's Effect, EffectState,
 # WindowEffectsConfig, and EffectsBuilder, and Window#set_effects through
 # a real AppHandle and the stub native window.
 class TestWindowEffects < Minitest::Test
   def app_handle
-    @app_handle ||= Tokra::Builder.default.build(native: StubNative).handle
+    @app_handle ||= build_test_app.handle
   end
 
   def native

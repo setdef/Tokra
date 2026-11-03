@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
-require_relative "stub_native"
+require_relative "test_app"
 
 # The app's own origin, for tests that send an invoke from the app's page.
 #
@@ -19,7 +19,7 @@ require_relative "stub_native"
 module LocalOrigin
   # The URL of +path+ on the app's own origin, as +app+ (or a fresh app)
   # computes it on this platform.
-  def self.url(path = "/", app: Tokra::Builder.default.build(native: StubNative))
+  def self.url(path = "/", app: TestApp.build_test_app)
     "#{app.__send__(:tokra_protocol_url)}#{path}"
   end
 end

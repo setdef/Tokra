@@ -15,6 +15,7 @@ require "tokra-global-shortcut"
 # real AppHandle built on it instead of a hand-rolled stand-in.
 $LOAD_PATH.unshift File.expand_path("../../../../test", __dir__)
 require "support/stub_native"
+require "support/test_app"
 
 # Helpers every global-shortcut test shares.
 #
@@ -56,7 +57,7 @@ module GlobalShortcutTest
     # must have called require_x_server first.
     def shared
       @shared ||= begin
-        app = Tokra::Builder.default.build(native: StubNative)
+        app = TestApp.build_test_app
         plugin = G::Plugin.new(app.handle)
         app.handle.plugin(plugin)
         Shared.new(app:, plugin:)
@@ -140,7 +141,7 @@ module GlobalShortcutTest
     child = <<~RUBY
       require "tokra-global-shortcut"
       $LOAD_PATH.unshift #{File.expand_path('../../../../test', __dir__).dump}
-      require "support/stub_native"
+      require "support/test_app"
       G = Tokra::Plugins::GlobalShortcut
       value = eval(#{script.dump}, TOPLEVEL_BINDING)
       $stdout.binmode.write(Marshal.dump(value))

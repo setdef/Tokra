@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # How an app asks to close a window and to exit, and how a handler keeps
 # either from happening (Plan 038).
@@ -182,11 +183,12 @@ class TestBuilderExitRequested < Minitest::Test
 
   def test_the_window_is_gone_from_the_manager_before_handlers_hear_destroyed
     seen = []
-    app = Tokra::Builder.default
-      .on_window_event(&Ractor.shareable_proc { |_window, event|
-        Thread.current[:exit_requested_order] << :listener if event.is_a?(Tokra::WindowEvent::Destroyed)
-      })
-      .build(native: StubNative)
+    app = build_test_app(
+      Tokra::Builder.default
+        .on_window_event(&Ractor.shareable_proc { |_window, event|
+          Thread.current[:exit_requested_order] << :listener if event.is_a?(Tokra::WindowEvent::Destroyed)
+        })
+    )
     Thread.current[:exit_requested_order] = seen
     StubNative.inject_event(Tokra::Native::WindowCloseEvent.new("main"))
 
@@ -299,7 +301,7 @@ class TestBuilderExitRequested < Minitest::Test
   end
 
   private def build
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     app.handle.plugin(@plugin)
     app
   end

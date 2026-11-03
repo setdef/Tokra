@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "support/stub_native"
+require_relative "support/test_app"
 
 # The rows of WindowBuilder and WebviewWindowBuilder reach the native
 # window and webview as Tauri's reach tao and wry (plan 052, phase 3):
@@ -87,7 +88,7 @@ class TestWindowBuilderRows < Minitest::Test
   # with the handle and a log; +events+ and then +tasks+ TaskEvents follow.
   def run_app(tasks: 0, events: [], &on_ready)
     log = []
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     StubNative.inject_event(events + Array.new(tasks) { Tokra::Native::TaskEvent.new })
     app.run { |handle, event| on_ready&.call(handle, log) if event.is_a?(Tokra::RunEvent::Ready) }
     log
@@ -271,7 +272,7 @@ class TestWindowBuilderRows < Minitest::Test
   # Runs an app on StubWindowMenusNative, whose windows hold their own
   # menu bars, as on Windows and Linux.
   def run_menu_app(&on_ready)
-    app = Tokra::Builder.default.build(native: StubWindowMenusNative)
+    app = build_test_app(native: StubWindowMenusNative)
     app.run { |handle, event| on_ready.call(handle) if event.is_a?(Tokra::RunEvent::Ready) }
   end
 

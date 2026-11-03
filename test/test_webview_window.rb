@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "support/stub_native"
+require_relative "support/test_app"
 
 # WebviewWindow sends each call to the half Tauri's sends it to, listens on
 # the WebviewWindow target, and the manager finds one by label only when
@@ -18,7 +19,7 @@ class TestWebviewWindow < Minitest::Test
   # Runs an app and calls the block on the main thread once it is ready.
   def run_app(tasks: 0, &on_ready)
     StubNative.inject_event(Array.new(tasks) { Tokra::Native::TaskEvent.new })
-    Tokra::Builder.default.run(native: StubNative) do |handle, event|
+    run_test_app do |handle, event|
       on_ready&.call(handle) if event.is_a?(Tokra::RunEvent::Ready)
     end
   end
@@ -63,7 +64,7 @@ class TestWebviewWindow < Minitest::Test
   def test_on_window_event_hears_the_windows_events
     heard = []
     StubNative.inject_event(Tokra::Native::WindowMovedEvent.new("main", 4, 5))
-    Tokra::Builder.default.run(native: StubNative) do |handle, event|
+    run_test_app do |handle, event|
       next unless event.is_a?(Tokra::RunEvent::Ready)
 
       handle.get_webview_window("main").on_window_event { |window_event| heard << window_event }

@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # Tests for run event fan-out to registered plugins.
 #
@@ -33,7 +34,7 @@ class TestBuilderPluginRunEvents < Minitest::Test
 
   def test_plugins_receive_ready_and_exit_with_the_handle
     plugin = RecordingPlugin.new
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     app.handle.plugin(plugin)
 
     app.run
@@ -49,7 +50,7 @@ class TestBuilderPluginRunEvents < Minitest::Test
     plugin = RecordingPlugin.new
     plugin.define_singleton_method(:on_event) { |_app, _event| order << :plugin }
 
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     app.handle.plugin(plugin)
     app.run { |_handle, _event| order << :callback }
 
@@ -59,7 +60,7 @@ class TestBuilderPluginRunEvents < Minitest::Test
 
   def test_plugins_receive_the_window_close_as_a_window_event
     plugin = RecordingPlugin.new
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     app.handle.plugin(plugin)
     StubNative.inject_event(Tokra::Native::WindowCloseEvent.new("main"))
 
@@ -96,7 +97,7 @@ class TestBuilderPluginRunEvents < Minitest::Test
 
   def test_exit_is_emitted_only_when_the_loop_is_destroyed
     plugin = RecordingPlugin.new
-    app = Tokra::Builder.default.build(native: SilentNative)
+    app = build_test_app(native: SilentNative)
     app.handle.plugin(plugin)
 
     app.run

@@ -118,8 +118,8 @@ class TestAppHandle < Minitest::Test
   end
 
   def test_built_app_handle_manages_through_the_builder_state
-    require_relative "support/stub_native"
-    app = Tokra::Builder.default.build(native: StubNative)
+    require_relative "support/test_app"
+    app = build_test_app
 
     assert app.handle.manage(Counter.new(3))
     assert_equal 3, app.handle.state(Counter).count

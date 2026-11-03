@@ -7,12 +7,13 @@
 
 require "test_helper"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # Tokra::Tray through a real App and AppHandle, with real muda menus and
 # StubNative's tray, which records what tray-icon would be asked (plan 043).
 class TestTray < Minitest::Test
   def setup
-    @app = Tokra::Builder.default.build(native: StubNative)
+    @app = build_test_app
     @handle = @app.handle
   end
 
@@ -249,9 +250,10 @@ class TestTray < Minitest::Test
   def test_a_tray_event_reaches_the_app_then_the_tray_then_the_run_callback
     StubNative.inject_event([click("main"), click("gone")])
     Thread.current[:heard] = []
-    app = Tokra::Builder.default
-      .on_tray_icon_event(&Ractor.shareable_proc { |handle, event| Thread.current[:heard] << [:builder, handle.class, event.id.to_s] })
-      .build(native: StubNative)
+    app = build_test_app(
+      Tokra::Builder.default
+        .on_tray_icon_event(&Ractor.shareable_proc { |handle, event| Thread.current[:heard] << [:builder, handle.class, event.id.to_s] })
+    )
     app.on_tray_icon_event { |_, event| Thread.current[:heard] << [:app, event.id.to_s] }
     app.handle.plugin(TrayEventPlugin.new(app.handle))
 
@@ -285,7 +287,7 @@ class TestTray < Minitest::Test
     StubNative.inject_event(click("main"))
     Thread.current[:heard] = []
 
-    Tokra::Builder.default.build(native: StubNative).run do |handle, event|
+    build_test_app.run do |handle, event|
       next unless event.is_a?(Tokra::RunEvent::Ready)
 
       tray = Tokra::Tray::TrayIconBuilder.with_id("main").on_tray_icon_event { |_, _| Thread.current[:heard] << :builder }.build(handle)

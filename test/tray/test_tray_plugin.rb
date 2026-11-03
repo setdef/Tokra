@@ -7,13 +7,14 @@
 
 require "test_helper"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # The plugin:tray commands, routed through the app's own plugin store with
 # real muda menus and StubNative's tray, as the JavaScript API sends them
 # (tray/plugin.rs, packages/api/src/tray.ts).
 class TestTrayPlugin < Minitest::Test
   def setup
-    @app = Tokra::Builder.default.build(native: StubNative)
+    @app = build_test_app
     @handle = @app.handle
     @window = Tokra::Window.new(label: "main", native: StubNative::Window.new(nil, "main"), app_handle: @handle)
     @handle.windows["main"] = @window

@@ -75,7 +75,7 @@ class TestMacosNotifications < Minitest::Test
     outcome, errors = in_child(<<~RUBY)
       #{SWEEPER}
       Ferro::NotifyRust.set_application("com.apple.finder")
-      app = Tokra::Builder.default.build(native: StubNative)
+      app = TestApp.build_test_app
       handle = app.handle
       plugin = Tokra::Plugins::Notification::Plugin.new(handle)
       handle.plugin(plugin)

@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # Tests for Tokra::Ipc::Channel and Tokra::Ipc::JavaScriptChannelId, against
 # the scripts Tauri's ipc/channel.rs evaluates.
@@ -18,7 +19,7 @@ class TestChannel < Minitest::Test
   # run at once; the native webview records them.
   private def webview
     @webview ||= begin
-      handle = Tokra::Builder.default.build(native: StubNative).handle
+      handle = build_test_app.handle
       window = Tokra::Window.new(label: "main", native: Object.new, app_handle: handle)
       Tokra::Webview.new(label: "main", native: StubNative::WebView.new, window:, app_handle: handle)
     end

@@ -8,6 +8,7 @@
 require "test_helper"
 require "timeout"
 require_relative "support/stub_native"
+require_relative "support/test_app"
 
 # Tokra::Window's getters and setters (plan 040) through a real AppHandle
 # and the stub native window, which answers in Native::Window's shapes.
@@ -15,7 +16,7 @@ require_relative "support/stub_native"
 # a setter runs at once.
 class TestWindowState < Minitest::Test
   def app_handle
-    @app_handle ||= Tokra::Builder.default.build(native: StubNative).handle
+    @app_handle ||= build_test_app.handle
   end
 
   def native
@@ -321,7 +322,7 @@ class TestWindowStateInAnApp < Minitest::Test
 
   def run_app(tasks: 1, &on_ready)
     StubNative.inject_event(Array.new(tasks) { Tokra::Native::TaskEvent.new })
-    Tokra::Builder.default.run(native: StubNative) do |handle, event|
+    run_test_app do |handle, event|
       on_ready&.call(handle) if event.is_a?(Tokra::RunEvent::Ready)
     end
   end

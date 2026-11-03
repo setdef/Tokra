@@ -8,6 +8,7 @@
 require "test_helper"
 require_relative "support/local_origin"
 require_relative "support/stub_native"
+require_relative "support/test_app"
 
 # Every native event names its window or webview, and App routes it there
 # (plan 052, phase 1). Tauri's runtime resolves a window event's window
@@ -322,7 +323,7 @@ class TestAppRouting < Minitest::Test
     configured = Tokra::Builder.default.setup(&SECOND).on_window_event(&BUILDER_LISTENER)
     configured = configured.invoke_handler(&WHOAMI) if invoke
     configured = builder.call(configured) if builder
-    app = configured.build(native:)
+    app = build_test_app(configured, native:)
     if plugin
       app.handle.plugin(PageLoadPlugin.new(app.handle))
       app.handle.plugin(LaterPageLoadPlugin.new(app.handle))

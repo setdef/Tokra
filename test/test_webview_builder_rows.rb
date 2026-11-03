@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "support/stub_native"
+require_relative "support/test_app"
 
 # The webview rows of WebviewWindowBuilder reach the native webview as
 # Tauri's reach wry (plan 052, 052e-1): WebviewAttributes::new's defaults,
@@ -46,7 +47,7 @@ class TestWebviewBuilderRows < Minitest::Test
 
   # Runs an app and calls the block on the main thread once it is Ready.
   def run_app(&on_ready)
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     app.run { |handle, event| on_ready&.call(handle) if event.is_a?(Tokra::RunEvent::Ready) }
   end
 

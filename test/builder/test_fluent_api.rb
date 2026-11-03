@@ -8,6 +8,7 @@
 
 require "test_helper"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # Tests for Tokra::Builder fluent API chaining.
 # Verifies methods return self for method chaining.
@@ -76,13 +77,14 @@ class TestBuilderFluentApi < Minitest::Test
   def test_full_fluent_chain_compiles
     null_hook = Ractor.shareable_proc { nil }
     false_hook = Ractor.shareable_proc { false }
-    app = Tokra::Builder.default
-      .register_uri_scheme_protocol("app", &null_hook)
-      .invoke_handler(&false_hook)
-      .setup(&null_hook)
-      .on_page_load(&null_hook)
-      .on_window_event(&null_hook)
-      .build(native: StubNative)
+    app = build_test_app(
+      Tokra::Builder.default
+        .register_uri_scheme_protocol("app", &null_hook)
+        .invoke_handler(&false_hook)
+        .setup(&null_hook)
+        .on_page_load(&null_hook)
+        .on_window_event(&null_hook)
+    )
 
     assert_instance_of Tokra::App, app
   end

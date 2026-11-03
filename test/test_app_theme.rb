@@ -8,6 +8,7 @@
 require "test_helper"
 require "timeout"
 require_relative "support/stub_native"
+require_relative "support/test_app"
 
 # App#set_theme and AppHandle#set_theme (plan 045, decision 7): Tauri
 # themes each window's menu on Windows, then sets the theme on the event
@@ -23,7 +24,7 @@ class TestAppTheme < Minitest::Test
   end
 
   def app
-    @app ||= Tokra::Builder.default.build(native: StubNative)
+    @app ||= build_test_app
   end
 
   def handle
@@ -71,7 +72,7 @@ class TestAppTheme < Minitest::Test
   # one set before App#run, and wins.
   def test_the_setup_hooks_theme_comes_after_an_earlier_one
     setup = Ractor.shareable_proc { |built| built.set_theme(Tokra::Theme::Dark) }
-    app = Tokra::Builder.default.setup(&setup).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.setup(&setup))
     app.set_theme(Tokra::Theme::Light)
     run_app(app)
 
@@ -156,7 +157,7 @@ class TestAppTheme < Minitest::Test
   # On Windows Tauri themes each window's menu with map_to_menu_theme,
   # Auto for None (app.rs:849-863).
   def test_on_windows_each_windows_menu_bar_follows
-    app = Tokra::Builder.default.build(native: StubWindowsMenusNative)
+    app = build_test_app(native: StubWindowsMenusNative)
     handle = app.handle
     with_menu = Tokra::Window.new(label: "a", native: StubWindowsMenusNative::Window.new(nil, "a"), app_handle: handle)
     without = Tokra::Window.new(label: "b", native: StubWindowsMenusNative::Window.new(nil, "b"), app_handle: handle)

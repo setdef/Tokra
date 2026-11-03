@@ -177,7 +177,7 @@ class TestGlobalShortcut < Minitest::Test
   # Tauri's ? turns a closed loop's errors into Error::Tauri and
   # Error::RecvError (error.rs:12-15).
   def test_after_the_loop_ends_calls_from_another_thread_raise_tauris_errors
-    handle = Tokra::Builder.default.build(native: StubNative).handle
+    handle = build_test_app.handle
     shortcuts = G::GlobalShortcut.new(handle, shared.global_shortcut.instance_variable_get(:@manager), {})
     context = handle.runtime_context
 
@@ -195,7 +195,7 @@ class TestGlobalShortcut < Minitest::Test
   # unregister_all forgets the shortcuts before it asks the main thread, so
   # their handlers drop even when it cannot (lib.rs:219-227).
   def test_unregister_all_drops_the_handlers_when_the_loop_has_ended
-    handle = Tokra::Builder.default.build(native: StubNative).handle
+    handle = build_test_app.handle
     dropped = Thread::Queue.new
     channel = Tokra::Ipc::Channel.new_with_id(1, -> (_json) {}, -> { dropped << :dropped })
     shortcut = G::Shortcut.from_str(unusual)

@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "support/stub_native"
+require_relative "support/test_app"
 
 # Tests that App, Window, and Webview are full Managers, as in Tauri: the
 # trait's provided methods reach the one app manager whichever handle you
@@ -14,7 +15,7 @@ require_relative "support/stub_native"
 class TestManagerDelegation < Minitest::Test
   def setup
     StubNative.clear_event
-    @app = Tokra::Builder.default.build(native: StubNative)
+    @app = build_test_app
     @app.run
     @handle = @app.handle
   end

@@ -17,6 +17,7 @@ require "tokra-notification"
 # real AppHandle built on it instead of a hand-rolled stand-in.
 $LOAD_PATH.unshift File.expand_path("../../../../test", __dir__)
 require "support/stub_native"
+require "support/test_app"
 
 # Helpers every notification test shares: a real app handle, invokes that
 # record their answer, a child Ruby for the macOS tests, and a real
@@ -61,7 +62,7 @@ module NotificationTest
 
   # A real app handle, built exactly as an app builds one.
   private def build_app
-    Tokra::Builder.default.build(native: StubNative)
+    build_test_app
   end
 
   # A real app handle whose configuration names +identifier+ and
@@ -128,7 +129,7 @@ module NotificationTest
     child = <<~RUBY
       require "tokra-notification"
       $LOAD_PATH.unshift #{File.expand_path('../../../../test', __dir__).dump}
-      require "support/stub_native"
+      require "support/test_app"
       value = eval(#{script.dump}, TOPLEVEL_BINDING)
       $stdout.binmode.write(Marshal.dump(value))
     RUBY

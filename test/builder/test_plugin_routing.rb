@@ -8,6 +8,7 @@
 require "test_helper"
 require_relative "../support/local_origin"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # Tests for IPC routing of plugin:NAME|command invokes.
 #
@@ -45,7 +46,7 @@ class TestBuilderPluginRouting < Minitest::Test
 
   def test_plugin_command_routes_with_bare_command
     plugin = RecordingPlugin.new
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     app.handle.plugin(plugin)
     inject_ipc(app, "cmd" => "plugin:recording|greet", "payload" => { "text" => "Hello" })
 
@@ -62,7 +63,7 @@ class TestBuilderPluginRouting < Minitest::Test
 
   def test_plugin_command_without_separator_has_empty_command
     plugin = RecordingPlugin.new
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     app.handle.plugin(plugin)
     inject_ipc(app, "cmd" => "plugin:recording")
 
@@ -77,7 +78,7 @@ class TestBuilderPluginRouting < Minitest::Test
   def test_plugin_command_does_not_reach_invoke_handler
     Thread.current[:handler_called] = false
     handler = Ractor.shareable_proc { |_invoke| Thread.current[:handler_called] = true }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     app.handle.plugin(RecordingPlugin.new)
     inject_ipc(app, "cmd" => "plugin:recording|greet")
 
@@ -91,7 +92,7 @@ class TestBuilderPluginRouting < Minitest::Test
 
   def test_unhandled_plugin_command_is_rejected
     plugin = RecordingPlugin.new(handles: false)
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     app.handle.plugin(plugin)
     inject_ipc(app, "cmd" => "plugin:recording|nope")
 
@@ -110,7 +111,7 @@ class TestBuilderPluginRouting < Minitest::Test
       Thread.current[:test_invoke] = invoke
       false
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     inject_ipc(app, "cmd" => "unknown")
 
     app.run
@@ -123,7 +124,7 @@ class TestBuilderPluginRouting < Minitest::Test
   end
 
   def test_core_image_plugin_is_registered_automatically
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     inject_ipc(app,
       "cmd" => "plugin:image|new",
       "payload" => { "rgba" => [255, 0, 0, 255], "width" => 1, "height" => 1 })
@@ -142,7 +143,7 @@ class TestBuilderPluginRouting < Minitest::Test
   end
 
   def test_core_resources_plugin_is_registered_automatically
-    app = Tokra::Builder.default.build(native: StubNative)
+    app = build_test_app
     rid = app.handle.resources_table.add(Tokra::Image.new(rgba: "", width: 0, height: 0))
     inject_ipc(app, "cmd" => "plugin:resources|close", "payload" => { "rid" => rid })
 

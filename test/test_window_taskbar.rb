@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "support/stub_native"
+require_relative "support/test_app"
 
 # The taskbar and the title bar (plan 045): Tauri's progress bar, badges,
 # overlay icon, and title bar style, and Window#webviews, through a real
@@ -16,7 +17,7 @@ class TestWindowTaskbar < Minitest::Test
   WINDOWS = RbConfig::CONFIG["host_os"].match?(/mswin|mingw|cygwin/)
 
   def app
-    @app ||= Tokra::Builder.default.build(native: StubNative)
+    @app ||= build_test_app
   end
 
   def app_handle
@@ -77,7 +78,7 @@ class TestWindowTaskbar < Minitest::Test
   def test_the_desktop_file_is_named_after_the_product
     builder = Tokra::Builder.default
     builder.__send__(:window_config)[:product_name] = "Ledger"
-    handle = builder.build(native: StubNative).handle
+    handle = build_test_app(builder).handle
     window = Tokra::Window.new(label: "win", native:, app_handle: handle)
 
     window.set_badge_count(2)

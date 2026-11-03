@@ -8,6 +8,7 @@
 
 require "test_helper"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # Tests for Tokra::Builder state management (manage / state / try_state).
 class TestBuilderStateManagement < Minitest::Test
@@ -18,10 +19,11 @@ class TestBuilderStateManagement < Minitest::Test
       Thread.current[:retrieved] = app.handle.state(Object)
     }
 
-    Tokra::Builder.default
-      .manage(state)
-      .setup(&hook)
-      .run(native: StubNative)
+    run_test_app(
+      Tokra::Builder.default
+        .manage(state)
+        .setup(&hook)
+    )
 
     assert_same state, Thread.current[:retrieved]
   end
@@ -32,9 +34,10 @@ class TestBuilderStateManagement < Minitest::Test
       Thread.current[:retrieved] = app.handle.try_state(Object)
     }
 
-    Tokra::Builder.default
-      .setup(&hook)
-      .run(native: StubNative)
+    run_test_app(
+      Tokra::Builder.default
+        .setup(&hook)
+    )
 
     assert_nil Thread.current[:retrieved]
   end
@@ -48,9 +51,10 @@ class TestBuilderStateManagement < Minitest::Test
         e
       end
     }
-    Tokra::Builder.default
-      .setup(&hook)
-      .run(native: StubNative)
+    run_test_app(
+      Tokra::Builder.default
+        .setup(&hook)
+    )
     assert_instance_of KeyError, Thread.current[:error]
   end
 end

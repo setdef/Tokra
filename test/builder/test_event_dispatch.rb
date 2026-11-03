@@ -9,6 +9,7 @@
 require "test_helper"
 require_relative "../support/local_origin"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # Tests for Tokra::Builder event dispatch.
 # Tests that registered handlers are called when events are dispatched.
@@ -25,9 +26,10 @@ class TestBuilderEventDispatch < Minitest::Test
       Tokra::Response.ok("handled")
     }
 
-    Tokra::Builder.default
-      .register_uri_scheme_protocol("tokra", &handler)
-      .run(native: StubNative)
+    run_test_app(
+      Tokra::Builder.default
+        .register_uri_scheme_protocol("tokra", &handler)
+    )
 
     refute_nil Thread.current[:received], "Protocol handler should have been called"
     assert_equal Tokra::UriSchemeContext, Thread.current[:received][0]
@@ -47,9 +49,10 @@ class TestBuilderEventDispatch < Minitest::Test
       responder.respond(Tokra::Response.ok("async handled"))
     }
 
-    Tokra::Builder.default
-      .register_asynchronous_uri_scheme_protocol("tokra", &handler)
-      .run(native: StubNative)
+    run_test_app(
+      Tokra::Builder.default
+        .register_asynchronous_uri_scheme_protocol("tokra", &handler)
+    )
 
     refute_nil Thread.current[:received], "Async protocol handler should have been called"
     assert_equal Tokra::UriSchemeContext, Thread.current[:received][0]
@@ -65,7 +68,7 @@ class TestBuilderEventDispatch < Minitest::Test
       Thread.current[:test_invoke] = invoke
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     message = {
       "cmd" => "greet",
       "payload" => { "text" => "Hello" },
@@ -92,7 +95,7 @@ class TestBuilderEventDispatch < Minitest::Test
       Thread.current[:test_invoke] = invoke
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
+    app = build_test_app(Tokra::Builder.default.invoke_handler(&handler))
     StubNative.inject_event(Tokra::Native::IpcEvent.new("main", JSON.generate(
       { "cmd" => "read_text", "__TAURI_INVOKE_KEY__" => app.invoke_key }
     ),
@@ -118,9 +121,10 @@ class TestBuilderEventDispatch < Minitest::Test
     ))
     hook = Ractor.shareable_proc { |_webview, payload| Thread.current[:received] = payload }
 
-    Tokra::Builder.default
-      .on_page_load(&hook)
-      .run(native: StubNative)
+    run_test_app(
+      Tokra::Builder.default
+        .on_page_load(&hook)
+    )
 
     refute_nil Thread.current[:received]
     assert_equal "tokra://localhost/test", Thread.current[:received].url
@@ -134,9 +138,10 @@ class TestBuilderEventDispatch < Minitest::Test
     StubNative.inject_event(Tokra::Native::WindowCloseEvent.new("main"))
     hook = Ractor.shareable_proc { |_window, evt| Thread.current[:received_events] << evt.class }
 
-    Tokra::Builder.default
-      .on_window_event(&hook)
-      .run(native: StubNative)
+    run_test_app(
+      Tokra::Builder.default
+        .on_window_event(&hook)
+    )
 
     assert_includes Thread.current[:received_events], Tokra::WindowEvent::CloseRequested
   ensure
@@ -150,9 +155,10 @@ class TestBuilderEventDispatch < Minitest::Test
       Thread.current[:listener_called] = true if evt.is_a?(Tokra::WindowEvent::CloseRequested)
     }
 
-    Tokra::Builder.default
-      .on_window_event(&hook)
-      .run(native: StubNative)
+    run_test_app(
+      Tokra::Builder.default
+        .on_window_event(&hook)
+    )
 
     assert Thread.current[:listener_called], "window event listener should be called on close"
   ensure

@@ -7,12 +7,13 @@
 
 require "test_helper"
 require_relative "support/stub_native"
+require_relative "support/test_app"
 
 # Tests for Tokra::Window.
 class TestWindow < Minitest::Test
   # A real handle, built on this thread, so this thread is the main thread.
   def app_handle
-    @app_handle ||= Tokra::Builder.default.build(native: StubNative).handle
+    @app_handle ||= build_test_app.handle
   end
 
   def test_new_with_label_and_native

@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # Every WindowEvent tao reports, in Tauri's order: the run callback, then
 # the window's listeners, the manager's first, which emits the tauri://
@@ -194,9 +195,10 @@ class TestBuilderWindowEvents < Minitest::Test
   def test_on_webview_event_does_not_hear_a_webview_windows_drops
     heard = Thread.current[:webview_events] = []
     StubNative.inject_event(Tokra::Native::DragDropEvent.new("main", "leave", [], 0, 0))
-    Tokra::Builder.default
-      .on_webview_event(&Ractor.shareable_proc { |_webview, event| Thread.current[:webview_events] << event })
-      .run(native: StubNative)
+    run_test_app(
+      Tokra::Builder.default
+        .on_webview_event(&Ractor.shareable_proc { |_webview, event| Thread.current[:webview_events] << event })
+    )
 
     assert_empty heard
   end
@@ -254,14 +256,16 @@ class TestBuilderWindowEvents < Minitest::Test
   private def run_with(*events, native: StubNative)
     StubNative.inject_event(events)
     Thread.current[:window_events_windows] = []
-    app = Tokra::Builder.default
-      .on_window_event(&Ractor.shareable_proc { |window, event|
-        Thread.current[:window_events_windows] << window
-        Thread.current[:window_events_log] << [:builder, event.class]
-        (Thread.current[:window_events_builder] ||= []) << event
-        raise "listener failed" if event.is_a?(Thread.current[:window_events_raise] || NilClass)
-      })
-      .build(native:)
+    app = build_test_app(
+      Tokra::Builder.default
+        .on_window_event(&Ractor.shareable_proc { |window, event|
+          Thread.current[:window_events_windows] << window
+          Thread.current[:window_events_log] << [:builder, event.class]
+          (Thread.current[:window_events_builder] ||= []) << event
+          raise "listener failed" if event.is_a?(Thread.current[:window_events_raise] || NilClass)
+        }),
+      native:
+    )
     Thread.current[:window_events_builder] = []
     app.handle.plugin(RecordingPlugin.new(app.handle))
     app.run

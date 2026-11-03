@@ -17,7 +17,7 @@ class TestLinuxEvents < Minitest::Test
 
   # The child's app handle and a way to press keys on the private server.
   PRELUDE = <<~RUBY
-    HANDLE = Tokra::Builder.default.build(native: StubNative).handle
+    HANDLE = TestApp.build_test_app.handle
     def press(keys)
       system("xdotool", "key", "--delay", "100", keys) or raise "xdotool failed"
     end
@@ -97,7 +97,7 @@ class TestLinuxEvents < Minitest::Test
   def test_only_the_first_plugin_in_a_process_hears_its_shortcuts
     heard, = in_display_child(PRELUDE + <<~RUBY)
       heard = Thread::Queue.new
-      second = Tokra::Builder.default.build(native: StubNative).handle
+      second = TestApp.build_test_app.handle
       HANDLE.plugin(G::Plugin.new(HANDLE))
       second.plugin(G::Plugin.new(second))
       second.global_shortcut.on_shortcut("ctrl+alt+shift+F17") { |*| heard << :second }

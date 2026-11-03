@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # How an app restarts (Plan 039), with Ruby's Process.spawn stubbed so no
 # second process starts.
@@ -199,7 +200,7 @@ class TestBuilderRestart < Minitest::Test
   ENV_FOR_TESTS = Tokra::Env.new(args_os: [RbConfig.ruby, __FILE__, "two words"].freeze)
 
   private def build
-    app = Tokra::Env.stub(:default, ENV_FOR_TESTS) { Tokra::Builder.default.build(native: StubNative) }
+    app = Tokra::Env.stub(:default, ENV_FOR_TESTS) { build_test_app }
     app.handle.plugin(@plugin)
     app
   end

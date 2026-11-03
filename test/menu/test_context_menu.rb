@@ -7,13 +7,14 @@
 
 require "test_helper"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # Context menus and the Windows menu theme through a real App, AppHandle,
 # and Window, with real muda menus and StubNative's window, which records
 # each popup instead of tracking the pointer (plan 042, phase 3).
 class TestContextMenu < Minitest::Test
   def setup
-    @app = Tokra::Builder.default.build(native: StubWindowsMenusNative)
+    @app = build_test_app(native: StubWindowsMenusNative)
     @handle = @app.handle
     @window = Tokra::Window.new(label: "main", native: StubWindowsMenusNative::Window.new(nil, "main"), app_handle: @handle)
   end

@@ -92,7 +92,7 @@ class TestMacosDialogs < Minitest::Test
   def test_a_cancelled_pick_file_block_yields_nil
     (returned, answer, thread), = in_child(<<~RUBY)
       #{APPKIT}
-      app = Tokra::Builder.default.build(native: StubNative)
+      app = TestApp.build_test_app
       handle = app.handle
       handle.plugin(Tokra::Plugins::Dialog::Plugin.new(handle))
       answers = Thread::Queue.new

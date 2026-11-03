@@ -7,6 +7,7 @@
 
 require "test_helper"
 require_relative "../support/stub_native"
+require_relative "../support/test_app"
 
 # The event core plugin's commands, which @tauri-apps/api/event calls
 # (event/plugin.rs, packages/api/src/event.ts), and its init script
@@ -15,7 +16,7 @@ class TestEventPlugin < Minitest::Test
   T = Tokra::EventTarget
 
   def setup
-    @app = Tokra::Builder.default.build(native: StubNative)
+    @app = build_test_app
     @handle = @app.handle
     @native_webview = StubNative::WebView.new
     window = Tokra::Window.new(label: "main", native: StubNative::Window.new(nil, "main"), app_handle: @handle)

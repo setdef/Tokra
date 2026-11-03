@@ -17,6 +17,7 @@ require "tokra-dialog"
 # real AppHandle built on it instead of a hand-rolled stand-in.
 $LOAD_PATH.unshift File.expand_path("../../../../test", __dir__)
 require "support/stub_native"
+require "support/test_app"
 
 # Helpers every dialog test shares: a real app handle, invokes that record
 # their answer, and a child Ruby for tests that open a real dialog.
@@ -38,7 +39,7 @@ module DialogTest
 
   # A real app handle, built exactly as an app builds one.
   private def build_app
-    Tokra::Builder.default.build(native: StubNative)
+    build_test_app
   end
 
   # A registered plugin on a real handle.
@@ -125,7 +126,7 @@ module DialogTest
     child = <<~RUBY
       require "tokra-dialog"
       $LOAD_PATH.unshift #{File.expand_path('../../../../test', __dir__).dump}
-      require "support/stub_native"
+      require "support/test_app"
       value = eval(#{script.dump}, TOPLEVEL_BINDING)
       $stdout.binmode.write(Marshal.dump(value))
     RUBY
@@ -150,7 +151,7 @@ module DialogTest
   # <tt>[success, value]</tt>.
   CHILD_COMMAND = <<~RUBY
     def run_command(command, payload)
-      app = Tokra::Builder.default.build(native: StubNative)
+      app = TestApp.build_test_app
       handle = app.handle
       plugin = Tokra::Plugins::Dialog::Plugin.new(handle)
       handle.plugin(plugin)
