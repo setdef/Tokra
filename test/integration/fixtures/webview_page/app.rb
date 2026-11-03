@@ -19,6 +19,7 @@
 #   REQUEST <path> cookie=<names>        each request, its cookies by name, sorted, or -
 #   URL nav <url>                        Webview#url once the HTTP page loads
 #   COOKIES for-url <names>              cookies_for_url's, by name, sorted
+#   READS <label> <n>                    how many reads a cookie write took to show
 #   COOKIES all <names>                  cookies after set_cookie
 #   RELOADED                             the page loaded again after reload
 #   COOKIES after-delete <names>         cookies_for_url after delete_cookie
@@ -77,6 +78,29 @@ module WebviewPageFixture
 
   def self.names(cookies) = cookies.map(&:name).sort.join(",")
 
+  # How many times a read after a cookie write is tried before its
+  # answer counts. On Windows wry hands WebView2 each write and returns,
+  # with no completion (webview2/mod.rs:1656-1675), and WebView2 documents
+  # no order between AddOrUpdateCookie or DeleteCookie and a later
+  # GetCookies, so a read right after a write may not see it. Nothing in
+  # wry or WebView2 gives a principled bound; 50 is a margin. Each read
+  # waits for WebView2's answer, so it counts round trips to its browser
+  # process, not time. Elsewhere the write is done when its call returns,
+  # and the first read must see it.
+  READS = RUBY_PLATFORM.match?(/mswin|mingw|cygwin/) ? 50 : 1
+
+  # Calls +read+ until the block holds of its answer, at most READS
+  # times, prints how many it took after +label+, and answers the last.
+  def self.settle(label, read)
+    answer = nil
+    tries = (1..READS).find do
+      answer = read.call
+      yield answer
+    end
+    puts "READS #{label} #{tries || 'gave-up'}"
+    answer
+  end
+
   # What "nav" does each time a page finishes loading, on the main thread.
   def self.loaded(webview)
     loads = (Thread.current[:webview_page_loads] ||= 0)
@@ -94,7 +118,10 @@ module WebviewPageFixture
     puts "URL nav #{webview.url}"
     puts "COOKIES for-url #{names(webview.cookies_for_url(URI(ORIGIN)))}"
     webview.set_cookie(APP_COOKIE)
-    puts "COOKIES all #{names(webview.cookies.select { |cookie| cookie.domain == 'localhost' })}"
+    stored = settle("all", -> { webview.cookies.select { |cookie| cookie.domain == "localhost" } }) do |cookies|
+      cookies.any? { |cookie| cookie.name == "app" }
+    end
+    puts "COOKIES all #{names(stored)}"
     webview.reload
   end
 
@@ -103,7 +130,10 @@ module WebviewPageFixture
   def self.reloaded(webview)
     puts "RELOADED"
     webview.delete_cookie(APP_COOKIE)
-    puts "COOKIES after-delete #{names(webview.cookies_for_url(URI(ORIGIN)))}"
+    left = settle("after-delete", -> { webview.cookies_for_url(URI(ORIGIN)) }) do |cookies|
+      cookies.none? { |cookie| cookie.name == "app" }
+    end
+    puts "COOKIES after-delete #{names(left)}"
     handle = webview.app_handle
     Thread.new do
       puts "COOKIES thread #{names(webview.cookies_for_url(URI(ORIGIN)))}"

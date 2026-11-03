@@ -18,6 +18,7 @@ require_relative "../support/native_event_loop"
 class TestNativeWebviewPage < Minitest::Test
   MACOS = RbConfig::CONFIG["host_os"].include?("darwin")
   LINUX = RbConfig::CONFIG["host_os"].include?("linux")
+  WINDOWS = RbConfig::CONFIG["host_os"].match?(/mswin|mingw|cygwin/)
 
   # The webview attributes a page at Tokra's URL opens with.
   PAGE = { url: "tokra://localhost/", initialization_scripts: [] }.freeze
@@ -103,7 +104,10 @@ class TestNativeWebviewPage < Minitest::Test
 
   # Where wry panics on a cookie the platform cannot hold, the webview
   # raises wry's message, and stays usable (wkwebview/mod.rs:1082-1083;
-  # webkitgtk/mod.rs:981-983). Tauri panics there.
+  # webkitgtk/mod.rs:982). Tauri panics there. glib 0.18.5's
+  # DateTime::from_unix_utc answers a Result, so on Linux the message is
+  # Result::unwrap's, which goes on with glib's error and the path of the
+  # file glib was built from; the test reads up to that path.
   def test_a_cookie_wry_panics_on_raises_its_message_and_the_webview_goes_on
     skip "only macOS and Linux panic on these cookies" unless MACOS || LINUX
     window = Tokra::Native::Window.new(@event_loop, "page-panic")
@@ -111,11 +115,22 @@ class TestNativeWebviewPage < Minitest::Test
     webview.open(window, @proxy, "page-panic", PAGE)
     fields = MACOS ? FIELDS.merge(name: "") : FIELDS.merge(expires: -70_000_000_000)
 
-    message = MACOS ? "failed to create wkwebview cookie, report this as bug to `wry`" : "called `Option::unwrap()` on a `None` value"
+    message = if MACOS
+      "failed to create wkwebview cookie, report this as bug to `wry`"
+    else
+      'called `Result::unwrap()` on an `Err` value: BoolError { message: "Invalid date"'
+    end
     # Rust's panic hook writes to file descriptor 2, which this captures.
     _, stderr = capture_subprocess_io do
-      assert_equal message, assert_raises(RuntimeError) { webview.set_cookie(fields) }.message
-      assert_equal message, assert_raises(RuntimeError) { webview.delete_cookie(fields) }.message
+      [:set_cookie, :delete_cookie].each do |call|
+        raised = assert_raises(RuntimeError) { webview.public_send(call, fields) }.message
+        # macOS's message is fixed; Linux's goes on with glib's file path.
+        if MACOS
+          assert_equal message, raised
+        else
+          assert_operator raised, :start_with?, message
+        end
+      end
     end
 
     assert_includes stderr, message, "the panic is still reported"
@@ -123,6 +138,28 @@ class TestNativeWebviewPage < Minitest::Test
   ensure
     webview&.close
     window&.close
+  end
+
+  # How many times a read after a cookie write is tried before its
+  # answer counts. On Windows wry hands WebView2 each write and returns,
+  # with no completion (webview2/mod.rs:1656-1675), and WebView2 documents
+  # no order between AddOrUpdateCookie or DeleteCookie and a later
+  # GetCookies, so a read right after a write may not see it. Nothing in
+  # wry or WebView2 gives a principled bound; 50 is a margin. Each read
+  # waits for WebView2's answer, so it counts round trips to its browser
+  # process, not time. Elsewhere the write is done when its call returns,
+  # and the first read must see it.
+  READS = WINDOWS ? 50 : 1
+
+  # Calls +read+ until the block holds of its answer, at most READS
+  # times, and answers the last.
+  def settle(read)
+    answer = nil
+    READS.times do
+      answer = read.call
+      break if yield(answer)
+    end
+    answer
   end
 
   # A cookie set in the real store reads back with every field the
@@ -134,6 +171,15 @@ class TestNativeWebviewPage < Minitest::Test
   # The cookie gives secure and leaves http_only unset, which reads back
   # false everywhere: on macOS wry writes a false flag as the string FALSE
   # (wkwebview/mod.rs:1053-1068), which NSHTTPCookie counts as set.
+  #
+  # cookies_for_url keeps a plain localhost cookie and leaves out
+  # another domain's everywhere. The secure one it keeps for
+  # http://localhost on macOS, whose filter is wry's own
+  # (wkwebview/mod.rs:1086-1109), and on Windows; WebKitGTK leaves it out
+  # for an http URL, localhost included (probed: libsoup 3.4.4, WebKitGTK
+  # 2.52.6, plan 052, CI fixes 052e-2).
+  #
+  # Each read after a write goes through #settle.
   def test_a_cookie_set_reads_back_from_the_real_store_and_deletes
     window = Tokra::Native::Window.new(@event_loop, "page-store")
     webview = Tokra::Native::WebView.empty(@proxy)
@@ -142,19 +188,22 @@ class TestNativeWebviewPage < Minitest::Test
     expires = Time.now.to_i + (30 * 86_400)
     sent = FIELDS.merge(name: "store", value: "kept", expires:, secure: true, same_site: "Strict")
 
+    plain = FIELDS.merge(name: "plain")
     elsewhere = FIELDS.merge(name: "elsewhere", domain: "example.test")
-    webview.set_cookie(sent)
-    webview.set_cookie(elsewhere)
-    read = webview.cookies.find { |cookie| cookie[:name] == "store" }
+    [sent, plain, elsewhere].each { |fields| webview.set_cookie(fields) }
+    names = -> (cookies) { cookies.map { |cookie| cookie[:name] }.sort }
+    stored = settle(-> { webview.cookies }) { |cookies| names.call(cookies) == ["elsewhere", "plain", "store"] }
 
-    assert_equal sent.merge(http_only: false), read
-    assert_equal ["elsewhere", "store"], webview.cookies.map { |cookie| cookie[:name] }.sort
-    assert_equal ["store"], webview.cookies_for_url("http://localhost/").map { |cookie| cookie[:name] },
-      "cookies_for_url leaves out another domain's cookie"
-    webview.delete_cookie(elsewhere)
-    webview.delete_cookie(sent)
+    assert_equal ["elsewhere", "plain", "store"], names.call(stored)
+    assert_equal sent.merge(http_only: false), stored.find { |cookie| cookie[:name] == "store" }
+    assert_equal LINUX ? ["plain"] : ["plain", "store"],
+      webview.cookies_for_url("http://localhost/").map { |cookie| cookie[:name] }.sort,
+      "cookies_for_url leaves out another domain's cookie, and on Linux a secure one over http"
+    [elsewhere, plain, sent].each { |fields| webview.delete_cookie(fields) }
 
-    assert_nil webview.cookies.find { |cookie| cookie[:name] == "store" }
+    left = settle(-> { webview.cookies }, &:empty?)
+
+    assert_empty left, "the deleted cookies are gone from the store"
   ensure
     webview&.close
     window&.close

@@ -23,6 +23,8 @@ class WebviewPageTest < RealApp::TestCase
     false
   end
 
+  WINDOWS = RUBY_PLATFORM.match?(/mswin|mingw|cygwin/)
+
   def setup
     super
     @run = self.class.fixture_run { RealApp.launch("webview_page") }
@@ -46,9 +48,19 @@ class WebviewPageTest < RealApp::TestCase
     assert_includes @run.lines, "RELOADED", @run.describe
   end
 
+  # On Windows the fixture reads until each write shows, at most 50 times,
+  # since WebView2 may answer a read before it applies a write; elsewhere
+  # the first read must show it. Either way the answer must be the
+  # settled one.
   def test_the_cookies_the_server_and_ruby_set_are_read_and_deleted
     assert_includes @run.lines, "COOKIES for-url page", @run.describe
     assert_includes @run.lines, "COOKIES all app,page", @run.describe
     assert_includes @run.lines, "COOKIES after-delete page", @run.describe
+    reads = WINDOWS ? (1..50).map(&:to_s) : ["1"]
+    %w[all after-delete].each do |label|
+      line = @run.lines.find { |l| l.start_with?("READS #{label} ") }
+      assert_includes reads, line&.split&.last, @run.describe
+    end
+    assert_includes @run.lines, "COOKIES thread page", @run.describe
   end
 end

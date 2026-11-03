@@ -205,6 +205,9 @@ module Tokra
     # not in the store. On
     # macOS wry reads every cookie and keeps those whose domain is the
     # URL's host, so there a URL whose host is an IP address answers none.
+    # On Linux WebKitGTK leaves out a secure cookie for an +http+ URL,
+    # +localhost+ included, where macOS and Windows keep it for
+    # +localhost+; ask for the +https+ URL, or read #cookies, to see it.
     #
     # Answers as #cookies does, and raises on the calling thread TypeError
     # for anything but a URI and ArgumentError for a relative one, as
@@ -270,16 +273,21 @@ module Tokra
     # thread. A cookie the platform refuses is logged as "failed to set
     # webview cookie: ...", never raised; a closed webview ignores it. On
     # macOS and Linux the main thread waits for the store, as #cookies
-    # does.
+    # does. On Windows wry hands WebView2 the cookie and returns
+    # (webview2/mod.rs:1656-1675), with no word of when WebView2 applies
+    # it, so a read right after a write may not see it yet. Tauri's app
+    # does the same.
     #
     # Some cookies make wry panic, where Tauri's app panics: on macOS one
     # with an empty name or a value holding a line break, which the
     # platform cannot make into a cookie (wkwebview/mod.rs:1082-1083), and
     # on Linux one that expires before the year 1
-    # (webkitgtk/mod.rs:981-983). Here that is logged with the panic's
-    # message, "failed to set webview cookie: failed to create wkwebview
-    # cookie, report this as bug to `wry`" on macOS, and Rust prints the
-    # panic to standard error.
+    # (webkitgtk/mod.rs:982). Here that is logged with the panic's
+    # message: "failed to set webview cookie: failed to create wkwebview
+    # cookie, report this as bug to `wry`" on macOS, and on Linux "failed
+    # to set webview cookie: called `Result::unwrap()` on an `Err` value:
+    # BoolError { message: "Invalid date", ... }", glib's refusal of the
+    # date. Rust prints the panic to standard error too.
     #
     # Mirrors Tauri's Webview::set_cookie (webview/mod.rs:2140-2151;
     # tauri-runtime-wry lib.rs:1723-1733, 3773-3777).
