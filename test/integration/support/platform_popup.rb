@@ -13,18 +13,57 @@ require_relative "platform_menu"
 # clicks or types: a menu closes through AppKit's own calls
 # (-[NSMenu performActionForItemAtIndex:], -[NSMenu cancelTracking]),
 # GTK's (gtk_menu_shell_activate_item, gtk_menu_shell_cancel), or
-# Win32's (EndMenu).
+# Win32's (WM_CANCELMODE, EndMenu).
 #
 # A popup runs a nested loop on the main thread, so the main thread runs
 # Ruby only from a timer the platform's loop fires: a CFRunLoopTimer in
 # the common modes on macOS, a GLib timeout on Linux (g_timeout_add,
 # which any thread may call), a Win32 timer on Windows (SetTimer, on the
 # thread that owns the window). Another thread reaches a macOS menu
-# through GCD's main queue. Fiddle takes
-# the GVL back for such a callback when the popup has released it.
+# through GCD's main queue, and a Windows menu with a sent message.
+# Fiddle takes the GVL back for such a callback when the popup has
+# released it.
 module PlatformPopup
   # Each callback Fiddle made, kept alive while the platform may call it.
   CALLBACKS = Thread::Queue.new
+
+  # A Ruby thread that ticks every 10 ms, which it does only while
+  # nothing holds the GVL for long. The closer thread waits for its next
+  # tick, blocked on a queue rather than spinning, so the wait never
+  # competes for the GVL with the main thread's timer callbacks.
+  class Ticker
+    def initialize
+      @ticks = 0
+      @wanted = nil
+      @thread = Thread.new do
+        loop do
+          # Read before the count moves, so a waiter that asked after its
+          # start always sees a later count.
+          waiter = @wanted
+          @ticks += 1
+          if waiter
+            @wanted = nil
+            waiter << @ticks
+          end
+          sleep 0.01
+        end
+      end
+    end
+
+    # How many times it ticked from now until its next tick, waiting at
+    # most +timeout+ seconds: at least 1, or 0 if no tick came.
+    def ticks_until_next(timeout: 3)
+      start = @ticks
+      waiter = Thread::Queue.new
+      @wanted = waiter
+      waiter.pop(timeout:)
+      @ticks - start
+    end
+
+    def stop
+      @thread.kill
+    end
+  end
 
   # Calls the block on the main thread every +interval+ milliseconds until
   # it returns false. Call it on the main thread.
@@ -291,17 +330,64 @@ module PlatformPopup
     end
   end
 
-  # Win32's menu window and timers.
+  # Win32's menu window, timers, and the closer thread's calls.
+  #
+  # Inside TrackPopupMenu's modal loop the main thread may stop delivering
+  # WM_TIMER to the fixture's timers for seconds (plan 051, amendment of
+  # 2026-11-03), so the closer thread finds, reads, and ends the menu
+  # itself. A sent message, unlike a timer, reaches the owner window from
+  # any PeekMessage or GetMessage the menu loop makes. Fiddle releases the
+  # GVL around every call it makes unless the function asks for it
+  # (+need_gvl+ is false by default, fiddle 1.1.8 function.c:381-386), so
+  # a send that waits for the main thread lets every other Ruby thread
+  # run, the ticker and the main thread's own callbacks included. The
+  # signatures follow windows-sys 0.59.0
+  # (Win32/UI/WindowsAndMessaging/mod.rs, System/Threading/mod.rs).
   module Win32
+    MENU_CLASS = "#32768"
+    # Asks a menu window for the HMENU it shows; the answer is its
+    # LRESULT (windows-sys 0.59.0 WindowsAndMessaging/mod.rs:1428).
+    MN_GETHMENU = 0x01E1
+    WM_NULL = 0x0000
+    WM_CANCELMODE = 0x001F
+    SMTO_ABORTIFHUNG = 0x0002
+    # Milliseconds a send waits for the main thread to take its message.
+    SEND_TIMEOUT = 2000
+
     def self.fn(name, args, ret)
       PlatformMenu::Win32.fn(name, args, ret)
     end
 
+    def self.kernel32
+      @kernel32 ||= Fiddle.dlopen("kernel32")
+    end
+
+    # Each exception a timer's block raised, as "<interval>: <class>:
+    # <message>". The fixtures report it.
+    TIMER_ERRORS = Thread::Queue.new
+
+    # A SetTimer timer whose TIMERPROC rescues what its block raises and
+    # defers interrupts: an exception unwinding out of it would cross
+    # DispatchMessage and TrackPopupMenu, and DispatchMessage swallows one
+    # a TIMERPROC throws, either of which may leave the timer dead. A
+    # block that raises is recorded in TIMER_ERRORS and its timer killed.
+    # Thread.handle_interrupt only defers an interrupt from another
+    # thread: it still fires once the block is done, or where
+    # rb_thread_call_with_gvl returns, and may still unwind across
+    # DispatchMessage. Nothing here interrupts the main thread.
     def self.every(hwnd, interval, &block)
       kill = fn("KillTimer", [Fiddle::TYPE_INTPTR_T, Fiddle::TYPE_UINTPTR_T], Fiddle::TYPE_INT)
       callback = Fiddle::Closure::BlockCaller.new(Fiddle::TYPE_VOID,
         [Fiddle::TYPE_INTPTR_T, Fiddle::TYPE_UINT, Fiddle::TYPE_UINTPTR_T, Fiddle::TYPE_UINT]) do |window, _, id, _|
-        kill.call(window, id) unless block.call
+        Thread.handle_interrupt(Object => :never) do
+          again = begin
+            block.call
+          rescue Exception => e
+            TIMER_ERRORS << "#{interval}: #{e.class}: #{e.message}"
+            false
+          end
+          kill.call(window, id) unless again
+        end
       end
       CALLBACKS << callback
       @next_id = (@next_id || 0x7000) + 1
@@ -309,13 +395,108 @@ module PlatformPopup
         Fiddle::TYPE_UINTPTR_T).call(hwnd, @next_id, interval, callback)
     end
 
-    # The visible menu window, class "#32768", that TrackPopupMenu shows.
-    def self.find
-      window = fn("FindWindowW", [Fiddle::TYPE_VOIDP, Fiddle::TYPE_VOIDP], Fiddle::TYPE_INTPTR_T)
-        .call("#32768\0".encode("UTF-16LE"), nil)
-      return nil if window.zero?
+    # What TIMER_ERRORS holds so far.
+    def self.timer_errors
+      Array.new(TIMER_ERRORS.size) { TIMER_ERRORS.pop }
+    end
 
-      fn("IsWindowVisible", [Fiddle::TYPE_INTPTR_T], Fiddle::TYPE_INT).call(window).zero? ? nil : window
+    # The id of the calling thread.
+    def self.current_thread
+      Fiddle::Function.new(kernel32["GetCurrentThreadId"], [], Fiddle::TYPE_UINT).call
+    end
+
+    # The id of the thread that made +hwnd+, whose messages it takes.
+    def self.thread_of(hwnd)
+      fn("GetWindowThreadProcessId", [Fiddle::TYPE_INTPTR_T, Fiddle::TYPE_VOIDP], Fiddle::TYPE_UINT).call(hwnd, nil)
+    end
+
+    # The visible menu window, class "#32768", that TrackPopupMenu shows
+    # on +thread+, or +nil+. Only that thread's windows are looked at, so
+    # another process's menu never matches. With +hmenu+, only a window
+    # that answers MN_GETHMENU with it matches, so the window found is the
+    # fixture's menu, not some other menu of the thread.
+    def self.find(thread = current_thread, hmenu = nil)
+      candidates = []
+      visit = Fiddle::Closure::BlockCaller.new(Fiddle::TYPE_INT, [Fiddle::TYPE_INTPTR_T, Fiddle::TYPE_INTPTR_T]) do |window, _|
+        candidates << window if menu_window?(window)
+        1
+      end
+      fn("EnumThreadWindows", [Fiddle::TYPE_UINT, Fiddle::TYPE_VOIDP, Fiddle::TYPE_INTPTR_T], Fiddle::TYPE_INT)
+        .call(thread, visit, 0)
+      candidates.find { |window| hmenu.nil? || send_timeout(window, MN_GETHMENU) == hmenu }
+    end
+
+    def self.menu_window?(window)
+      name = Fiddle::Pointer.malloc(64 * 2, Fiddle::RUBY_FREE)
+      length = fn("GetClassNameW", [Fiddle::TYPE_INTPTR_T, Fiddle::TYPE_VOIDP, Fiddle::TYPE_INT], Fiddle::TYPE_INT)
+        .call(window, name, 64)
+      name.to_str(length * 2).force_encoding(Encoding::UTF_16LE).encode(Encoding::UTF_8) == MENU_CLASS &&
+        !fn("IsWindowVisible", [Fiddle::TYPE_INTPTR_T], Fiddle::TYPE_INT).call(window).zero?
+    end
+
+    # Waits for +thread+'s menu window showing +hmenu+, looking every
+    # 10 ms, and answers it, or +nil+ after +timeout+ seconds. Call it on
+    # another thread. If no menu has shown after +probe_after+ seconds, it
+    # asks once whether +owner+'s thread takes sent messages and yields
+    # the answer.
+    def self.await_menu(thread, owner, hmenu, timeout: 20, probe_after: 2)
+      started = now
+      probed = false
+      loop do
+        menu = find(thread, hmenu)
+        return menu if menu
+
+        waited = now - started
+        return nil if waited > timeout
+
+        if !probed && waited >= probe_after
+          probed = true
+          yield pumping?(owner) if block_given?
+        end
+        sleep 0.01
+      end
+    end
+
+    # Waits until +thread+ shows no menu window showing +hmenu+, looking
+    # every 10 ms, or +timeout+ seconds pass; answers whether it went.
+    def self.await_gone(thread, hmenu, timeout: 20)
+      started = now
+      sleep 0.01 while find(thread, hmenu) && now - started <= timeout
+      find(thread, hmenu).nil?
+    end
+
+    # Whether +owner+'s thread took a WM_NULL within SEND_TIMEOUT: a menu
+    # loop that pumps messages answers at once.
+    def self.pumping?(owner)
+      !send_timeout(owner, WM_NULL).nil?
+    end
+
+    # Ends the menu +owner+ owns from another thread: DefWindowProc
+    # cancels menu processing on WM_CANCELMODE, and the menu loop handles
+    # a sent message in any PeekMessage or GetMessage, whether or not a
+    # timer fires. Answers whether the main thread took it.
+    def self.cancel_mode(owner)
+      !send_timeout(owner, WM_CANCELMODE).nil?
+    end
+
+    # Sends +message+ to +hwnd+ and answers its result, or +nil+ if the
+    # window's thread did not take it within SEND_TIMEOUT.
+    def self.send_timeout(hwnd, message)
+      result = Fiddle::Pointer.malloc(Fiddle::SIZEOF_UINTPTR_T, Fiddle::RUBY_FREE)
+      sent = fn("SendMessageTimeoutW", [
+        Fiddle::TYPE_INTPTR_T,
+        Fiddle::TYPE_UINT,
+        Fiddle::TYPE_UINTPTR_T,
+        Fiddle::TYPE_INTPTR_T,
+        Fiddle::TYPE_UINT,
+        Fiddle::TYPE_UINT,
+        Fiddle::TYPE_VOIDP,
+], Fiddle::TYPE_INTPTR_T).call(hwnd, message, 0, 0, SMTO_ABORTIFHUNG, SEND_TIMEOUT, result)
+      sent.zero? ? nil : result[0, Fiddle::SIZEOF_UINTPTR_T].unpack1("J")
+    end
+
+    def self.now
+      Process.clock_gettime(Process::CLOCK_MONOTONIC)
     end
 
     def self.labels(hmenu)
@@ -323,9 +504,7 @@ module PlatformPopup
     end
 
     # Ends the calling thread's menu, from a timer on the main thread,
-    # which the menu's modal loop runs. Another thread asks the main
-    # thread to call it: a WM_CANCELMODE that thread posted sometimes left
-    # the menu open on Windows CI (plan 051).
+    # which the menu's modal loop runs: the fallback's close.
     def self.end_menu
       fn("EndMenu", [], Fiddle::TYPE_INT).call
     end

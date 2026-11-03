@@ -101,6 +101,39 @@ class ContextMenuTest < RealApp::TestCase
     end
   end
 
+  # The menu's modal loop may stop delivering WM_TIMER on Windows (plan
+  # 051), so the closer thread finds, reads, and ends each menu with no
+  # help from a main-thread timer: with the 50 ms timer skipped, it still
+  # does, and the fallback never fires. It runs only in Windows CI.
+  def test_on_windows_the_closer_thread_alone_finds_and_ends_each_menu
+    skip "the closer thread finds the menu window itself only on Windows" unless windows?
+
+    run = self.class.fixture_run(:no_main_timer) do
+      KeyboardNotice.taking_the_keyboard { RealApp.launch("context_menu", "--no-main-timer") }
+    end
+    assert_finished run
+    assert_equal 0, run.status, run.describe
+    report = run.report
+    refute_nil report, "the fixture printed no report\n#{run.describe}"
+    stages = run.lines.grep(/\APROGRESS /).map { |line| line.split[1] }
+    assert_equal ["Copy Link", "Open"], report.dig("menu", "labels"), run.describe
+    assert_equal ["Rename"], report.dig("submenu", "labels"), run.describe
+    assert_equal [], report["timer_errors"], run.describe
+    %w[menu submenu].each do |name|
+      assert_equal "thread", report.dig(name, "dismissed_by"), run.describe
+      assert_operator report.dig(name, "ticks_while_tracking"), :>=, 1, run.describe
+      assert_includes stages, "#{name}:cancel-posted", run.describe
+      refute_includes stages, "#{name}:main-timer-saw", run.describe
+    end
+  end
+
+  # A Win32 timer's block that raised is recorded, not lost (plan 051).
+  def test_on_windows_no_timer_callback_raised
+    skip "the fixture guards SetTimer callbacks only on Windows" unless windows?
+
+    assert_equal [], @report["timer_errors"], @run.describe
+  end
+
   def test_on_windows_each_menu_has_its_popup_hmenu
     skip "HMENU is Windows'" unless windows?
 

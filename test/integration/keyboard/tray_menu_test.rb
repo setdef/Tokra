@@ -54,6 +54,13 @@ class TrayMenuTest < RealApp::TestCase
     assert_operator @report["ticks_while_tracking"], :>=, 1, @report.inspect
   end
 
+  # A Win32 timer's block that raised is recorded, not lost (plan 051).
+  def test_on_windows_no_timer_callback_raised
+    skip "the fixture guards SetTimer callbacks only on Windows" unless windows?
+
+    assert_equal [], @report["timer_errors"], @run.describe
+  end
+
   # The fixture prints each stage it reaches (plan 051), so a hang names
   # its stage. These stages follow one another by cause, not by timing.
   def test_the_menu_reports_its_progress_in_order
@@ -62,6 +69,31 @@ class TrayMenuTest < RealApp::TestCase
     mine = stages.filter_map { |stage| stage.delete_prefix("tray:") if stage.start_with?("tray:") }
     assert_equal CAUSAL_STAGES, mine.select { |stage| CAUSAL_STAGES.include?(stage) }, @run.describe
     assert_includes mine, "cancel-posted", @run.describe
+  end
+
+  # The menu's modal loop may stop delivering WM_TIMER on Windows (plan
+  # 051), so the closer thread finds, reads, chooses from, and ends the
+  # menu with no help from a main-thread timer: with the 50 ms timer
+  # skipped, it still does, and the fallback never fires. It runs only in
+  # Windows CI.
+  def test_on_windows_the_closer_thread_alone_finds_and_ends_the_menu
+    skip "the closer thread finds the menu window itself only on Windows" unless windows?
+
+    run = self.class.fixture_run(:no_main_timer) do
+      KeyboardNotice.taking_the_keyboard { RealApp.launch("tray_menu", "--no-main-timer") }
+    end
+    assert_finished run
+    assert_equal 0, run.status, run.describe
+    report = run.report
+    refute_nil report, "the fixture printed no report\n#{run.describe}"
+    stages = run.lines.grep(/\APROGRESS /).map { |line| line.split[1] }
+    assert_equal %w[Show Hide], report["labels"], run.describe
+    assert_equal [], report["timer_errors"], run.describe
+    assert_equal "thread", report["dismissed_by"], run.describe
+    assert_operator report["ticks_while_tracking"], :>=, 1, run.describe
+    assert_includes stages, "tray:cancel-posted", run.describe
+    refute_includes stages, "tray:main-timer-saw", run.describe
+    assert_equal ["app:tray-show", "tray:tray-show"], report["log"].grep(/\A(app|tray):/), run.describe
   end
 
   # A chosen item is a menu event: the app's listeners, then the tray
@@ -83,4 +115,6 @@ class TrayMenuTest < RealApp::TestCase
     expected = RbConfig::CONFIG["host_os"].include?("darwin") ? [] : ["event:Click:Right:Down"]
     assert_equal expected, events
   end
+
+  private def windows? = RbConfig::CONFIG["host_os"].match?(/mswin|mingw|cygwin/)
 end
