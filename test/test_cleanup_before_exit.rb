@@ -59,7 +59,7 @@ class TestCleanupBeforeExit < Minitest::Test
   end
 
   def test_on_windows_the_trays_come_off_before_any_window_is_hidden
-    @app.run
+    run_app
     log = []
     tray = Tokra::Tray::TrayIconBuilder.with_id("late").build(@handle)
     logging(tray.native, :remove, :tray_removed, log)
@@ -71,7 +71,7 @@ class TestCleanupBeforeExit < Minitest::Test
   end
 
   def test_only_windows_hides_each_window
-    @app.run
+    run_app
 
     %i[macos linux].each do |os|
       on(os) { @handle.cleanup_before_exit }
@@ -86,7 +86,7 @@ class TestCleanupBeforeExit < Minitest::Test
   # Off the main thread with the loop gone, the hide cannot reach the
   # window and raises Error::Runtime, which Tauri's let _ drops.
   def test_a_hide_that_fails_is_ignored_and_the_webviews_table_is_still_cleared
-    @app.run
+    run_app
     rid = @handle.get_webview("main").resources_table.add(Recorder.new)
 
     on(:windows) do
@@ -113,7 +113,7 @@ class TestCleanupBeforeExit < Minitest::Test
   # Tauri's callers all end the process, but Tokra's restart on the main
   # thread is followed by the loop's own cleanup (plan 049, decision 5).
   def test_a_second_cleanup_raises_nothing_and_changes_nothing
-    @app.run
+    run_app
     Tokra::Tray::TrayIconBuilder.with_id("late").build(@handle)
     rid = @handle.resources_table.add(Recorder.new)
     on(:windows) { @handle.cleanup_before_exit }
@@ -126,6 +126,14 @@ class TestCleanupBeforeExit < Minitest::Test
   end
 
   private def main_window = @handle.get_window("main")
+
+  # Runs the app to its end. On Windows the loop's own cleanup already hid
+  # the window (app.rs:1032-1033), so it is shown again and every test
+  # starts from a visible window whatever platform runs it.
+  private def run_app
+    @app.run
+    main_window.native.set_visible(true)
+  end
 
   # Runs the block as if on +os+, as Tauri's cfg(windows) sees it.
   private def on(os, &)
