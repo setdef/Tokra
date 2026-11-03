@@ -140,15 +140,34 @@ class TestNativeWindowOpen < Minitest::Test
 
   # tao places a new window's frame there on Windows, and on macOS its
   # content, below the title bar (platform_impl/macos/window.rs:201-210).
+  #
+  # The windows are small, 200 by 150, so they fit any plausible screen
+  # and the platform keeps them where they were asked to be. A macOS
+  # runner moved a window of tao's default 800 by 600 physical, asked for
+  # at (120, 140), to (120, 77), while in the same run a 500-by-360
+  # physical window moved there by set_position stayed put; so the move
+  # depended on the window's size (plan 052, "macOS CI fix (052c)"). As a
+  # safeguard beyond that, the test reads the distance between two
+  # windows, which an offset the platform applied equally to both would
+  # not change. The distances across and down differ, so x and y crossed
+  # over fail, and without the row both windows are centered and the
+  # distance is zero.
   def test_a_window_opens_at_its_position
     skip "GTK reports a window's position once a window manager places it" if LINUX
-    window = open_window("rows-3") { |builder| builder.position(120, 140) }
+    windows = []
+    [[120, 140], [220, 290]].each do |x, y|
+      windows << open_window("rows-3-#{x}") { |builder| builder.inner_size(200, 150).position(x, y) }
+    end
 
-    scale = window.scale_factor
-    (x, y), = MACOS ? window.inner_position : window.outer_position
-    assert_equal [120, 140], [(x / scale).round, (y / scale).round]
+    scale = windows.first.scale_factor
+    points = windows.map do |window|
+      (x, y), = MACOS ? window.inner_position : window.outer_position
+      [(x / scale).round, (y / scale).round]
+    end
+    distance = [points[1][0] - points[0][0], points[1][1] - points[0][1]]
+    assert_equal [100, 150], distance, -> { "read #{points.inspect} on #{@event_loop.primary_monitor.inspect}" }
   ensure
-    window&.close
+    windows&.each(&:close)
   end
 
   # The work area of the primary monitor, physical: [[x, y], [width, height]].
