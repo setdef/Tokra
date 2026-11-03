@@ -6,46 +6,47 @@
 #++
 
 require "test_helper"
-require "open3"
-require "stringio"
 require "tmpdir"
 require_relative "support/keyboard_notice"
 
-# KeyboardNotice takes a lock and speaks only where a person may be
-# typing, and never in these tests: each Desk here locks and marks files
-# in a temporary directory, never the shared ones in /tmp, and speaks into
-# a recorder.
+# KeyboardNotice decides where Tokra takes the shared desktop input lock
+# and maps TOKRA_QUIET onto the gem's speak: keyword. The protocol itself
+# is the desktop_input_lock gem's. These tests send the wrapper's calls to
+# a real DesktopInputLock on a temporary lock and marker, with a recording
+# script in place of osascript, so they never take the shared lock or
+# speak.
 class KeyboardNoticeTest < Minitest::Test
   QUIET_VARIABLES = %w[CI DESKTOP_INPUT_QUIET TOKRA_QUIET].freeze
 
-  # A Ruby that takes the lock, says so, waits for a line on its standard
-  # input, says it is releasing, and only then releases.
-  HOLDER = <<~RUBY
-    $stdout.sync = true
-    lock = File.open(ARGV[0], File::RDONLY | File::CREAT, 0o666)
-    lock.flock(File::LOCK_EX)
-    puts "locked"
-    $stdin.gets
-    puts "releasing"
-    lock.flock(File::LOCK_UN)
-  RUBY
+  # Stands in for osascript: appends the script it is given to a file
+  # beside itself.
+  BANNER = <<~SH
+    #!/bin/sh
+    echo "$2" >> "$(dirname "$0")/banners"
+  SH
+
+  # The directory every test's files live under. The gem calls the person
+  # back once more as the process exits, so it must outlive the tests: its
+  # at_exit is registered after this one, and so runs first.
+  def self.root
+    @root ||= Dir.mktmpdir("keyboard_notice").tap { |dir| at_exit { FileUtils.remove_entry(dir) } }
+  end
 
   def setup
     @saved = ENV.to_h.slice(*QUIET_VARIABLES)
     QUIET_VARIABLES.each { ENV.delete(it) }
-    @dir = Dir.mktmpdir("keyboard_notice")
-    @lock_path = File.join(@dir, "desktop-input.lock")
-    @marker_path = File.join(@dir, "desktop-input.away")
-    @said = []
-    @events = []
-    @spoken = Thread::Queue.new
-    @desks = []
-    @now = 0.0
+    @dir = Dir.mktmpdir("keyboard_notice", self.class.root)
+    @marker = File.join(@dir, "away")
+    @banners = File.join(@dir, "banners")
+    osascript = File.join(@dir, "osascript")
+    File.write(osascript, BANNER)
+    File.chmod(0o755, osascript)
+    @input = DesktopInputLock.new(lock: File.join(@dir, "lock"), marker: @marker, osascript:,
+      say: File.join(@dir, "no-say"), settle: 0.05, env: {}, host_os: "darwin25")
   end
 
   def teardown
-    @desks.each(&:stop)
-    FileUtils.remove_entry(@dir)
+    @input.finish
     QUIET_VARIABLES.each { ENV.delete(it) }
     ENV.update(@saved)
   end
@@ -57,318 +58,83 @@ class KeyboardNoticeTest < Minitest::Test
     assert_equal :ran, KeyboardNotice.taking_the_keyboard { :ran }
   end
 
-  def test_it_locks_on_a_mac
+  def test_it_locks_on_a_mac_and_nowhere_else
     assert_equal RbConfig::CONFIG["host_os"].include?("darwin"), KeyboardNotice.locks?
   end
 
   def test_tokra_quiet_silences_it
-    ENV["TOKRA_QUIET"] = "1"
-    refute_predicate KeyboardNotice, :speaks?
+    KeyboardNotice.stub(:locks?, true) do
+      DesktopInputLock::DEFAULT.stub(:speaks?, true) do
+        assert_predicate KeyboardNotice, :speaks?
+        ENV["TOKRA_QUIET"] = "1"
+        refute_predicate KeyboardNotice, :speaks?
+      end
+    end
   end
 
-  def test_desktop_input_quiet_silences_it
+  def test_it_speaks_only_where_the_gem_would
+    KeyboardNotice.stub(:locks?, true) do
+      DesktopInputLock::DEFAULT.stub(:speaks?, false) { refute_predicate KeyboardNotice, :speaks? }
+    end
+  end
+
+  def test_it_does_not_speak_where_it_does_not_lock
+    KeyboardNotice.stub(:locks?, false) do
+      DesktopInputLock::DEFAULT.stub(:speaks?, true) { refute_predicate KeyboardNotice, :speaks? }
+    end
+  end
+
+  def test_the_real_gem_stays_silent_when_desktop_input_quiet_is_set
     ENV["DESKTOP_INPUT_QUIET"] = "1"
     refute_predicate KeyboardNotice, :speaks?
   end
 
-  def test_it_announces_on_a_mac_with_osascript_or_say_and_no_quieting_variable
-    expected = RbConfig::CONFIG["host_os"].include?("darwin") &&
-      (File.executable?("/usr/bin/osascript") || File.executable?("/usr/bin/say"))
-    assert_equal expected, KeyboardNotice.speaks?
-  end
-
-  def test_a_mac_without_say_still_announces_by_banner
-    only_osascript = -> (path) { path == KeyboardNotice::OSASCRIPT_PATH }
-    KeyboardNotice.stub(:locks?, true) do
-      File.stub(:executable?, only_osascript) { assert_predicate KeyboardNotice, :speaks? }
-    end
-  end
-
-  def test_a_mac_with_neither_osascript_nor_say_stays_silent
-    KeyboardNotice.stub(:locks?, true) do
-      File.stub(:executable?, false) { refute_predicate KeyboardNotice, :speaks? }
-    end
-  end
-
-  def test_the_real_banner_and_voice_do_nothing_where_their_commands_are_missing
-    File.stub(:executable?, false) do
-      refute KeyboardNotice::Desk::BANNER.call("x")
-      refute KeyboardNotice::Desk::SAY.call("x")
-    end
-  end
-
-  # Quiet still locks, so that two projects' tests never collide, but a
-  # speaking span in a process that cannot announce writes no marker.
-  def test_quiet_still_takes_the_lock_but_never_speaks
-    desk = new_desk
-    KeyboardNotice.stub(:locks?, true) do
-      KeyboardNotice.stub(:speaks?, false) do
-        KeyboardNotice.stub(:desk, desk) do
-          KeyboardNotice.taking_the_keyboard { refute lock_free?, "the lock was not held" }
-        end
+  def test_without_the_lock_the_block_runs_and_the_gem_is_never_asked
+    KeyboardNotice.stub(:locks?, false) do
+      DesktopInputLock.stub(:hold, -> (**) { flunk "took the lock" }) do
+        assert_equal :ran, KeyboardNotice.taking_the_keyboard { :ran }
       end
     end
-    assert_empty @said
-    refute_path_exists @marker_path
   end
 
-  def test_the_first_span_marks_and_warns_and_the_call_back_unmarks
-    desk = new_desk
-    assert_equal :ran, desk.taking_the_keyboard { :ran }
-    assert_equal [KeyboardNotice::STEP_AWAY], @said
-    assert_equal ::Process.pid, marker_pid
-
-    desk.call_back
-    assert_equal [KeyboardNotice::STEP_AWAY, KeyboardNotice::COME_BACK], @said
-    refute_path_exists @marker_path
+  def test_it_holds_the_lock_and_returns_the_blocks_value
+    held = nil
+    assert_equal :value, taking_the_keyboard { held = lock_held? && :value }
+    assert_equal :value, held
+    refute lock_held?
   end
 
-  def test_the_banner_is_shown_before_each_notice_is_said
-    desk = new_desk
-    desk.taking_the_keyboard
-    desk.call_back
-    assert_equal [
-      [:banner, KeyboardNotice::STEP_AWAY],
-      [:voice, KeyboardNotice::STEP_AWAY],
-      [:banner, KeyboardNotice::COME_BACK],
-      [:voice, KeyboardNotice::COME_BACK],
-], @events
+  def test_it_speaks_to_the_person_by_default
+    assert taking_the_keyboard { File.exist?(@marker) }, "no marker while the span ran"
+    assert_includes File.read(@banners), "step away"
   end
 
-  def test_the_banner_is_shown_when_there_is_no_voice
-    desk = new_desk(voice: -> (_) {})
-    desk.taking_the_keyboard
-    desk.call_back
-    assert_equal [[:banner, KeyboardNotice::STEP_AWAY], [:banner, KeyboardNotice::COME_BACK]], @events
+  def test_tokra_quiet_maps_to_a_silent_span
+    ENV["TOKRA_QUIET"] = "1"
+    held = nil
+    taking_the_keyboard { held = lock_held? }
+    assert held, "the lock was not held"
+    refute_path_exists @marker
+    refute_path_exists @banners
   end
 
-  def test_silent_spans_show_no_banner
-    desk = new_desk
-    desk.taking_the_keyboard(speak: false)
-    @now += KeyboardNotice::SETTLE + 1
-    desk.tick
-    assert_empty @events
+  def test_speak_false_maps_to_a_silent_span
+    taking_the_keyboard(speak: false) { :ran }
+    refute_path_exists @marker
+    refute_path_exists @banners
   end
 
-  def test_a_marker_from_an_ended_process_is_replaced_and_warned
-    File.write(@marker_path, "#{ended_pid} 0")
-    new_desk.taking_the_keyboard
-    assert_equal [KeyboardNotice::STEP_AWAY], @said
-    assert_equal ::Process.pid, marker_pid
-  end
-
-  def test_a_marker_from_a_live_process_means_someone_already_warned
-    File.write(@marker_path, "#{::Process.pid} 0")
-    new_desk.taking_the_keyboard
-    assert_empty @said
-    assert_equal ::Process.pid, marker_pid
-  end
-
-  def test_a_marker_from_a_process_we_may_not_signal_still_means_someone_already_warned
-    skip "Windows has no pid 1 to refuse the signal with EPERM" if Gem.win_platform?
-    File.write(@marker_path, "1 0")
-    new_desk.taking_the_keyboard
-    assert_empty @said
-    assert_equal 1, marker_pid
-  end
-
-  def test_the_call_back_waits_while_someone_else_holds_the_lock
-    File.write(@marker_path, "1 0")
-    desk = new_desk
-    File.open(@lock_path, File::RDONLY | File::CREAT) do |other|
-      other.flock(File::LOCK_EX)
-      desk.call_back
-      assert_empty @said
-      assert_path_exists @marker_path
-    end
-    desk.call_back
-    assert_equal [KeyboardNotice::COME_BACK], @said
-    refute_path_exists @marker_path
-  end
-
-  # A watcher that finds the lock busy keeps trying at each poll, so a
-  # silent span elsewhere only delays the call back.
-  def test_a_watcher_that_finds_the_lock_busy_calls_back_once_it_is_released
-    desk = new_desk
-    desk.taking_the_keyboard
-    @now += KeyboardNotice::SETTLE + 1
-    File.open(@lock_path, File::RDONLY | File::CREAT) do |other|
-      other.flock(File::LOCK_EX)
-      desk.tick
-      assert_equal [KeyboardNotice::STEP_AWAY], @said
-    end
-    desk.tick
-    assert_equal [KeyboardNotice::STEP_AWAY, KeyboardNotice::COME_BACK], @said
-    refute_path_exists @marker_path
-  end
-
-  def test_a_watcher_stops_trying_once_the_marker_is_gone
-    desk = new_desk
-    desk.taking_the_keyboard
-    @now += KeyboardNotice::SETTLE + 1
-    File.delete(@marker_path)
-    desk.tick
-    File.write(@marker_path, "#{ended_pid} 0")
-    desk.tick
-    assert_equal [KeyboardNotice::STEP_AWAY], @said
-  end
-
-  # The child starts while this process holds the lock, so it blocks on
-  # it. The exiting process waits out the rest of SETTLE, and the fake
-  # wait returns only once the child has taken the lock, so the exit's
-  # check finds it busy and leaves the call back to whoever holds it.
-  def test_an_exit_before_it_settles_lets_a_waiting_process_take_the_lock_first
-    waits = []
-    child_in = child_out = child = nil
-    desk = new_desk(sleep: lambda { |seconds|
-      waits << seconds
-      assert_equal "locked", child_out.gets&.chomp
-    })
-    desk.taking_the_keyboard do
-      child_in, child_out, child = Open3.popen2(RbConfig.ruby, "-e", HOLDER, @lock_path)
-      assert_nil child_out.wait_readable(0.5), "the child took a held lock"
-    end
-    @now += 1
-    desk.finish
-    assert_equal [KeyboardNotice::SETTLE - 1], waits
-    assert_equal [KeyboardNotice::STEP_AWAY], @said
-    assert_path_exists @marker_path
-
-    child_in.puts "go"
-    assert_equal "releasing", child_out.gets&.chomp
-    assert_predicate child.value, :success?
-  ensure
-    [child_in, child_out].each { it&.close }
-  end
-
-  def test_an_exit_after_it_settles_calls_back_without_waiting
-    waits = []
-    desk = new_desk(sleep: -> (seconds) { waits << seconds })
-    desk.taking_the_keyboard
-    @now += KeyboardNotice::SETTLE
-    desk.finish
-    assert_empty waits
-    assert_equal [KeyboardNotice::STEP_AWAY, KeyboardNotice::COME_BACK], @said
-  end
-
-  def test_the_lock_and_marker_are_shared_with_every_user_whatever_the_umask
-    skip "Windows has no Unix file modes" if Gem.win_platform?
-    umask = File.umask(0o022)
-    begin
-      new_desk.taking_the_keyboard
-    ensure
-      File.umask(umask)
-    end
-    assert_equal 0o666, File.stat(@lock_path).mode & 0o777
-    assert_equal 0o666, File.stat(@marker_path).mode & 0o777
-  end
-
-  def test_silent_spans_neither_speak_nor_touch_the_marker
-    desk = new_desk
-    desk.taking_the_keyboard(speak: false) { refute lock_free?, "the lock was not held" }
-    refute_path_exists @marker_path
-
-    File.write(@marker_path, "#{ended_pid} 0")
-    desk.taking_the_keyboard(speak: false)
-    @now += KeyboardNotice::SETTLE + 1
-    desk.tick
-    assert_empty @said
-    assert_path_exists @marker_path, "a silent span armed the watcher's call back"
-  end
-
-  # Two spans in a row are one stretch: one warning before the first, and
-  # one call back only once SETTLE seconds pass with neither running. The
-  # clock is fake and the test polls the watcher's tick itself.
-  def test_a_stretch_is_announced_once_and_called_back_once_it_settles
-    desk = new_desk
-    desk.taking_the_keyboard
-    @now += 0.6
-    desk.tick
-    desk.taking_the_keyboard { assert_equal [KeyboardNotice::STEP_AWAY], @said }
-    @now += KeyboardNotice::SETTLE - 0.01
-    desk.tick
-    assert_equal [KeyboardNotice::STEP_AWAY], @said, "called back before the stretch settled"
-
-    @now += 0.02
-    desk.tick
-    desk.tick
-    assert_equal [KeyboardNotice::STEP_AWAY, KeyboardNotice::COME_BACK], @said
-    refute_path_exists @marker_path
-  end
-
-  # The real watcher is a thread that polls tick on the real clock. The
-  # timeout only stops a broken watcher from hanging the run.
-  def test_the_watcher_thread_calls_back_on_its_own
-    desk = new_desk(settle: 0.1, clock: KeyboardNotice::Desk::CLOCK, watcher: true)
-    desk.taking_the_keyboard
-    @spoken.clear
-    refute_nil @spoken.pop(timeout: 30), "the watcher never called back"
-    assert_equal [KeyboardNotice::STEP_AWAY, KeyboardNotice::COME_BACK], @said
-  end
-
-  # A nested span that returns at all shares the outer one's lock; the
-  # join's timeout only stops a deadlock from hanging the run.
-  def test_nested_spans_share_one_lock
-    desk = new_desk
-    inner = Thread.new do
-      desk.taking_the_keyboard { desk.taking_the_keyboard(speak: false) { :inner } }
-    end
-    assert_equal :inner, inner.join(30)&.value, "a nested span deadlocked on the lock"
-    assert lock_free?, "the lock outlived the outer span"
-  end
-
-  def test_the_lock_is_released_when_the_block_raises
-    desk = new_desk
-    assert_raises(ZeroDivisionError) { desk.taking_the_keyboard { 1 / 0 } }
-    assert lock_free?
-  end
-
-  # The child writes "releasing" before it releases, so a span that starts
-  # only once the lock is free always finds that line already written.
-  def test_a_span_waits_for_another_process_to_release_the_lock
-    log_reader, log_writer = IO.pipe
-    desk = new_desk(err: log_writer)
-    Open3.popen2(RbConfig.ruby, "-e", HOLDER, @lock_path) do |child_in, child_out, child|
-      assert_equal "locked", child_out.gets&.chomp
-      span = Thread.new do
-        desk.taking_the_keyboard(speak: false) { child_out.read_nonblock(100, exception: false) }
+  # Runs KeyboardNotice.taking_the_keyboard as on a Mac, with the gem's
+  # shared instance replaced by the test's own.
+  private def taking_the_keyboard(**, &)
+    KeyboardNotice.stub(:locks?, true) do
+      DesktopInputLock.stub(:hold, -> (speak: true, &block) { @input.hold(speak:, &block) }) do
+        KeyboardNotice.taking_the_keyboard(**, &)
       end
-      assert log_reader.wait_readable(10), "the span did not wait for the lock"
-      assert_equal "#{KeyboardNotice::WAITING}\n", log_reader.gets
-
-      child_in.puts "go"
-      assert_equal "releasing", span.value.chomp
-      assert_predicate child.value, :success?
     end
   end
 
-  private def new_desk(settle: KeyboardNotice::SETTLE, err: StringIO.new, clock: -> { @now }, watcher: false, voice: nil,
-    sleep: KeyboardNotice::Desk::SLEEP
-  )
-    voice ||= method(:record_voice)
-    desk = KeyboardNotice::Desk.new(lock_path: @lock_path, marker_path: @marker_path, settle:, err:, clock:, watcher:, voice:,
-      sleep:, banner: -> (words) { @events << [:banner, words] })
-    @desks << desk
-    desk
-  end
-
-  private def record_voice(words)
-    @events << [:voice, words]
-    @spoken << (@said << words)
-  end
-
-  private def lock_free?
-    (File.open(@lock_path, File::RDONLY | File::CREAT) { it.flock(File::LOCK_EX | File::LOCK_NB) }) ? true : false
-  end
-
-  private def marker_pid
-    Integer(File.read(@marker_path).split.first)
-  end
-
-  # The pid of a process that has ended and been reaped.
-  private def ended_pid
-    pid = ::Process.spawn(RbConfig.ruby, "-e", "")
-    ::Process.wait(pid)
-    pid
+  private def lock_held?
+    File.open(File.join(@dir, "lock")) { |file| !file.flock(File::LOCK_EX | File::LOCK_NB) }
   end
 end

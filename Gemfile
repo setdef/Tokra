@@ -31,6 +31,13 @@ gem "ferro-time", git: "https://github.com/setdef/Ferro", tag: "ferro-time/v0.1.
 gem "ferro-global-hotkey", git: "https://github.com/setdef/Ferro", tag: "ferro-global-hotkey/v0.1.0.pre.1",
   glob: "gems/global-hotkey/*.gemspec"
 
+# The keyboard-taking tests share one lock with other projects' tests on
+# the same Mac (Plan 046); the protocol lives in this gem.
+group :development do
+  gem "desktop_input_lock", git: "https://github.com/setdef/DesktopInputLock.git",
+    ref: "2bb238b4764dd6511e3305621c60090c8bc97b6b"
+end
+
 gem "irb"
 gem "rake", "~> 13.0"
 gem "rake-compiler"
