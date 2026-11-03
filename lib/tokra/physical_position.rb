@@ -46,6 +46,23 @@ module Tokra
       scale_factor = Dpi.assert_scale_factor(scale_factor)
       LogicalPosition.new(x: x.to_f / scale_factor, y: y.to_f / scale_factor)
     end
+
+    # The position as JSON, as serde writes dpi's derived Serialize:
+    # <tt>{"x": 1, "y": 2}</tt>. An Integer stays an Integer and a Float a
+    # Float, as Rust's <tt>i32</tt> and <tt>f64</tt> write (src/lib.rs:463-467).
+    #
+    # === Example
+    #
+    #   Tokra::PhysicalPosition.new(x: 1, y: 2).to_json  #=> "{\"x\":1,\"y\":2}"
+    def to_json(state = nil)
+      json = as_json
+      state ? json.to_json(state) : json.to_json
+    end
+
+    # The position as a JSON value, as #to_json writes it.
+    def as_json # :nodoc:
+      { "x" => x, "y" => y }
+    end
   end
 end
 

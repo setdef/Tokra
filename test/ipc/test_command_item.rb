@@ -87,6 +87,19 @@ class TestCommandItem < Minitest::Test
       ["i32", 18446744073709551615] => "invalid value: integer `18446744073709551615`, expected i32",
       ["i32", 18446744073709551616] => "invalid type: floating point `1.8446744073709552e19`, expected i32",
       ["i32", -9223372036854775809] => "invalid type: floating point `-9.223372036854776e18`, expected i32",
+      ["i64", -9223372036854775808] => nil,
+      ["i64", 9223372036854775807] => nil,
+      ["i64", 9223372036854775808] => "invalid value: integer `9223372036854775808`, expected i64",
+      ["i64", 18446744073709551615] => "invalid value: integer `18446744073709551615`, expected i64",
+      ["i64", 1.0] => "invalid type: floating point `1.0`, expected i64",
+      ["i64", -9223372036854775809] => "invalid type: floating point `-9.223372036854776e18`, expected i64",
+      ["u64", 0] => nil,
+      ["u64", 18446744073709551615] => nil,
+      ["u64", -1] => "invalid value: integer `-1`, expected u64",
+      ["u64", -9223372036854775808] => "invalid value: integer `-9223372036854775808`, expected u64",
+      ["u64", 1.0] => "invalid type: floating point `1.0`, expected u64",
+      ["u64", "1"] => "invalid type: string \"1\", expected u64",
+      ["u64", 18446744073709551616] => "invalid type: floating point `1.8446744073709552e19`, expected u64",
   }.freeze
 
   def test_integer_reads_as_serde_reads_each_rust_integer

@@ -9,6 +9,7 @@ module Tokra
     attr_reader name: String
 
     private def self.new: (name: String) -> UserAttentionType
+    def self.deserialize: (json_value value) -> UserAttentionType
 
     Critical: UserAttentionType
     Informational: UserAttentionType

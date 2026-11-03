@@ -9,6 +9,7 @@ module Tokra
     attr_reader name: String
 
     private def self.new: (name: String) -> CursorIcon
+    def self.deserialize: (json_value value) -> CursorIcon
 
     Default: CursorIcon
     Crosshair: CursorIcon

@@ -9,6 +9,9 @@ module Tokra
     attr_reader name: String
 
     private def self.new: (name: String) -> Theme
+    def self.deserialize: (json_value value) -> Theme
+    def to_json: (?JSON::State? state) -> String
+    def as_json: () -> String
 
     Light: Theme
     Dark: Theme

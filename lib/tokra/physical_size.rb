@@ -42,6 +42,22 @@ module Tokra
       scale_factor = Dpi.assert_scale_factor(scale_factor)
       LogicalSize.new(width: width.to_f / scale_factor, height: height.to_f / scale_factor)
     end
+
+    # The size as JSON, as serde writes dpi's derived Serialize:
+    # <tt>{"width": 800, "height": 600}</tt> (src/lib.rs:615-619).
+    #
+    # === Example
+    #
+    #   Tokra::PhysicalSize.new(width: 800, height: 600).to_json  #=> "{\"width\":800,\"height\":600}"
+    def to_json(state = nil)
+      json = as_json
+      state ? json.to_json(state) : json.to_json
+    end
+
+    # The size as a JSON value, as #to_json writes it.
+    def as_json # :nodoc:
+      { "width" => width, "height" => height }
+    end
   end
 end
 

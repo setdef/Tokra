@@ -8,7 +8,9 @@
 # SPDX-SnippetBegin
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
-# SPDX-SnippetComment: Color adapted from tauri-utils/src/config.rs
+# SPDX-SnippetCopyrightText: Erick Tryzelaar and David Tolnay (serde, serde_json)
+# SPDX-SnippetComment: Color adapted from tauri-utils/src/config.rs; its
+#                      untagged reading is serde_derive 1.0.228's
 
 module Tokra
   # An RGBA color, each component a byte from 0 to 255.
@@ -43,16 +45,23 @@ module Tokra
     #
     # As Tauri does, it trims the whitespace around a <tt>#</tt> but reads
     # text without one as given, so <tt>" fff"</tt> is four characters
-    # long and fails.
+    # long and fails. Whitespace is Rust's <tt>str::trim</tt>'s: Unicode
+    # White_Space, such as a no-break space, and not NUL, which Ruby's
+    # String#strip would remove.
     #
-    # Mirrors Tauri's <tt>FromStr for Color</tt> (config.rs:1468-1490).
+    # Mirrors Tauri's <tt>FromStr for Color</tt> (config.rs:1468-1490),
+    # with one deviation: text whose two-byte slices split a character,
+    # such as <tt>"a\u00E9123"</tt> or <tt>"\u20AC"</tt>, panics Tauri's
+    # <tt>&color[0..2]</tt> (config.rs:1483-1486), so its invoke never
+    # settles. Tokra raises INVALID_DIGIT instead, the message
+    # u8::from_str_radix gives text that is not hex.
     #
     # === Example
     #
     #   Tokra::Color.from_str("#f0a")  #=> #<data Tokra::Color red=255, green=0, blue=170, alpha=255>
     def self.from_str(text)
       text = text.to_str
-      trimmed = text.strip
+      trimmed = text.gsub(/\A\p{White_Space}+|\p{White_Space}+\z/, "")
       digits = (trimmed.delete_prefix("#") if trimmed.start_with?("#")) || text
       digits = case digits.bytesize
       when 3 then "#{digits.chars.map { |char| char * 2 }.join}ff"
@@ -68,10 +77,59 @@ module Tokra
       )
     end
 
+    # serde's message when a value fits no variant of Tauri's untagged
+    # InnerColor (serde_derive de/enum_untagged.rs:39).
+    UNTAGGED = "data did not match any variant of untagged enum InnerColor" # :nodoc:
+
+    # The color a command argument holds, as Tauri's Deserialize reads it
+    # through the untagged InnerColor (config.rs:1492-1536), trying each
+    # form in turn: a string, read by #from_str, whose error is serde's
+    # custom message; three +u8+s, opaque; four; or a map of +red+,
+    # +green+, +blue+, and +alpha+, which defaults to 255 and whose other
+    # keys are ignored. The map has no sequence form, as serde_derive gives
+    # an untagged struct variant none (de/struct_.rs:70-73). Anything else
+    # raises Ipc::CommandItem::Mismatch with UNTAGGED.
+    def self.deserialize(value) # :nodoc:
+      case value
+      when String
+        begin
+          from_str(value)
+        rescue ArgumentError => e
+          raise Ipc::CommandItem::Mismatch, e.message
+        end
+      when Array then components(value) || raise(Ipc::CommandItem::Mismatch, UNTAGGED)
+      when Hash then rgba_object(value) || raise(Ipc::CommandItem::Mismatch, UNTAGGED)
+      else raise Ipc::CommandItem::Mismatch, UNTAGGED
+      end
+    end
+
+    # The color three or four +u8+s make, or +nil+ when they do not read.
+    private_class_method def self.components(values)
+      return nil unless [3, 4].include?(values.size) && values.all? { |value| u8?(value) }
+
+      red, green, blue, alpha = values #: [Integer, Integer, Integer, Integer?]
+      new(red:, green:, blue:, alpha: alpha || 255)
+    end
+
+    # The color the map form makes, or +nil+ when it does not read.
+    private_class_method def self.rgba_object(map)
+      components = [map["red"], map["green"], map["blue"], map.fetch("alpha", 255)]
+      return nil unless components.all? { |value| u8?(value) }
+
+      red, green, blue, alpha = components #: [Integer, Integer, Integer, Integer]
+      new(red:, green:, blue:, alpha:)
+    end
+
+    # Whether +value+ reads as a +u8+.
+    private_class_method def self.u8?(value)
+      value.is_a?(Integer) && value.between?(0, 255)
+    end
+
     # The byte two hex digits name, as u8::from_str_radix reads them: a
-    # leading + is allowed, and anything else but hex digits is not.
+    # leading + is allowed, and anything else but hex digits is not. A
+    # pair that splits a character, where Tauri panics, is not hex either.
     private_class_method def self.byte(pair)
-      raise ArgumentError, INVALID_DIGIT unless pair.match?(/\A\+?\h+\z/)
+      raise ArgumentError, INVALID_DIGIT unless pair.valid_encoding? && pair.match?(/\A\+?\h+\z/)
 
       Integer(pair.delete_prefix("+"), 16)
     end

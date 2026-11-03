@@ -24,7 +24,6 @@ module Tokra
       UNREACHABLE: String
       UNWRAP_NONE: String
       ITEM_KINDS: Array[String]
-      POSITION_VARIANTS: Array[String]
       PREDEFINED: Hash[String, Symbol]
       NATIVE_ICONS: Array[String]
       KIND_NAMES: Hash[Class, String]
@@ -146,7 +145,6 @@ module Tokra
       def kind_arg: (Ipc::Invoke invoke) -> String
       def usize: (json_value value) -> Integer
       def menu_id: (json_value value) -> MenuId
-      def position: (json_value value) -> (LogicalPosition | PhysicalPosition)
       def item_kind: (json_value value) -> String
       def predefined: (json_value value) -> [String, about_fields?]
       def about_fields: (json_value value) -> about_fields

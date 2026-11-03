@@ -9,6 +9,9 @@ module Tokra
     attr_reader name: String
 
     private def self.new: (name: String) -> ResizeDirection
+    def self.deserialize: (json_value value) -> ResizeDirection
+
+    VARIANTS: Array[ResizeDirection]
 
     East: ResizeDirection
     North: ResizeDirection

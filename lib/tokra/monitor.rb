@@ -53,6 +53,33 @@ module Tokra
         scale_factor:
       )
     end
+
+    # The monitor as JSON, as serde writes Tauri's derived Serialize with
+    # <tt>rename_all = "camelCase"</tt>: +name+ (or +null+), +size+,
+    # +position+, +workArea+, and +scaleFactor+, in that order
+    # (window/mod.rs:57-65). +scaleFactor+ is an +f64+, so it is written
+    # as a Float. The window plugin's monitor commands answer
+    # it to the page this way.
+    #
+    # === Example
+    #
+    #   window.current_monitor.to_json
+    #   #=> "{\"name\":\"Built-in Retina Display\",\"size\":{...},...,\"scaleFactor\":2.0}"
+    def to_json(state = nil)
+      json = as_json
+      state ? json.to_json(state) : json.to_json
+    end
+
+    # The monitor as a JSON value, as #to_json writes it.
+    def as_json # :nodoc:
+      {
+        "name" => name,
+        "size" => size.as_json,
+        "position" => position.as_json,
+        "workArea" => work_area.as_json,
+        "scaleFactor" => Float(scale_factor),
+      }
+    end
   end
 end
 

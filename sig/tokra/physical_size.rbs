@@ -10,5 +10,7 @@ module Tokra
                 | (width: pixel, height: pixel) -> PhysicalSize
     def self.from_logical: (LogicalSize size, Float | Integer scale_factor) -> PhysicalSize
     def to_logical: (Float | Integer scale_factor) -> LogicalSize
+    def to_json: (?JSON::State? state) -> String
+    def as_json: () -> Hash[String, pixel]
   end
 end

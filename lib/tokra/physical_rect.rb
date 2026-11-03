@@ -24,6 +24,22 @@ module Tokra
   #   rect = monitor.work_area
   #   rect.size.width  #=> 2880
   class PhysicalRect < Data.define(:position, :size)
+    # The rectangle as JSON, as serde writes Tauri's derived Serialize:
+    # <tt>{"position": {"x", "y"}, "size": {"width", "height"}}</tt>
+    # (tauri-runtime src/dpi.rs:26-33).
+    #
+    # === Example
+    #
+    #   monitor.work_area.to_json  #=> "{\"position\":{\"x\":0,\"y\":25},\"size\":{...}}"
+    def to_json(state = nil)
+      json = as_json
+      state ? json.to_json(state) : json.to_json
+    end
+
+    # The rectangle as a JSON value, as #to_json writes it.
+    def as_json # :nodoc:
+      { "position" => position.as_json, "size" => size.as_json }
+    end
   end
 end
 

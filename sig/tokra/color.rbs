@@ -5,6 +5,7 @@ module Tokra
   class Color < Data
     INVALID_LENGTH: String
     INVALID_DIGIT: String
+    UNTAGGED: String
 
     attr_reader red: Integer
     attr_reader green: Integer
@@ -14,6 +15,10 @@ module Tokra
     def self.new: (Integer red, Integer green, Integer blue, Integer alpha) -> Color
                 | (red: Integer, green: Integer, blue: Integer, alpha: Integer) -> Color
     def self.from_str: (String text) -> Color
+    def self.deserialize: (json_value value) -> Color
+    private def self.components: (Array[json_value] values) -> Color?
+    private def self.rgba_object: (Hash[String, json_value] map) -> Color?
+    private def self.u8?: (json_value value) -> bool
     private def self.byte: (String pair) -> Integer
   end
 end

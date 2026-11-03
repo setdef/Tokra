@@ -30,6 +30,22 @@ module Tokra
   #
   #   Tokra::WindowSizeConstraints.new(min_width: Tokra::LogicalUnit.new(400))
   class WindowSizeConstraints < Data.define(:min_width, :min_height, :max_width, :max_height)
+    # Each limit's serde name, camelCase, in Tauri's order.
+    FIELDS = %w[minWidth minHeight maxWidth maxHeight].freeze # :nodoc:
+
+    # The constraints a command argument holds, as the derived Deserialize
+    # reads them: a struct whose fields are renamed camelCase,
+    # <tt>minWidth</tt> and so on, each an <tt>Option<PixelUnit></tt>
+    # (Dpi.deserialize_pixel_unit), from a map whose other keys are
+    # ignored or from a sequence (tauri-runtime src/window.rs:208-227).
+    def self.deserialize(value) # :nodoc:
+      fields = Ipc::Serde.struct_fields(value, "WindowSizeConstraints", FIELDS, optional: FIELDS) do |_, raw|
+        Dpi.deserialize_pixel_unit(raw)
+      end
+      new(min_width: fields["minWidth"], min_height: fields["minHeight"], max_width: fields["maxWidth"],
+        max_height: fields["maxHeight"])
+    end
+
     # Creates the constraints, raising TypeError for a limit that is not a
     # LogicalUnit, a PhysicalUnit, or +nil+.
     # A Data class validating in initialize: its RBS declares self.new, as

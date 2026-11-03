@@ -42,6 +42,19 @@ module Tokra
     # title's color follows the system's theme.
     Overlay = new(name: "Overlay")
 
+    # The style a command argument names, as Tauri's own Deserialize reads
+    # it: <tt>"transparent"</tt> or <tt>"overlay"</tt> in any case, and
+    # any other string Visible (tauri-utils src/lib.rs:189-201). Anything
+    # but a string raises Ipc::CommandItem::Mismatch, <tt>expected a
+    # string</tt>.
+    def self.deserialize(value) # :nodoc:
+      case Ipc::Serde.string(value).downcase
+      when "transparent" then Transparent
+      when "overlay" then Overlay
+      else Visible
+      end
+    end
+
     close
   end
 end

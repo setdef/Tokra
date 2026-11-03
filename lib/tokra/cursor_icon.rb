@@ -102,6 +102,20 @@ module Tokra
     # A row is to be resized.
     RowResize = new(name: "RowResize")
 
+    # The icon a command argument names, as Tauri's own Deserialize reads
+    # it: a string, matched without regard to case, and any name it does
+    # not know is Default (tauri-runtime src/window.rs:160-206). Anything
+    # but a string raises Ipc::CommandItem::Mismatch, <tt>expected a
+    # string</tt>.
+    def self.deserialize(value) # :nodoc:
+      name = Ipc::Serde.string(value).downcase
+      constants.each do |constant|
+        icon = const_get(constant, false)
+        return icon if icon.is_a?(CursorIcon) && icon.name.downcase == name
+      end
+      Default
+    end
+
     close
   end
 end

@@ -9,6 +9,9 @@ module Tokra
     attr_reader name: String
 
     private def self.new: (name: String) -> ProgressBarStatus
+    def self.deserialize: (json_value value) -> ProgressBarStatus
+
+    VARIANTS: Array[ProgressBarStatus]
 
     None: ProgressBarStatus
     Normal: ProgressBarStatus

@@ -92,6 +92,47 @@ module Tokra
     # window on Windows 10 v1903 and later and Windows 11 build 22000.
     Acrylic = new(name: "Acrylic")
 
+    # The effects in Tauri's order, which serde's errors list.
+    VARIANTS = [
+      AppearanceBased,
+      Light,
+      Dark,
+      MediumLight,
+      UltraDark,
+      Titlebar,
+      Selection,
+      Menu,
+      Popover,
+      Sidebar,
+      HeaderView,
+      Sheet,
+      WindowBackground,
+      HudWindow,
+      FullScreenUI,
+      Tooltip,
+      ContentBackground,
+      UnderWindowBackground,
+      UnderPageBackground,
+      Mica,
+      MicaDark,
+      MicaLight,
+      Tabbed,
+      TabbedDark,
+      TabbedLight,
+      Blur,
+      Acrylic,
+    ].freeze
+    private_constant :VARIANTS
+
+    # The effect a command argument names, as the derived Deserialize
+    # reads it: a unit variant renamed camelCase, <tt>"hudWindow"</tt> and
+    # so on (tauri-utils src/lib.rs:64-66; serde_derive
+    # internals/case.rs:62).
+    def self.deserialize(value) # :nodoc:
+      effects = VARIANTS.to_h { |effect| [effect.name.sub(/\A./, &:downcase), effect] }
+      effects.fetch(Ipc::Serde.unit_variant(value, effects.keys))
+    end
+
     close
   end
 end

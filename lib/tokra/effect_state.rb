@@ -38,6 +38,19 @@ module Tokra
     # The effect never looks active.
     Inactive = new(name: "Inactive")
 
+    # The states in Tauri's order, which serde's errors list.
+    VARIANTS = [FollowsWindowActiveState, Active, Inactive].freeze
+    private_constant :VARIANTS
+
+    # The state a command argument names, as the derived Deserialize reads
+    # it: a unit variant renamed camelCase, <tt>"followsWindowActiveState"</tt>
+    # and so on (tauri-utils src/lib.rs:143-146; serde_derive
+    # internals/case.rs:62).
+    def self.deserialize(value) # :nodoc:
+      states = VARIANTS.to_h { |state| [state.name.sub(/\A./, &:downcase), state] }
+      states.fetch(Ipc::Serde.unit_variant(value, states.keys))
+    end
+
     close
   end
 end

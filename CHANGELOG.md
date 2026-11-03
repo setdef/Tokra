@@ -298,6 +298,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   and `Tokra::Dpi.validate_scale_factor`
 - `Tokra::Monitor`, `Tokra::Theme`, `Tokra::CursorIcon`,
   `Tokra::UserAttentionType`, and `Tokra::ResizeDirection`
+- `to_json` on `PhysicalPosition`, `PhysicalSize`, `PhysicalRect`, `Monitor`,
+  and `Theme`, writing Tauri's JSON: `Monitor` with camelCase keys, `Theme`
+  as `"light"` or `"dark"`
 - `Native::Window` getters and setters behind them, in tao's names
   (`set_inner_size`, `set_outer_position`, `set_maximized`, `set_visible`,
   `drag_window`, and the rest); `Native::Window#set_size(width, height)`

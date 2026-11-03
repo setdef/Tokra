@@ -32,6 +32,31 @@ module Tokra
     # Dark theme.
     Dark = new(name: "Dark")
 
+    # The theme a command argument names, as Tauri's own Deserialize reads
+    # it: <tt>"dark"</tt> in any case is Dark, and any other string Light
+    # (tauri-utils src/lib.rs:238-250). Anything but a string raises
+    # Ipc::CommandItem::Mismatch, <tt>expected a string</tt>.
+    def self.deserialize(value) # :nodoc:
+      (Ipc::Serde.string(value).downcase == "dark") ? Dark : Light
+    end
+
+    # The theme as JSON, as Tauri's Serialize writes its Display text:
+    # <tt>"light"</tt> or <tt>"dark"</tt> (tauri-utils src/lib.rs:228-236,
+    # 252-260). Window#theme answers it to the page this way.
+    #
+    # === Example
+    #
+    #   Tokra::Theme::Dark.to_json  #=> "\"dark\""
+    def to_json(state = nil)
+      json = as_json
+      state ? json.to_json(state) : json.to_json
+    end
+
+    # The theme as a JSON value, as #to_json writes it.
+    def as_json # :nodoc:
+      name.downcase
+    end
+
     close
   end
 end

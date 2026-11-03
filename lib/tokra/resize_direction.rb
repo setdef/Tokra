@@ -42,6 +42,18 @@ module Tokra
     # The left edge.
     West = new(name: "West")
 
+    # The directions in Tauri's order, which serde's errors list.
+    VARIANTS = [East, North, NorthEast, NorthWest, South, SouthEast, SouthWest, West].freeze
+    private_constant :VARIANTS
+
+    # The direction a command argument names, as the derived Deserialize
+    # reads it: a unit variant by Tauri's name, <tt>"East"</tt> and so on
+    # (tauri-runtime src/lib.rs:105-116; Ipc::Serde.unit_variant).
+    def self.deserialize(value) # :nodoc:
+      directions = VARIANTS.to_h { |direction| [direction.name, direction] }
+      directions.fetch(Ipc::Serde.unit_variant(value, directions.keys))
+    end
+
     close
   end
 end

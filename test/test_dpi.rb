@@ -151,4 +151,121 @@ class TestDpi < Minitest::Test
     error = assert_raises(TypeError) { Tokra::WindowSizeConstraints.new(max_width: 300) }
     assert_includes error.message, "Integer"
   end
+
+  # serde's dpi readers (dpi 0.1.2 src/lib.rs:333-338, 686-692, 741-747):
+  # externally tagged enums of newtype variants, each Physical integer
+  # read as its Rust type and each Logical one as an f64.
+  private def mismatch(&)
+    assert_raises(Tokra::Ipc::CommandItem::Mismatch, &).message
+  end
+
+  # Data#== takes 1 for 1.0; eql? tells an Integer from a Float.
+  private def assert_eql(expected, actual)
+    assert expected.eql?(actual), "expected #{expected.inspect}, got #{actual.inspect}"
+  end
+
+  def test_a_size_reads_either_variant_from_a_map_or_a_sequence
+    assert_eql Tokra::PhysicalSize.new(width: 800, height: 600),
+      Tokra::Dpi.deserialize_size({ "Physical" => { "width" => 800, "height" => 600 } })
+    assert_eql Tokra::PhysicalSize.new(width: 1, height: 2), Tokra::Dpi.deserialize_size({ "Physical" => [1, 2] })
+    assert_eql Tokra::LogicalSize.new(width: 1.5, height: 1.0),
+      Tokra::Dpi.deserialize_size({ "Logical" => { "width" => 1.5, "height" => 1 } })
+  end
+
+  # Size::Physical holds a PhysicalSize<u32>: -1 is no u32, nor is 2**32.
+  def test_a_physical_size_is_a_u32
+    assert_equal "invalid value: integer `-1`, expected u32",
+      mismatch { Tokra::Dpi.deserialize_size({ "Physical" => { "width" => -1, "height" => 1 } }) }
+    assert_equal "invalid value: integer `4294967296`, expected u32",
+      mismatch { Tokra::Dpi.deserialize_size({ "Physical" => { "width" => 4_294_967_296, "height" => 1 } }) }
+    assert_equal "invalid type: floating point `1.5`, expected u32",
+      mismatch { Tokra::Dpi.deserialize_size({ "Physical" => { "width" => 1.5, "height" => 1 } }) }
+    assert_eql Tokra::PhysicalSize.new(width: 4_294_967_295, height: 0),
+      Tokra::Dpi.deserialize_size({ "Physical" => { "width" => 4_294_967_295, "height" => 0 } })
+  end
+
+  def test_a_size_rejects_in_serdes_words
+    assert_equal "invalid type: unit variant, expected newtype variant", mismatch { Tokra::Dpi.deserialize_size("Physical") }
+    assert_equal "unknown variant `physical`, expected `Physical` or `Logical`",
+      mismatch { Tokra::Dpi.deserialize_size({ "physical" => {} }) }
+    assert_equal "invalid type: sequence, expected string or map", mismatch { Tokra::Dpi.deserialize_size([1, 2]) }
+    assert_equal "invalid type: integer `5`, expected struct PhysicalSize",
+      mismatch { Tokra::Dpi.deserialize_size({ "Physical" => 5 }) }
+    assert_equal "missing field `height`", mismatch { Tokra::Dpi.deserialize_size({ "Logical" => { "width" => 1 } }) }
+    assert_equal "invalid length 1, expected struct LogicalSize with 2 elements",
+      mismatch { Tokra::Dpi.deserialize_size({ "Logical" => [1] }) }
+    assert_equal "invalid type: string \"1\", expected f64",
+      mismatch { Tokra::Dpi.deserialize_size({ "Logical" => { "width" => "1", "height" => 1 } }) }
+  end
+
+  # Position::Physical holds a PhysicalPosition<i32>: -1 is a position.
+  def test_a_physical_position_is_an_i32
+    assert_eql Tokra::PhysicalPosition.new(x: -1, y: -2_147_483_648),
+      Tokra::Dpi.deserialize_position({ "Physical" => { "x" => -1, "y" => -2_147_483_648 } })
+    assert_eql Tokra::PhysicalPosition.new(x: 3, y: 4), Tokra::Dpi.deserialize_position({ "Physical" => [3, 4] })
+    assert_equal "invalid value: integer `2147483648`, expected i32",
+      mismatch { Tokra::Dpi.deserialize_position({ "Physical" => { "x" => 2_147_483_648, "y" => 0 } }) }
+    assert_equal "invalid type: integer `5`, expected struct PhysicalPosition",
+      mismatch { Tokra::Dpi.deserialize_position({ "Physical" => 5 }) }
+  end
+
+  def test_a_logical_position_is_an_f64
+    assert_eql Tokra::LogicalPosition.new(x: 1.5, y: 1.0),
+      Tokra::Dpi.deserialize_position({ "Logical" => { "x" => 1.5, "y" => 1 } })
+    assert_equal "invalid length 1, expected struct LogicalPosition with 2 elements",
+      mismatch { Tokra::Dpi.deserialize_position({ "Logical" => [1] }) }
+    assert_equal "unknown variant `Other`, expected `Physical` or `Logical`",
+      mismatch { Tokra::Dpi.deserialize_position({ "Other" => {} }) }
+  end
+
+  # PixelUnit's variants hold newtype structs, which serde_json reads as
+  # their one value (value/de.rs:880-900, the &Value impl).
+  def test_a_pixel_unit_is_an_i32_or_an_f64
+    assert_eql Tokra::PhysicalUnit.new(-1), Tokra::Dpi.deserialize_pixel_unit({ "Physical" => -1 })
+    assert_eql Tokra::LogicalUnit.new(1.0), Tokra::Dpi.deserialize_pixel_unit({ "Logical" => 1 })
+    assert_eql Tokra::LogicalUnit.new(1.5), Tokra::Dpi.deserialize_pixel_unit({ "Logical" => 1.5 })
+    assert_equal "invalid value: integer `2147483648`, expected i32",
+      mismatch { Tokra::Dpi.deserialize_pixel_unit({ "Physical" => 2_147_483_648 }) }
+    assert_equal "invalid type: sequence, expected i32", mismatch { Tokra::Dpi.deserialize_pixel_unit({ "Physical" => [5] }) }
+    assert_equal "invalid type: unit variant, expected newtype variant", mismatch { Tokra::Dpi.deserialize_pixel_unit("Logical") }
+  end
+
+  # WindowSizeConstraints derives Deserialize, camelCase, each limit an
+  # Option<PixelUnit> (tauri-runtime src/window.rs:208-227).
+  def test_size_constraints_read_each_limit_by_its_camel_case_name
+    constraints = Tokra::WindowSizeConstraints.deserialize(
+      { "minWidth" => { "Logical" => 400 }, "minHeight" => nil, "maxHeight" => { "Physical" => 300 }, "min_width" => 1 }
+    )
+
+    assert_eql Tokra::LogicalUnit.new(400.0), constraints.min_width
+    assert_nil constraints.min_height
+    assert_nil constraints.max_width
+    assert_eql Tokra::PhysicalUnit.new(300), constraints.max_height
+    assert_eql Tokra::PhysicalUnit.new(7), Tokra::WindowSizeConstraints.deserialize({ "maxWidth" => { "Physical" => 7 } }).max_width
+    assert_eql Tokra::PhysicalUnit.new(8), Tokra::WindowSizeConstraints.deserialize({ "minHeight" => { "Physical" => 8 } }).min_height
+    assert_equal Tokra::WindowSizeConstraints.new, Tokra::WindowSizeConstraints.deserialize({})
+  end
+
+  def test_size_constraints_read_a_sequence_and_reject_in_serdes_words
+    assert_eql Tokra::LogicalUnit.new(2.5),
+      Tokra::WindowSizeConstraints.deserialize([nil, nil, nil, { "Logical" => 2.5 }]).max_height
+    assert_equal "invalid length 1, expected struct WindowSizeConstraints with 4 elements",
+      mismatch { Tokra::WindowSizeConstraints.deserialize([nil]) }
+    assert_equal "invalid value: integer `2147483648`, expected i32",
+      mismatch { Tokra::WindowSizeConstraints.deserialize({ "minWidth" => { "Physical" => 2_147_483_648 } }) }
+    assert_equal "invalid type: string \"x\", expected struct WindowSizeConstraints",
+      mismatch { Tokra::WindowSizeConstraints.deserialize("x") }
+  end
+
+  # serde writes dpi's structs as maps of their fields, and an f64 stays
+  # a float (dpi src/lib.rs:463-467, 615-619; tauri-runtime dpi.rs:26-33).
+  def test_physical_values_write_serdes_json
+    assert_equal '{"x":-1,"y":2}', JSON.generate(Tokra::PhysicalPosition.new(x: -1, y: 2))
+    assert_equal '{"x":1.0,"y":2.5}', Tokra::PhysicalPosition.new(x: 1.0, y: 2.5).to_json
+    assert_equal '{"width":800,"height":600}', JSON.generate(Tokra::PhysicalSize.new(width: 800, height: 600))
+    rect = Tokra::PhysicalRect.new(position: Tokra::PhysicalPosition.new(x: 0, y: 25),
+      size: Tokra::PhysicalSize.new(width: 1440, height: 875))
+    assert_equal '{"position":{"x":0,"y":25},"size":{"width":1440,"height":875}}', JSON.generate(rect)
+    assert_equal [{ "x" => 1, "y" => 2 }], JSON.parse(JSON.generate([Tokra::PhysicalPosition.new(x: 1, y: 2)]))
+  end
 end

@@ -3,6 +3,8 @@
 
 module Tokra
   class WindowSizeConstraints < Data
+    FIELDS: Array[String]
+
     attr_reader min_width: pixel_unit?
     attr_reader min_height: pixel_unit?
     attr_reader max_width: pixel_unit?
@@ -10,5 +12,6 @@ module Tokra
 
     def self.new: (?pixel_unit? min_width, ?pixel_unit? min_height, ?pixel_unit? max_width, ?pixel_unit? max_height) -> WindowSizeConstraints
                 | (?min_width: pixel_unit?, ?min_height: pixel_unit?, ?max_width: pixel_unit?, ?max_height: pixel_unit?) -> WindowSizeConstraints
+    def self.deserialize: (json_value value) -> WindowSizeConstraints
   end
 end

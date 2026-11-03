@@ -4,10 +4,14 @@
 module Tokra
   module Dpi
     INVALID_SCALE_FACTOR: String
+    VARIANTS: Array[String]
 
     def self.validate_scale_factor: (Float | Integer scale_factor) -> bool
     def self.assert_scale_factor: (Float | Integer scale_factor) -> Float
     def self.position_dimensions: (LogicalPosition | PhysicalPosition position) -> Native::Window::dimensions
+    def self.deserialize_size: (json_value value) -> (PhysicalSize | LogicalSize)
+    def self.deserialize_position: (json_value value) -> (PhysicalPosition | LogicalPosition)
+    def self.deserialize_pixel_unit: (json_value value) -> (PhysicalUnit | LogicalUnit)
   end
 
   type pixel = Float | Integer

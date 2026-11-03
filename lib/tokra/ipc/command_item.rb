@@ -70,10 +70,16 @@ module Tokra
       end
 
       # The range of each Rust integer type an argument reads as.
-      INTEGERS = { "u8" => 0..255, "u32" => 0..((2 ** 32) - 1), "i32" => -(2 ** 31)..((2 ** 31) - 1) }.freeze
+      INTEGERS = {
+        "u8" => 0..255,
+        "u32" => 0..((2 ** 32) - 1),
+        "i32" => -(2 ** 31)..((2 ** 31) - 1),
+        "u64" => 0..((2 ** 64) - 1),
+        "i64" => -(2 ** 63)..((2 ** 63) - 1),
+      }.freeze
 
       # +value+, a JSON value, as the Rust integer +type+ (<tt>"u8"</tt>,
-      # <tt>"u32"</tt>, or <tt>"i32"</tt>), raising Mismatch with serde's
+      # <tt>"u32"</tt>, <tt>"i32"</tt>, <tt>"u64"</tt>, or <tt>"i64"</tt>), raising Mismatch with serde's
       # message where it does not fit: an integer out of range is an
       # invalid value, and anything else the wrong type, an integer too
       # large for serde_json, which reads it as a float, among them (serde

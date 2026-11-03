@@ -9,6 +9,9 @@ module Tokra
     attr_reader name: String
 
     private def self.new: (name: String) -> EffectState
+    def self.deserialize: (json_value value) -> EffectState
+
+    VARIANTS: Array[EffectState]
 
     FollowsWindowActiveState: EffectState
     Active: EffectState

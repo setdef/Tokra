@@ -9,6 +9,9 @@ module Tokra
     attr_reader name: String
 
     private def self.new: (name: String) -> Effect
+    def self.deserialize: (json_value value) -> Effect
+
+    VARIANTS: Array[Effect]
 
     AppearanceBased: Effect
     Light: Effect

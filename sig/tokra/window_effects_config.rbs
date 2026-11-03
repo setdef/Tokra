@@ -10,5 +10,7 @@ module Tokra
 
     def self.new: (?Array[Effect] effects, ?EffectState? state, ?Numeric? radius, ?Color? color) -> WindowEffectsConfig
                 | (?effects: Array[Effect], ?state: EffectState?, ?radius: Numeric?, ?color: Color?) -> WindowEffectsConfig
+    def self.deserialize: (json_value value) -> WindowEffectsConfig
+    private def self.field_value: (String name, json_value raw) -> (Array[Effect] | EffectState | Float | Color)
   end
 end

@@ -10,5 +10,7 @@ module Tokra
                 | (x: pixel, y: pixel) -> PhysicalPosition
     def self.from_logical: (LogicalPosition position, Float | Integer scale_factor) -> PhysicalPosition
     def to_logical: (Float | Integer scale_factor) -> LogicalPosition
+    def to_json: (?JSON::State? state) -> String
+    def as_json: () -> Hash[String, pixel]
   end
 end

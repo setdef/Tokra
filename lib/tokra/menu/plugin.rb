@@ -59,10 +59,6 @@ module Tokra
       # Tauri's ItemKind (plugin.rs:22-30).
       ITEM_KINDS = %w[Menu MenuItem Predefined Submenu Check Icon].freeze
 
-      # The variants of dpi's Position, the +at+ of +popup+ (dpi 0.1.2
-      # src/lib.rs:741-746).
-      POSITION_VARIANTS = %w[Physical Logical].freeze
-
       # Tauri's Predefined variants (plugin.rs:74-94), with the
       # PredefinedMenuItem constructor each calls.
       PREDEFINED = {
@@ -373,7 +369,7 @@ module Tokra
         rid = rid_arg(invoke)
         kind = kind_arg(invoke)
         label = argument(invoke, "window").deserialize_option { |value| Ipc::Serde.string(value) }
-        at = argument(invoke, "at").deserialize_option { |value| position(value) }
+        at = argument(invoke, "at").deserialize_option { |value| Dpi.deserialize_position(value) }
         webview = invoke.webview
         window = label ? webview.app_handle.get_window(label) : webview.window
         return nil unless window
@@ -647,25 +643,6 @@ module Tokra
 
       private def menu_id(value)
         MenuId.new(value: Ipc::Serde.string(value))
-      end
-
-      # dpi's Position, an externally tagged enum of two newtype variants:
-      # a PhysicalPosition of +i32+ or a LogicalPosition of +f64+, as
-      # serde's derive and serde_json read it (dpi 0.1.2
-      # src/lib.rs:387-391, 463-467, 741-746).
-      private def position(value)
-        variant, content = Ipc::Serde.enum_variant(value, POSITION_VARIANTS, newtype: POSITION_VARIANTS)
-        if variant == "Physical"
-          fields = Ipc::Serde.struct_fields(content, "PhysicalPosition", %w[x y]) { |_, raw| Ipc::CommandItem.integer(raw, "i32") }
-          x = fields["x"] #: Integer
-          y = fields["y"] #: Integer
-          PhysicalPosition.new(x:, y:)
-        else
-          fields = Ipc::Serde.struct_fields(content, "LogicalPosition", %w[x y]) { |_, raw| Ipc::Serde.f64(raw) }
-          x = fields["x"] #: Float
-          y = fields["y"] #: Float
-          LogicalPosition.new(x:, y:)
-        end
       end
 
       private def item_kind(value)

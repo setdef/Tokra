@@ -29,6 +29,20 @@ module Tokra
   #
   #   window.set_progress_bar(Tokra::ProgressBarState.new(status: Tokra::ProgressBarStatus::Normal, progress: 40))
   class ProgressBarState < Data.define(:status, :progress)
+    # The state a command argument holds, as the window plugin's derived
+    # Deserialize reads it: a struct of an
+    # <tt>Option<ProgressBarStatus></tt> and an <tt>Option<u64></tt>,
+    # from a map whose other keys are ignored or from a sequence
+    # (window/mod.rs:2209-2221).
+    def self.deserialize(value) # :nodoc:
+      fields = Ipc::Serde.struct_fields(value, "ProgressBarState", %w[status progress], optional: %w[status progress]) do |field, raw|
+        (field == "status") ? ProgressBarStatus.deserialize(raw) : Ipc::CommandItem.integer(raw, "u64")
+      end
+      status = fields["status"] #: ProgressBarStatus?
+      progress = fields["progress"] #: Integer?
+      new(status:, progress:)
+    end
+
     # Creates the state, raising TypeError or RangeError as the class
     # says.
     # A Data class validating in initialize: its RBS declares self.new, as

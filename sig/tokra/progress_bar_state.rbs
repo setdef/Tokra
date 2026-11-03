@@ -8,5 +8,6 @@ module Tokra
 
     def self.new: (?ProgressBarStatus? status, ?Integer? progress) -> ProgressBarState
                 | (?status: ProgressBarStatus?, ?progress: Integer?) -> ProgressBarState
+    def self.deserialize: (json_value value) -> ProgressBarState
   end
 end

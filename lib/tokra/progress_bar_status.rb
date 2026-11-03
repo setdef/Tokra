@@ -41,6 +41,19 @@ module Tokra
     # Failed. Shown as Normal on Linux.
     Error = new(name: "Error")
 
+    # The statuses in Tauri's order, which serde's errors list.
+    VARIANTS = [None, Normal, Indeterminate, Paused, Error].freeze
+    private_constant :VARIANTS
+
+    # The status a command argument names, as the derived Deserialize
+    # reads it: a unit variant renamed camelCase, <tt>"none"</tt> and so
+    # on (tauri-runtime src/lib.rs:51-53; serde_derive
+    # internals/case.rs:62).
+    def self.deserialize(value) # :nodoc:
+      statuses = VARIANTS.to_h { |status| [status.name.sub(/\A./, &:downcase), status] }
+      statuses.fetch(Ipc::Serde.unit_variant(value, statuses.keys))
+    end
+
     close
   end
 end

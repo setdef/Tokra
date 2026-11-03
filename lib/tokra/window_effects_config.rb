@@ -29,6 +29,35 @@ module Tokra
   #
   #   Tokra::WindowEffectsConfig.new(effects: [Tokra::Effect::HudWindow], radius: 12.0)
   class WindowEffectsConfig < Data.define(:effects, :state, :radius, :color)
+    # The configuration a command argument holds, as the derived
+    # Deserialize reads it, with +deny_unknown_fields+: a map with any
+    # other key is rejected. +effects+, a sequence of Effect names, is
+    # required, and +state+, +radius+ (an +f64+), and +color+ (Color's
+    # forms) are Options. A sequence form reads them in that order
+    # (tauri-utils src/config.rs:1572-1588).
+    def self.deserialize(value) # :nodoc:
+      fields = Ipc::Serde.struct_fields(value, "WindowEffectsConfig", %w[effects state radius color],
+        optional: %w[state radius color], deny_unknown: true) { |field, raw| field_value(field, raw) }
+      effects = fields["effects"] #: Array[Effect]
+      state = fields["state"] #: EffectState?
+      radius = fields["radius"] #: Float?
+      color = fields["color"] #: Color?
+      new(effects:, state:, radius:, color:)
+    end
+
+    # The value of the field +name+ from +raw+.
+    private_class_method def self.field_value(name, raw)
+      case name
+      when "effects"
+        raise Ipc::CommandItem::Mismatch.invalid_type(raw, "a sequence") unless raw.is_a?(Array)
+
+        raw.map { |effect| Effect.deserialize(effect) }
+      when "state" then EffectState.deserialize(raw)
+      when "radius" then Ipc::Serde.f64(raw)
+      else Color.deserialize(raw)
+      end
+    end
+
     # Creates the configuration, raising TypeError for a field of the
     # wrong type. +radius+ may be any Real and is kept as a Float.
     # A Data class validating in initialize: its RBS declares self.new, as
