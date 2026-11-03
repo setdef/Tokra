@@ -19,49 +19,76 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     const { check, finish } = window.fixture;
     const next = (answer) => invoke('plugin:answer|next', answer);
     const zenity = () => invoke('plugin:answer|zenity');
-    // Polls +probe+ every 100 ms until it answers truthy, for at most 5 s.
-    const until = async (probe) => {
-      for (let i = 0; i < 50; i++) {
+    // Polls +probe+ every 100 ms until it answers truthy. The check's own
+    // timeout (harness.js) is the backstop; once the check is reported,
+    // +signal+ aborts and the poll stops by throwing.
+    const until = async (signal, probe) => {
+      for (;;) {
+        signal.throwIfAborted();
         const value = await probe();
         if (value) return value;
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
-      return null;
     };
 
     (async () => {
       const { platform, dir } = await (await fetch('/dialog.json')).json();
 
-      await check('save resolves the chosen path', async () => {
-        await next({ accept: true, output: `${dir}/out.txt\n` });
-        const path = await save({ defaultPath: `${dir}/out.txt`, filters: [{ name: 'Text', extensions: ['txt'] }] });
-        return { pass: path === `${dir}/out.txt`, detail: { path, zenity: await zenity() } };
-      });
-
-      await check('a cancelled open resolves null', async () => {
-        await next({ accept: false });
-        const path = await open({ title: 'tokra-dialog: this closes itself' });
-        return { pass: path === null, detail: { path } };
-      });
-
-      await check('a cancelled multiple open resolves null or an empty list', async () => {
-        await next({ accept: false });
-        const paths = await open({ multiple: true });
-        return { pass: paths === null || (Array.isArray(paths) && paths.length === 0), detail: { paths } };
-      });
-
-      await check('the event loop answers while a dialog is open', async () => {
-        await next({ accept: false, delay: 1 });
+      // Opens a dialog with +start+ and ends it in order: the fixture sees
+      // it open, +whileOpen+ runs, and only then does the fixture end it as
+      // next() arranged, which held it. A dialog that ends before the
+      // fixture sees it, such as one a person clicked away, ends the wait
+      // too, and fails its own check alone. +ended+ is whether the fixture
+      // ended it: on macOS whether it found a sheet to end, and on Linux
+      // whether it let a held zenity go. +signal+ is the check's: a check
+      // that timed out stops here, and never ends the next check's dialog.
+      const answered = async (signal, start, whileOpen = async () => ({})) => {
         let settled = false;
-        const dialog = open({ directory: true }).then((value) => { settled = true; return value; });
-        const started = performance.now();
-        const dialogOpen = await until(() => invoke('plugin:answer|open'));
-        const reply = await invoke('plugin:answer|ping');
-        const answeredWhileOpen = !settled;
-        const folder = await dialog;
+        const dialog = start().finally(() => { settled = true; });
+        const seen = await until(signal, async () =>
+          (settled ? 'settled' : (await invoke('plugin:answer|open')) && 'open'));
+        const during = seen === 'open' ? await whileOpen(() => settled) : {};
+        signal.throwIfAborted();
+        const ended = Boolean(await invoke('plugin:answer|end'));
+        return { value: await dialog, seenOpen: seen === 'open', ended, ...during };
+      };
+
+      await check('save resolves the chosen path', async (signal) => {
+        await next({ accept: true, hold: true, output: `${dir}/out.txt\n` });
+        const { value: path, ended } = await answered(signal, () =>
+          save({ defaultPath: `${dir}/out.txt`, filters: [{ name: 'Text', extensions: ['txt'] }] }));
+        return { pass: ended && path === `${dir}/out.txt`, detail: { path, ended, zenity: await zenity() } };
+      });
+
+      await check('a cancelled open resolves null', async (signal) => {
+        await next({ accept: false, hold: true });
+        const { value: path, ended } = await answered(signal, () => open({ title: 'tokra-dialog: this closes itself' }));
+        return { pass: ended && path === null, detail: { path, ended } };
+      });
+
+      await check('a cancelled multiple open resolves null or an empty list', async (signal) => {
+        await next({ accept: false, hold: true });
+        const { value: paths, ended } = await answered(signal, () => open({ multiple: true }));
+        const empty = paths === null || (Array.isArray(paths) && paths.length === 0);
+        return { pass: ended && empty, detail: { paths, ended } };
+      });
+
+      // The dialog stays open, on Linux a zenity held until the fixture
+      // ends it, so the ping is answered while it is open by order, not by
+      // winning a race against the clock.
+      await check('the event loop answers while a dialog is open', async (signal) => {
+        await next({ accept: false, hold: true });
+        const { value: folder, seenOpen, ended, reply, answeredWhileOpen } = await answered(
+          signal,
+          () => open({ directory: true }),
+          async (settled) => {
+            const reply = await invoke('plugin:answer|ping');
+            return { reply, answeredWhileOpen: !settled() };
+          },
+        );
         return {
-          pass: dialogOpen === true && reply === 'pong' && answeredWhileOpen && folder === null,
-          detail: { dialogOpen, reply, answeredWhileOpen, folder, ms: Math.round(performance.now() - started) },
+          pass: seenOpen && ended && reply === 'pong' && answeredWhileOpen === true && folder === null,
+          detail: { dialogOpen: seenOpen, reply, answeredWhileOpen, ended, folder },
         };
       });
 
@@ -91,13 +118,13 @@ SPDX-License-Identifier: AGPL-3.0-or-later
           return { pass: yes === true && ok === false, detail: { yes, ok } };
         });
 
-        await check('window.alert and window.confirm show the plugin\'s dialogs', async () => {
+        await check('window.alert and window.confirm show the plugin\'s dialogs', async (signal) => {
           await next({ accept: true });
           const confirmed = await window.confirm('Really?');
           const confirmArgs = await zenity();
           await next({ accept: true });
           window.alert('Hello');
-          const alertArgs = await until(async () => {
+          const alertArgs = await until(signal, async () => {
             const args = await zenity();
             return args && args.includes('Hello') ? args : null;
           });

@@ -31,7 +31,7 @@ class TestDialogWindow < RealApp::TestCase
   FAKE_ZENITY = <<~SH
     #!/bin/sh
     printf '%s\\n' "$@" > "$FAKE_ZENITY_DIR/log"
-    sleep "$(cat "$FAKE_ZENITY_DIR/delay" 2>/dev/null || echo 0)"
+    while [ -e "$FAKE_ZENITY_DIR/hold" ]; do sleep 0.05; done
     cat "$FAKE_ZENITY_DIR/output" 2>/dev/null
     exit "$(cat "$FAKE_ZENITY_DIR/status" 2>/dev/null || echo 0)"
   SH
@@ -195,7 +195,9 @@ class TestDialogWindow < RealApp::TestCase
 
   # The command waits on its own thread, and the dialog's future on
   # another, so the main thread keeps answering invokes while a dialog is
-  # open (plan 023, decision 2).
+  # open (plan 023, decision 2). The page pings only once the fixture has
+  # seen the dialog open, and the fixture ends it only after the ping, so
+  # the order is proved rather than raced against a clock.
   def test_the_event_loop_answers_while_a_dialog_is_open
     detail = check_detail(@run, "the event loop answers while a dialog is open")
     assert detail["dialogOpen"], "no dialog was open when the page pinged: #{detail.inspect}"

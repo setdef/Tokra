@@ -18,16 +18,22 @@
     ]);
   }
 
+  // Runs check +name+. +run+ gets an AbortSignal that aborts once the check
+  // is reported, so work a timed-out check left running can stop before it
+  // acts on the next check's state.
   async function check(name, run) {
     const item = document.createElement('li');
     item.textContent = name;
     document.getElementById('checks').append(item);
+    const reported = new AbortController();
     let result;
     try {
-      const { pass, detail } = await withTimeout(run(), 20000, name);
+      const { pass, detail } = await withTimeout(run(reported.signal), 20000, name);
       result = { name, pass: !!pass, detail };
     } catch (error) {
       result = { name, pass: false, detail: { error: String(error) } };
+    } finally {
+      reported.abort();
     }
     results.push(result);
     item.textContent = `${result.pass ? 'PASS' : 'FAIL'} ${name}: ${JSON.stringify(result.detail)}`;
