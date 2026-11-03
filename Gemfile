@@ -35,7 +35,7 @@ gem "ferro-global-hotkey", git: "https://github.com/setdef/Ferro", tag: "ferro-g
 # the same Mac (Plan 046); the protocol lives in this gem.
 group :development do
   gem "desktop_input_lock", git: "https://github.com/setdef/DesktopInputLock.git",
-    ref: "2bb238b4764dd6511e3305621c60090c8bc97b6b"
+    tag: "v0.1.0"
 end
 
 gem "irb"
