@@ -104,7 +104,6 @@ module Tokra
 
     class WebView
       def self.new_with_protocol: (Window, Proxy, Array[String]) -> WebView
-      def self.new: (Window, String, ^(String) -> void, Proxy) -> WebView
       def eval: (String) -> void
       def close: () -> nil
       def set_background_color: (Window::rgba?) -> nil

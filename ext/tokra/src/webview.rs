@@ -8,7 +8,7 @@
 
 use std::cell::RefCell;
 
-use magnus::{function, method, prelude::*, Error, Ruby, Value};
+use magnus::{function, method, prelude::*, Error, Ruby};
 use tao::event_loop::EventLoopProxy;
 use wry::{PageLoadEvent, WebView, WebViewBuilder};
 
@@ -219,44 +219,6 @@ impl Drop for RbWebView {
 }
 
 impl RbWebView {
-    /// Create a new `WebView` attached to the given `Window`.
-    ///
-    /// The `ipc_callback` must be a `Ractor.shareable_proc`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `WebView` creation fails.
-    // Magnus FFI requires owned types at the Ruby-Rust boundary.
-    // See clippy_exceptions.rb for justification.
-    #[allow(clippy::needless_pass_by_value)]
-    pub fn new(
-        window: &RbWindow,
-        url: String,
-        _ipc_callback: Value,
-        proxy: &RbProxy,
-    ) -> Result<Self, Error> {
-        let proxy_clone = proxy.inner().clone();
-
-        let builder = WebViewBuilder::new()
-            .with_url(&url)
-            .with_ipc_handler(move |msg| {
-                forward_ipc_message_to_ruby(&proxy_clone, &msg);
-            });
-        let tao_window = window.window()?;
-        let webview = build_in(builder, &tao_window)
-            .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
-        attach_resize_handler(&tao_window, &webview);
-        #[cfg(windows)]
-        crate::webview_focus::attach(&webview, proxy.inner())
-            .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
-        drop(tao_window);
-
-        Ok(Self {
-            inner: RefCell::new(ThreadBound::new(webview)),
-            proxy: proxy.inner().clone(),
-        })
-    }
-
     // SPDX-SnippetBegin
     // SPDX-License-Identifier: Apache-2.0 OR MIT
     // SPDX-SnippetCopyrightText: 2020-2023 Tauri Programme within The Commons Conservancy
@@ -276,9 +238,16 @@ impl RbWebView {
     /// code, in order — Ruby assembles them (Tauri's `__TAURI_INTERNALS__`
     /// bootstrap and IPC scripts); this layer just passes strings through.
     ///
+    /// On Windows the window's focus events come from this webview's
+    /// `GotFocus` and `LostFocus` (`webview_focus.rs`).
+    ///
     /// # Errors
     ///
-    /// Returns an error if `WebView` creation fails.
+    /// Returns an error if `WebView` creation fails, or on Windows if
+    /// `WebView2` refuses a focus handler. Tauri `unwrap()`s there
+    /// (tauri-runtime-wry `src/lib.rs:5076-5130`); a panic across magnus
+    /// would be a fatal error Ruby cannot rescue, so this raises
+    /// `RuntimeError` instead.
     ///
     /// # Panics
     ///
@@ -376,6 +345,11 @@ impl RbWebView {
         let webview = build_in(builder, &tao_window)
             .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
         attach_resize_handler(&tao_window, &webview);
+        // Windows reports the window's focus from the webview's, as
+        // tauri-runtime-wry's create_webview does (`src/lib.rs:5069-5130`).
+        #[cfg(windows)]
+        crate::webview_focus::attach(&webview, proxy.inner())
+            .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
         drop(tao_window);
 
         Ok(Self {
@@ -532,7 +506,9 @@ impl RbWebView {
 /// Returns an error if class or method definition fails.
 pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
     let webview_class = native.define_class("WebView", ruby.class_object())?;
-    webview_class.define_singleton_method("new", function!(RbWebView::new, 4))?;
+    // `new_with_protocol` is the only constructor; without this, Class#new
+    // would answer an empty object whose methods all raise.
+    webview_class.undef_default_alloc_func();
     webview_class.define_singleton_method(
         "new_with_protocol",
         function!(RbWebView::new_with_protocol, 3),

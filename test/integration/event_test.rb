@@ -61,6 +61,18 @@ class EventTest < RealApp::TestCase
     assert_equal detail["payload"], detail["outer"]
   end
 
+  # Nothing focuses the fixture's window, so a Focused event may never
+  # come; any that does is the one window's (plan 052, 052a-0). On
+  # Windows it comes from WebView2's focus handlers, not tao's (skipped
+  # there; see plan 052).
+  def test_every_focus_change_names_the_window_it_happened_to
+    focused = @run.lines.grep(/\AEVENT window .*Tokra::WindowEvent::Focused /)
+
+    focused.each do |line|
+      assert_match(/\AEVENT window main Tokra::WindowEvent::Focused (true|false)\z/, line, @run.describe)
+    end
+  end
+
   private def wayland?
     RbConfig::CONFIG["host_os"].include?("linux") && ENV["WAYLAND_DISPLAY"].to_s != "" &&
       ENV["GDK_BACKEND"] != "x11"

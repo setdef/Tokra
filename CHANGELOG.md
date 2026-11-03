@@ -470,6 +470,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Removed
 
+- `Native::WebView.new(window, url, ipc_callback, proxy)`; build a webview
+  with `Native::WebView.new_with_protocol` (breaking)
 - The `tokra` gem no longer ships development files (plans, transcripts,
   tasks, tests, tool configuration) or the empty `semantic-highlight`
   executable

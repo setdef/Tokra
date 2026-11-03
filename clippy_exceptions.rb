@@ -20,21 +20,13 @@ allow "ext/tokra/src/window.rs", line: 189, reason: <<~END
   the Ruby GC cycle.
 END
 
-allow "ext/tokra/src/webview.rs", line: 231, reason: <<~END
-  Magnus FFI requires owned types at the Ruby-Rust boundary. RbWebView::new
-  receives a URL from Ruby that must be converted to an owned Rust String.
-
-  UNFIXABLE: magnus/src/try_convert.rs:209 only implements TryConvert for String.
-  There is no &str implementation because Ruby string memory is GC-managed and
-  cannot be safely borrowed across the FFI boundary.
-END
-
-allow "ext/tokra/src/webview.rs", line: 395, reason: <<~END
+allow "ext/tokra/src/webview.rs", line: 369, reason: <<~END
   Magnus FFI requires owned types at the Ruby-Rust boundary. RbWebView::eval
   receives JavaScript code from Ruby that must be converted to an owned String.
 
-  UNFIXABLE: Same constraint as above - magnus/src/try_convert.rs:209 only
-  provides TryConvert for owned String types.
+  UNFIXABLE: magnus/src/try_convert.rs:209 only implements TryConvert for
+  String. There is no &str implementation because Ruby string memory is
+  GC-managed and cannot be safely borrowed across the FFI boundary.
 END
 
 allow "ext/tokra/src/thread_bound.rs", line: 136, reason: <<~END

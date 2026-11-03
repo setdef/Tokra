@@ -39,11 +39,14 @@ module Tokra
   #   window.set_title("My App")
   #   window.set_size(800, 600)
   #
-  #   ipc_handler = Ractor.shareable_proc { |msg| puts msg }
-  #   webview = Tokra::Native::WebView.new(window, "https://example.com", ipc_handler, proxy)
+  #   # Loads tokra://localhost/, whose requests arrive as HttpRequestEvent.
+  #   webview = Tokra::Native::WebView.new_with_protocol(window, proxy, [])
   #
   #   event_loop.run do |event|
   #     case event
+  #     when Tokra::Native::HttpRequestEvent
+  #       html = "<h1>Hello</h1>"
+  #       proxy.respond(event.request_id, 200, [["content-type", "text/html"]], html)
   #     when Tokra::Native::IpcEvent
   #       puts "IPC: #{event.message}"
   #     when Tokra::Native::WakeUpEvent
@@ -79,7 +82,7 @@ module Tokra
     #     RawWindowHandle.display_handle reads
     #
     # - WebView: WebKit/WebView2 webview
-    #   - .new(window, url, ipc_callback, proxy) -> WebView
+    #   - .new_with_protocol(window, proxy, initialization_scripts) -> WebView
     #   - #eval(js_string)
     #   - #close - drop the native webview
     #

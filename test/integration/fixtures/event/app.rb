@@ -9,7 +9,8 @@
 # vendored @tauri-apps/api (plan 047). Ruby listens as the app and as the
 # window and answers what it hears; the page asks Ruby to emit, to resize
 # its window, and to move it, and listens for each through the real
-# client. Run by hand to watch it:
+# client. It prints each focus change its window hears (plan 052). Run by
+# hand to watch it:
 #
 #   bundle exec ruby test/integration/fixtures/event/app.rb --wait
 
@@ -55,4 +56,10 @@ end
 options = FixtureApp.options(ARGV)
 FixtureApp.builder(FixtureApp::Site.new(__dir__, options), "events", plugins: [EventFixture])
   .with_global_tauri
+  # Focus only: FixtureApp::Plugin prints the close and its end, and when a
+  # platform reports focus depends on its window manager, so no other
+  # fixture's output changes.
+  .on_window_event(&Ractor.shareable_proc { |window, event|
+    puts "EVENT window #{window.label} #{event.class.name} #{event.focused}" if event.is_a?(Tokra::WindowEvent::Focused)
+  })
   .run
