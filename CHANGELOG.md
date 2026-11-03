@@ -36,8 +36,23 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `Plugin#webview_created(webview)` hooks; the created hooks hear every
   window and webview the app makes, `main` included, on the main thread,
   with `PluginStore#window_created` and `#webview_created`
-- `Tokra::WebviewWindowBuilder.new(manager, label, url)` with `#title`,
-  `#inner_size`, and `#build`, which makes a window and its webview at run
+- `Tokra::WebviewWindowBuilder.new(manager, label, url)` with Tauri's desktop
+  rows (`#title`, `#inner_size`, `#menu`, `#on_menu_event`, `#center`,
+  `#position`, `#min_inner_size`, `#max_inner_size`, `#inner_size_constraints`,
+  `#prevent_overflow`, `#prevent_overflow_with_margin`, `#resizable`,
+  `#maximizable`, `#minimizable`, `#closable`, `#fullscreen`, `#focus`
+  (deprecated), `#focused`, `#focusable`, `#maximized`, `#visible`, `#theme`,
+  `#decorations`, `#always_on_bottom`, `#always_on_top`,
+  `#visible_on_all_workspaces`, `#content_protected`, `#icon`, `#skip_taskbar`,
+  `#window_classname`, `#shadow`, `#parent`, `#effects`, `#background_color`;
+  `#transparent` off macOS; `#owner` and `#drag_and_drop` on Windows;
+  `#transient_for` on Linux; `#title_bar_style`, `#hidden_title`,
+  `#tabbing_identifier`, and `#traffic_light_position` on macOS) and Tauri's
+  defaults (focused; on macOS the `Visible` title bar over a full-size content
+  view, so every window's inner size, `main`'s included, takes in its title
+  bar and the page is about 32 points shorter; on Windows the window
+  class "Tokra Window", and a WebView2 in its window's theme), and `#build`, which
+  makes a window and its webview at run
   time from any thread: at once on the main thread, and from another thread
   queued ahead of every later call on it; a native failure is warned, not
   raised, with Tauri's "failed to create window" or "failed to create
@@ -58,8 +73,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `tauri://webview-created` and then `tauri://window-created`, each with
   `{"label": ...}`, for every window the app makes
 - `Native::Window.empty(proxy)`, `Native::Window#open(event_loop, label,
-  title, size)`, `Native::Window#discard`, `Native::WebView.empty(proxy)`, and
-  `Native::WebView#open(window, proxy, label, url, initialization_scripts)`
+  attributes)`, `Native::Window#discard`, `Native::WebView.empty(proxy)`, and
+  `Native::WebView#open(window, proxy, label, attributes)`, each `attributes` a
+  Hash of a builder's rows
 - `Tokra::Ipc::Invoke`, whose responders receive the response as JSON text; a
   value JSON cannot encode rejects the invoke with the serializer's message
 - `Window#set_title`, `Window#set_size`, `Webview#eval`, and `AppHandle#emit`

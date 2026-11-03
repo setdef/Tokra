@@ -5,20 +5,56 @@ module Tokra
   class WebviewWindowBuilder
     DEFAULT_TITLE: String
 
+    @window_builder: WindowBuilder
     @manager: Manager
     @label: String
     @url: webview_url
-    @title: String
-    @inner_size: [Float, Float]?
+    @webview_attributes: Hash[Symbol, Native::WebView::attribute]
 
     def initialize: (Manager manager, String label, webview_url url) -> void
-    def title: (String title) -> self
+    def menu: (Menu::Menu menu) -> self
+    def on_menu_event: () { (Window, Menu::MenuEvent) -> void } -> self
+    def center: () -> self
+    def position: (Float | Integer x, Float | Integer y) -> self
     def inner_size: (Float | Integer width, Float | Integer height) -> self
+    def min_inner_size: (Float | Integer min_width, Float | Integer min_height) -> self
+    def max_inner_size: (Float | Integer max_width, Float | Integer max_height) -> self
+    def inner_size_constraints: (WindowSizeConstraints constraints) -> self
+    def prevent_overflow: () -> self
+    def prevent_overflow_with_margin: (LogicalSize | PhysicalSize margin) -> self
+    def resizable: (bool resizable) -> self
+    def maximizable: (bool maximizable) -> self
+    def minimizable: (bool minimizable) -> self
+    def closable: (bool closable) -> self
+    def title: (String title) -> self
+    def fullscreen: (bool fullscreen) -> self
+    def focus: () -> self
+    def focusable: (bool focusable) -> self
+    def focused: (bool focused) -> self
+    def maximized: (bool maximized) -> self
+    def visible: (bool visible) -> self
+    def theme: (Theme? theme) -> self
+    def decorations: (bool decorations) -> self
+    def always_on_bottom: (bool always_on_bottom) -> self
+    def always_on_top: (bool always_on_top) -> self
+    def visible_on_all_workspaces: (bool visible_on_all_workspaces) -> self
+    def content_protected: (bool protected) -> self
+    def icon: (Image icon) -> self
+    def skip_taskbar: (bool skip) -> self
+    def window_classname: (String classname) -> self
+    def shadow: (bool enable) -> self
+    def parent: (WebviewWindow parent) -> self
+    def effects: (WindowEffectsConfig effects) -> self
+    def background_color: (Color color) -> self
     def build: () -> WebviewWindow
 
     private
 
+    def after_creation: (AppHandle handle, Window window) -> void
+    def apply_effects: (Window window, WindowEffectsConfig effects) -> void
+    def forward: () { (WindowBuilder rows) -> void } -> self
+    def webview: (Symbol key, Native::WebView::attribute value) -> self
+    def webview_window: (Object value) -> WebviewWindow
     def check_label: () -> void
-    def window_menu: (AppHandle handle) -> Window::WindowMenu?
   end
 end

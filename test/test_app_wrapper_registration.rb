@@ -41,14 +41,14 @@ class TestAppWrapperRegistration < Minitest::Test
 
     class Window
       def self.empty(_proxy) = new
-      def open(_event_loop, _label, _title, _size); end
+      def open(_event_loop, _label, _attributes); end
       def set_title(_title); end
       def set_size(_w, _h); end
     end
 
     class WebView
       def self.empty(_proxy) = new
-      def open(_window, _proxy, _label, _url, _scripts); end
+      def open(_window, _proxy, _label, _attributes); end
       def eval(_script); end
     end
 

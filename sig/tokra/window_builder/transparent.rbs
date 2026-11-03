@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class WindowBuilder
+    def transparent: (bool transparent) -> self
+  end
+
+  class WebviewWindowBuilder
+    def transparent: (bool transparent) -> self
+  end
+end

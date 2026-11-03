@@ -39,7 +39,7 @@ pub type MonitorValue = (Option<String>, (i32, i32), (u32, u32), Rect, f64);
 
 /// tao's `Size` for a Ruby size: `Size::Physical` holds `u32`s, as
 /// Tauri's `PhysicalSize<u32>` does, and dpi rounds into them.
-fn size((physical, width, height): Dimensions) -> Size {
+pub fn size((physical, width, height): Dimensions) -> Size {
     if physical {
         Size::Physical(PhysicalSize::new(width, height).cast())
     } else {
@@ -186,7 +186,7 @@ pub fn monitor(handle: &MonitorHandle) -> MonitorValue {
 /// right by the visible frame's left edge and leaves its top alone.
 #[cfg(target_os = "macos")]
 #[allow(unsafe_code)]
-fn work_area(handle: &MonitorHandle) -> (PhysicalPosition<i32>, PhysicalSize<u32>) {
+pub fn work_area(handle: &MonitorHandle) -> (PhysicalPosition<i32>, PhysicalSize<u32>) {
     use objc2::rc::Retained;
     use objc2_app_kit::NSScreen;
     use tao::platform::macos::MonitorHandleExtMacOS;
@@ -224,7 +224,7 @@ fn work_area(handle: &MonitorHandle) -> (PhysicalPosition<i32>, PhysicalSize<u32
     target_os = "netbsd",
     target_os = "openbsd"
 ))]
-fn work_area(handle: &MonitorHandle) -> (PhysicalPosition<i32>, PhysicalSize<u32>) {
+pub fn work_area(handle: &MonitorHandle) -> (PhysicalPosition<i32>, PhysicalSize<u32>) {
     use gtk::prelude::MonitorExt;
     use tao::platform::unix::MonitorHandleExtUnix;
 
@@ -241,7 +241,7 @@ fn work_area(handle: &MonitorHandle) -> (PhysicalPosition<i32>, PhysicalSize<u32
 /// from `GetMonitorInfoW` (`src/monitor/windows.rs:9-33`).
 #[cfg(windows)]
 #[allow(unsafe_code)]
-fn work_area(handle: &MonitorHandle) -> (PhysicalPosition<i32>, PhysicalSize<u32>) {
+pub fn work_area(handle: &MonitorHandle) -> (PhysicalPosition<i32>, PhysicalSize<u32>) {
     use tao::platform::windows::MonitorHandleExtWindows;
     use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, HMONITOR, MONITORINFO};
 
@@ -270,18 +270,41 @@ fn work_area(handle: &MonitorHandle) -> (PhysicalPosition<i32>, PhysicalSize<u32
     )
 }
 
+/// The outer position that centers a window of `window_size` in the work
+/// area at `position` of `size`, as `calculate_window_center_position`
+/// sums it (`src/window/mod.rs:62-72`). Tauri's `i32` sums can overflow
+/// for a window wider than `i32::MAX` pixels, which panics in a debug
+/// build; these saturate instead.
+pub const fn centered_in(
+    window_size: PhysicalSize<u32>,
+    position: PhysicalPosition<i32>,
+    size: PhysicalSize<u32>,
+) -> PhysicalPosition<i32> {
+    PhysicalPosition::new(
+        (size
+            .width
+            .cast_signed()
+            .saturating_sub(window_size.width.cast_signed())
+            / 2)
+        .saturating_add(position.x),
+        (size
+            .height
+            .cast_signed()
+            .saturating_sub(window_size.height.cast_signed())
+            / 2)
+        .saturating_add(position.y),
+    )
+}
+
 /// The outer position that centers a window of `window_size` in the
-/// monitor's work area (`src/window/mod.rs:58-67`).
+/// monitor's work area (`src/window/mod.rs:62-72`).
 #[cfg(not(target_os = "macos"))]
 fn center_position(
     window_size: PhysicalSize<u32>,
     target_monitor: &MonitorHandle,
 ) -> PhysicalPosition<i32> {
     let (position, size) = work_area(target_monitor);
-    PhysicalPosition::new(
-        (size.width.cast_signed() - window_size.width.cast_signed()) / 2 + position.x,
-        (size.height.cast_signed() - window_size.height.cast_signed()) / 2 + position.y,
-    )
+    centered_in(window_size, position, size)
 }
 
 /// Centers the window as `-[NSWindow center]` does, as Tauri's

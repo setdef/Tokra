@@ -21,6 +21,8 @@
 #   HEARD <label> <event> <event>     the order "main"'s page heard both events for <label>
 #   PAGE <label> finished             a page load, from Builder#on_page_load
 #   SIZE cmd <width>x<height>         "cmd"'s logical inner size once its page loaded
+#   INNER <label> <height>            on macOS, the page's innerHeight in "bar-visible",
+#                                     the default Visible title bar, and "bar-transparent"
 #   EVENT exit-requested <code> | EVENT exit
 #
 # "main"'s page invokes make once both listeners are in. make builds "cmd"
@@ -60,8 +62,24 @@ module WebviewWindowBuilderFixture
   # The page each built window opens.
   PAGE = "<!doctype html><meta charset=utf-8><title>built</title><p>built</p>"
 
+  # The page of each title-bar window, which reports its innerHeight.
+  BAR_PAGE = <<~HTML
+    <!doctype html><meta charset=utf-8><title>bar</title><p>bar</p>
+    <script>
+      addEventListener('load', () => {
+        window.__TAURI__.core.invoke('inner', { height: window.innerHeight })
+      })
+    </script>
+  HTML
+
+  # On macOS, the two title-bar windows, each 240 by 180: Visible, the
+  # default, lays the page under its title bar (a full-size content view),
+  # and Transparent below it (tauri-runtime-wry lib.rs:1151-1176).
+  MACOS = RUBY_PLATFORM.include?("darwin")
+
   # What must happen before the app exits.
-  STEPS = %w[page:cmd page:thread heard:cmd heard:thread title:thread].freeze
+  STEPS = (%w[page:cmd page:thread heard:cmd heard:thread title:thread] +
+    (MACOS ? %w[inner:bar-visible inner:bar-transparent] : [])).freeze
 
   # Records +step+ on the main thread and exits once every one of STEPS
   # has happened.
@@ -89,7 +107,12 @@ module WebviewWindowBuilderFixture
   # Prints the path each webview asked for, which its WebviewUrl named.
   PROTOCOL = Ractor.shareable_proc do |context, request|
     puts "REQUEST #{context.webview_label} #{URI(request.uri).path}"
-    Tokra::Response.ok((context.webview_label == "main") ? MAIN_PAGE : PAGE)
+    label = context.webview_label
+    page = if label == "main" then MAIN_PAGE
+    elsif label.start_with?("bar-") then BAR_PAGE
+    else PAGE
+    end
+    Tokra::Response.ok(page)
   end
 
   PAGE_LOAD = Ractor.shareable_proc do |webview, payload|
@@ -124,7 +147,21 @@ module WebviewWindowBuilderFixture
         FixtureApp.keep_in_sight(thread.window)
         handle.run_on_main_thread { WebviewWindowBuilderFixture.step(handle, "title:thread") }
       end
+      if WebviewWindowBuilderFixture::MACOS
+        bars = [["bar-visible", nil], ["bar-transparent", Tokra::TitleBarStyle::Transparent]]
+        bars.each do |label, style|
+          builder = Tokra::WebviewWindowBuilder.new(invoke.webview, label, Tokra::WebviewUrl::App.new("bar.html"))
+            .inner_size(240, 180)
+          builder.title_bar_style(style) if style
+          FixtureApp.keep_in_sight(builder.build.window)
+        end
+      end
       invoke.resolve(nil)
+    when "inner"
+      label = invoke.webview.label
+      puts "INNER #{label} #{invoke.payload['height']}"
+      invoke.resolve(nil)
+      WebviewWindowBuilderFixture.step(handle, "inner:#{label}")
     when "heard"
       label = invoke.payload["label"]
       puts "HEARD #{label} #{invoke.payload['order'].join(' ')}"

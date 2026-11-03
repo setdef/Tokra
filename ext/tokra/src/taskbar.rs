@@ -34,7 +34,7 @@ fn progress_state(name: &str) -> Result<ProgressState, String> {
 
 /// Whether the title bar is transparent and the content view fills the
 /// window, for a `Tokra::TitleBarStyle` name (`src/lib.rs:3511-3534`).
-fn title_bar(name: &str) -> Result<(bool, bool), String> {
+pub fn title_bar(name: &str) -> Result<(bool, bool), String> {
     Ok(match name {
         "Visible" => (false, true),
         "Transparent" => (true, false),

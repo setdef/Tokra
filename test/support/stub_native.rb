@@ -319,9 +319,12 @@ module StubNative
       new(nil, nil).tap { |window| window.__send__(:start_empty, proxy) }
     end
 
+    # The attributes #open was given, or +nil+ for a window built with new.
+    attr_reader :attributes
+
     # Fills the empty window, as Native::Window#open builds the tao window
-    # with its title and size, or raises the failure a test asked for.
-    def open(event_loop, label, title, size)
+    # with its attributes, or raises the failure a test asked for.
+    def open(event_loop, label, attributes)
       message = Thread.current[:stub_native_open_failure]
       Thread.current[:stub_native_open_failure] = nil
       raise message if message
@@ -329,8 +332,9 @@ module StubNative
 
       @event_loop = event_loop
       @label = label
-      @title = title
-      @size = size
+      @attributes = attributes
+      @title = attributes[:title]
+      @size = attributes[:inner_size]
       @opened_on = Thread.current
       @closed = false
       nil
@@ -367,6 +371,9 @@ module StubNative
 
     # A closed window answers +nil+, as Native::Window#title does.
     def title = @closed ? nil : @title
+
+    # The window's id while it is open, as Native::Window#id answers tao's.
+    def id = @closed ? nil : "stub-#{object_id}"
 
     def set_title(title) = @closed || @title = title
     def set_size(width, height) = @size = [width, height]
@@ -525,12 +532,13 @@ set_enabled: :is_enabled,
       end
     end
 
-    # The URL #open loaded, and the native window it was built in.
-    attr_reader :url, :window
+    # The URL #open loaded, the native window it was built in, and the
+    # webview rows it was given, without the URL and scripts.
+    attr_reader :url, :window, :attributes
 
     # Fills the empty webview, as Native::WebView#open builds the wry
     # webview in +window+, which must be open.
-    def open(window, _proxy, label, url, scripts)
+    def open(window, _proxy, label, attributes)
       message = Thread.current[:stub_native_webview_open_failure]
       Thread.current[:stub_native_webview_open_failure] = nil
       raise message if message
@@ -539,8 +547,9 @@ set_enabled: :is_enabled,
 
       @window = window
       @label = label
-      @url = url
-      @initialization_scripts = scripts
+      @url = attributes.fetch(:url)
+      @attributes = attributes.except(:url, :initialization_scripts)
+      @initialization_scripts = attributes.fetch(:initialization_scripts)
       @closed = false
       nil
     end

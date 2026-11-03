@@ -8,7 +8,7 @@
 
 use std::cell::{Cell, Ref, RefCell};
 
-use magnus::{function, method, prelude::*, Error, RArray, Ruby};
+use magnus::{function, method, prelude::*, Error, RArray, RHash, Ruby};
 use tao::event_loop::EventLoopProxy;
 use tao::rwh_06::HasDisplayHandle;
 use tao::window::{Window, WindowBuilder};
@@ -142,40 +142,39 @@ impl RbWindow {
     // SPDX-License-Identifier: Apache-2.0 OR MIT
     // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
     // SPDX-SnippetComment: Building a window from the loop's target adapted from tauri-runtime-wry/src/lib.rs create_window
-    /// Build the tao window labeled `label`, with `title` and, unless
-    /// `nil`, the logical inner `size`, into this empty window.
+    /// Build the tao window labeled `label` from `attributes`, the rows of
+    /// a `Tokra::WindowBuilder`, into this empty window.
     ///
     /// tao builds it from the loop's window target, as Tauri's runtime
     /// builds each window from the target it holds (tauri-runtime-wry
     /// `src/lib.rs:4318-4459`): the unrun loop itself before `run`, and the
     /// target the running loop lends each callback, so a window built while
-    /// the loop runs never re-enters tao from outside it. Its events carry
-    /// `label`, which belongs to one live window, as for `new`.
+    /// the loop runs never re-enters tao from outside it. `attributes` is
+    /// read into tao's builder first, and the centering and overflow sums
+    /// use the target's monitors ([`crate::window_builder`]). Its events
+    /// carry `label`, which belongs to one live window, as for `new`.
     ///
     /// # Errors
     ///
-    /// Returns `ArgumentError` for a label holding NUL, before building
-    /// anything; `ThreadError` off the loop's thread; and `RuntimeError`
-    /// when the window is or ever was open, or is in use, when the loop has ended,
-    /// or when tao fails to build it.
+    /// Returns `ArgumentError` for a label holding NUL, or a theme or title
+    /// bar style Ruby's classes lack, and `TypeError` for an attribute of
+    /// the wrong type, before building anything; `ThreadError` off the
+    /// loop's thread; and `RuntimeError` when the window is or ever was
+    /// open, or is in use, when its parent is closed, when the loop has
+    /// ended, or when tao fails to build it.
     pub fn open(
         ruby: &Ruby,
         rb_self: &Self,
         event_loop: &RbEventLoop,
         label: String,
-        title: String,
-        size: Option<(f64, f64)>,
+        attributes: RHash,
     ) -> Result<(), Error> {
         let label = crate::window_labels::checked(ruby, label)?;
         rb_self.expect_empty()?;
-        let mut builder = WindowBuilder::new().with_title(title);
-        if let Some((width, height)) = size {
-            builder = builder.with_inner_size(tao::dpi::LogicalSize::new(width, height));
-        }
+        let attributes = crate::window_builder::Attributes::read(ruby, attributes)?;
         let window = event_loop
-            .with_target(|target| builder.build(target))?
-            .ok_or_else(|| Error::new(runtime_error(), "the event loop has ended"))?
-            .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
+            .with_target(|target| attributes.build(target))?
+            .ok_or_else(|| Error::new(runtime_error(), "the event loop has ended"))??;
         let id = window.id();
         rb_self
             .inner
@@ -448,7 +447,7 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
     let window_class = native.define_class("Window", ruby.class_object())?;
     window_class.define_singleton_method("new", function!(RbWindow::new, 2))?;
     window_class.define_singleton_method("empty", function!(RbWindow::empty, 1))?;
-    window_class.define_method("open", method!(RbWindow::open, 4))?;
+    window_class.define_method("open", method!(RbWindow::open, 3))?;
     window_class.define_method("set_title", method!(RbWindow::set_title, 1))?;
     window_class.define_method("title", method!(RbWindow::title, 0))?;
     window_class.define_method("set_size", method!(RbWindow::set_size, 2))?;

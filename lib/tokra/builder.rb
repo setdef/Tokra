@@ -52,6 +52,10 @@ module Tokra
 
     # Sets the window size in logical pixels.
     #
+    # On macOS the size includes the title bar, which lies over the top of
+    # the page, as in Tauri's default Visible title bar style
+    # (WebviewWindowBuilder#inner_size).
+    #
     # Mirrors the <tt>.size(width, height)</tt> step in ADR 004's Builder API.
     #
     # === Example

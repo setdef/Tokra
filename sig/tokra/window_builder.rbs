@@ -1,0 +1,69 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class WindowBuilder
+    DEFAULT_TITLE: String
+    DEFAULT_WINDOW_CLASSNAME: String
+    FOCUS_DEPRECATION: String
+
+    @manager: Manager
+    @label: String
+    @menu: Menu::Menu?
+    @menu_event_handler: (^(Window, Menu::MenuEvent) -> void)?
+    @window_effects: WindowEffectsConfig?
+    @attributes: Hash[Symbol, Native::Window::attribute]
+    @constraints: Array[(LogicalUnit | PhysicalUnit)?]
+
+    attr_reader label: String
+    attr_reader menu_event_handler: (^(Window, Menu::MenuEvent) -> void)?
+    attr_reader window_effects: WindowEffectsConfig?
+
+    def initialize: (Manager manager, String label) -> void
+    def self.warn_focus_deprecated: (Class builder_class) -> void
+    def native_attributes: () -> Hash[Symbol, Native::Window::attribute]
+    def window_menu: (AppHandle handle) -> Window::WindowMenu?
+    def menu: (Menu::Menu menu) -> self
+    def on_menu_event: () { (Window, Menu::MenuEvent) -> void } -> self
+    def center: () -> self
+    def position: (Float | Integer x, Float | Integer y) -> self
+    def inner_size: (Float | Integer width, Float | Integer height) -> self
+    def min_inner_size: (Float | Integer min_width, Float | Integer min_height) -> self
+    def max_inner_size: (Float | Integer max_width, Float | Integer max_height) -> self
+    def inner_size_constraints: (WindowSizeConstraints constraints) -> self
+    def prevent_overflow: () -> self
+    def prevent_overflow_with_margin: (LogicalSize | PhysicalSize margin) -> self
+    def resizable: (bool resizable) -> self
+    def maximizable: (bool maximizable) -> self
+    def minimizable: (bool minimizable) -> self
+    def closable: (bool closable) -> self
+    def title: (String title) -> self
+    def fullscreen: (bool fullscreen) -> self
+    def focus: () -> self
+    def focused: (bool focused) -> self
+    def focusable: (bool focusable) -> self
+    def maximized: (bool maximized) -> self
+    def visible: (bool visible) -> self
+    def theme: (Theme? theme) -> self
+    def decorations: (bool decorations) -> self
+    def always_on_bottom: (bool always_on_bottom) -> self
+    def always_on_top: (bool always_on_top) -> self
+    def visible_on_all_workspaces: (bool visible_on_all_workspaces) -> self
+    def content_protected: (bool protected) -> self
+    def icon: (Image icon) -> self
+    def skip_taskbar: (bool skip) -> self
+    def window_classname: (String classname) -> self
+    def shadow: (bool enable) -> self
+    def parent: (Window parent) -> self
+    def effects: (WindowEffectsConfig effects) -> self
+    def background_color: (Color color) -> self
+
+    private
+
+    def open_native: (Window window) -> Native::Window
+    def set: (Symbol key, Native::Window::attribute value) -> self
+    def flag: (Symbol key, boolish value) -> self
+    def size_dimensions: (LogicalSize | PhysicalSize size) -> Native::Window::dimensions
+    def expect: (Object? value, Module type) -> nil
+  end
+end

@@ -193,10 +193,11 @@ module Tokra
     # both, as <tt>[native_window, native_webview]</tt>.
     #
     # Both start empty and belong to the main thread. Filling them, which
-    # builds the platform window with +title+ and +inner_size+ (a
-    # <tt>[width, height]</tt> logical size, or +nil+), puts +menu+ on it
-    # on Windows and Linux, and builds the webview loading +url+ with
-    # +initialization_scripts+, goes through #run_on_main_thread: on the
+    # builds the platform window with +window_attributes+ (a
+    # WindowBuilder's native attributes), puts +menu+ on it on Windows and
+    # Linux, themed as the window is, and builds the webview loading +url+
+    # with +initialization_scripts+ and +webview_attributes+, goes through
+    # #run_on_main_thread: on the
     # main thread it is done before this returns, and from another thread
     # it is queued ahead of every later call (plan 052, decision 4).
     #
@@ -212,7 +213,7 @@ module Tokra
     #
     # Mirrors Context::create_window, which sends Message::CreateWindow
     # through send_user_message and returns at once (lib.rs:299-362).
-    def create_window(label, title:, inner_size:, url:, initialization_scripts:, menu:) # :nodoc:
+    def create_window(label, window_attributes:, webview_attributes:, url:, initialization_scripts:, menu:) # :nodoc:
       proxy = @mutex.synchronize { @proxy }
       raise Error::Runtime, Error::Runtime::NO_EVENT_LOOP unless proxy
 
@@ -221,8 +222,8 @@ module Tokra
       native_window = window_class.empty(proxy)
       native_webview = webview_class.empty(proxy)
       run_on_main_thread do
-        open_window(native_window, label, title, inner_size, menu) &&
-          open_webview(native_window, native_webview, proxy, label, url, initialization_scripts)
+        open_window(native_window, label, window_attributes, menu) &&
+          open_webview(native_window, native_webview, proxy, label, url, initialization_scripts, webview_attributes)
       end
       [native_window, native_webview]
     end
@@ -239,11 +240,12 @@ module Tokra
       @open_windows.empty?
     end
 
-    # Fills +native_window+ and puts +menu+ on it, answering whether the
-    # window was built.
-    private def open_window(native_window, label, title, inner_size, menu)
-      native_window.open(@window_target, label, title, inner_size)
-      init_window_menu(native_window, menu) if menu
+    # Fills +native_window+ and puts +menu+ on it, in the window's theme
+    # or Auto without one, answering whether the window was built.
+    private def open_window(native_window, label, attributes, menu)
+      native_window.open(@window_target, label, attributes)
+      theme = attributes[:theme]
+      init_window_menu(native_window, menu, theme.is_a?(String) ? theme : "Auto") if menu
       true
     rescue RuntimeError
       warn("failed to create window")
@@ -252,8 +254,8 @@ module Tokra
 
     # Fills +native_webview+ in +native_window+, and only then lets the
     # window join the store; when the webview fails, the window goes too.
-    private def open_webview(native_window, native_webview, proxy, label, url, initialization_scripts)
-      native_webview.open(native_window, proxy, label, url, initialization_scripts)
+    private def open_webview(native_window, native_webview, proxy, label, url, initialization_scripts, attributes)
+      native_webview.open(native_window, proxy, label, attributes.merge(url:, initialization_scripts:))
       @open_windows << label
     rescue RuntimeError => e
       native_window.discard
@@ -262,13 +264,13 @@ module Tokra
 
     # Puts +menu+ on a window just built, on Windows and Linux, ignoring
     # muda's error, as Tauri's creation handler does
-    # (manager/menu.rs:54-95). Tauri themes it with the configured theme
-    # or Auto; Tokra configures none (manager/menu.rs:74-79).
-    private def init_window_menu(native_window, menu)
+    # (manager/menu.rs:54-95). Tauri themes it with the builder's theme,
+    # or Auto without one (window/mod.rs:350-352; manager/menu.rs:74-79).
+    private def init_window_menu(native_window, menu, theme)
       return if menu_natives.nsapp? || !native_window.respond_to?(:init_menu)
 
       native_menu = menu.native #: Native::Menu
-      native_window.init_menu(native_menu, "Auto")
+      native_window.init_menu(native_menu, theme)
     rescue RuntimeError
       nil
     end

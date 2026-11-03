@@ -186,6 +186,65 @@ const fn attach_resize_handler(_window: &tao::window::Window, _webview: &WebView
 
 // SPDX-SnippetEnd
 
+/// The webview rows a `Tokra::WebviewWindowBuilder` sets (plan 052,
+/// decision c10), read from `open`'s Hash; a key it lacks keeps wry's
+/// default, as `Default` does.
+#[derive(Default)]
+struct Attributes {
+    focused: Option<bool>,
+    transparent: Option<bool>,
+    background_color: Option<(u8, u8, u8, u8)>,
+    #[cfg(target_os = "macos")]
+    traffic_light_position: Option<crate::window_state::Dimensions>,
+}
+
+impl Attributes {
+    /// Reads `focused`, `transparent`, `background_color`, and on macOS
+    /// `traffic_light_position` from `attributes`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TypeError` for a value of the wrong type.
+    fn read(ruby: &Ruby, attributes: magnus::RHash) -> Result<Self, Error> {
+        Ok(Self {
+            focused: attributes.lookup(ruby.to_symbol("focused"))?,
+            transparent: attributes.lookup(ruby.to_symbol("transparent"))?,
+            background_color: attributes.lookup(ruby.to_symbol("background_color"))?,
+            #[cfg(target_os = "macos")]
+            traffic_light_position: attributes.lookup(ruby.to_symbol("traffic_light_position"))?,
+        })
+    }
+
+    // SPDX-SnippetBegin
+    // SPDX-License-Identifier: Apache-2.0 OR MIT
+    // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    // SPDX-SnippetComment: The webview attributes adapted from tauri-runtime-wry/src/lib.rs create_webview
+
+    /// `builder` with these rows, as Tauri's `create_webview` sets them:
+    /// focus and transparency always (`src/lib.rs:4626-4627`), the
+    /// background color when given (`:4665-4667`), and on macOS the
+    /// traffic-light inset (`:4943-4946`).
+    fn apply<'a>(&self, mut builder: WebViewBuilder<'a>) -> WebViewBuilder<'a> {
+        if let Some(focused) = self.focused {
+            builder = builder.with_focused(focused);
+        }
+        if let Some(transparent) = self.transparent {
+            builder = builder.with_transparent(transparent);
+        }
+        if let Some(color) = self.background_color {
+            builder = builder.with_background_color(color);
+        }
+        #[cfg(target_os = "macos")]
+        if let Some(position) = self.traffic_light_position {
+            use wry::WebViewBuilderExtDarwin;
+            builder = builder.with_traffic_light_inset(crate::window_state::position(position));
+        }
+        builder
+    }
+
+    // SPDX-SnippetEnd
+}
+
 // SPDX-SnippetBegin
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // SPDX-SnippetCopyrightText: 2020-2023 Tauri Programme within The Commons Conservancy
@@ -195,7 +254,8 @@ const fn attach_resize_handler(_window: &tao::window::Window, _webview: &WebView
 
 /// Build the webview labeled `label` into `window`, loading `url`, with the
 /// `tokra://` and `ipc://` protocols and the IPC, page-load, drag-drop, and
-/// (Windows) focus handlers, each naming `label` (see `new_with_protocol`).
+/// (Windows) focus handlers, each naming `label` (see `new_with_protocol`),
+/// and the webview rows in `attributes`.
 ///
 /// # Errors
 ///
@@ -208,6 +268,7 @@ fn build(
     label: &str,
     url: String,
     initialization_scripts: Vec<String>,
+    attributes: &Attributes,
 ) -> Result<WebView, Error> {
     let proxy_clone = proxy.inner().clone();
     let label_for_ipc_message = label.to_string();
@@ -216,7 +277,7 @@ fn build(
     let proxy_for_page_load = proxy.inner().clone();
     let label_for_page_load = label.to_string();
 
-    let mut builder = WebViewBuilder::new().with_id(label);
+    let mut builder = attributes.apply(WebViewBuilder::new().with_id(label));
     for script in initialization_scripts {
         builder = builder.with_initialization_script(script);
     }
@@ -299,6 +360,7 @@ fn build(
             forward_ipc_message_to_ruby(&proxy_clone, &label_for_ipc_message, &msg);
         });
     let tao_window = window.window()?;
+    let builder = with_window_theme(builder, &tao_window);
     let webview =
         build_in(builder, &tao_window).map_err(|e| Error::new(runtime_error(), e.to_string()))?;
     attach_resize_handler(&tao_window, &webview);
@@ -309,6 +371,38 @@ fn build(
         .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
     drop(tao_window);
     Ok(webview)
+}
+
+// SPDX-SnippetBegin
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+// SPDX-SnippetComment: The webview's theme adapted from tauri-runtime-wry/src/lib.rs create_webview
+
+/// On Windows the webview takes its window's theme, light for any theme
+/// but dark, as Tauri's `create_webview` gives every webview
+/// (tauri-runtime-wry `src/lib.rs:4877-4881`).
+#[cfg(windows)]
+fn with_window_theme<'a>(
+    builder: WebViewBuilder<'a>,
+    window: &tao::window::Window,
+) -> WebViewBuilder<'a> {
+    use wry::WebViewBuilderExtWindows;
+
+    builder.with_theme(match window.theme() {
+        tao::window::Theme::Dark => wry::Theme::Dark,
+        _ => wry::Theme::Light,
+    })
+}
+
+// SPDX-SnippetEnd
+
+/// Elsewhere wry's webview has no theme of its own.
+#[cfg(not(windows))]
+const fn with_window_theme<'a>(
+    builder: WebViewBuilder<'a>,
+    _window: &tao::window::Window,
+) -> WebViewBuilder<'a> {
+    builder
 }
 
 /// Ruby wrapper for `wry::WebView`.
@@ -414,6 +508,7 @@ impl RbWebView {
             &label,
             "tokra://localhost/".to_string(),
             initialization_scripts,
+            &Attributes::default(),
         )?;
         Ok(Self {
             inner: RefCell::new(ThreadBound::new(webview)),
@@ -435,10 +530,14 @@ impl RbWebView {
         }
     }
 
-    /// Build the webview `new_with_protocol` builds, labeled `label` and
-    /// loading `url`, into this empty webview, as Tauri's runtime builds a
-    /// webview window's webview right after its window (tauri-runtime-wry
-    /// `src/lib.rs:4489-4500`).
+    /// Build the webview `new_with_protocol` builds, labeled `label`, from
+    /// `attributes`, as Tauri's `WebviewAttributes` holds them
+    /// (tauri-runtime `src/webview.rs:323-398`): the `url` it loads, its
+    /// `initialization_scripts`, and the webview rows (`focused`,
+    /// `transparent`, `background_color`, and on macOS
+    /// `traffic_light_position`), into this empty webview, as Tauri's
+    /// runtime builds a webview window's webview right after its window
+    /// (tauri-runtime-wry `src/lib.rs:4489-4500`).
     ///
     /// On Windows `WebView2` creation runs a nested message loop
     /// (webview2-com `wait_with_pump`) inside the event loop's callback, as
@@ -447,20 +546,25 @@ impl RbWebView {
     ///
     /// # Errors
     ///
-    /// Returns `ArgumentError` for a label holding NUL, before building
-    /// anything; `ThreadError` off the loop's thread; and `RuntimeError`
-    /// when the webview is or ever was open, when `window` is closed or was
-    /// never filled, or when wry fails to build it.
+    /// Returns `ArgumentError` for a label holding NUL, `KeyError` without
+    /// a `url` or `initialization_scripts`, and `TypeError` for an
+    /// attribute of the wrong type, before building anything; `ThreadError`
+    /// off the loop's thread; and `RuntimeError` when the webview is or
+    /// ever was open, when `window` is closed or was never filled, or when
+    /// wry fails to build it.
     pub fn open(
         ruby: &Ruby,
         rb_self: &Self,
         window: &RbWindow,
         proxy: &RbProxy,
         label: String,
-        url: String,
-        initialization_scripts: Vec<String>,
+        attributes: magnus::RHash,
     ) -> Result<(), Error> {
         let label = crate::window_labels::checked(ruby, label)?;
+        let url: String = attributes.fetch(ruby.to_symbol("url"))?;
+        let initialization_scripts: Vec<String> =
+            attributes.fetch(ruby.to_symbol("initialization_scripts"))?;
+        let attributes = Attributes::read(ruby, attributes)?;
         {
             let inner = rb_self
                 .inner
@@ -473,7 +577,14 @@ impl RbWebView {
                 return Err(Error::new(runtime_error(), "WebView is already open"));
             }
         }
-        let webview = build(window, proxy, &label, url, initialization_scripts)?;
+        let webview = build(
+            window,
+            proxy,
+            &label,
+            url,
+            initialization_scripts,
+            &attributes,
+        )?;
         rb_self
             .inner
             .try_borrow_mut()
@@ -640,7 +751,7 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
         function!(RbWebView::new_with_protocol, 4),
     )?;
     webview_class.define_singleton_method("empty", function!(RbWebView::empty, 1))?;
-    webview_class.define_method("open", method!(RbWebView::open, 5))?;
+    webview_class.define_method("open", method!(RbWebView::open, 4))?;
     webview_class.define_method("eval", method!(RbWebView::eval, 1))?;
     webview_class.define_method("close", method!(RbWebView::close, 0))?;
     webview_class.define_method(

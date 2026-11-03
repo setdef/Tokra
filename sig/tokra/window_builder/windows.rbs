@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class WindowBuilder
+    def owner: (Window owner) -> self
+    def drag_and_drop: (bool enabled) -> self
+  end
+
+  class WebviewWindowBuilder
+    def owner: (WebviewWindow owner) -> self
+    def drag_and_drop: (bool enabled) -> self
+  end
+end

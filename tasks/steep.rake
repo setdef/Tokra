@@ -71,6 +71,12 @@ namespace :rbs do
     # Window::set_overlay_icon only for Windows (plan 045, decision 5).
     args += %w[--exclude-sig sig/tokra/window/macos.rbs] unless host.include?("darwin")
     args += %w[--exclude-sig sig/tokra/window/windows.rbs] unless host.match?(/mswin|mingw|cygwin/)
+    # Tauri compiles each platform's builder rows only there, and
+    # transparent everywhere but macOS (plan 052, decision c4).
+    args += %w[--exclude-sig sig/tokra/window_builder/macos.rbs] unless host.include?("darwin")
+    args += %w[--exclude-sig sig/tokra/window_builder/windows.rbs] unless host.match?(/mswin|mingw|cygwin/)
+    args += %w[--exclude-sig sig/tokra/window_builder/linux.rbs] unless host.include?("linux")
+    args += %w[--exclude-sig sig/tokra/window_builder/transparent.rbs] if host.include?("darwin")
     # Only Windows themes a webview through WebView2 (plan 047, decision 11).
     args += %w[--exclude-sig sig/tokra/webview/windows.rbs] unless host.match?(/mswin|mingw|cygwin/)
     ruby File.expand_path("rbs_parity.rb", __dir__), *args

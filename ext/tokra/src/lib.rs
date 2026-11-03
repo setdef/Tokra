@@ -81,6 +81,7 @@ mod vibrancy;
 mod webview;
 mod webview_focus;
 mod window;
+mod window_builder;
 mod window_ext;
 mod window_labels;
 mod window_state;

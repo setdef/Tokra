@@ -34,7 +34,8 @@ module Tokra
     def request_close: (String label) -> nil
     def handle_task: () -> nil
     def close: () -> nil
-    def create_window: (String label, title: String, inner_size: [Float, Float]?, url: String,
+    def create_window: (String label, window_attributes: Hash[Symbol, Native::Window::attribute],
+                        webview_attributes: Hash[Symbol, Native::WebView::attribute], url: String,
                         initialization_scripts: Array[String], menu: Menu::Menu?) -> [Native::Window, Native::WebView]
     def window_destroyed: (String label) -> bool
 
@@ -46,8 +47,8 @@ module Tokra
     def send_through: (Native::Proxy? proxy) { (Native::Proxy proxy) -> void } -> void
     def call_and_wait: [T] (^() -> T query, Exception unanswered) -> T
     def answer: [T] ([T] | Failure | nil reply, Exception unanswered) -> T
-    def init_window_menu: (Native::Window native_window, Menu::Menu menu) -> void
-    def open_window: (Native::Window native_window, String label, String title, [Float, Float]? inner_size, Menu::Menu? menu) -> bool
-    def open_webview: (Native::Window native_window, Native::WebView native_webview, Native::Proxy proxy, String label, String url, Array[String] initialization_scripts) -> void
+    def init_window_menu: (Native::Window native_window, Menu::Menu menu, String theme) -> void
+    def open_window: (Native::Window native_window, String label, Hash[Symbol, Native::Window::attribute] attributes, Menu::Menu? menu) -> bool
+    def open_webview: (Native::Window native_window, Native::WebView native_webview, Native::Proxy proxy, String label, String url, Array[String] initialization_scripts, Hash[Symbol, Native::WebView::attribute] attributes) -> void
   end
 end

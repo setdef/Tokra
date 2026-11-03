@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class WindowBuilder
+    def title_bar_style: (TitleBarStyle style) -> self
+    def hidden_title: (bool hidden) -> self
+    def tabbing_identifier: (String identifier) -> self
+  end
+
+  class WebviewWindowBuilder
+    def title_bar_style: (TitleBarStyle style) -> self
+    def hidden_title: (bool hidden) -> self
+    def tabbing_identifier: (String identifier) -> self
+    def traffic_light_position: (LogicalPosition | PhysicalPosition position) -> self
+  end
+end

@@ -80,9 +80,9 @@ module Tokra
     #   - .new(event_loop, label) -> Window
     #   - .empty(proxy) -> Window, empty and owned by the loop's thread
     #     whichever thread calls it, answering as a closed window does
-    #   - #open(event_loop, label, title, size) - build the tao window into
-    #     an empty one from the loop's window target, on the loop's thread
-    #     (plan 052, decision 4)
+    #   - #open(event_loop, label, attributes) - build the tao window into
+    #     an empty one from the loop's window target, on the loop's thread,
+    #     with a WindowBuilder's rows (plan 052, decisions 4 and c2)
     #   - #title -> String, or nil once closed
     #   - #set_title(string)
     #   - #close - drop the native window; tao then reports Destroyed
@@ -96,8 +96,9 @@ module Tokra
     # - WebView: WebKit/WebView2 webview
     #   - .new_with_protocol(window, proxy, label, initialization_scripts) -> WebView
     #   - .empty(proxy) -> WebView, as Window.empty
-    #   - #open(window, proxy, label, url, initialization_scripts) - build
-    #     the webview new_with_protocol builds, loading url, into an empty one
+    #   - #open(window, proxy, label, attributes) - build the webview
+    #     new_with_protocol builds into an empty one, loading the url, with
+    #     the initialization scripts and webview rows attributes holds
     #   - #eval(js_string)
     #   - #close - drop the native webview
     #

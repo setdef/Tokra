@@ -52,6 +52,22 @@ class WebviewWindowBuilderTest < RealApp::TestCase
     assert_includes @run.lines, "SIZE cmd 240x180", @run.describe
   end
 
+  # On macOS Tauri's default Visible title bar gives the window a
+  # full-size content view, so the page lies under the title bar and is
+  # shorter than in a Transparent one, whose content starts below it
+  # (tauri-runtime-wry lib.rs:813-835, 1151-1176).
+  def test_on_macos_the_visible_title_bar_lays_the_page_under_it
+    skip "the title bar style is macOS only" unless RUBY_PLATFORM.include?("darwin")
+    heights = %w[bar-visible bar-transparent].map do |label|
+      line = @run.lines.find { |candidate| candidate.start_with?("INNER #{label} ") }
+      assert line, "no INNER line for #{label}\n#{@run.describe}"
+      Integer(line.split.last)
+    end
+    visible, transparent = heights
+    assert_equal 180, transparent, "a Transparent title bar sits above the page"
+    assert_operator visible, :<, transparent, "the Visible title bar covers the top of the page"
+  end
+
   # Its title query waits behind the queued creation; ahead of it the
   # window would be empty and the query would raise.
   def test_a_window_built_on_another_thread_answers_a_query_made_at_once
