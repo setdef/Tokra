@@ -105,11 +105,14 @@ class KeyboardNoticeTest < Minitest::Test
   end
 
   def test_it_speaks_to_the_person_by_default
+    skip_unless_the_stand_in_speaks
+
     assert taking_the_keyboard { File.exist?(@marker) }, "no marker while the span ran"
     assert_includes File.read(@banners), "step away"
   end
 
   def test_tokra_quiet_maps_to_a_silent_span
+    skip_unless_the_stand_in_speaks
     ENV["TOKRA_QUIET"] = "1"
     held = nil
     taking_the_keyboard { held = lock_held? }
@@ -119,6 +122,7 @@ class KeyboardNoticeTest < Minitest::Test
   end
 
   def test_speak_false_maps_to_a_silent_span
+    skip_unless_the_stand_in_speaks
     taking_the_keyboard(speak: false) { :ran }
     refute_path_exists @marker
     refute_path_exists @banners
@@ -132,6 +136,14 @@ class KeyboardNoticeTest < Minitest::Test
         KeyboardNotice.taking_the_keyboard(**, &)
       end
     end
+  end
+
+  # A span can speak only where the stand-in osascript runs. On Windows an
+  # extensionless shell script is neither executable nor runnable, so the
+  # tests that tell a speaking span from a silent one would prove nothing
+  # there; speaking only ever happens on macOS.
+  private def skip_unless_the_stand_in_speaks
+    skip "the stand-in osascript cannot run here" unless @input.speaks?
   end
 
   private def lock_held?
