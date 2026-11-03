@@ -1,0 +1,47 @@
+{"name": "tray_alias", "type": "TrayIconConfig", "value": {"icon-path": "icons/tray.png", "icon-as-template": true, "show-menu-on-left-click": false}}
+{"name": "tray_defaults_from_a_map", "type": "TrayIconConfig", "value": {"iconPath": "icons/tray.png"}}
+{"name": "tray_unknown_field", "type": "TrayIconConfig", "value": {"iconPath": "icons/tray.png", "bogus": 1}}
+{"name": "tray_alias_and_name_both", "type": "TrayIconConfig", "value": {"icon-path": "a.png", "iconPath": "b.png"}}
+{"name": "tray_missing_field", "type": "TrayIconConfig", "value": {"id": "main"}}
+{"name": "tray_short_array", "type": "TrayIconConfig", "value": [null, "icons/tray.png"]}
+{"name": "tray_full_array", "type": "TrayIconConfig", "value": [null, "icons/tray.png", true, false, false, "Title", null]}
+{"name": "tray_long_array", "type": "TrayIconConfig", "value": [null, "icons/tray.png", true, false, false, null, null, 1]}
+{"name": "app_unknown_field", "type": "AppConfig", "value": {"bogus": 1}}
+{"name": "app_aliases", "type": "AppConfig", "value": {"macos-private-api": true, "with-global-tauri": true, "enable-gtk-app-id": true}, "probes": ["/macOSPrivateApi", "/withGlobalTauri", "/enableGTKAppId", "/windows"]}
+{"name": "app_defaults_from_a_map", "type": "AppConfig", "value": {}, "probes": ["/macOSPrivateApi", "/withGlobalTauri", "/enableGTKAppId", "/windows", "/trayIcon"]}
+{"name": "app_duplicate_canonical_first", "type": "AppConfig", "value": {"macOSPrivateApi": true, "macos-private-api": false}}
+{"name": "app_short_array", "type": "AppConfig", "value": [[]]}
+{"name": "asset_protocol_empty_array", "type": "AssetProtocolConfig", "value": []}
+{"name": "asset_protocol_short_array", "type": "AssetProtocolConfig", "value": [["assets/*"]]}
+{"name": "asset_protocol_scope_alias", "type": "AssetProtocolConfig", "value": {"scope": {"require-literal-leading-dot": true}}}
+{"name": "fs_scope_first_variant", "type": "FsScope", "value": ["assets/*"]}
+{"name": "fs_scope_second_variant", "type": "FsScope", "value": {"allow": ["assets/*"], "require-literal-leading-dot": false}}
+{"name": "fs_scope_struct_variant_refuses_an_array", "type": "FsScope", "value": [[], [], true]}
+{"name": "fs_scope_no_variant", "type": "FsScope", "value": 1}
+{"name": "prevent_overflow_first_variant", "type": "PreventOverflowConfig", "value": true}
+{"name": "prevent_overflow_second_variant", "type": "PreventOverflowConfig", "value": {"width": 10, "height": 20}}
+{"name": "prevent_overflow_second_variant_from_an_array", "type": "PreventOverflowConfig", "value": [10, 20]}
+{"name": "prevent_overflow_no_variant", "type": "PreventOverflowConfig", "value": {"width": 10}}
+{"name": "prevent_overflow_margin_missing_field", "type": "PreventOverflowMargin", "value": {"width": 10}}
+{"name": "runner_struct_variant_refuses_an_array", "type": "RunnerConfig", "value": ["cargo"]}
+{"name": "runner_second_variant", "type": "RunnerConfig", "value": {"cmd": "cross", "args": ["--release"]}}
+{"name": "pattern_unit_variant", "type": "PatternKind", "value": {"use": "brownfield"}}
+{"name": "pattern_struct_variant", "type": "PatternKind", "value": {"use": "isolation", "options": {"dir": "../isolation"}}}
+{"name": "pattern_unknown_variant", "type": "PatternKind", "value": {"use": "greenfield"}}
+{"name": "pattern_tag_of_the_wrong_type", "type": "PatternKind", "value": {"use": 1}}
+{"name": "pattern_tag_as_a_map", "type": "PatternKind", "value": {"use": {"brownfield": null}}}
+{"name": "pattern_missing_tag", "type": "PatternKind", "value": {}}
+{"name": "pattern_content_without_tag", "type": "PatternKind", "value": {"options": {"dir": "d"}}}
+{"name": "pattern_missing_content", "type": "PatternKind", "value": {"use": "isolation"}}
+{"name": "pattern_unit_variant_with_content", "type": "PatternKind", "value": {"use": "brownfield", "options": 1}}
+{"name": "pattern_unit_variant_with_float_content", "type": "PatternKind", "value": {"use": "brownfield", "options": 1e20}}
+{"name": "pattern_unit_variant_with_boolean_content", "type": "PatternKind", "value": {"use": "brownfield", "options": false}}
+{"name": "pattern_unit_variant_with_null_content", "type": "PatternKind", "value": {"use": "brownfield", "options": null}}
+{"name": "pattern_struct_variant_refuses_an_array", "type": "PatternKind", "value": {"use": "isolation", "options": ["d"]}}
+{"name": "pattern_other_keys_ignored", "type": "PatternKind", "value": {"a": 1, "use": "isolation", "options": {"dir": "d", "extra": 2}, "zzz": 3}}
+{"name": "pattern_from_an_array", "type": "PatternKind", "value": ["isolation", {"dir": "d"}]}
+{"name": "pattern_unit_variant_from_a_short_array", "type": "PatternKind", "value": ["brownfield"]}
+{"name": "pattern_from_an_empty_array", "type": "PatternKind", "value": []}
+{"name": "pattern_from_a_long_array", "type": "PatternKind", "value": ["brownfield", null, 1]}
+{"name": "pattern_tag_in_an_array_as_a_map", "type": "PatternKind", "value": [{"brownfield": null}, null]}
+{"name": "pattern_not_a_map", "type": "PatternKind", "value": "brownfield"}

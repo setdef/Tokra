@@ -1,0 +1,47 @@
+{"build":"json","case":"from_value","name":"tray_alias","ok":{"iconAsTemplate":true,"iconPath":"icons/tray.png","menuOnLeftClick":true,"showMenuOnLeftClick":false},"type":"TrayIconConfig"}
+{"build":"json","case":"from_value","name":"tray_defaults_from_a_map","ok":{"iconAsTemplate":false,"iconPath":"icons/tray.png","menuOnLeftClick":true,"showMenuOnLeftClick":true},"type":"TrayIconConfig"}
+{"build":"json","case":"from_value","error":"unknown field `bogus`, expected one of `id`, `icon-path`, `iconPath`, `icon-as-template`, `iconAsTemplate`, `menu-on-left-click`, `menuOnLeftClick`, `show-menu-on-left-click`, `showMenuOnLeftClick`, `title`, `tooltip`","name":"tray_unknown_field","type":"TrayIconConfig"}
+{"build":"json","case":"from_value","error":"duplicate field `iconPath`","name":"tray_alias_and_name_both","type":"TrayIconConfig"}
+{"build":"json","case":"from_value","error":"missing field `iconPath`","name":"tray_missing_field","type":"TrayIconConfig"}
+{"build":"json","case":"from_value","error":"invalid length 5, expected struct TrayIconConfig with 7 elements","name":"tray_short_array","type":"TrayIconConfig"}
+{"build":"json","case":"from_value","name":"tray_full_array","ok":{"iconAsTemplate":true,"iconPath":"icons/tray.png","menuOnLeftClick":false,"showMenuOnLeftClick":false,"title":"Title"},"type":"TrayIconConfig"}
+{"build":"json","case":"from_value","error":"invalid length 8, expected fewer elements in array","name":"tray_long_array","type":"TrayIconConfig"}
+{"build":"json","case":"from_value","error":"unknown field `bogus`, expected one of `windows`, `security`, `tray-icon`, `trayIcon`, `macOSPrivateApi`, `macos-private-api`, `with-global-tauri`, `withGlobalTauri`, `enable-gtk-app-id`, `enableGTKAppId`","name":"app_unknown_field","type":"AppConfig"}
+{"build":"json","case":"from_value","name":"app_aliases","ok":{"/enableGTKAppId":true,"/macOSPrivateApi":true,"/windows":[],"/withGlobalTauri":true},"type":"AppConfig"}
+{"build":"json","case":"from_value","name":"app_defaults_from_a_map","ok":{"/enableGTKAppId":false,"/macOSPrivateApi":false,"/trayIcon":null,"/windows":[],"/withGlobalTauri":false},"type":"AppConfig"}
+{"build":"json","case":"from_value","error":"duplicate field `macOSPrivateApi`","name":"app_duplicate_canonical_first","type":"AppConfig"}
+{"build":"json","case":"from_value","error":"invalid length 2, expected struct AppConfig with 6 elements","name":"app_short_array","type":"AppConfig"}
+{"build":"json","case":"from_value","name":"asset_protocol_empty_array","ok":{"enable":false,"scope":[]},"type":"AssetProtocolConfig"}
+{"build":"json","case":"from_value","name":"asset_protocol_short_array","ok":{"enable":false,"scope":["assets/*"]},"type":"AssetProtocolConfig"}
+{"build":"json","case":"from_value","name":"asset_protocol_scope_alias","ok":{"enable":false,"scope":{"allow":[],"deny":[],"requireLiteralLeadingDot":true}},"type":"AssetProtocolConfig"}
+{"build":"json","case":"from_value","name":"fs_scope_first_variant","ok":["assets/*"],"type":"FsScope"}
+{"build":"json","case":"from_value","name":"fs_scope_second_variant","ok":{"allow":["assets/*"],"deny":[],"requireLiteralLeadingDot":false},"type":"FsScope"}
+{"build":"json","case":"from_value","error":"data did not match any variant of untagged enum FsScope","name":"fs_scope_struct_variant_refuses_an_array","type":"FsScope"}
+{"build":"json","case":"from_value","error":"data did not match any variant of untagged enum FsScope","name":"fs_scope_no_variant","type":"FsScope"}
+{"build":"json","case":"from_value","name":"prevent_overflow_first_variant","ok":true,"type":"PreventOverflowConfig"}
+{"build":"json","case":"from_value","name":"prevent_overflow_second_variant","ok":{"height":20,"width":10},"type":"PreventOverflowConfig"}
+{"build":"json","case":"from_value","name":"prevent_overflow_second_variant_from_an_array","ok":{"height":20,"width":10},"type":"PreventOverflowConfig"}
+{"build":"json","case":"from_value","error":"data did not match any variant of untagged enum PreventOverflowConfig","name":"prevent_overflow_no_variant","type":"PreventOverflowConfig"}
+{"build":"json","case":"from_value","error":"missing field `height`","name":"prevent_overflow_margin_missing_field","type":"PreventOverflowMargin"}
+{"build":"json","case":"from_value","error":"data did not match any variant of untagged enum RunnerConfig","name":"runner_struct_variant_refuses_an_array","type":"RunnerConfig"}
+{"build":"json","case":"from_value","name":"runner_second_variant","ok":{"args":["--release"],"cmd":"cross"},"type":"RunnerConfig"}
+{"build":"json","case":"from_value","name":"pattern_unit_variant","ok":{"use":"brownfield"},"type":"PatternKind"}
+{"build":"json","case":"from_value","name":"pattern_struct_variant","ok":{"options":{"dir":"../isolation"},"use":"isolation"},"type":"PatternKind"}
+{"build":"json","case":"from_value","error":"unknown variant `greenfield`, expected `brownfield` or `isolation`","name":"pattern_unknown_variant","type":"PatternKind"}
+{"build":"json","case":"from_value","error":"invalid type: integer `1`, expected string or map","name":"pattern_tag_of_the_wrong_type","type":"PatternKind"}
+{"build":"json","case":"from_value","name":"pattern_tag_as_a_map","ok":{"use":"brownfield"},"type":"PatternKind"}
+{"build":"json","case":"from_value","error":"missing field `use`","name":"pattern_missing_tag","type":"PatternKind"}
+{"build":"json","case":"from_value","error":"missing field `use`","name":"pattern_content_without_tag","type":"PatternKind"}
+{"build":"json","case":"from_value","error":"missing field `options`","name":"pattern_missing_content","type":"PatternKind"}
+{"build":"json","case":"from_value","error":"invalid type: integer `1`, expected unit variant PatternKind::Brownfield","name":"pattern_unit_variant_with_content","type":"PatternKind"}
+{"build":"json","case":"from_value","error":"invalid type: floating point `1e20`, expected unit variant PatternKind::Brownfield","name":"pattern_unit_variant_with_float_content","type":"PatternKind"}
+{"build":"json","case":"from_value","error":"invalid type: boolean `false`, expected unit variant PatternKind::Brownfield","name":"pattern_unit_variant_with_boolean_content","type":"PatternKind"}
+{"build":"json","case":"from_value","name":"pattern_unit_variant_with_null_content","ok":{"use":"brownfield"},"type":"PatternKind"}
+{"build":"json","case":"from_value","error":"invalid type: sequence, expected struct variant PatternKind::Isolation","name":"pattern_struct_variant_refuses_an_array","type":"PatternKind"}
+{"build":"json","case":"from_value","name":"pattern_other_keys_ignored","ok":{"options":{"dir":"d"},"use":"isolation"},"type":"PatternKind"}
+{"build":"json","case":"from_value","name":"pattern_from_an_array","ok":{"options":{"dir":"d"},"use":"isolation"},"type":"PatternKind"}
+{"build":"json","case":"from_value","error":"invalid length 1, expected adjacently tagged enum PatternKind","name":"pattern_unit_variant_from_a_short_array","type":"PatternKind"}
+{"build":"json","case":"from_value","error":"invalid length 0, expected adjacently tagged enum PatternKind","name":"pattern_from_an_empty_array","type":"PatternKind"}
+{"build":"json","case":"from_value","error":"invalid length 3, expected fewer elements in array","name":"pattern_from_a_long_array","type":"PatternKind"}
+{"build":"json","case":"from_value","error":"invalid type: map, expected variant identifier","name":"pattern_tag_in_an_array_as_a_map","type":"PatternKind"}
+{"build":"json","case":"from_value","error":"invalid type: string \"brownfield\", expected adjacently tagged enum PatternKind","name":"pattern_not_a_map","type":"PatternKind"}

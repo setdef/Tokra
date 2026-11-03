@@ -13,6 +13,15 @@ require_relative "lint"
 # Cargo.toml); the list keeps every cargo task ready for another.
 CARGO_WORKSPACES = ["."].freeze
 
+# Rust outside the gem's workspace that the gate formats but never builds:
+# the config fixture generator (plan 054), whose build compiles
+# tauri-codegen. rustfmt reads each file and rustfmt.toml without Cargo,
+# so the check needs no build and no dependency; Clippy would compile it,
+# so rake config:fixtures runs Clippy before it generates.
+def rustfmt_only_files
+  IO.popen(%w[git ls-files -z -- test/fixtures/config/generator/*.rs], &:read).split("\0")
+end
+
 # Runs a cargo command, failing the task on any warning (CargoOutput).
 def cargo!(*command, chdir:)
   CargoOutput.run!("cargo", *command, chdir:)
@@ -24,12 +33,18 @@ namespace :rust do
   desc "Check Rust formatting with cargo fmt"
   task :fmt do
     CARGO_WORKSPACES.each { |dir| cargo!("fmt", "--all", "--check", chdir: dir) }
+    files = rustfmt_only_files
+    CargoOutput.run!("rustfmt", "--check", *files) unless files.empty?
+  rescue CargoOutput::Failure => e
+    abort "❌ #{e.message}"
   end
 
   namespace :fmt do
     desc "Auto-fix Rust formatting with cargo fmt"
     task :fix do
       CARGO_WORKSPACES.each { |dir| sh "cargo", "fmt", "--all", chdir: dir }
+      files = rustfmt_only_files
+      sh "rustfmt", *files unless files.empty?
     end
   end
 

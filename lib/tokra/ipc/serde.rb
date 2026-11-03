@@ -13,13 +13,17 @@ module Tokra
     # SPDX-SnippetCopyrightText: Erick Tryzelaar and David Tolnay (serde, serde_json)
     # SPDX-SnippetComment: serde 1.0.228's visitors as serde_json 1.0.145's
     #   &Value drives them: serde_core src/de/mod.rs (Error::invalid_length,
-    #   unknown_variant, unknown_field, missing_field; OneOf), src/de/impls.rs
-    #   (the string, bool, f64 and tuple visitors); serde_derive src/de.rs
-    #   (deserialize_seq), src/de/struct_.rs (visit_map),
-    #   src/de/identifier.rs, src/de/enum_internally.rs; serde
-    #   src/private/de.rs (TaggedContentVisitor); serde_json
-    #   src/value/de.rs (deserialize_enum, visit_array_ref, the variant
-    #   access)
+    #   unknown_variant, unknown_field, missing_field, duplicate_field;
+    #   OneOf), src/de/impls.rs (the string, bool, f64 and tuple visitors);
+    #   serde_derive src/de.rs (deserialize_seq, expr_is_missing,
+    #   expr_is_missing_seq), src/de/struct_.rs (visit_map, FIELDS),
+    #   src/de/identifier.rs, src/de/enum_internally.rs,
+    #   src/de/enum_untagged.rs, src/de/enum_adjacently.rs,
+    #   src/internals/attr.rs and src/internals/name.rs (aliases); serde
+    #   src/private/de.rs (TaggedContentVisitor, TagOrContentFieldVisitor,
+    #   TagContentOtherFieldVisitor, UntaggedUnitVisitor,
+    #   AdjacentlyTaggedEnumVariantSeed); serde_json src/value/de.rs
+    #   (deserialize_enum, visit_array_ref, the variant access)
     #++
 
     # serde's visitors, as serde_json's Value drives them.
@@ -38,14 +42,29 @@ module Tokra
     # raises CommandItem::Mismatch with serde's words, which
     # CommandItem#deserialize turns into the argument's InvalidArgs.
     #
+    # Tauri's config types take more of serde's forms than its command
+    # arguments do: fields with aliases and defaults, untagged enums tried
+    # variant by variant, and adjacently tagged ones. Tauri reads the
+    # config the same way, a Value handed to serde_json::from_value
+    # (tauri-codegen lib.rs:80-93), so these functions read it too, with
+    # the same words (plan 054).
+    #
     # They hold serde's concepts only. What a field or a variant means is
     # the caller's, and integers are CommandItem.integer's.
     #
-    # === Example
+    # === Examples
     #
     #   Tokra::Ipc::Serde.unit_variant({ "Menu" => nil }, %w[Menu Submenu])  #=> "Menu"
     #   Tokra::Ipc::Serde.struct_fields([1, 2, 3], "Pair", %w[a b]) { |_field, raw| raw }
     #   # raises Mismatch: invalid length 3, expected fewer elements in array
+    #
+    #   Tokra::Ipc::Serde.struct_fields({ "icon-path" => "tray.png" }, "TrayIconConfig", %w[iconPath iconAsTemplate],
+    #                                   aliases: { "iconPath" => ["icon-path"] },
+    #                                   defaults: { "iconAsTemplate" => false }) { |_field, raw| raw }
+    #   #=> {"iconPath" => "tray.png", "iconAsTemplate" => false}
+    #
+    #   Tokra::Ipc::Serde.untagged(1, "PreventOverflowConfig", [->(raw) { Tokra::Ipc::Serde.boolean(raw) }])
+    #   # raises Mismatch: data did not match any variant of untagged enum PreventOverflowConfig
     module Serde # :nodoc:
       # The variant +name+, or serde's +unknown_variant+ error, its list
       # worded as serde's OneOf words it (serde_core de/mod.rs:252-265,
@@ -129,11 +148,96 @@ module Tokra
       # The fields in +optional+ are Rust +Option+s: +null+ reads as +nil+
       # without the block, and a map without one reads it as +nil+. A
       # sequence must reach it all the same.
-      def self.struct_fields(value, name, fields, optional: [], deny_unknown: false, &read)
+      #
+      # +aliases+ gives a field its other names, <tt>#[serde(alias)]</tt>:
+      # a key reads the field by any of them, and a second key for a field
+      # already read is serde's <tt>duplicate field</tt>, by the field's
+      # name (de/struct_.rs:262-272). The unknown-field error lists each
+      # field's names, the name among them, in byte order, field by field
+      # in +fields+' order: serde_derive's FIELDS holds each field's
+      # names as a BTreeSet (de/struct_.rs:55-64, 120-127;
+      # internals/attr.rs:1270-1286; internals/name.rs:71-75).
+      #
+      # +defaults+ gives the value of a field with <tt>#[serde(default)]</tt>
+      # or <tt>default = "..."</tt>, or of any field when the struct has
+      # one, already read: what the block would answer. A map without the
+      # field reads it (de.rs:763-786), and so does a sequence that runs
+      # out before the field (de.rs:805-836), where a field without one,
+      # an +optional+ one too, fails.
+      def self.struct_fields(value, name, fields, optional: [], deny_unknown: false, aliases: {}, defaults: {}, &read)
         case value
-        when Hash then map_fields(value, fields, optional, deny_unknown, &read)
-        when Array then seq_fields(value, name, fields, optional, &read)
+        when Hash then map_fields(value, fields, optional, deny_unknown, aliases, defaults, &read)
+        when Array then seq_fields(value, name, fields, optional, defaults, &read)
         else raise CommandItem::Mismatch.invalid_type(value, "struct #{name}")
+        end
+      end
+
+      # The fields of the struct variant +name+ (<tt>"Enum::Variant"</tt>)
+      # of an untagged or adjacently tagged enum, as #struct_fields reads a
+      # map's, with the same keywords. serde_derive gives that form no
+      # +visit_seq+ (de/struct_.rs:70-73), so anything but a map is the
+      # wrong type, a sequence too.
+      def self.untagged_struct_variant(value, name, fields, optional: [], deny_unknown: false, aliases: {}, defaults: {},
+        &read
+      )
+        raise CommandItem::Mismatch.invalid_type(value, "struct variant #{name}") unless value.is_a?(Hash)
+
+        map_fields(value, fields, optional, deny_unknown, aliases, defaults, &read)
+      end
+
+      # The unit variant +name+ (<tt>"Enum::Variant"</tt>) of an untagged or
+      # adjacently tagged enum: +nil+ from +null+, and serde's error for
+      # anything else (serde private/de.rs:3002-3040, UntaggedUnitVisitor).
+      # serde names the variant by its Rust name, not its renamed one
+      # (de/enum_untagged.rs:80-89).
+      def self.untagged_unit(value, name)
+        raise CommandItem::Mismatch.invalid_type(value, "unit variant #{name}") unless value.nil?
+      end
+
+      # The value of the untagged enum +name+: the first of +readers+, one
+      # per variant in declaration order, that reads +value+ without a
+      # Mismatch, or serde's error when none does (de/enum_untagged.rs:22-58).
+      # Only a Mismatch passes to the next variant; any other error is a
+      # bug, and propagates. A struct variant's reader calls
+      # #untagged_struct_variant, a unit variant's #untagged_unit.
+      def self.untagged(value, name, readers)
+        readers.each do |reader|
+          return reader.call(value)
+        rescue CommandItem::Mismatch
+          next
+        end
+        raise CommandItem::Mismatch, "data did not match any variant of untagged enum #{name}"
+      end
+
+      # The variant and content of the adjacently tagged enum +enum_name+,
+      # <tt>#[serde(tag = "...", content = "...")]</tt>, as serde_derive
+      # reads one (de/enum_adjacently.rs:18-323). The block receives the
+      # variant and its raw content and answers the content's value; a unit
+      # variant's block calls #untagged_unit, a struct variant's
+      # #untagged_struct_variant. Answers the variant and that value.
+      #
+      # From a map, in the Hash's order: the +tag+ key, read as
+      # serde_json reads a unit variant (#unit_variant; private/de.rs:3449-3500),
+      # and the +content+ key, in either order; with the content first it
+      # is read once the tag is known. Without +deny_unknown+ any other key
+      # is stepped over; with it, any other key is serde's invalid value
+      # (private/de.rs:898-975). A map without the tag is
+      # <tt>missing field</tt>, and so is one without the content, unless
+      # the variant is in +unit+, which then reads +nil+ without the block.
+      # serde also lets a newtype variant go without its content when the
+      # content's type reads a missing field, as an +Option+ does
+      # (private::de::missing_field, de/enum_adjacently.rs:63-101); that is
+      # not modelled, since no adjacently tagged enum in Tauri's config
+      # has such a variant.
+      #
+      # From a sequence: the tag, read as a variant identifier, then the
+      # content, which every variant needs here, then serde_json's error
+      # for elements left over.
+      def self.adjacently_tagged(value, tag, content, enum_name, variants, unit: [], deny_unknown: false, &read)
+        case value
+        when Hash then adjacent_map(value, tag, content, variants, unit, deny_unknown, &read)
+        when Array then adjacent_seq(value, enum_name, variants, &read)
+        else raise CommandItem::Mismatch.invalid_type(value, "adjacently tagged enum #{enum_name}")
         end
       end
 
@@ -206,26 +310,34 @@ module Tokra
       end
       private_class_method :variant_identifier
 
-      def self.map_fields(map, fields, optional, deny_unknown, &read)
-        present = map.filter_map do |key, raw|
-          if fields.include?(key)
+      def self.map_fields(map, fields, optional, deny_unknown, aliases, defaults, &read)
+        names = fields.to_h { |key| [key, [key, *aliases.fetch(key, [])].uniq.sort] }
+        owners = names.flat_map { |key, all| all.map { |alias_name| [alias_name, key] } }.to_h
+        read_keys = [] #: Array[String]
+        present = map.filter_map do |name, raw|
+          key = owners[name]
+          if key
+            raise CommandItem::Mismatch, "duplicate field `#{key}`" if read_keys.include?(key)
+
+            read_keys << key
             [key, field(key, raw, optional, &read)]
           elsif deny_unknown
-            raise CommandItem::Mismatch, "unknown field `#{key}`, there are no fields" if fields.empty?
+            raise CommandItem::Mismatch, "unknown field `#{name}`, there are no fields" if fields.empty?
 
-            raise CommandItem::Mismatch, "unknown field `#{key}`, expected #{one_of(fields)}"
+            raise CommandItem::Mismatch, "unknown field `#{name}`, expected #{one_of(names.values.flatten)}"
           end
         end.to_h
-        missing = fields.find { |key| !present.key?(key) && !optional.include?(key) }
+        missing = fields.find { |key| !present.key?(key) && !optional.include?(key) && !defaults.key?(key) }
         raise CommandItem::Mismatch, "missing field `#{missing}`" if missing
 
-        fields.to_h { |key| [key, present[key]] }
+        fields.to_h { |key| [key, present.fetch(key) { defaults[key] }] }
       end
       private_class_method :map_fields
 
-      def self.seq_fields(seq, name, fields, optional, &read)
+      def self.seq_fields(seq, name, fields, optional, defaults, &read)
         expecting = "struct #{name} with #{fields.size} #{(fields.size == 1) ? 'element' : 'elements'}"
         result = fields.each_with_index.to_h do |key, index|
+          next [key, defaults.fetch(key)] if index >= seq.size && defaults.key?(key)
           raise CommandItem::Mismatch, "invalid length #{index}, expected #{expecting}" if index >= seq.size
 
           [key, field(key, seq[index], optional, &read)]
@@ -240,6 +352,80 @@ module Tokra
         (raw.nil? && optional.include?(key)) ? nil : yield(key, raw)
       end
       private_class_method :field
+
+      # visit_map of an adjacently tagged enum (de/enum_adjacently.rs:222-278).
+      # A Hash holds each key once, so the duplicate-key arms cannot arise;
+      # the keys after the tag and the content are still visited, so
+      # +deny_unknown+ refuses one there.
+      def self.adjacent_map(map, tag, content, variants, unit, deny_unknown, &read)
+        keys = AdjacentKeys.new(map.keys, tag, content, deny_unknown)
+        first = keys.next_relevant
+        raise CommandItem::Mismatch, "missing field `#{tag}`" if first.nil?
+
+        if first == :tag
+          variant = unit_variant(map[tag], variants)
+          unless keys.next_relevant
+            raise CommandItem::Mismatch, "missing field `#{content}`" unless unit.include?(variant)
+
+            return [variant, nil]
+          end
+        else
+          # The content came first: serde buffers it until the tag is read.
+          raise CommandItem::Mismatch, "missing field `#{tag}`" unless keys.next_relevant
+
+          variant = unit_variant(map[tag], variants)
+        end
+        result = read.call(variant, map[content])
+        keys.next_relevant
+        [variant, result]
+      end
+      private_class_method :adjacent_map
+
+      # visit_seq of an adjacently tagged enum (de/enum_adjacently.rs:280-308),
+      # then serde_json's check for elements left over (value/de.rs:731-746).
+      def self.adjacent_seq(seq, enum_name, variants)
+        expecting = "adjacently tagged enum #{enum_name}"
+        raise CommandItem::Mismatch, "invalid length 0, expected #{expecting}" if seq.empty?
+
+        variant = variant_identifier(seq.first, variants)
+        raise CommandItem::Mismatch, "invalid length 1, expected #{expecting}" if seq.size < 2
+
+        result = yield(variant, seq[1])
+        raise CommandItem::Mismatch, "invalid length #{seq.size}, expected fewer elements in array" if seq.size > 2
+
+        [variant, result]
+      end
+      private_class_method :adjacent_seq
+
+      # An adjacently tagged enum's map keys, visited one at a time as
+      # serde's next_relevant_key visits them (de/enum_adjacently.rs:105-165):
+      # the tag, the content, or none left, stepping over any other key, or
+      # with +deny_unknown+ refusing it as TagOrContentFieldVisitor does
+      # (private/de.rs:918-962).
+      class AdjacentKeys # :nodoc:
+        def initialize(keys, tag, content, deny_unknown)
+          @keys = keys
+          @tag = tag
+          @content = content
+          @deny_unknown = deny_unknown
+          @position = 0
+        end
+
+        # +:tag+, +:content+, or +nil+ when no key is left.
+        def next_relevant
+          while @position < @keys.size
+            key = @keys.fetch(@position)
+            @position += 1
+            return :tag if key == @tag
+            return :content if key == @content
+            next unless @deny_unknown
+
+            raise CommandItem::Mismatch,
+              "invalid value: #{Unexpected.describe(key)}, expected #{Unexpected.debug(@tag)} or #{Unexpected.debug(@content)}"
+          end
+          nil
+        end
+      end
 
       #--
       # SPDX-SnippetEnd

@@ -10,7 +10,16 @@ module Tokra
       def self.internally_tagged: (json_value value, String tag, String enum_name, Array[String] variants)
                                   -> [String, Hash[String, json_value] | Array[json_value]]
       def self.struct_fields: [T] (json_value value, String name, Array[String] fields, ?optional: Array[String],
-                                   ?deny_unknown: bool) { (String field, json_value raw) -> T } -> Hash[String, T?]
+                                   ?deny_unknown: bool, ?aliases: Hash[String, Array[String]], ?defaults: Hash[String, T])
+                                   { (String field, json_value raw) -> T } -> Hash[String, T?]
+      def self.untagged_struct_variant: [T] (json_value value, String name, Array[String] fields, ?optional: Array[String],
+                                             ?deny_unknown: bool, ?aliases: Hash[String, Array[String]],
+                                             ?defaults: Hash[String, T]) { (String field, json_value raw) -> T } -> Hash[String, T?]
+      def self.untagged_unit: (json_value value, String name) -> nil
+      def self.untagged: [T] (json_value value, String name, Array[^(json_value) -> T] readers) -> T
+      def self.adjacently_tagged: [T] (json_value value, String tag, String content, String enum_name, Array[String] variants,
+                                       ?unit: Array[String], ?deny_unknown: bool) { (String variant, json_value raw) -> T }
+                                  -> [String, T?]
       def self.tuple: [T] (json_value value, Integer size) { (Integer index, json_value raw) -> T } -> Array[T]
       def self.string: (json_value value) -> String
       def self.borrowed_str: (json_value value) -> String
@@ -19,11 +28,29 @@ module Tokra
 
       private def self.one_of: (Array[String] names) -> String
       private def self.variant_identifier: (json_value tag, Array[String] variants) -> String
-      private def self.map_fields: [T] (Hash[String, json_value] map, Array[String] fields, Array[String] optional, bool deny_unknown)
+      private def self.map_fields: [T] (Hash[String, json_value] map, Array[String] fields, Array[String] optional, bool deny_unknown,
+                                        Hash[String, Array[String]] aliases, Hash[String, T] defaults)
                                    { (String field, json_value raw) -> T } -> Hash[String, T?]
-      private def self.seq_fields: [T] (Array[json_value] seq, String name, Array[String] fields, Array[String] optional)
+      private def self.seq_fields: [T] (Array[json_value] seq, String name, Array[String] fields, Array[String] optional,
+                                        Hash[String, T] defaults)
                                    { (String field, json_value raw) -> T } -> Hash[String, T?]
       private def self.field: [T] (String key, json_value raw, Array[String] optional) { (String field, json_value raw) -> T } -> T?
+      private def self.adjacent_map: [T] (Hash[String, json_value] map, String tag, String content, Array[String] variants,
+                                          Array[String] unit, bool deny_unknown) { (String variant, json_value raw) -> T }
+                                     -> [String, T?]
+      private def self.adjacent_seq: [T] (Array[json_value] seq, String enum_name, Array[String] variants)
+                                     { (String variant, json_value raw) -> T } -> [String, T]
+
+      class AdjacentKeys
+        @keys: Array[String]
+        @tag: String
+        @content: String
+        @deny_unknown: bool
+        @position: Integer
+
+        def initialize: (Array[String] keys, String tag, String content, bool deny_unknown) -> void
+        def next_relevant: () -> (:tag | :content | nil)
+      end
     end
   end
 end

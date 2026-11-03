@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# The config fixture generator (plan 054): asks Tauri's own crates what
+# they make of each case under test/fixtures/config, so the answer key is
+# theirs, not a reading of their source. Its own workspace, apart from the
+# gem's: nothing ships it, and the gate never builds it (rake
+# config:fixtures does). Cargo.lock was seeded from vendor/tauri/Cargo.lock,
+# so every crate it shares with Tauri is at the version Tauri builds with.
+
+[workspace]
+
+[package]
+name = "tokra-config-fixtures"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+serde = "1"
+serde_json = "1"
+tauri-codegen = { path = "../../../../vendor/tauri/crates/tauri-codegen" }
+tauri-utils = { path = "../../../../vendor/tauri/crates/tauri-utils" }
+
+[features]
+# The build with Tauri's two optional config formats on: the answer key
+# for plan 054's phase 2. Without it, only JSON is enabled.
+formats = ["tauri-codegen/config-json5", "tauri-codegen/config-toml"]
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }

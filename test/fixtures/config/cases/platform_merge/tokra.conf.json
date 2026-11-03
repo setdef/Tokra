@@ -1,0 +1,7 @@
+{
+  "identifier": "com.tokra.fixture",
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [{ "title": "Main" }, { "label": "second" }]
+  }
+}
