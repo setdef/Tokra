@@ -15,6 +15,7 @@
 #                                                     (a window's close and destruction)
 #   EVENT exit-requested <code> | EVENT exit
 #   REPORT <json>                                     the page's check results
+#   PROGRESS <stage> <seconds>                        how far a fixture got
 #
 # The page reports over a Rack POST, not IPC, so a broken IPC layer still
 # produces a report. Then, unless --wait was given, it asks Ruby to exit
@@ -27,6 +28,18 @@ require "optparse"
 
 module FixtureApp
   HARNESS = File.expand_path("../fixtures/harness.js", __dir__)
+
+  # When this file loaded, on the monotonic clock.
+  STARTED = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+  # Prints that the fixture reached +stage+, with the seconds since it
+  # loaded, and flushes, so the harness's message for a hung fixture shows
+  # the last stage it reached (plan 051).
+  def self.progress(stage)
+    seconds = Process.clock_gettime(Process::CLOCK_MONOTONIC) - STARTED
+    $stdout.write("PROGRESS #{stage} #{format('%.3f', seconds)}\n")
+    $stdout.flush
+  end
 
   # Options every fixture accepts, plus +flags+ the fixture names.
   def self.options(argv, *flags)

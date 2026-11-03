@@ -90,8 +90,9 @@ module RealApp
   # when given, sees each stdout line with the child's pid as it arrives and
   # returns +true+ when it signalled the child. A plugin passes +fixtures+,
   # its own fixture directory, and +env+, variables to add to the child's
-  # environment.
-  def self.launch(name, *, on_line: nil, fixtures: FIXTURES, env: {})
+  # environment. +drain+ is how many seconds the readers get to finish
+  # once the child is gone.
+  def self.launch(name, *, on_line: nil, fixtures: FIXTURES, env: {}, drain: DRAIN)
     started = now
     signalled_at = nil
     out_reader, out_writer = IO.pipe
@@ -101,13 +102,18 @@ module RealApp
     pid = Process.spawn(env, RbConfig.ruby, File.join(fixtures, name, "app.rb"), *,
       out: out_writer, err: err_writer, **group)
     [out_writer, err_writer].each(&:close)
+    # The readers fill buffers this thread owns, so a stream still open
+    # after the kill still shows what arrived, such as a fixture's last
+    # PROGRESS line.
+    stdout = +""
+    stderr = +""
     out_thread = Thread.new do
-      out_reader.each_line.with_object(+"") do |line, stdout|
+      out_reader.each_line do |line|
         stdout << line
         signalled_at = now if on_line&.call(line, pid)
       end
     end
-    err_thread = Thread.new { err_reader.read }
+    err_thread = Thread.new { err_reader.each_line { |line| stderr << line } }
 
     waiter = Process.detach(pid)
     watcher = watch_front(pid, waiter)
@@ -121,8 +127,8 @@ module RealApp
     Run.new(
       status: waiter.alive? ? nil : waiter.value&.exitstatus,
       termsig: waiter.alive? ? nil : waiter.value&.termsig,
-      stdout: drain(out_thread),
-      stderr: drain(err_thread),
+      stdout: self.drain(out_thread, stdout, drain),
+      stderr: self.drain(err_thread, stderr, drain),
       timed_out:,
       seconds: ended - started,
       exit_after_signal: signalled_at && (ended - signalled_at),
@@ -170,8 +176,10 @@ module RealApp
     RbConfig::CONFIG["host_os"].match?(/mswin|mingw|cygwin/)
   end
 
-  def self.drain(thread)
-    thread.join(DRAIN) ? thread.value : "(stream still open after #{DRAIN} s)"
+  # What +thread+ read into +buffer+, once it has read the whole stream
+  # or +wait+ seconds pass; then with a note that the stream is still open.
+  def self.drain(thread, buffer, wait = DRAIN)
+    thread.join(wait) ? buffer.dup : "#{buffer}(stream still open after #{wait} s)"
   end
 
   def self.now

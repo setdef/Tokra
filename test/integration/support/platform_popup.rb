@@ -13,7 +13,7 @@ require_relative "platform_menu"
 # clicks or types: a menu closes through AppKit's own calls
 # (-[NSMenu performActionForItemAtIndex:], -[NSMenu cancelTracking]),
 # GTK's (gtk_menu_shell_activate_item, gtk_menu_shell_cancel), or
-# Win32's (WM_CANCELMODE, EndMenu).
+# Win32's (EndMenu).
 #
 # A popup runs a nested loop on the main thread, so the main thread runs
 # Ruby only from a timer the platform's loop fires: a CFRunLoopTimer in
@@ -293,8 +293,6 @@ module PlatformPopup
 
   # Win32's menu window and timers.
   module Win32
-    WM_CANCELMODE = 0x1F
-
     def self.fn(name, args, ret)
       PlatformMenu::Win32.fn(name, args, ret)
     end
@@ -324,14 +322,10 @@ module PlatformPopup
       PlatformMenu::Win32.tree(nil, hmenu).map(&:first)
     end
 
-    # Posted from any thread: the menu loop dispatches it to the window,
-    # and DefWindowProc ends the menu.
-    def self.cancel(hwnd)
-      fn("PostMessageW", [Fiddle::TYPE_INTPTR_T, Fiddle::TYPE_INT, Fiddle::TYPE_INTPTR_T, Fiddle::TYPE_INTPTR_T],
-        Fiddle::TYPE_INT).call(hwnd, WM_CANCELMODE, 0, 0)
-    end
-
-    # Ends the calling thread's menu, from a timer on the main thread.
+    # Ends the calling thread's menu, from a timer on the main thread,
+    # which the menu's modal loop runs. Another thread asks the main
+    # thread to call it: a WM_CANCELMODE that thread posted sometimes left
+    # the menu open on Windows CI (plan 051).
     def self.end_menu
       fn("EndMenu", [], Fiddle::TYPE_INT).call
     end

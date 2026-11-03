@@ -21,6 +21,9 @@ class ContextMenuTest < RealApp::TestCase
   # location asked.
   MENU_INSET = 8
 
+  # The stages each menu passes, in the order their causes force.
+  CAUSAL_STAGES = %w[timers-set popup-called shown returned].freeze
+
   def self.page?
     false
   end
@@ -84,6 +87,18 @@ class ContextMenuTest < RealApp::TestCase
 
     assert_includes @report["menu_log"], "heard ctx-copy"
     assert_includes @report["menu_log"], "task sent while tracking"
+  end
+
+  # The fixture prints each stage it reaches (plan 051), so a hang names
+  # its stage. These stages follow one another by cause, not by timing.
+  def test_each_menu_reports_its_progress_in_order
+    stages = @run.lines.grep(/\APROGRESS /).map { |line| line.split[1] }
+    assert_equal %w[ready menus-built], stages.first(2), @run.describe
+    %w[menu submenu].each do |name|
+      mine = stages.filter_map { |stage| stage.delete_prefix("#{name}:") if stage.start_with?("#{name}:") }
+      assert_equal CAUSAL_STAGES, mine.select { |stage| CAUSAL_STAGES.include?(stage) }, @run.describe
+      assert_includes mine, "cancel-posted", @run.describe
+    end
   end
 
   def test_on_windows_each_menu_has_its_popup_hmenu

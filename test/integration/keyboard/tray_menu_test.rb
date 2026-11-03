@@ -35,6 +35,9 @@ class TrayMenuTest < RealApp::TestCase
     refute @report.key?("error"), @report.inspect
   end
 
+  # The stages the menu passes, in the order their causes force.
+  CAUSAL_STAGES = %w[timers-set popup-called shown returned].freeze
+
   def linux? = RbConfig::CONFIG["host_os"].include?("linux")
 
   def test_the_trays_menu_opens_with_its_items
@@ -49,6 +52,16 @@ class TrayMenuTest < RealApp::TestCase
   def test_other_ruby_threads_run_while_the_tray_menu_tracks
     assert_equal "thread", @report["dismissed_by"], @report.inspect
     assert_operator @report["ticks_while_tracking"], :>=, 1, @report.inspect
+  end
+
+  # The fixture prints each stage it reaches (plan 051), so a hang names
+  # its stage. These stages follow one another by cause, not by timing.
+  def test_the_menu_reports_its_progress_in_order
+    stages = @run.lines.grep(/\APROGRESS /).map { |line| line.split[1] }
+    assert_equal %w[ready menus-built], stages.first(2), @run.describe
+    mine = stages.filter_map { |stage| stage.delete_prefix("tray:") if stage.start_with?("tray:") }
+    assert_equal CAUSAL_STAGES, mine.select { |stage| CAUSAL_STAGES.include?(stage) }, @run.describe
+    assert_includes mine, "cancel-posted", @run.describe
   end
 
   # A chosen item is a menu event: the app's listeners, then the tray

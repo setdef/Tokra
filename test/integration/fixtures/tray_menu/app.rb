@@ -15,12 +15,15 @@
 # it to tray-icon's window as the shell's would be.
 # While the menu tracks, another timer finds it and reads its items, and a
 # second Ruby thread, which runs only if something lets go of the GVL,
-# sees the ticker tick once and then closes the menu: on macOS by choosing an item
-# (-[NSMenu performActionForItemAtIndex:]) and cancelling
-# (-[NSMenu cancelTracking]) through GCD's main queue, on Windows by
-# posting WM_CANCELMODE and then the chosen item's WM_COMMAND. A fallback
-# timer closes a menu that thread never reached. It prints REPORT <json>
-# and exits.
+# sees the ticker tick once and then closes the menu: on macOS by choosing
+# an item (-[NSMenu performActionForItemAtIndex:]) and cancelling
+# (-[NSMenu cancelTracking]) through GCD's main queue. On Windows that
+# thread asks, and the main thread's timer, which the menu's modal loop
+# runs, ends the menu with EndMenu and posts the chosen item's WM_COMMAND
+# (plan 051). A fallback timer closes a menu that thread never reached,
+# and the report names whichever closed it. Each stage prints
+# PROGRESS <stage> <seconds>, so a hang shows how far it got. It prints
+# REPORT <json> and exits.
 #
 # Linux's tray menu belongs to the desktop's StatusNotifierItem host,
 # which shows it over D-Bus; with no host, nothing in this process can
@@ -35,11 +38,6 @@ require_relative "../../support/platform_tray"
 $stdout.sync = true
 
 module TrayMenuFixture
-  # Prints a progress line, so a hang shows how far the fixture got.
-  def self.progress(stage)
-    puts "PROGRESS #{stage}"
-  end
-
   # What the listeners and the main thread did, in order.
   LOG = Thread::Queue.new
   LABELS = %w[Show Hide].freeze
@@ -72,7 +70,9 @@ module TrayMenuFixture
     seen
   end
 
-  # Closes +menu+, choosing the first item unless +choose+ is false.
+  # Closes +menu+, choosing the first item unless +choose+ is false: on
+  # macOS through AppKit, on Windows with EndMenu, which only the main
+  # thread, whose menu it is, may call, and the item's WM_COMMAND.
   def self.close(menu, hmenu, choose:, on_main:)
     case Tokra::Menu.os
     when :macos
@@ -83,8 +83,7 @@ module TrayMenuFixture
         PlatformPopup::Appkit.cancel(menu)
       end
     else
-      tray_window = PlatformTray::Win32.tray_windows.first
-      PlatformPopup::Win32.cancel(tray_window)
+      PlatformPopup::Win32.end_menu
       PlatformTray::Win32.choose(hmenu, 0) if choose
     end
   end
@@ -109,6 +108,7 @@ app.run do |handle, event|
     next
   end
 
+  FixtureApp.progress("ready")
   window = handle.get_window("main")
   menu = Tokra::Menu::MenuBuilder.with_id(handle, "tray-menu").text("tray-show", "Show").text("tray-hide", "Hide").build
   Tokra::Tray::TrayIconBuilder.with_id("menu-tray")
@@ -116,17 +116,22 @@ app.run do |handle, event|
     .on_menu_event { |_handle, heard| TrayMenuFixture::LOG << "tray:#{heard.id}" }
     .build(handle)
   hmenu = (Tokra::Menu.os == :windows) ? menu.hpopupmenu : nil
+  FixtureApp.progress("menus-built")
 
   Thread.new do
     report = {}
     shown = Thread::Queue.new
     returned = Thread::Queue.new
-    dismissed_by = Thread::Queue.new
     done = false
     seen_open = false
     opening = false
+    # Set by the fallback when it fires while the menu tracks, and by the
+    # closer thread once it has closed the menu or, on Windows, asked the
+    # main thread to.
+    fell_back = false
+    closer_closed = false
+    close_asked = false
     macos = Tokra::Menu.os == :macos
-    TrayMenuFixture.progress("setting up")
     TrayMenuFixture.on_main(handle) do
       PlatformPopup::Appkit.observe if macos
       PlatformPopup.every(window, 50) do
@@ -136,10 +141,16 @@ app.run do |handle, event|
         if found && !seen_open
           seen_open = true
           report["labels"] = PlatformPopup.labels(found, hmenu)
+          FixtureApp.progress("tray:shown")
           shown << found
+        elsif found && close_asked && !macos
+          close_asked = false
+          TrayMenuFixture.close(found, hmenu, choose: true, on_main: true)
+          FixtureApp.progress("tray:cancel-posted")
         elsif !found && seen_open && !macos
           # TrackPopupMenu has returned: the posted click's handling is over.
           done = true
+          FixtureApp.progress("tray:returned")
           TrayMenuFixture::LOG << "menu returned"
           returned << true
           next false
@@ -148,9 +159,10 @@ app.run do |handle, event|
       end
       PlatformPopup.every(window, 8000) do
         unless done
+          fell_back = true
+          FixtureApp.progress("tray:fallback-fired")
           TrayMenuFixture.close(PlatformPopup.find(TrayMenuFixture::LABELS, shown: false), hmenu, choose: false,
             on_main: true)
-          dismissed_by << "fallback"
         end
         false
       end
@@ -161,16 +173,21 @@ app.run do |handle, event|
           next false if opening
 
           opening = true
+          FixtureApp.progress("tray:popup-called")
           report["opened"] = PlatformTray.open_menu
           done = true
+          FixtureApp.progress("tray:returned")
           TrayMenuFixture::LOG << "menu returned"
           returned << true
           false
         end
       end
+      FixtureApp.progress("tray:timers-set")
     end
-    report["opened"] = PlatformTray.open_menu unless macos
-    TrayMenuFixture.progress("opening")
+    unless macos
+      FixtureApp.progress("tray:popup-called")
+      report["opened"] = PlatformTray.open_menu
+    end
 
     ticks = 0
     ticker = Thread.new do
@@ -183,22 +200,28 @@ app.run do |handle, event|
       found = shown.pop(timeout: 20)
       next unless found
 
-      TrayMenuFixture.progress("tracking")
       at_shown = ticks
       # Running at all proves the GVL was let go while the menu tracks;
       # one tick of the other thread shows it too, by order, not by rate.
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 3
       Thread.pass until ticks > at_shown || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
       report["ticks_while_tracking"] = ticks - at_shown
-      TrayMenuFixture.close(found, hmenu, choose: true, on_main: false)
-      dismissed_by << "thread"
+      if macos
+        TrayMenuFixture.close(found, hmenu, choose: true, on_main: false)
+        FixtureApp.progress("tray:cancel-posted")
+      else
+        close_asked = true
+        FixtureApp.progress("tray:close-asked")
+      end
+      closer_closed = true
     end
 
     returned.pop(timeout: 30)
-    TrayMenuFixture.progress("closed")
     closer.join(5)
     ticker.kill
-    report["dismissed_by"] = dismissed_by.pop(timeout: 1)
+    # The menu closes only once something closes it: the fallback, if it
+    # fired first, or else the closer thread.
+    report["dismissed_by"] = if fell_back then "fallback" elsif closer_closed then "thread" end
     report["log"] = TrayMenuFixture.until_logged(["menu returned", "app:tray-show", "tray:tray-show"])
     puts "REPORT #{JSON.generate(report)}"
     handle.exit(0)
