@@ -306,7 +306,7 @@ class TestAppRouting < Minitest::Test
     assert(native_webview("main").initialization_scripts.any? { |script|
       script.include?('currentWindow: { label: "main" }') && script.include?('currentWebview: { label: "main" }')
     })
-    script = app.__send__(:metadata_script, %(a"b), "c\\d")
+    script = app.handle.webview_manager.metadata_script(%(a"b), "c\\d")
     assert_includes script, 'currentWindow: { label: "a\"b" }'
     assert_includes script, 'currentWebview: { label: "c\\\\d" }'
   end

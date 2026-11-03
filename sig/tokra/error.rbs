@@ -16,8 +16,22 @@ module Tokra
       FAILED_TO_SEND_MESSAGE: String
       FAILED_TO_RECEIVE_MESSAGE: String
       FAILED_TO_GET_CURSOR_POSITION: String
+      INVALID_WINDOW_LABEL: String
+      NO_EVENT_LOOP: String
 
       def initialize: (String message) -> void
+    end
+
+    class WindowLabelAlreadyExists < Error
+      @label: String
+      attr_reader label: String
+      def initialize: (String label) -> void
+    end
+
+    class WebviewLabelAlreadyExists < Error
+      @label: String
+      attr_reader label: String
+      def initialize: (String label) -> void
     end
 
     class FailedToReceiveMessage < Error

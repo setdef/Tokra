@@ -6,8 +6,8 @@ module Tokra
     def name: () -> String
     def initialize: (AppHandle app, ?Hash[Symbol, String | Integer | Float | bool] config) -> void
     def initialization_script: () -> String?
-    def window_created: (Native::Window window) -> void
-    def webview_created: (Native::WebView webview) -> void
+    def window_created: (Window window) -> void
+    def webview_created: (Webview webview) -> void
     def on_navigation: (Native::WebView webview, String url) -> bool
     def on_page_load: (Webview webview, PageLoadPayload payload) -> void
     def on_event: (AppHandle app, run_event event) -> void
@@ -33,5 +33,7 @@ module Tokra
     def initialization_script: () -> Array[String]
     def on_event: (AppHandle app, run_event event) -> void
     def on_page_load: (Webview webview, PageLoadPayload payload) -> nil
+    def window_created: (Window window) -> nil
+    def webview_created: (Webview webview) -> nil
   end
 end

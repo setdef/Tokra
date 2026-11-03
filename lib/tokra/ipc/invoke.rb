@@ -60,6 +60,27 @@ module Tokra
       # The webview that made this IPC call.
       attr_reader :webview
 
+      # The WebviewWindow that made this IPC call, or +nil+ when its
+      # webview is not a webview window's, as for a webview a test made by
+      # hand inside a window of another label.
+      #
+      # Mirrors Tauri's <tt>CommandArg</tt> for WebviewWindow
+      # (webview_window.rs:1428-1439), which a command names as an
+      # argument; Tokra's commands read it here, and +nil+ stands where
+      # Tauri fails the command with "current webview is not a
+      # WebviewWindow".
+      #
+      # === Example
+      #
+      #   invoke.webview_window&.set_title("Saved")
+      def webview_window
+        webview = @webview
+        return nil unless webview
+
+        window = webview.window
+        WebviewWindow.new(window:, webview:) if window.is_webview_window
+      end
+
       # Creates a new Invoke with command, payload, headers, webview, and
       # responder callback.
       #

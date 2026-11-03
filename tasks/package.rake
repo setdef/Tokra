@@ -22,7 +22,7 @@ PACKAGES = [
       # Assemble every script App#run injects; each comes from a packaged
       # template (Native.load_js_template).
       app = Tokra::Builder.default.with_global_tauri.build
-      scripts = app.__send__(:initialization_scripts, "main", "main")
+      scripts = app.handle.webview_manager.initialization_scripts("main", "main")
       # The event scripts a listen and an emit render (plan 047).
       Tokra::Event.listen_js_script("o", '{"kind":"Any"}', "tokra://smoke", 0, 1)
       Tokra::Event.emit_js_script("f", Tokra::Event::EmitArgs.new(event: "tokra://smoke", payload: "null"), "[]")

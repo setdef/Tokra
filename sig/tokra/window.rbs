@@ -118,6 +118,7 @@ module Tokra
     def set_badge_count: (Integer? count) -> nil
     def set_title_bar_style: (TitleBarStyle style) -> nil
     def webviews: () -> Array[Webview]
+    def is_webview_window: () -> bool
     def close: () -> nil
     def destroy: () -> nil
     def window_handle: () -> RawWindowHandle::window_handle

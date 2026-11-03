@@ -11,6 +11,9 @@ module Tokra
     def env: -> Env
     def get_window: (String label) -> Window?
     def get_webview: (String label) -> Webview?
+    def get_focused_window: -> Window?
+    def get_webview_window: (String label) -> WebviewWindow?
+    def webview_windows: -> Hash[String, WebviewWindow]
     def windows: -> Hash[String, Window]
     def webviews: -> Hash[String, Webview]
     def resources_table: -> ResourceTable

@@ -31,7 +31,7 @@ namespace :rbs do
   desc "Validate every RBS file, plugins included"
   task :validate do
     # ferro-url's signatures name IPAddr and Addrinfo.
-    libraries = %w[logger pathname json uri erb securerandom stringio fileutils date timeout ipaddr socket]
+    libraries = %w[logger pathname json uri erb securerandom stringio fileutils date timeout ipaddr socket forwardable]
     # The clipboard, dialog, notification, and global-shortcut plugins name
     # ferro-arboard's, ferro-rfd's, ferro-notify-rust's, ferro-url's,
     # ferro-time's, and ferro-global-hotkey's types, from the signatures

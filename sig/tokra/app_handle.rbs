@@ -18,10 +18,16 @@ module Tokra
 
     @menu_manager: MenuManager
     @tray_manager: TrayManager
+    @window_event_listeners: Array[^(Window, window_event) -> void]
+    @webview_manager: WebviewManager
 
     def initialize: (AppManager manager, ?state_manager: StateManager?, ?runtime_context: RuntimeContext,
                      ?menu_event_listeners: Array[MenuManager::app_listener],
-                     ?tray_icon_event_listeners: Array[TrayManager::app_listener]) -> void
+                     ?tray_icon_event_listeners: Array[TrayManager::app_listener],
+                     ?window_event_listeners: Array[^(Window, window_event) -> void],
+                     ?with_global_tauri: bool, ?os_name: String) -> void
+    attr_reader window_event_listeners: Array[^(Window, window_event) -> void]
+    attr_reader webview_manager: WebviewManager
     attr_reader menu_manager: MenuManager
     attr_reader tray_manager: TrayManager
     attr_reader manager: AppManager

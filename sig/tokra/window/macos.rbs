@@ -11,4 +11,8 @@ module Tokra
   class Window
     def set_badge_label: (String? label) -> nil
   end
+
+  class WebviewWindow
+    def set_badge_label: (String? label) -> nil
+  end
 end

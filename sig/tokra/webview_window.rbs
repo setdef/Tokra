@@ -1,0 +1,111 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class WebviewWindow
+    extend Forwardable
+    include Manager
+    include Listener
+    include Emitter
+
+    @window: Window
+    @webview: Webview
+
+    attr_reader window: Window
+    attr_reader webview: Webview
+
+    def initialize: (window: Window, webview: Webview) -> void
+    def on_menu_event: () { (Window, Menu::MenuEvent) -> void } -> nil
+    def menu: () -> Menu::Menu?
+    def set_menu: (Menu::Menu menu) -> Menu::Menu?
+    def remove_menu: () -> Menu::Menu?
+    def hide_menu: () -> nil
+    def show_menu: () -> nil
+    def is_menu_visible: () -> bool
+    def popup_menu: (Menu::ContextMenu menu) -> nil
+    def popup_menu_at: (Menu::ContextMenu menu, LogicalPosition | PhysicalPosition position) -> nil
+    def scale_factor: () -> Float
+    def inner_position: () -> PhysicalPosition
+    def outer_position: () -> PhysicalPosition
+    def inner_size: () -> PhysicalSize
+    def outer_size: () -> PhysicalSize
+    def is_fullscreen: () -> bool
+    def is_minimized: () -> bool
+    def is_maximized: () -> bool
+    def is_focused: () -> bool
+    def is_decorated: () -> bool
+    def is_resizable: () -> bool
+    def is_enabled: () -> bool
+    def is_always_on_top: () -> bool
+    def is_maximizable: () -> bool
+    def is_minimizable: () -> bool
+    def is_closable: () -> bool
+    def is_visible: () -> bool
+    def title: () -> String
+    def current_monitor: () -> Monitor?
+    def primary_monitor: () -> Monitor?
+    def monitor_from_point: (Float | Integer x, Float | Integer y) -> Monitor?
+    def available_monitors: () -> Array[Monitor]
+    def theme: () -> Theme
+    def center: () -> nil
+    def request_user_attention: (UserAttentionType? request_type) -> nil
+    def set_resizable: (bool resizable) -> nil
+    def set_enabled: (bool enabled) -> nil
+    def set_maximizable: (bool maximizable) -> nil
+    def set_minimizable: (bool minimizable) -> nil
+    def set_closable: (bool closable) -> nil
+    def set_title: (String title) -> nil
+    def maximize: () -> nil
+    def unmaximize: () -> nil
+    def minimize: () -> nil
+    def unminimize: () -> nil
+    def show: () -> nil
+    def hide: () -> nil
+    def close: () -> nil
+    def destroy: () -> nil
+    def set_decorations: (bool decorations) -> nil
+    def set_shadow: (bool enable) -> nil
+    def set_effects: (WindowEffectsConfig? effects) -> nil
+    def set_always_on_bottom: (bool always_on_bottom) -> nil
+    def set_always_on_top: (bool always_on_top) -> nil
+    def set_visible_on_all_workspaces: (bool visible_on_all_workspaces) -> nil
+    def set_content_protected: (bool protected) -> nil
+    def set_size: (LogicalSize | PhysicalSize size) -> nil
+    def set_min_size: (LogicalSize | PhysicalSize | nil size) -> nil
+    def set_max_size: (LogicalSize | PhysicalSize | nil size) -> nil
+    def set_size_constraints: (WindowSizeConstraints constraints) -> nil
+    def set_position: (LogicalPosition | PhysicalPosition position) -> nil
+    def set_fullscreen: (bool fullscreen) -> nil
+    def set_simple_fullscreen: (bool enable) -> nil
+    def set_focus: () -> nil
+    def set_focusable: (bool focusable) -> nil
+    def set_icon: (Image image) -> nil
+    def set_skip_taskbar: (bool skip) -> nil
+    def set_cursor_grab: (bool grab) -> nil
+    def set_cursor_visible: (bool visible) -> nil
+    def set_cursor_icon: (CursorIcon icon) -> nil
+    def set_cursor_position: (LogicalPosition | PhysicalPosition position) -> nil
+    def set_ignore_cursor_events: (bool ignore) -> nil
+    def start_dragging: () -> nil
+    def set_badge_count: (Integer? count) -> nil
+    def set_progress_bar: (ProgressBarState progress_state) -> nil
+    def set_title_bar_style: (TitleBarStyle style) -> nil
+    def set_theme: (Theme? theme) -> nil
+    def on_window_event: () { (window_event) -> void } -> nil
+    def window_handle: () -> RawWindowHandle::window_handle
+    def label: () -> String
+    def run_on_main_thread: () { () -> void } -> nil
+    def eval: (String script) -> nil
+    def cursor_position: () -> PhysicalPosition
+    def resources_table: () -> ResourceTable
+    def app_handle: () -> AppHandle
+    def set_background_color: (Color? color) -> nil
+    def display_handle: () -> RawWindowHandle::display_handle
+    def listen: (String event) { (Event) -> void } -> Integer
+    def once: (String event) { (Event) -> void } -> Integer
+    def unlisten: (Integer id) -> nil
+    def ==: (Object other) -> bool
+    alias eql? ==
+    def hash: () -> Integer
+  end
+end

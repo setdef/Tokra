@@ -32,6 +32,26 @@ module Tokra
     DRAG_DROP_EVENT = "tauri://drag-drop"
     DRAG_LEAVE_EVENT = "tauri://drag-leave"
 
+    WINDOW_CREATED_EVENT = "tauri://window-created"
+
+    # Joins +window+ to the app, as attach_window does
+    # (manager/window.rs:79-124): its first listener tells the page and
+    # Ruby listeners of each event, then calls each Builder#on_window_event
+    # block; the manager holds it; and every plugin hears window_created
+    # on the main thread. Answers +window+.
+    def self.attach_window(window)
+      handle = window.app_handle
+      listeners = handle.window_event_listeners
+      window.on_window_event do |event|
+        on_window_event(window, event)
+        listeners.each { |listener| listener.call(window, event) }
+      end
+      handle.windows[window.label] = window
+      plugins = handle.manager.plugins
+      handle.run_on_main_thread { plugins.window_created(window) }
+      window
+    end
+
     # Emits +event+ as its <tt>tauri://</tt> event (manager/window.rs:162-270).
     # Tokra's windows are webview windows, so drag and drop go to every
     # target with the window's label.

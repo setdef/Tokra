@@ -13,6 +13,7 @@ module Tokra
       attr_reader payload: invoke_body
       attr_reader headers: Hash[String, String]
       attr_reader webview: Webview
+      def webview_window: () -> WebviewWindow?
 
       def initialize: (command: String, payload: invoke_body, responder: ipc_responder?, webview: Webview, ?headers: Hash[String, String]) -> void
       def body: () -> invoke_body

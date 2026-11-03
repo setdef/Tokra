@@ -75,7 +75,7 @@ impl RbEventLoop {
     /// # Errors
     ///
     /// Returns `ThreadError` off the loop's thread.
-    fn with_target<R>(
+    pub(crate) fn with_target<R>(
         &self,
         query: impl FnOnce(&EventLoopWindowTarget<UserEvent>) -> R,
     ) -> Result<Option<R>, Error> {

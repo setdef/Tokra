@@ -68,12 +68,14 @@ module Tokra
       #
       # == Ruby API
       #
-      # Register the plugin on the app handle, for example in the setup
-      # hook. It manages a Dialog, which every manager reaches as +dialog+:
+      # Register the plugin on the app handle before App#run, so the
+      # +main+ window's page runs its script, which the app puts in each
+      # webview it makes from then on. It manages a Dialog, which every
+      # manager reaches as +dialog+:
       #
-      #   Tokra::Builder.new
-      #     .setup { |app| app.handle.plugin(Tokra::Plugins::Dialog::Plugin.new(app.handle)) }
-      #     .run
+      #   app = Tokra::Builder.new.build
+      #   app.handle.plugin(Tokra::Plugins::Dialog::Plugin.new(app.handle))
+      #   app.run
       #
       #   handle.dialog.message("Saved").show { |_ok| }
       #   handle.dialog.file.pick_file { |path| p path }

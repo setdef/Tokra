@@ -15,6 +15,9 @@ module Tokra
     DRAG_OVER_EVENT: String
     DRAG_DROP_EVENT: String
     DRAG_LEAVE_EVENT: String
+    WINDOW_CREATED_EVENT: String
+
+    def self.attach_window: (Window window) -> Window
 
     def self.on_window_event: (Window window, window_event event) -> nil
     def self.emit_to_window: (Window window, String event, json_value payload) -> nil

@@ -24,9 +24,11 @@ module Tokra
     #
     # This is called internally by App and should not be called directly.
     def initialize(manager, state_manager: nil, runtime_context: RuntimeContext.new, menu_event_listeners: [], # :nodoc:
-      tray_icon_event_listeners: []
+      tray_icon_event_listeners: [], window_event_listeners: [], with_global_tauri: false, os_name: App.os_name
     )
       @manager = manager
+      @window_event_listeners = window_event_listeners
+      @webview_manager = WebviewManager.new(manager, os_name:, with_global_tauri:)
       @state_manager = state_manager
       @runtime_context = runtime_context
       @restart_on_exit = false
@@ -44,6 +46,16 @@ module Tokra
     # The app's tray icons and their listeners, which Tauri's AppManager
     # holds (manager/tray.rs).
     attr_reader :tray_manager # :nodoc:
+
+    # The blocks Builder#on_window_event added, which every window the
+    # app makes calls after its own <tt>tauri://</tt> listener, as Tauri's
+    # WindowManager holds them (manager/window.rs:93-100).
+    attr_reader :window_event_listeners # :nodoc:
+
+    # The scripts, addresses, and attach steps of the app's webviews,
+    # which Tauri's AppManager holds as its WebviewManager
+    # (manager/webview.rs).
+    attr_reader :webview_manager # :nodoc:
 
     # The app's AppManager, which Tauri's handles reach through
     # ManagerBase::manager (lib.rs).
@@ -178,15 +190,16 @@ module Tokra
     # *Deviations*: Tauri reads the display on the calling thread, from
     # the event loop; Tokra's event loop is inside its run loop then, and
     # Tokra's native objects answer only the main thread (ADR 012), so the
-    # app's first window answers, on the main thread. Tauri's event loop
-    # exists before the setup hook runs; Tokra builds its window after it,
-    # so the setup hook gets Unavailable.
+    # app's first window answers, on the main thread. Before App#run has
+    # built +main+ there is no window to ask, so a call then gets
+    # Unavailable; the setup hook runs after +main+ is built, and gets the
+    # display.
     #
     # === Example
     #
     #   handle.display_handle  #=> #<data Tokra::RawWindowHandle::XlibDisplayHandle display=94500000000, screen=0>
     def display_handle
-      window = windows.each_value.first
+      window = windows.values.first
       raise RawWindowHandle::HandleError::Unavailable unless window
 
       native = window.native
@@ -296,7 +309,7 @@ module Tokra
       raise TypeError, "wrong argument type #{theme.class} (expected Tokra::Theme)" unless theme.nil? || theme.is_a?(Theme)
 
       name = theme&.name
-      windows.each_value do |window|
+      windows.values.each do |window|
         window.theme_menu(name)
       rescue Error::Runtime
         nil
@@ -612,7 +625,7 @@ module Tokra
       if @runtime_context.menu_natives.nsapp?
         on_nsapp { init_app_menu(menu) }
       else
-        windows.each_value do |window|
+        windows.values.each do |window|
           next unless window.has_app_wide_menu? || window.menu.nil?
 
           window.set_menu(menu)
@@ -633,7 +646,7 @@ module Tokra
           native_menu = current.native #: Native::Menu
           on_nsapp { app.remove_menu_for_nsapp(native_menu) }
         else
-          windows.each_value do |window|
+          windows.values.each do |window|
             next unless window.has_app_wide_menu?
 
             window.remove_menu
@@ -653,7 +666,7 @@ module Tokra
     def hide_menu
       return nil if @runtime_context.menu_natives.nsapp? || @menu_manager.menu.nil?
 
-      windows.each_value { |window| window.hide_menu if window.has_app_wide_menu? }
+      windows.values.each { |window| window.hide_menu if window.has_app_wide_menu? }
       nil
     end
 
@@ -664,7 +677,7 @@ module Tokra
     def show_menu
       return nil if @runtime_context.menu_natives.nsapp? || @menu_manager.menu.nil?
 
-      windows.each_value { |window| window.show_menu if window.has_app_wide_menu? }
+      windows.values.each { |window| window.show_menu if window.has_app_wide_menu? }
       nil
     end
 
@@ -688,7 +701,7 @@ module Tokra
     private def remove_menu_from_stash_by_id(id)
       return nil unless id
 
-      used_by_a_window = windows.each_value.any? { |window| window.menu_in_use?(id) }
+      used_by_a_window = windows.values.any? { |window| window.menu_in_use?(id) }
       @menu_manager.remove_menu_from_stash(id) unless @menu_manager.menu_in_use?(id) || used_by_a_window
       nil
     end

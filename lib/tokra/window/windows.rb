@@ -45,6 +45,12 @@ module Tokra
       dispatch { native.set_overlay_icon(overlay) }
     end
   end
+
+  class WebviewWindow
+    # The window's Window#set_overlay_icon, where Tauri's WebviewWindow sends it
+    # (webview_window.rs:2167-2171).
+    def_delegators :@window, :set_overlay_icon
+  end
 end
 
 # SPDX-SnippetEnd

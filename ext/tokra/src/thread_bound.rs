@@ -74,6 +74,31 @@ impl<T> ThreadBound<T> {
         }
     }
 
+    /// An empty `ThreadBound` that belongs to `owner`, which may be
+    /// another thread than the caller's. Only `owner` can [`fill`](Self::fill)
+    /// it. A native object Ruby makes on any thread for a window or
+    /// webview the event loop's thread builds later starts this way
+    /// (plan 052, decision 4).
+    #[must_use]
+    pub const fn empty(owner: OwnerThread) -> Self {
+        Self { owner, value: None }
+    }
+
+    /// Puts `value` in an empty `ThreadBound` on its owner's thread.
+    ///
+    /// # Errors
+    ///
+    /// Gives `value` back, untouched, on any other thread or when a value
+    /// is already there. The caller made `value` on its own thread, so it
+    /// drops there.
+    pub fn fill(&mut self, value: T) -> Result<(), T> {
+        if !self.owner.is_current() || self.value.is_some() {
+            return Err(value);
+        }
+        self.value = Some(value);
+        Ok(())
+    }
+
     /// The thread the value belongs to.
     #[must_use]
     pub const fn owner(&self) -> OwnerThread {
@@ -228,6 +253,49 @@ mod tests {
         assert!(taken.get().is_some(), "the owner reaches the taken value");
         drop(taken);
         assert!(dropped.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn an_empty_bound_reaches_nothing_until_its_owner_fills_it() {
+        let dropped = Arc::new(AtomicBool::new(false));
+        let mut bound = ThreadBound::empty(OwnerThread::current());
+        assert!(bound.get().is_none(), "an empty bound reached a value");
+        let filled = bound.fill(Platform {
+            dropped: dropped.clone(),
+            _not_send: Rc::new(()),
+        });
+        assert!(filled.is_ok(), "the owner could not fill it");
+        assert!(bound.get().is_some(), "the owner does not reach the value");
+        drop(bound);
+        assert!(dropped.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn an_empty_bound_belongs_to_the_owner_it_was_given() {
+        let owner = OwnerThread::current();
+        let bound: ThreadBound<Platform> = thread::spawn(move || ThreadBound::empty(owner))
+            .join()
+            .unwrap();
+        assert_eq!(bound.owner(), owner, "the maker's thread took ownership");
+    }
+
+    #[test]
+    fn fill_gives_the_value_back_off_the_owner() {
+        let owner = OwnerThread::current();
+        let refused = thread::spawn(move || {
+            let mut bound: ThreadBound<u8> = ThreadBound::empty(owner);
+            (bound.fill(7), bound.get().is_none())
+        })
+        .join()
+        .unwrap();
+        assert_eq!(refused, (Err(7), true));
+    }
+
+    #[test]
+    fn fill_gives_the_value_back_when_full() {
+        let mut bound = ThreadBound::new(1_u8);
+        assert_eq!(bound.fill(2), Err(2));
+        assert_eq!(bound.get(), Some(&1));
     }
 
     #[test]

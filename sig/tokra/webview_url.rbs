@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module WebviewUrl
+    class App < Data
+      attr_reader path: Pathname
+      def self.new: (String | Pathname path) -> App
+                  | (path: String | Pathname) -> App
+    end
+
+    class External < Data
+      attr_reader url: URI::Generic
+      def self.new: (URI::Generic url) -> External
+                  | (url: URI::Generic) -> External
+    end
+
+    class CustomProtocol < Data
+      attr_reader url: URI::Generic
+      def self.new: (URI::Generic url) -> CustomProtocol
+                  | (url: URI::Generic) -> CustomProtocol
+    end
+
+    def self.expect_uri: (Object url) -> nil
+  end
+
+  type webview_url = WebviewUrl::App | WebviewUrl::External | WebviewUrl::CustomProtocol
+end

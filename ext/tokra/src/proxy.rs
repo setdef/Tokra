@@ -48,6 +48,13 @@ impl RbProxy {
         Self { inner, loop_thread }
     }
 
+    /// The thread that runs the loop, which owns every window and webview
+    /// the loop builds (plan 052, decision 4).
+    #[must_use]
+    pub const fn loop_thread(&self) -> OwnerThread {
+        self.loop_thread
+    }
+
     /// Get a reference to the inner `EventLoopProxy`.
     #[must_use]
     pub const fn inner(&self) -> &EventLoopProxy<UserEvent> {

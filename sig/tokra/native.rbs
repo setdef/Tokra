@@ -20,9 +20,12 @@ module Tokra
 
     class Window
       def self.new: (EventLoop, String label) -> Window
+      def self.empty: (Proxy) -> Window
+      def open: (EventLoop?, String label, String title, [Float, Float]? size) -> nil
       def id: () -> String?
       def title: () -> String?
       def close: () -> nil
+      def discard: () -> nil
       def set_title: (String) -> void
       def set_size: (Float, Float) -> void
       def set_always_on_top: (bool) -> void
@@ -104,6 +107,8 @@ module Tokra
 
     class WebView
       def self.new_with_protocol: (Window, Proxy, String label, Array[String]) -> WebView
+      def self.empty: (Proxy) -> WebView
+      def open: (Window, Proxy, String label, String url, Array[String]) -> nil
       def eval: (String) -> void
       def close: () -> nil
       def set_background_color: (Window::rgba?) -> nil

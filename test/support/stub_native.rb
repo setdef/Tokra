@@ -28,6 +28,20 @@ module StubNative
     Thread.current[:stub_native_nsapp_calls] = nil
     Thread.current[:stub_native_trays] = nil
     Thread.current[:stub_native_tray_failure] = nil
+    Thread.current[:stub_native_open_failure] = nil
+    Thread.current[:stub_native_webview_open_failure] = nil
+  end
+
+  # The message the next WebView#open raises as a RuntimeError, as wry's
+  # errors reach Ruby, or +nil+.
+  def self.fail_next_webview_open=(message)
+    Thread.current[:stub_native_webview_open_failure] = message
+  end
+
+  # The message the next Window#open raises as a RuntimeError, as tao's
+  # errors reach Ruby, or +nil+.
+  def self.fail_next_open=(message)
+    Thread.current[:stub_native_open_failure] = message
   end
 
   # The status the loop ended with: the code of the exit request the App
@@ -243,6 +257,10 @@ module StubNative
       @queue = queue
     end
 
+    # The loop's queue, where an empty window's Destroyed goes once it is
+    # open.
+    attr_reader :queue
+
     # Queues the request as Native::Proxy#request_exit does: the loop
     # delivers it as an ExitRequestedEvent.
     def request_exit(code)
@@ -281,13 +299,60 @@ module StubNative
 
     attr_reader :size, :label
 
+    # The thread #open ran on, or +nil+ while the window is empty.
+    attr_reader :opened_on
+
     def initialize(event_loop, label)
       @label = label
       @queue = event_loop&.queue || []
       @closed = false
       @state = STATE.dup
       @requests = {}
+      @opened_on = Thread.current
       StubNative.windows << self
+    end
+
+    # An empty window, as Native::Window.empty makes one: it answers as a
+    # closed window does until #open fills it, and closing it then queues
+    # nothing, as tao never had it.
+    def self.empty(proxy)
+      new(nil, nil).tap { |window| window.__send__(:start_empty, proxy) }
+    end
+
+    # Fills the empty window, as Native::Window#open builds the tao window
+    # with its title and size, or raises the failure a test asked for.
+    def open(event_loop, label, title, size)
+      message = Thread.current[:stub_native_open_failure]
+      Thread.current[:stub_native_open_failure] = nil
+      raise message if message
+      raise "Window is already open" if @opened_on
+
+      @event_loop = event_loop
+      @label = label
+      @title = title
+      @size = size
+      @opened_on = Thread.current
+      @closed = false
+      nil
+    end
+
+    def opened? = !@opened_on.nil?
+
+    # Whether #discard dropped the window.
+    def discarded? = @discarded == true
+
+    # Drops the window as Native::Window#discard does: its label is
+    # forgotten first, so no WindowDestroyedEvent reaches Ruby.
+    def discard
+      @closed = true
+      @discarded = true
+      nil
+    end
+
+    private def start_empty(proxy)
+      @queue = proxy.queue
+      @closed = true
+      @opened_on = nil
     end
 
     def closed? = @closed
@@ -450,6 +515,41 @@ set_enabled: :is_enabled,
     attr_accessor :background_color_error
 
     def self.new_with_protocol(_, _, label, scripts) = new(scripts, label:).tap { |webview| instances << webview }
+
+    # An empty webview, as Native::WebView.empty makes one: closed until
+    # #open fills it.
+    def self.empty(_proxy)
+      new([], label: nil).tap do |webview|
+        webview.__send__(:start_empty)
+        instances << webview
+      end
+    end
+
+    # The URL #open loaded, and the native window it was built in.
+    attr_reader :url, :window
+
+    # Fills the empty webview, as Native::WebView#open builds the wry
+    # webview in +window+, which must be open.
+    def open(window, _proxy, label, url, scripts)
+      message = Thread.current[:stub_native_webview_open_failure]
+      Thread.current[:stub_native_webview_open_failure] = nil
+      raise message if message
+      raise "Window is closed" unless window.opened? && !window.closed?
+      raise "WebView is already open" if @url
+
+      @window = window
+      @label = label
+      @url = url
+      @initialization_scripts = scripts
+      @closed = false
+      nil
+    end
+
+    def opened? = !@url.nil?
+
+    private def start_empty
+      @closed = true
+    end
 
     # Webviews created across the run.
     def self.instances

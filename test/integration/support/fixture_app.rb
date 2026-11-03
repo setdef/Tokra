@@ -124,20 +124,33 @@ module FixtureApp
     end
   end
 
+  # A Builder that registers one instance of each of its plugin classes on
+  # the app it builds, before App#run, so each plugin's initialization
+  # script reaches "main", which the app makes before its setup hook (plan
+  # 052, decision b1).
+  class Builder < Tokra::Builder
+    def initialize(plugin_classes)
+      super()
+      @plugin_classes = plugin_classes
+    end
+
+    def build(native: Tokra::Native)
+      app = super
+      @plugin_classes.each { |plugin| app.handle.plugin(plugin.new(app.handle)) }
+      app
+    end
+  end
+
   # A Builder serving +site+ with the fixture plugin registered, and one
   # instance of each class in +plugins+ beside it. On macOS the app runs
   # in the background, so it never takes the keyboard from the person at
   # the machine (FixtureApp.background).
   def self.builder(site, title, plugins: [])
-    classes = Ractor.make_shareable([FixtureApp::Plugin, *plugins])
-    Tokra::Builder.default
+    Builder.new([FixtureApp::Plugin, *plugins])
       .title("Tokra integration: #{title}")
       .size(480, 360)
       .app(site)
-      .setup(&Ractor.shareable_proc { |app|
-        FixtureApp.background(app)
-        classes.each { |plugin| app.handle.plugin(plugin.new(app.handle)) }
-      })
+      .setup(&Ractor.shareable_proc { |app| FixtureApp.background(app) })
   end
 
   # Keeps +app+ from ever becoming the active app on macOS. tao activates

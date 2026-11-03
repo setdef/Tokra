@@ -24,13 +24,15 @@ class TestLogRegistration < Minitest::Test
     end
 
     class Window
-      def initialize(_event_loop, _label) = nil
+      def self.empty(_proxy) = new
+      def open(*) = nil
       def set_title(_title) = nil
       def set_size(_width, _height) = nil
     end
 
     class WebView
-      def self.new_with_protocol(*) = new
+      def self.empty(_proxy) = new
+      def open(*) = nil
       def eval(_script) = nil
     end
 

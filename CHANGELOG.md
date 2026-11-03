@@ -33,7 +33,33 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Tauri, and a page listening for `tauri://close-requested` on its window
   keeps it open when it is asked to close
 - `Plugin#on_event(app, event)`, `Plugin#window_created(window)`, and
-  `Plugin#webview_created(webview)` hooks
+  `Plugin#webview_created(webview)` hooks; the created hooks hear every
+  window and webview the app makes, `main` included, on the main thread,
+  with `PluginStore#window_created` and `#webview_created`
+- `Tokra::WebviewWindowBuilder.new(manager, label, url)` with `#title`,
+  `#inner_size`, and `#build`, which makes a window and its webview at run
+  time from any thread: at once on the main thread, and from another thread
+  queued ahead of every later call on it; a native failure is warned, not
+  raised, with Tauri's "failed to create window" or "failed to create
+  webview: ...", and does not keep the app from exiting. The app's `main` window is built this way before the setup hook,
+  so the hook finds it
+- `Tokra::WebviewWindow`, a window and its webview as one object, with
+  Tauri's window, webview, `Listener`, `Emitter`, and `Manager` methods;
+  `Manager#get_webview_window`, `#webview_windows`, and
+  `#get_focused_window`; `Webview#cursor_position`; and
+  `Ipc::Invoke#webview_window`
+- `Tokra::WebviewUrl::App`, `External`, and `CustomProtocol`, the page a new
+  webview opens; an `App` path joins `tokra://localhost/`
+  (`http://tokra.localhost/` on Windows)
+- Window labels follow Tauri's rule: a label with any character but a
+  letter, a digit, `-`, `/`, `:`, or `_` raises `Error::Runtime`, and a
+  taken one `Error::WebviewLabelAlreadyExists` or
+  `Error::WindowLabelAlreadyExists`, the webview's checked first
+- `tauri://webview-created` and then `tauri://window-created`, each with
+  `{"label": ...}`, for every window the app makes
+- `Native::Window.empty(proxy)`, `Native::Window#open(event_loop, label,
+  title, size)`, `Native::Window#discard`, `Native::WebView.empty(proxy)`, and
+  `Native::WebView#open(window, proxy, label, url, initialization_scripts)`
 - `Tokra::Ipc::Invoke`, whose responders receive the response as JSON text; a
   value JSON cannot encode rejects the invoke with the serializer's message
 - `Window#set_title`, `Window#set_size`, `Webview#eval`, and `AppHandle#emit`
@@ -145,8 +171,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `app.withGlobalTauri`); also available as
   `Rack::Handler::Tokra.run(app, with_global_tauri: true)`
 - `Plugin#initialization_script` is injected into every page after Tauri's
-  init scripts, wrapped in an IIFE; `PluginStore#initialization_script`
-  collects them
+  init scripts, wrapped in an IIFE, in each webview made after the plugin
+  is registered, so register a plugin before `App#run` for `main`;
+  `PluginStore#initialization_script` collects them
 - `AppHandle#manage(state)` stores managed state and returns whether it did
 - `Native::Proxy#drop_response(request_id)` closes a pending protocol request
   without a reply

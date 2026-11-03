@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class WebviewManager
+    WEBVIEW_CREATED_EVENT: String
+    PATH_ENCODED: Regexp
+    QUERY_ENCODED: Regexp
+    FRAGMENT_ENCODED: Regexp
+
+    @manager: AppManager
+    @with_global_tauri: bool
+    @os_name: String
+
+    def self.tokra_protocol_url: (String os) -> URI::Generic
+    def self.encode_relative: (String relative, ?special: bool) -> String
+    def self.encode: (String text, Regexp set) -> String
+    def initialize: (AppManager manager, os_name: String, ?with_global_tauri: bool) -> void
+    def webview_url: (webview_url url) -> String
+    def attach_webview: (Webview webview) -> Webview
+    def initialization_scripts: (String window_label, String webview_label) -> Array[String]
+    def metadata_script: (String window_label, String webview_label) -> String
+
+    private
+
+    def global_api_script: () -> String
+    def bootstrap_script: () -> String
+    def invoke_initialization_script: () -> String
+    def init_script: () -> String
+    def render_js_template: (String name, Hash[Symbol, String] values) -> String
+  end
+end

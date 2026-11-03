@@ -6,7 +6,7 @@
 //! This module provides the Ruby-facing `Tokra::Native::WebView` class,
 //! which wraps `wry::WebView` and implements the tokra:// custom protocol.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 use magnus::{function, method, prelude::*, Error, Ruby};
 use tao::event_loop::EventLoopProxy;
@@ -186,6 +186,131 @@ const fn attach_resize_handler(_window: &tao::window::Window, _webview: &WebView
 
 // SPDX-SnippetEnd
 
+// SPDX-SnippetBegin
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// SPDX-SnippetCopyrightText: 2020-2023 Tauri Programme within The Commons Conservancy
+// SPDX-SnippetComment: Async custom protocol pattern adapted from tauri/app.rs register_asynchronous_uri_scheme_protocol
+//                      Initial URL pattern adapted from tauri/manager/webview.rs WebviewUrl::App
+//                      Page load handler pattern adapted from tauri/webview/mod.rs on_page_load
+
+/// Build the webview labeled `label` into `window`, loading `url`, with the
+/// `tokra://` and `ipc://` protocols and the IPC, page-load, drag-drop, and
+/// (Windows) focus handlers, each naming `label` (see `new_with_protocol`).
+///
+/// # Errors
+///
+/// Returns `ThreadError` off the window's thread, or `RuntimeError` when
+/// the window is closed or empty, when wry fails, or on Windows when
+/// `WebView2` refuses a focus handler.
+fn build(
+    window: &RbWindow,
+    proxy: &RbProxy,
+    label: &str,
+    url: String,
+    initialization_scripts: Vec<String>,
+) -> Result<WebView, Error> {
+    let proxy_clone = proxy.inner().clone();
+    let label_for_ipc_message = label.to_string();
+    let proxy_for_protocol = proxy.inner().clone();
+    let proxy_for_ipc = proxy.inner().clone();
+    let proxy_for_page_load = proxy.inner().clone();
+    let label_for_page_load = label.to_string();
+
+    let mut builder = WebViewBuilder::new().with_id(label);
+    for script in initialization_scripts {
+        builder = builder.with_initialization_script(script);
+    }
+
+    let builder = builder
+        .with_url(url)
+        // The tokra:// content protocol: Ruby serves HTML, assets, and Rack.
+        .with_asynchronous_custom_protocol("tokra".into(), move |id, request, responder| {
+            forward_request_to_ruby(&proxy_for_protocol, id, &request, responder);
+        })
+        // The ipc:// transport: Tauri's desktop-default invoke channel. Same
+        // request shape, different scheme; Ruby dispatches on the URI scheme.
+        .with_asynchronous_custom_protocol("ipc".into(), move |id, request, responder| {
+            forward_request_to_ruby(&proxy_for_ipc, id, &request, responder);
+        })
+        .with_on_page_load_handler(move |event, url| {
+            let event_name = match event {
+                PageLoadEvent::Started => "started",
+                PageLoadEvent::Finished => "finished",
+            };
+            let _ = proxy_for_page_load.send_event(UserEvent::PageLoad {
+                label: label_for_page_load.clone(),
+                event: event_name.to_string(),
+                url,
+            });
+        })
+        // SPDX-SnippetEnd
+        // SPDX-SnippetBegin
+        // SPDX-License-Identifier: Apache-2.0 OR MIT
+        // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+        // SPDX-SnippetComment: Drag-drop handler pattern adapted from tauri-runtime-wry/lib.rs lines 4669-4703
+        .with_drag_drop_handler({
+            let proxy_for_drag_drop = proxy.inner().clone();
+            let label_for_drag_drop = label.to_string();
+            move |event| {
+                use wry::DragDropEvent as WryDragDropEvent;
+
+                let (event_name, paths, x, y) = match event {
+                    WryDragDropEvent::Enter {
+                        paths,
+                        position: (x, y),
+                    } => (
+                        "enter",
+                        paths
+                            .iter()
+                            .map(|p| p.to_string_lossy().to_string())
+                            .collect(),
+                        x,
+                        y,
+                    ),
+                    WryDragDropEvent::Over { position: (x, y) } => ("over", vec![], x, y),
+                    WryDragDropEvent::Drop {
+                        paths,
+                        position: (x, y),
+                    } => (
+                        "drop",
+                        paths
+                            .iter()
+                            .map(|p| p.to_string_lossy().to_string())
+                            .collect(),
+                        x,
+                        y,
+                    ),
+                    WryDragDropEvent::Leave => ("leave", vec![], 0, 0),
+                    _ => return true, // Handle future variants gracefully
+                };
+
+                let _ = proxy_for_drag_drop.send_event(UserEvent::DragDrop {
+                    label: label_for_drag_drop.clone(),
+                    event: event_name.to_string(),
+                    paths,
+                    x,
+                    y,
+                });
+                true // Block default OS behavior (like Tauri)
+            }
+        })
+        // SPDX-SnippetEnd
+        .with_ipc_handler(move |msg| {
+            forward_ipc_message_to_ruby(&proxy_clone, &label_for_ipc_message, &msg);
+        });
+    let tao_window = window.window()?;
+    let webview =
+        build_in(builder, &tao_window).map_err(|e| Error::new(runtime_error(), e.to_string()))?;
+    attach_resize_handler(&tao_window, &webview);
+    // Windows reports the window's focus from the webview's, as
+    // tauri-runtime-wry's create_webview does (`src/lib.rs:5069-5130`).
+    #[cfg(windows)]
+    crate::webview_focus::attach(&webview, proxy.inner(), label)
+        .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
+    drop(tao_window);
+    Ok(webview)
+}
+
 /// Ruby wrapper for `wry::WebView`.
 ///
 /// wry's `WebView` is not `Send`: the compiler infers that from the platform
@@ -201,6 +326,9 @@ const fn attach_resize_handler(_window: &tao::window::Window, _webview: &WebView
 pub struct RbWebView {
     /// Empty once `close` has dropped the webview.
     inner: RefCell<ThreadBound<WebView>>,
+    /// Whether a wry webview was ever put in `inner`, so `open` never
+    /// refills a webview that `close` emptied.
+    opened: Cell<bool>,
     /// Carries the webview back to its thread if Ruby frees this object on
     /// another (see `Drop`).
     proxy: EventLoopProxy<UserEvent>,
@@ -231,13 +359,6 @@ impl Drop for RbWebView {
 }
 
 impl RbWebView {
-    // SPDX-SnippetBegin
-    // SPDX-License-Identifier: Apache-2.0 OR MIT
-    // SPDX-SnippetCopyrightText: 2020-2023 Tauri Programme within The Commons Conservancy
-    // SPDX-SnippetComment: Async custom protocol pattern adapted from tauri/app.rs register_asynchronous_uri_scheme_protocol
-    //                      Initial URL pattern adapted from tauri/manager/webview.rs WebviewUrl::App
-    //                      Page load handler pattern adapted from tauri/webview/mod.rs on_page_load
-
     /// Create a new `WebView` with the `tokra://` custom protocol.
     ///
     /// This is the primary constructor for Rack-style apps. The `WebView` navigates
@@ -287,110 +408,80 @@ impl RbWebView {
         initialization_scripts: Vec<String>,
     ) -> Result<Self, Error> {
         let label = crate::window_labels::checked(ruby, label)?;
-        let proxy_clone = proxy.inner().clone();
-        let label_for_ipc_message = label.clone();
-        let proxy_for_protocol = proxy.inner().clone();
-        let proxy_for_ipc = proxy.inner().clone();
-        let proxy_for_page_load = proxy.inner().clone();
-        let label_for_page_load = label.clone();
-
-        let mut builder = WebViewBuilder::new().with_id(&label);
-        for script in initialization_scripts {
-            builder = builder.with_initialization_script(script);
-        }
-
-        let builder = builder
-            .with_url("tokra://localhost/")
-            // The tokra:// content protocol: Ruby serves HTML, assets, and Rack.
-            .with_asynchronous_custom_protocol("tokra".into(), move |id, request, responder| {
-                forward_request_to_ruby(&proxy_for_protocol, id, &request, responder);
-            })
-            // The ipc:// transport: Tauri's desktop-default invoke channel. Same
-            // request shape, different scheme; Ruby dispatches on the URI scheme.
-            .with_asynchronous_custom_protocol("ipc".into(), move |id, request, responder| {
-                forward_request_to_ruby(&proxy_for_ipc, id, &request, responder);
-            })
-            .with_on_page_load_handler(move |event, url| {
-                let event_name = match event {
-                    PageLoadEvent::Started => "started",
-                    PageLoadEvent::Finished => "finished",
-                };
-                let _ = proxy_for_page_load.send_event(UserEvent::PageLoad {
-                    label: label_for_page_load.clone(),
-                    event: event_name.to_string(),
-                    url,
-                });
-            })
-            // SPDX-SnippetEnd
-            // SPDX-SnippetBegin
-            // SPDX-License-Identifier: Apache-2.0 OR MIT
-            // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
-            // SPDX-SnippetComment: Drag-drop handler pattern adapted from tauri-runtime-wry/lib.rs lines 4669-4703
-            .with_drag_drop_handler({
-                let proxy_for_drag_drop = proxy.inner().clone();
-                let label_for_drag_drop = label.clone();
-                move |event| {
-                    use wry::DragDropEvent as WryDragDropEvent;
-
-                    let (event_name, paths, x, y) = match event {
-                        WryDragDropEvent::Enter {
-                            paths,
-                            position: (x, y),
-                        } => (
-                            "enter",
-                            paths
-                                .iter()
-                                .map(|p| p.to_string_lossy().to_string())
-                                .collect(),
-                            x,
-                            y,
-                        ),
-                        WryDragDropEvent::Over { position: (x, y) } => ("over", vec![], x, y),
-                        WryDragDropEvent::Drop {
-                            paths,
-                            position: (x, y),
-                        } => (
-                            "drop",
-                            paths
-                                .iter()
-                                .map(|p| p.to_string_lossy().to_string())
-                                .collect(),
-                            x,
-                            y,
-                        ),
-                        WryDragDropEvent::Leave => ("leave", vec![], 0, 0),
-                        _ => return true, // Handle future variants gracefully
-                    };
-
-                    let _ = proxy_for_drag_drop.send_event(UserEvent::DragDrop {
-                        label: label_for_drag_drop.clone(),
-                        event: event_name.to_string(),
-                        paths,
-                        x,
-                        y,
-                    });
-                    true // Block default OS behavior (like Tauri)
-                }
-            })
-            // SPDX-SnippetEnd
-            .with_ipc_handler(move |msg| {
-                forward_ipc_message_to_ruby(&proxy_clone, &label_for_ipc_message, &msg);
-            });
-        let tao_window = window.window()?;
-        let webview = build_in(builder, &tao_window)
-            .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
-        attach_resize_handler(&tao_window, &webview);
-        // Windows reports the window's focus from the webview's, as
-        // tauri-runtime-wry's create_webview does (`src/lib.rs:5069-5130`).
-        #[cfg(windows)]
-        crate::webview_focus::attach(&webview, proxy.inner(), &label)
-            .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
-        drop(tao_window);
-
+        let webview = build(
+            window,
+            proxy,
+            &label,
+            "tokra://localhost/".to_string(),
+            initialization_scripts,
+        )?;
         Ok(Self {
             inner: RefCell::new(ThreadBound::new(webview)),
+            opened: Cell::new(true),
             proxy: proxy.inner().clone(),
         })
+    }
+
+    /// An empty webview for the loop `proxy` wakes, owned by the loop's
+    /// thread whichever thread calls this, for `open` to fill there.
+    /// Until then it answers as a closed webview does, as `Window.empty`'s
+    /// window does (plan 052, decision 4).
+    #[must_use]
+    pub fn empty(proxy: &RbProxy) -> Self {
+        Self {
+            inner: RefCell::new(ThreadBound::empty(proxy.loop_thread())),
+            opened: Cell::new(false),
+            proxy: proxy.inner().clone(),
+        }
+    }
+
+    /// Build the webview `new_with_protocol` builds, labeled `label` and
+    /// loading `url`, into this empty webview, as Tauri's runtime builds a
+    /// webview window's webview right after its window (tauri-runtime-wry
+    /// `src/lib.rs:4489-4500`).
+    ///
+    /// On Windows `WebView2` creation runs a nested message loop
+    /// (webview2-com `wait_with_pump`) inside the event loop's callback, as
+    /// it does in Tauri for every window it builds once its loop runs
+    /// (plan 052, decision 5).
+    ///
+    /// # Errors
+    ///
+    /// Returns `ArgumentError` for a label holding NUL, before building
+    /// anything; `ThreadError` off the loop's thread; and `RuntimeError`
+    /// when the webview is or ever was open, when `window` is closed or was
+    /// never filled, or when wry fails to build it.
+    pub fn open(
+        ruby: &Ruby,
+        rb_self: &Self,
+        window: &RbWindow,
+        proxy: &RbProxy,
+        label: String,
+        url: String,
+        initialization_scripts: Vec<String>,
+    ) -> Result<(), Error> {
+        let label = crate::window_labels::checked(ruby, label)?;
+        {
+            let inner = rb_self
+                .inner
+                .try_borrow()
+                .map_err(|_| Error::new(runtime_error(), "WebView is in use"))?;
+            if !inner.owner().is_current() {
+                return Err(wrong_thread(CLASS));
+            }
+            if rb_self.opened.get() {
+                return Err(Error::new(runtime_error(), "WebView is already open"));
+            }
+        }
+        let webview = build(window, proxy, &label, url, initialization_scripts)?;
+        rb_self
+            .inner
+            .try_borrow_mut()
+            .map_err(|_| Error::new(runtime_error(), "WebView is in use"))?
+            .fill(webview)
+            .map_err(|_| Error::new(runtime_error(), "WebView is already open"))?;
+        rb_self.opened.set(true);
+        Ok(())
     }
 
     /// Evaluate JavaScript in the `WebView`.
@@ -548,6 +639,8 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
         "new_with_protocol",
         function!(RbWebView::new_with_protocol, 4),
     )?;
+    webview_class.define_singleton_method("empty", function!(RbWebView::empty, 1))?;
+    webview_class.define_method("open", method!(RbWebView::open, 5))?;
     webview_class.define_method("eval", method!(RbWebView::eval, 1))?;
     webview_class.define_method("close", method!(RbWebView::close, 0))?;
     webview_class.define_method(

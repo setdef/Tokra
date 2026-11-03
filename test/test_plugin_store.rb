@@ -155,4 +155,33 @@ class TestPluginStore < Minitest::Test
     assert_equal ["(function () { let x = 1 })();", "(function () { let x = 2 })();"],
       store.initialization_script, "plugin.rs:918-933 formats each script, skipping None"
   end
+
+  # Logs each created hook into a shared log, by its own name.
+  class CreatedPlugin < Tokra::Plugin
+    def initialize(name, log)
+      super(nil)
+      @plugin_name = name
+      @log = log
+    end
+
+    def name = @plugin_name
+    def window_created(window) = @log << [@plugin_name, :window_created, window]
+    def webview_created(webview) = @log << [@plugin_name, :webview_created, webview]
+  end
+
+  def test_the_created_hooks_reach_every_plugin_in_registration_order
+    log = []
+    store = Tokra::PluginStore.new
+    store.register(CreatedPlugin.new("first", log))
+    store.register(CreatedPlugin.new("second", log))
+
+    assert_nil store.window_created(:window)
+    assert_nil store.webview_created(:webview)
+    assert_equal [
+      ["first", :window_created, :window],
+      ["second", :window_created, :window],
+      ["first", :webview_created, :webview],
+      ["second", :webview_created, :webview],
+    ], log, "plugin.rs:935-950 runs each hook over the store in order"
+  end
 end

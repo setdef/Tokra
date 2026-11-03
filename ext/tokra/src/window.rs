@@ -6,7 +6,7 @@
 //! This module provides the Ruby-facing `Tokra::Native::Window` class,
 //! which wraps `tao::window::Window`.
 
-use std::cell::{Ref, RefCell};
+use std::cell::{Cell, Ref, RefCell};
 
 use magnus::{function, method, prelude::*, Error, RArray, Ruby};
 use tao::event_loop::EventLoopProxy;
@@ -14,6 +14,7 @@ use tao::rwh_06::HasDisplayHandle;
 use tao::window::{Window, WindowBuilder};
 
 use crate::event_loop::RbEventLoop;
+use crate::proxy::RbProxy;
 use crate::raw_handle;
 use crate::runtime_error;
 use crate::thread_bound::{wrong_thread, ThreadBound};
@@ -41,6 +42,9 @@ const CLASS: &str = "Tokra::Native::Window";
 pub struct RbWindow {
     /// Empty once `close` has dropped the window.
     inner: RefCell<ThreadBound<Window>>,
+    /// Whether a tao window was ever put in `inner`, so `open` never
+    /// refills a window that `close` emptied.
+    opened: Cell<bool>,
     /// Carries the window back to its thread if Ruby frees this object on
     /// another (see `Drop`).
     proxy: EventLoopProxy<UserEvent>,
@@ -107,10 +111,106 @@ impl RbWindow {
 
         Ok(Self {
             inner: RefCell::new(ThreadBound::new(window)),
+            opened: Cell::new(true),
             proxy: event_loop.proxy().clone(),
             #[cfg(windows)]
             menus: RefCell::new(ThreadBound::new(crate::menu::WindowMenus::default())),
         })
+    }
+
+    /// An empty window for the loop `proxy` wakes, owned by the loop's
+    /// thread whichever thread calls this, for `open` to fill there.
+    ///
+    /// Until then it answers as a closed window does, as Tauri's runtime
+    /// ignores a message for a window its store does not hold yet
+    /// (tauri-runtime-wry `src/lib.rs:3244-3250`): `Tokra::RuntimeContext`
+    /// queues the `open` ahead of every later call, so a window is filled
+    /// before anything reaches it, unless its creation failed (plan 052,
+    /// decision 4).
+    #[must_use]
+    pub fn empty(proxy: &RbProxy) -> Self {
+        Self {
+            inner: RefCell::new(ThreadBound::empty(proxy.loop_thread())),
+            opened: Cell::new(false),
+            proxy: proxy.inner().clone(),
+            #[cfg(windows)]
+            menus: RefCell::new(ThreadBound::empty(proxy.loop_thread())),
+        }
+    }
+
+    // SPDX-SnippetBegin
+    // SPDX-License-Identifier: Apache-2.0 OR MIT
+    // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    // SPDX-SnippetComment: Building a window from the loop's target adapted from tauri-runtime-wry/src/lib.rs create_window
+    /// Build the tao window labeled `label`, with `title` and, unless
+    /// `nil`, the logical inner `size`, into this empty window.
+    ///
+    /// tao builds it from the loop's window target, as Tauri's runtime
+    /// builds each window from the target it holds (tauri-runtime-wry
+    /// `src/lib.rs:4318-4459`): the unrun loop itself before `run`, and the
+    /// target the running loop lends each callback, so a window built while
+    /// the loop runs never re-enters tao from outside it. Its events carry
+    /// `label`, which belongs to one live window, as for `new`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ArgumentError` for a label holding NUL, before building
+    /// anything; `ThreadError` off the loop's thread; and `RuntimeError`
+    /// when the window is or ever was open, or is in use, when the loop has ended,
+    /// or when tao fails to build it.
+    pub fn open(
+        ruby: &Ruby,
+        rb_self: &Self,
+        event_loop: &RbEventLoop,
+        label: String,
+        title: String,
+        size: Option<(f64, f64)>,
+    ) -> Result<(), Error> {
+        let label = crate::window_labels::checked(ruby, label)?;
+        rb_self.expect_empty()?;
+        let mut builder = WindowBuilder::new().with_title(title);
+        if let Some((width, height)) = size {
+            builder = builder.with_inner_size(tao::dpi::LogicalSize::new(width, height));
+        }
+        let window = event_loop
+            .with_target(|target| builder.build(target))?
+            .ok_or_else(|| Error::new(runtime_error(), "the event loop has ended"))?
+            .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
+        let id = window.id();
+        rb_self
+            .inner
+            .try_borrow_mut()
+            .map_err(|_| Error::new(runtime_error(), "Window is in use"))?
+            .fill(window)
+            .map_err(|_| Error::new(runtime_error(), "Window is already open"))?;
+        rb_self.opened.set(true);
+        crate::window_labels::insert(id, label);
+        #[cfg(windows)]
+        if let Ok(mut menus) = rb_self.menus.try_borrow_mut() {
+            let _ = menus.fill(crate::menu::WindowMenus::default());
+        }
+        Ok(())
+    }
+    // SPDX-SnippetEnd
+
+    /// Succeeds for an empty window on its owner's thread.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ThreadError` on any other thread, and `RuntimeError` for a
+    /// window that is or ever was open, or is in use.
+    fn expect_empty(&self) -> Result<(), Error> {
+        let inner = self
+            .inner
+            .try_borrow()
+            .map_err(|_| Error::new(runtime_error(), "Window is in use"))?;
+        if !inner.owner().is_current() {
+            return Err(wrong_thread(CLASS));
+        }
+        if self.opened.get() {
+            return Err(Error::new(runtime_error(), "Window is already open"));
+        }
+        Ok(())
     }
 
     /// The tao window, on the thread that created it, or `None` once
@@ -171,6 +271,37 @@ impl RbWindow {
     ///
     /// Returns `ThreadError` off the window's thread.
     pub fn close(&self) -> Result<(), Error> {
+        self.drop_window(false)
+    }
+    // SPDX-SnippetEnd
+
+    // SPDX-SnippetBegin
+    // SPDX-License-Identifier: Apache-2.0 OR MIT
+    // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    // SPDX-SnippetComment: Dropping a window whose webview failed adapted from tauri-runtime-wry/src/lib.rs create_window
+    /// Drop the window as `close` does, but first forget its label, so
+    /// the `Destroyed` tao reports for it names no window Ruby knows and
+    /// is dropped. Tauri's `create_window` returns a webview's error with
+    /// `?` before it inserts the window, which then drops without its
+    /// runtime ever holding it (tauri-runtime-wry `src/lib.rs:4489-4500`,
+    /// `:4126-4128`). Discarding twice does nothing.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ThreadError` off the window's thread.
+    pub fn discard(&self) -> Result<(), Error> {
+        self.drop_window(true)
+    }
+    // SPDX-SnippetEnd
+
+    /// Drop the window on its own thread, forgetting its label first when
+    /// `forget_label`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ThreadError` off the window's thread, or `RuntimeError`
+    /// while another call holds it.
+    fn drop_window(&self, forget_label: bool) -> Result<(), Error> {
         let closed = {
             let mut inner = self
                 .inner
@@ -181,6 +312,12 @@ impl RbWindow {
             }
             inner.take()
         };
+        if forget_label {
+            if let Some(window) = closed.get() {
+                let id = window.id();
+                crate::window_labels::with(|labels| labels.remove(&id));
+            }
+        }
         // Dropped here, on the owner's thread, after the borrow ends.
         drop(closed);
         #[cfg(windows)]
@@ -189,7 +326,6 @@ impl RbWindow {
         }
         Ok(())
     }
-    // SPDX-SnippetEnd
 
     /// Set the window title.
     ///
@@ -311,6 +447,8 @@ impl RbWindow {
 pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
     let window_class = native.define_class("Window", ruby.class_object())?;
     window_class.define_singleton_method("new", function!(RbWindow::new, 2))?;
+    window_class.define_singleton_method("empty", function!(RbWindow::empty, 1))?;
+    window_class.define_method("open", method!(RbWindow::open, 4))?;
     window_class.define_method("set_title", method!(RbWindow::set_title, 1))?;
     window_class.define_method("title", method!(RbWindow::title, 0))?;
     window_class.define_method("set_size", method!(RbWindow::set_size, 2))?;
@@ -321,6 +459,7 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
     )?;
     window_class.define_method("id", method!(RbWindow::id, 0))?;
     window_class.define_method("close", method!(RbWindow::close, 0))?;
+    window_class.define_method("discard", method!(RbWindow::discard, 0))?;
     window_class.define_method("raw_window_handle", method!(RbWindow::raw_window_handle, 0))?;
     window_class.define_method(
         "raw_display_handle",

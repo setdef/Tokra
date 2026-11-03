@@ -131,6 +131,62 @@ module Tokra
       app_handle.get_webview(label)
     end
 
+    # Fetches the window that has the keyboard focus, or +nil+ when none
+    # of the app's windows has it.
+    #
+    # Asks each window Window#is_focused in turn; a window that cannot
+    # answer, because it is closing, counts as not focused.
+    #
+    # Mirrors Tauri's Manager::get_focused_window (lib.rs:554-559,
+    # manager/mod.rs:642-650).
+    #
+    # === Example
+    #
+    #   app.get_focused_window&.label  #=> "main"
+    def get_focused_window
+      windows.values.find do |window|
+        window.is_focused
+      rescue Error::Runtime
+        false
+      end
+    end
+
+    # Fetches a single webview window, a WebviewWindow, or +nil+.
+    #
+    # A webview window is a window holding one webview with its own label,
+    # which WebviewWindowBuilder makes. A webview in a window of another
+    # label is not one, and answers +nil+.
+    #
+    # Mirrors Tauri's Manager::get_webview_window (lib.rs:581-591).
+    #
+    # === Example
+    #
+    #   app.get_webview_window("main")&.set_title("Ready")
+    def get_webview_window(label)
+      webview = get_webview(label)
+      return nil unless webview
+
+      window = webview.window
+      WebviewWindow.new(window:, webview:) if window.is_webview_window
+    end
+
+    # Fetches all managed webview windows, keyed by label, as
+    # #get_webview_window finds each one.
+    #
+    # Mirrors Tauri's Manager::webview_windows (lib.rs:593-607).
+    #
+    # === Example
+    #
+    #   app.webview_windows.keys  #=> ["main"]
+    def webview_windows
+      found = {} #: Hash[String, WebviewWindow]
+      webviews.to_a.each do |label, webview|
+        window = webview.window
+        found[label] = WebviewWindow.new(window:, webview:) if window.is_webview_window
+      end
+      found
+    end
+
     # Fetches all managed windows, keyed by label.
     #
     # === Example

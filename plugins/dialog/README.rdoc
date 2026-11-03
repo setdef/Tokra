@@ -31,13 +31,14 @@ install both; ship them with an app you package.
 
 == Usage
 
-Register the plugin on the app handle, for example in the setup hook. It
-manages a Tokra::Plugins::Dialog::Dialog, reachable from any manager as
-+dialog+:
+Register the plugin on the app handle before App#run, so the +main+
+window's page runs its script, which the app puts in each webview it makes
+from then on. It manages a Tokra::Plugins::Dialog::Dialog, reachable from
+any manager as +dialog+:
 
-  Tokra::Builder.new
-    .setup { |app| app.handle.plugin(Tokra::Plugins::Dialog::Plugin.new(app.handle)) }
-    .run
+  app = Tokra::Builder.new.build
+  app.handle.plugin(Tokra::Plugins::Dialog::Plugin.new(app.handle))
+  app.run
 
 In the frontend:
 

@@ -1304,8 +1304,8 @@ module Tokra
     #
     # The webview fills the window and paints its own background, so this
     # shows only where the webview does not; Webview#set_background_color
-    # colors the webview. Tauri's WebviewWindow sets both, and Tokra has no
-    # WebviewWindow, so call both for that (plan 041, decision 2).
+    # colors the webview, and WebviewWindow#set_background_color sets both,
+    # as Tauri's does (plan 041, decision 2).
     #
     # Mirrors Tauri's Window::set_background_color (window/mod.rs:1897;
     # lib.rs:3542-3544).
@@ -1470,7 +1470,16 @@ module Tokra
     #
     #   window.webviews.map(&:label)  #=> ["main"]
     def webviews
-      @app_handle.webviews.each_value.select { |webview| webview.window.label == @label }
+      @app_handle.webviews.values.select { |webview| webview.window.label == @label }
+    end
+
+    # Whether every webview in this window has the window's label, as a
+    # webview window's one webview does. A window with no webview counts.
+    #
+    # Mirrors Tauri's crate-private Window::is_webview_window
+    # (window/mod.rs:1082-1084).
+    def is_webview_window # :nodoc:
+      webviews.all? { |webview| webview.label == @label }
     end
 
     # The desktop file a Unity launcher knows the app by, as Tauri names

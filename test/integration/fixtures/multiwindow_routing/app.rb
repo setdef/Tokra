@@ -78,7 +78,7 @@ module MultiwindowRoutingFixture
     window = Tokra::Window.new(label: "second", native: native_window, app_handle: handle)
     FixtureApp.keep_in_sight(window)
     handle.windows["second"] = window
-    scripts = app.__send__(:initialization_scripts, "second", "side")
+    scripts = handle.webview_manager.initialization_scripts("second", "side")
     native_webview = Tokra::Native::WebView.new_with_protocol(native_window, event_loop.create_proxy, "side", scripts)
     handle.webviews["side"] = Tokra::Webview.new(label: "side", native: native_webview, window:, app_handle: handle)
   end

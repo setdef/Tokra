@@ -91,34 +91,35 @@ module Tokra
     # Override this to inject custom JavaScript into the webview. App runs
     # it in every page after Tauri's own init scripts, wrapped in an IIFE
     # so its top-level names stay private (PluginStore#initialization_script).
-    # Register the plugin before the webview exists, for example in the
-    # setup hook, or its script misses the first page.
+    # A webview takes the scripts of the plugins registered when it is
+    # made, as Tauri's does. The app makes +main+ before its setup hook, so
+    # register the plugin before App#run for +main+ to run it.
     # Returns +nil+ by default (no script injection).
     public def initialization_script
       nil
     end
 
-    # Called when a window is created.
+    # Called with each Tokra::Window the app makes, +main+ included.
     #
-    # Override this to perform window-specific setup. Named without an
-    # +on_+ prefix to mirror the Plugin trait's +window_created+
-    # (plugin.rs).
-    #
-    # *Note*: App does not call this hook yet; it creates its one window
-    # before plugins can observe it. Tauri calls it for every window.
+    # Override this to perform window-specific setup. It runs on the main
+    # thread, once the window has joined the app, so +get_window+ finds
+    # it. A window made on another thread is built first, and then this
+    # runs. Register the plugin before App#run to hear +main+, which the
+    # app makes before its setup hook. Named without an +on_+ prefix to
+    # mirror the Plugin trait's +window_created+ (plugin.rs:85-87,
+    # manager/window.rs:112-121).
     # Returns +nil+ by default (no-op).
     public def window_created(window)
       nil
     end
 
-    # Called when a webview is created.
+    # Called with each Tokra::Webview the app makes, after
+    # #window_created for its window.
     #
-    # Override this to perform webview-specific setup. Named without an
-    # +on_+ prefix to mirror the Plugin trait's +webview_created+
-    # (plugin.rs).
-    #
-    # *Note*: App does not call this hook yet; Tauri calls it for every
-    # webview.
+    # Override this to perform webview-specific setup. It runs on the main
+    # thread, as #window_created does. Named without an +on_+ prefix to
+    # mirror the Plugin trait's +webview_created+ (plugin.rs:89-91,
+    # manager/webview.rs:603-614).
     # Returns +nil+ by default (no-op).
     public def webview_created(webview)
       nil
@@ -223,6 +224,32 @@ module Tokra
     # Mirrors Tauri's PluginStore#on_event (plugin.rs).
     def on_event(app, event)
       @store.each { |plugin| plugin.on_event(app, event) }
+    end
+
+    # Tells every registered plugin, in registration order, that the app
+    # made +window+, and returns +nil+.
+    #
+    # Mirrors Tauri's PluginStore#window_created (plugin.rs:935-942).
+    #
+    # === Example
+    #
+    #   store.window_created(app.get_window("main"))
+    def window_created(window)
+      @store.each { |plugin| plugin.window_created(window) }
+      nil
+    end
+
+    # Tells every registered plugin, in registration order, that the app
+    # made +webview+, and returns +nil+.
+    #
+    # Mirrors Tauri's PluginStore#webview_created (plugin.rs:944-950).
+    #
+    # === Example
+    #
+    #   store.webview_created(app.get_webview("main"))
+    def webview_created(webview)
+      @store.each { |plugin| plugin.webview_created(webview) }
+      nil
     end
 
     # Tells every registered plugin, in registration order, that +webview+

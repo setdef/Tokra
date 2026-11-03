@@ -181,6 +181,20 @@ module Tokra
 
     # SPDX-SnippetEnd
 
+    # The cursor's position on the desktop, a PhysicalPosition, as
+    # AppHandle#cursor_position answers: the desktop's top-left is the
+    # origin, so the position does not depend on this webview.
+    #
+    # Mirrors Tauri's Webview::cursor_position (webview/mod.rs:1473-1481),
+    # which asks the app handle.
+    #
+    # === Example
+    #
+    #   webview.cursor_position  #=> #<data Tokra::PhysicalPosition x=812.0, y=455.5>
+    def cursor_position
+      @app_handle.cursor_position
+    end
+
     # Runs the block on the main thread and returns +nil+, as
     # AppHandle#run_on_main_thread does.
     #

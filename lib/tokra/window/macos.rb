@@ -37,6 +37,12 @@ module Tokra
       dispatch { native.set_badge_label(text) }
     end
   end
+
+  class WebviewWindow
+    # The window's Window#set_badge_label, where Tauri's WebviewWindow sends it
+    # (webview_window.rs:2184-2188).
+    def_delegators :@window, :set_badge_label
+  end
 end
 
 # SPDX-SnippetEnd

@@ -180,11 +180,12 @@ module Tokra
       @runtime_context = RuntimeContext.new(native:)
       @handle = AppHandle.new(@manager, state_manager: builder.__send__(:state_manager),
         runtime_context: @runtime_context, menu_event_listeners: builder.__send__(:menu_event_listeners),
-        tray_icon_event_listeners: builder.__send__(:tray_icon_event_listeners))
+        tray_icon_event_listeners: builder.__send__(:tray_icon_event_listeners),
+        window_event_listeners: builder.__send__(:window_event_listeners),
+        with_global_tauri: builder.__send__(:with_global_tauri?), os_name:)
       @builder = builder
       # Set by App#set_activation_policy, on macOS (activation_policy.rb).
       @activation_policy = nil
-      @with_global_tauri = builder.__send__(:with_global_tauri?)
       # Set when a requested restart ends the loop (#exit_requested).
       @restart_pending = false
 
@@ -205,8 +206,6 @@ module Tokra
       @handle.manage(Env.default)
       # Store class references to avoid dynamic constant lookups
       @event_loop_class = native.const_get(:EventLoop)
-      @window_class = native.const_get(:Window)
-      @webview_class = native.const_get(:WebView)
     end
 
     # Runs the application event loop.
@@ -218,6 +217,14 @@ module Tokra
     # RunEvent::ExitRequested when the last window has closed or code
     # called AppHandle#exit, and RunEvent::Exit as the loop ends.
     # Registered plugins hear each one first.
+    #
+    # The window +main+ is built through WebviewWindowBuilder before the
+    # setup hook. If the platform refuses it, the failure is warned and the
+    # app runs on with no window, as Tauri's does, and since no window
+    # closes, it never asks to exit on its own; AppHandle#exit ends it.
+    # (Tauri builds its config windows in setup, on the runtime's Ready,
+    # and logs a failure: app.rs:1298, 2370-2375; tauri-runtime-wry
+    # lib.rs:234-254, 3934-3943.)
     #
     # Closing the last window ends the app unless a handler calls
     # <tt>api.prevent_exit</tt> on the RunEvent::ExitRequested; then it
@@ -242,6 +249,12 @@ module Tokra
       # (plan 041, decision 1).
       event_loop = @event_loop_class.new
       @runtime_context.window_target = event_loop
+      # The loop's proxy next, so windows can be built from here on: each
+      # webview's handlers send through it, and the runtime context sends
+      # each window's creation (plan 052, decision 9). Attaching makes this
+      # thread, already the main one, the loop's.
+      proxy = event_loop.create_proxy
+      @runtime_context.attach(proxy)
       # A theme the app asked for before its loop existed, which Tauri's
       # App sets on its loop at once (app.rs:864-868; plan 045,
       # decision 7).
@@ -252,7 +265,19 @@ module Tokra
       # decision 7), before the setup hook, as Tauri's Builder::build does.
       install_app_menu
 
-      # Call setup hook before anything else
+      # If a Rack app was configured, build the adapter that serves it
+      # over tokra:// (ADR 004: Builder aggregates the app, App instantiates
+      # the Handler). The Rack app runs on the main Ractor for now.
+      rack_app = @builder.__send__(:rack_app)
+      @rack_handler = ::Rack::Handler::Tokra.new(rack_app, proxy) if rack_app
+
+      # The config's window, then the setup hook, as Tauri's setup builds
+      # the config's windows before it calls the hook (app.rs:2370-2384),
+      # so the hook finds "main".
+      WebviewWindowBuilder.new(self, "main", WebviewUrl::App.new("index.html"))
+        .title(@window_config[:title].to_s)
+        .inner_size(@window_config[:width].to_f, @window_config[:height].to_f)
+        .build
       @builder.__send__(:setup_hook)&.call(self)
 
       # Before the loop runs, Tauri's App hands the policy to the runtime,
@@ -261,39 +286,6 @@ module Tokra
       # policy over now.
       activation_policy = @activation_policy
       event_loop.set_activation_policy(activation_policy.name) if activation_policy
-      proxy = event_loop.create_proxy
-      @runtime_context.attach(proxy)
-
-      # If a Rack app was configured, build the adapter that serves it
-      # over tokra:// (ADR 004: Builder aggregates the app, App instantiates
-      # the Handler). The Rack app runs on the main Ractor for now.
-      rack_app = @builder.__send__(:rack_app)
-      @rack_handler = ::Rack::Handler::Tokra.new(rack_app, proxy) if rack_app
-
-      native_window = @window_class.new(event_loop, "main")
-      native_window.set_title(@window_config[:title].to_s)
-      native_window.set_size(@window_config[:width].to_f, @window_config[:height].to_f)
-
-      # The app's menu on the new window, before its webview, as Tauri's
-      # creation handler runs (plan 042, decision 9).
-      window_menu = prepare_window_menu(native_window)
-
-      # Wrap the native window and register in manager
-      window = Window.new(label: "main", native: native_window, app_handle: @handle, menu: window_menu)
-      # The manager's listener comes first: it tells the page and Ruby
-      # listeners, then calls the builder's (manager/window.rs:93-100).
-      window_event_listeners = @builder.__send__(:window_event_listeners)
-      window.on_window_event do |event|
-        WindowManager.on_window_event(window, event)
-        window_event_listeners&.each { |listener| listener.call(window, event) }
-      end
-      @handle.windows["main"] = window
-
-      # Create and wrap the webview, register in manager
-      native_webview = @webview_class.new_with_protocol(native_window, proxy, "main",
-        initialization_scripts("main", "main"))
-      webview = Webview.new(label: "main", native: native_webview, window:, app_handle: @handle)
-      @handle.webviews["main"] = webview
 
       # Emit Ready event
       emit_run_event(RunEvent::Ready.new, callback)
@@ -423,24 +415,6 @@ module Tokra
       @handle.init_app_menu(current) if current && natives.nsapp?
     end
 
-    # Gives a new window the app's menu, as Tauri's window builder does
-    # with no menu of its own (window/mod.rs:364-375), and puts it on the
-    # native window on Windows and Linux (manager/menu.rs:54-95). Answers
-    # the window's WindowMenu, or +nil+.
-    private def prepare_window_menu(native_window)
-      menu = @handle.menu
-      return nil unless menu
-
-      @handle.menu_manager.insert_menu_into_stash(menu)
-      native_menu = menu.native #: Native::Menu
-      # Tauri themes it with the configured theme or Auto; Tokra configures
-      # none (manager/menu.rs:74-79).
-      if !@runtime_context.menu_natives.nsapp? && native_window.respond_to?(:init_menu)
-        native_window.init_menu(native_menu, "Auto")
-      end
-      Window::WindowMenu.new(is_app_wide: true, menu:)
-    end
-
     # Calls the app's menu listeners, then each window's, then plugins and
     # the run callback with RunEvent::MenuEvent (app.rs:2436-2453,
     # 2488-2494).
@@ -482,115 +456,16 @@ module Tokra
       callback&.call(@handle, event)
     end
 
-    # SPDX-SnippetBegin
-    # SPDX-License-Identifier: Apache-2.0 OR MIT
-    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
-    # SPDX-SnippetComment: Initialization script assembly adapted from
-    # tauri/crates/tauri/src/manager/webview.rs and app.rs
-
-    # Assembles the webview initialization scripts in Tauri's injection
-    # order (manager/webview.rs:160-192): the __TAURI_INTERNALS__
-    # bootstrap, the invoke transport, webview metadata, and the init.js
-    # bundle (pattern, ipc router, core, events). Each registered plugin's
-    # initialization_script follows, wrapped in an IIFE
-    # (manager/webview.rs:124-128, 194; plugin.rs:918-933).
-    #
-    # When with_global_tauri is set, the vendored @tauri-apps/api bundle is
-    # appended last, exposing the whole API as window.__TAURI__
-    # (manager/webview.rs:210-215). This is Tauri's own mechanism for
-    # running its API in a webview with no frontend bundler. Tauri's list
-    # also carries plugin global API scripts, which its build scripts
-    # collect at compile time; no Tokra plugin ships one yet (Plan 016).
-    private def initialization_scripts(window_label, webview_label)
-      scripts = [
-        bootstrap_script,
-        invoke_initialization_script,
-        metadata_script(window_label, webview_label),
-        init_script,
-      ]
-      scripts.concat(@manager.plugins.initialization_script)
-      scripts << global_api_script if @with_global_tauri
-      scripts
-    end
-
-    # The vendored @tauri-apps/api IIFE (bundle.global.js), synced from the
-    # submodule by rake sync:tauri. Injecting it defines window.__TAURI__.
-    private def global_api_script
-      Native.load_js_template("bundle.global.js")
-    end
-
-    # Defines window.isTauri and the bare __TAURI_INTERNALS__ object
-    # every later script extends (manager/webview.rs:160-175).
-    private def bootstrap_script
-      <<~JS
-        Object.defineProperty(window, 'isTauri', {
-          value: true,
-        });
-
-        if (!window.__TAURI_INTERNALS__) {
-          Object.defineProperty(window, '__TAURI_INTERNALS__', {
-            value: {
-              plugins: {}
-            }
-          })
-        }
-      JS
-    end
-
-    # The invoke transport (ipc-protocol.js): defines
-    # __TAURI_INTERNALS__.postMessage with the invoke key baked in
-    # (app.rs InvokeInitializationScript).
-    private def invoke_initialization_script
-      render_js_template("ipc-protocol.js.erb",
-        process_ipc_message_fn: Native.load_js_template("process-ipc-message-fn.js"),
-        os_name: JSON.generate(os_name),
-        fetch_channel_data_command: JSON.generate(Ipc::Channel::FETCH_CHANNEL_DATA_COMMAND),
-        invoke_key: JSON.generate(@manager.invoke_key))
-    end
-
-    # Webview identity for the frontend API: the labels of the webview's
-    # window and of the webview, each a JSON string as serde_json's
-    # to_string writes it (manager/webview.rs:177-188).
-    private def metadata_script(window_label, webview_label)
-      <<~JS
-        Object.defineProperty(window.__TAURI_INTERNALS__, 'metadata', {
-          value: {
-            currentWindow: { label: #{JSON.generate(window_label)} },
-            currentWebview: { label: #{JSON.generate(webview_label)} }
-          }
-        })
-      JS
-    end
-
-    # The init.js bundle (manager/webview.rs initialization_script):
-    # pattern, the __TAURI_INTERNALS__.ipc router, core.js, and the
-    # event-delivery script. freeze_prototype is config-gated off in
-    # Tauri's default and omitted here.
-    private def init_script
-      render_js_template("init.js.erb",
-        freeze_prototype: "",
-        pattern_script: render_js_template("pattern.js.erb",
-          pattern: JSON.generate({ pattern: "brownfield" })),
-        ipc_script: render_js_template("ipc.js.erb",
-          isolation_origin: JSON.generate("")),
-        core_script: render_js_template("core.js.erb",
-          os_name: JSON.generate(os_name),
-          protocol_scheme: JSON.generate("http")),
-        event_initialization_script: Event.event_initialization_script(
-          @manager.listeners.function_name, @manager.listeners.listeners_object_name
-        ))
-    end
-
-    # Renders a vendored Tauri script template. Values arrive as JS
-    # literals: JSON-encoded scalars for TEMPLATE markers, raw scripts
-    # for RAW markers.
-    private def render_js_template(name, values)
-      ERB.new(Native.load_js_template(name)).result_with_hash(values)
-    end
-
     # The operating system name as Tauri's scripts expect it
     # (std::env::consts::OS values).
     private def os_name
+      App.os_name
+    end
+
+    # The operating system this process runs on, as Tauri names it
+    # (std::env::consts::OS values): the one place Tokra reads it, which
+    # each App hands its WebviewManager.
+    def self.os_name # :nodoc:
       case RUBY_PLATFORM
       when /darwin/ then "macos"
       when /linux/ then "linux"
@@ -598,8 +473,6 @@ module Tokra
       else "unknown"
       end
     end
-
-    # SPDX-SnippetEnd
 
     # Hands a native event to its handler. Answers the loop only for the
     # events whose answer it reads, +true+ ending it, and +nil+ otherwise.
@@ -948,7 +821,7 @@ module Tokra
     # Mirrors tauri_protocol_url (manager/mod.rs:331-338); Tokra does not
     # enable wry's https scheme.
     private def tokra_protocol_url
-      (os_name == "windows") ? URI("http://tokra.localhost") : URI("tokra://localhost")
+      WebviewManager.tokra_protocol_url(os_name)
     end
 
     # Whether +url+ belongs to the app: same scheme and host as
@@ -1254,17 +1127,23 @@ module Tokra
     # its webviews first (on_window_close, manager/mod.rs:651-658), then the run
     # callback hears Destroyed, then the window's listeners
     # (lib.rs:4126-4148), and the runtime drops the webviews
-    # (lib.rs:4172). With no window left the app asks to exit with no code
-    # (lib.rs:4172-4185). Answers the loop: +true+ ends it.
+    # (lib.rs:4172). When it was the last window in the runtime's store,
+    # which a window whose creation failed never joined
+    # (RuntimeContext#window_destroyed), the app asks to exit with no code
+    # (lib.rs:4171-4185). A window built by hand through
+    # Native::Window.new and put in the manager never joins that store, so
+    # closing the last builder-made window exits while it is still on
+    # screen. Answers the loop: +true+ ends it.
     private def window_destroyed(label, callback)
+      last = @runtime_context.window_destroyed(label)
       window = @handle.windows.delete(label)
       return false unless window
 
-      webviews = @handle.webviews.select { |_webview_label, webview| webview.window.label == label }
-      webviews.each_key { |webview_label| @handle.webviews.delete(webview_label) }
+      webviews = @handle.webviews.values.select { |webview| webview.window.label == label }
+      webviews.each { |webview| @handle.webviews.delete(webview.label) }
       reporting { notify_window_event(window, WindowEvent::Destroyed.new, callback) }
-      webviews.each_value { |webview| webview.native.close }
-      return false unless @handle.windows.empty?
+      webviews.each { |webview| webview.native.close }
+      return false unless last
 
       exit_requested(nil, callback)
     end

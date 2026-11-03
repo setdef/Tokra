@@ -261,7 +261,6 @@ class TestBuilderIpcProtocol < Minitest::Test
       invoke.resolve(nil)
       true
     }
-    app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
     {
       "{\"text\":\"\xff\"}".b => "invalid unicode code point at line 1 column 11",
       '{"text":"\udc00"}' => "lone leading surrogate in hex escape at line 1 column 15",
@@ -270,6 +269,8 @@ class TestBuilderIpcProtocol < Minitest::Test
       '{"a":1e400}' => "number out of range at line 1 column 10",
       "{\"a\":#{'[' * 127}#{']' * 127}}" => "recursion limit exceeded at line 1 column 132",
     }.each do |body, message|
+      # An App runs once, as its loop never returns.
+      app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
       run_with(app, ipc_request(app, cmd: "echo", body:))
 
       _id, status, headers, response = last_response
@@ -394,6 +395,7 @@ class TestBuilderIpcProtocol < Minitest::Test
       { callback: "１" } => "Tauri callback header value must be a string",
       { error: "２" } => "Tauri error header value must be a string",
     }.each do |overrides, message|
+      app = recording_app
       run_with(app, ipc_request(app, cmd: "ping", **overrides))
       assert_equal [500, message], [last_response[1], last_response[3]], overrides.inspect
     end
@@ -576,6 +578,7 @@ class TestBuilderIpcProtocol < Minitest::Test
       assert_equal 500, status, "#{id.inspect} is not a u32"
       assert_equal "Tauri callback header value must be a numeric string", body
 
+      app = Tokra::Builder.default.build(native: StubNative)
       run_with(app, ipc_request(app, cmd: "ping", error: id))
       assert_equal "Tauri error header value must be a numeric string", last_response[3]
     ensure

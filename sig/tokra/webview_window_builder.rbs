@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class WebviewWindowBuilder
+    DEFAULT_TITLE: String
+
+    @manager: Manager
+    @label: String
+    @url: webview_url
+    @title: String
+    @inner_size: [Float, Float]?
+
+    def initialize: (Manager manager, String label, webview_url url) -> void
+    def title: (String title) -> self
+    def inner_size: (Float | Integer width, Float | Integer height) -> self
+    def build: () -> WebviewWindow
+
+    private
+
+    def check_label: () -> void
+    def window_menu: (AppHandle handle) -> Window::WindowMenu?
+  end
+end

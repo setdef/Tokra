@@ -17,4 +17,5 @@ target :lib do
   library "stringio"
   library "securerandom"
   library "erb"
+  library "forwardable"
 end

@@ -78,13 +78,14 @@ module Tokra
       #
       # == Ruby API
       #
-      # Register the plugin on the app handle, for example in the setup
-      # hook. It manages a Notification, which every manager reaches as
-      # +notification+:
+      # Register the plugin on the app handle before App#run, so the
+      # +main+ window's page runs its script, which the app puts in each
+      # webview it makes from then on. It manages a Notification, which
+      # every manager reaches as +notification+:
       #
-      #   Tokra::Builder.new
-      #     .setup { |app| app.handle.plugin(Tokra::Plugins::Notification::Plugin.new(app.handle)) }
-      #     .run
+      #   app = Tokra::Builder.new.build
+      #   app.handle.plugin(Tokra::Plugins::Notification::Plugin.new(app.handle))
+      #   app.run
       #
       #   handle.notification.builder.title("Saved").body("Your draft is safe.").show
       #

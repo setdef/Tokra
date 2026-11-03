@@ -36,13 +36,14 @@ and mako do for the rest). Building needs no system libraries.
 
 == Usage
 
-Register the plugin on the app handle, for example in the setup hook. It
-manages a Tokra::Plugins::Notification::Notification, reachable from any
-manager as +notification+:
+Register the plugin on the app handle before App#run, so the +main+
+window's page runs its script, which the app puts in each webview it makes
+from then on. It manages a Tokra::Plugins::Notification::Notification,
+reachable from any manager as +notification+:
 
-  Tokra::Builder.new
-    .setup { |app| app.handle.plugin(Tokra::Plugins::Notification::Plugin.new(app.handle)) }
-    .run
+  app = Tokra::Builder.new.build
+  app.handle.plugin(Tokra::Plugins::Notification::Plugin.new(app.handle))
+  app.run
 
 In the frontend:
 

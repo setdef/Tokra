@@ -29,7 +29,7 @@ module Tokra
     # SPDX-SnippetBegin
     # SPDX-License-Identifier: Apache-2.0 OR MIT
     # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
-    # SPDX-SnippetComment: Io, Runtime, PluginInitialization, and InvalidArgs and their
+    # SPDX-SnippetComment: Io, Runtime, the label errors, PluginInitialization, and InvalidArgs and their
     # messages from tauri/src/error.rs and tauri-runtime/src/lib.rs
 
     # Raised when a file cannot be read.
@@ -82,6 +82,15 @@ module Tokra
       # (tauri-runtime lib.rs:146-148).
       FAILED_TO_GET_CURSOR_POSITION = "failed to get cursor position"
 
+      # A window or webview label holds a character Tauri refuses
+      # (tauri-runtime lib.rs:129-130).
+      INVALID_WINDOW_LABEL = "Window labels must only include alphanumeric characters, `-`, `/`, `:` and `_`."
+
+      # A window was asked for before App#run built the event loop. Tauri's
+      # app has its runtime from the moment it is built; Tokra's loop
+      # exists from App#run (plan 052, decision b4).
+      NO_EVENT_LOOP = "the event loop does not exist yet"
+
       # Creates a runtime error from the runtime's own +message+.
       def initialize(message)
         super("runtime error: #{message}")
@@ -107,6 +116,58 @@ module Tokra
       # Creates the error with Tauri's message.
       def initialize(message = "failed to receive message")
         super
+      end
+    end
+
+    # Raised when a window is built with the label of a window the app
+    # already has.
+    #
+    # A label names one window at a time: Manager#get_window finds a
+    # window by it, and events reach a window by it. Once that window is
+    # destroyed, the label is free again.
+    #
+    # Mirrors <tt>tauri::Error::WindowLabelAlreadyExists</tt>
+    # (error.rs:37-39).
+    #
+    # === Example
+    #
+    #   Tokra::WebviewWindowBuilder.new(app, "settings", url).build
+    #   # raises Tokra::Error::WindowLabelAlreadyExists when "settings" is a
+    #   # window but not a webview: "a window with label `settings` already exists"
+    class WindowLabelAlreadyExists < Error
+      # The label that was taken.
+      attr_reader :label
+
+      # Creates the error for +label+.
+      def initialize(label)
+        @label = label
+        super("a window with label `#{label}` already exists")
+      end
+    end
+
+    # Raised when a webview is built with the label of a webview the app
+    # already has.
+    #
+    # A webview window's window and webview share its label, and Tokra
+    # checks the webview's first, as Tauri does, so a taken webview window
+    # label raises this one.
+    #
+    # Mirrors <tt>tauri::Error::WebviewLabelAlreadyExists</tt>
+    # (error.rs:40-42).
+    #
+    # === Example
+    #
+    #   Tokra::WebviewWindowBuilder.new(app, "main", url).build
+    #   # raises Tokra::Error::WebviewLabelAlreadyExists:
+    #   #   "a webview with label `main` already exists"
+    class WebviewLabelAlreadyExists < Error
+      # The label that was taken.
+      attr_reader :label
+
+      # Creates the error for +label+.
+      def initialize(label)
+        @label = label
+        super("a webview with label `#{label}` already exists")
       end
     end
 
