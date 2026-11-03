@@ -311,6 +311,14 @@ class TestMenu < Minitest::Test
     assert_equal "failed to receive message", error.message
   end
 
+  def test_menu_json_agrees_between_to_json_and_json_generate
+    id = Tokra::Menu::MenuId.from(:save)
+    event = Tokra::Menu::MenuEvent.new(id:)
+
+    assert_equal id.to_json, JSON.generate(id)
+    assert_equal event.to_json, JSON.generate(event)
+  end
+
   def test_menu_ids_equal_their_text_and_serialize_as_it
     id = Tokra::Menu::MenuId.from(:save)
 

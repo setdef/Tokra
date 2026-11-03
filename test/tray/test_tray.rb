@@ -382,6 +382,27 @@ class TestTray < Minitest::Test
     assert_equal '"Up"', JSON.generate(Tokra::Tray::MouseButtonState::Up)
   end
 
+  def test_tray_json_agrees_between_to_json_and_json_generate
+    rect = Tokra::Rect.new(position: Tokra::LogicalPosition.new(x: 1.5, y: 2.5),
+      size: Tokra::LogicalSize.new(width: 3.0, height: 4.0))
+    event = Tokra::Tray::TrayIconEvent.from_native(click("id"))
+    [
+      rect,
+      Tokra::Tray::TrayIconId.from(:main),
+      Tokra::Tray::MouseButton::Left,
+      Tokra::Tray::MouseButtonState::Down,
+      event,
+    ].each { |value| assert_equal value.to_json, JSON.generate(value) }
+  end
+
+  # tray-icon's MouseButton derives serde::Serialize, so a unit variant
+  # is its name as a string.
+  def test_mouse_buttons_serialize_as_serde_unit_variants
+    assert_equal '"Left"', JSON.generate(Tokra::Tray::MouseButton::Left)
+    assert_equal '"Right"', Tokra::Tray::MouseButton::Right.to_json
+    assert_equal '"Middle"', JSON.generate(Tokra::Tray::MouseButton::Middle)
+  end
+
   def test_a_logical_rect_tags_its_parts_logical
     rect = Tokra::Rect.new(position: Tokra::LogicalPosition.new(x: 1.5, y: 2.5),
       size: Tokra::LogicalSize.new(width: 3.0, height: 4.0))

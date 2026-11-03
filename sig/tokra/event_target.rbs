@@ -5,36 +5,36 @@ module Tokra
   module EventTarget
     class Any < Data
       def self.new: () -> Any
-      def to_json: (*JSON::State state) -> String
+      def to_json: (?JSON::State? state) -> String
     end
 
     class AnyLabel < Data
       attr_reader label: String
       def self.new: (label: String) -> AnyLabel
-      def to_json: (*JSON::State state) -> String
+      def to_json: (?JSON::State? state) -> String
     end
 
     class App < Data
       def self.new: () -> App
-      def to_json: (*JSON::State state) -> String
+      def to_json: (?JSON::State? state) -> String
     end
 
     class Window < Data
       attr_reader label: String
       def self.new: (label: String) -> Window
-      def to_json: (*JSON::State state) -> String
+      def to_json: (?JSON::State? state) -> String
     end
 
     class Webview < Data
       attr_reader label: String
       def self.new: (label: String) -> Webview
-      def to_json: (*JSON::State state) -> String
+      def to_json: (?JSON::State? state) -> String
     end
 
     class WebviewWindow < Data
       attr_reader label: String
       def self.new: (label: String) -> WebviewWindow
-      def to_json: (*JSON::State state) -> String
+      def to_json: (?JSON::State? state) -> String
     end
 
     VARIANTS: Array[singleton(Any) | singleton(AnyLabel) | singleton(App) | singleton(Window) | singleton(Webview) | singleton(WebviewWindow)]

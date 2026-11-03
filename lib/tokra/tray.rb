@@ -67,8 +67,9 @@ module Tokra
       end
 
       # The id as JSON: its text alone, as serde writes the newtype struct.
-      def to_json(*)
-        value.to_json(*)
+      def to_json(state = nil)
+        json = value
+        state ? json.to_json(state) : json.to_json
       end
     end
 
@@ -88,8 +89,9 @@ module Tokra
       close
 
       # The button's name as JSON.
-      def to_json(*)
-        name.to_json(*)
+      def to_json(state = nil)
+        json = name
+        state ? json.to_json(state) : json.to_json
       end
     end
 
@@ -108,8 +110,9 @@ module Tokra
       close
 
       # The state's name as JSON.
-      def to_json(*)
-        name.to_json(*)
+      def to_json(state = nil)
+        json = name
+        state ? json.to_json(state) : json.to_json
       end
     end
 
@@ -127,8 +130,9 @@ module Tokra
       module Base # :nodoc:
         # The event as JSON (tray/mod.rs:68-124): its fields, camelCase,
         # tagged by +type+.
-        def to_json(*)
-          as_json.to_json(*)
+        def to_json(state = nil)
+          json = as_json
+          state ? json.to_json(state) : json.to_json
         end
 
         # The event as Tauri serializes it, with +fields+ after the shared

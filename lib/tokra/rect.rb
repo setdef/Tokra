@@ -31,8 +31,9 @@ module Tokra
     # The rectangle as JSON, each part tagged with its kind, as serde writes
     # dpi's externally tagged enums:
     # <tt>{"position": {"Physical": {"x": 1, "y": 2}}, "size": {"Physical": {...}}}</tt>.
-    def to_json(*)
-      as_json.to_json(*)
+    def to_json(state = nil)
+      json = as_json
+      state ? json.to_json(state) : json.to_json
     end
 
     # The rectangle as a JSON value, as #to_json writes it.

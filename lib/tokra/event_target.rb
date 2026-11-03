@@ -34,8 +34,9 @@ module Tokra
     class Any < Data.define
       # The target as JSON, tagged with its kind as serde writes it:
       # <tt>{"kind": "Any"}</tt>.
-      def to_json(*)
-        EventTarget.as_json(self).to_json(*)
+      def to_json(state = nil)
+        json = EventTarget.as_json(self)
+        state ? json.to_json(state) : json.to_json
       end
     end
 
@@ -43,8 +44,9 @@ module Tokra
     class AnyLabel < Data.define(:label)
       # The target as JSON, tagged with its kind as serde writes it:
       # <tt>{"kind": "AnyLabel", "label": "..."}</tt>.
-      def to_json(*)
-        EventTarget.as_json(self).to_json(*)
+      def to_json(state = nil)
+        json = EventTarget.as_json(self)
+        state ? json.to_json(state) : json.to_json
       end
     end
 
@@ -52,8 +54,9 @@ module Tokra
     class App < Data.define
       # The target as JSON, tagged with its kind as serde writes it:
       # <tt>{"kind": "App"}</tt>.
-      def to_json(*)
-        EventTarget.as_json(self).to_json(*)
+      def to_json(state = nil)
+        json = EventTarget.as_json(self)
+        state ? json.to_json(state) : json.to_json
       end
     end
 
@@ -61,8 +64,9 @@ module Tokra
     class Window < Data.define(:label)
       # The target as JSON, tagged with its kind as serde writes it:
       # <tt>{"kind": "Window", "label": "..."}</tt>.
-      def to_json(*)
-        EventTarget.as_json(self).to_json(*)
+      def to_json(state = nil)
+        json = EventTarget.as_json(self)
+        state ? json.to_json(state) : json.to_json
       end
     end
 
@@ -70,8 +74,9 @@ module Tokra
     class Webview < Data.define(:label)
       # The target as JSON, tagged with its kind as serde writes it:
       # <tt>{"kind": "Webview", "label": "..."}</tt>.
-      def to_json(*)
-        EventTarget.as_json(self).to_json(*)
+      def to_json(state = nil)
+        json = EventTarget.as_json(self)
+        state ? json.to_json(state) : json.to_json
       end
     end
 
@@ -80,8 +85,9 @@ module Tokra
     class WebviewWindow < Data.define(:label)
       # The target as JSON, tagged with its kind as serde writes it:
       # <tt>{"kind": "WebviewWindow", "label": "..."}</tt>.
-      def to_json(*)
-        EventTarget.as_json(self).to_json(*)
+      def to_json(state = nil)
+        json = EventTarget.as_json(self)
+        state ? json.to_json(state) : json.to_json
       end
     end
 

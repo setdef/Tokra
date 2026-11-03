@@ -11,7 +11,7 @@ module Tokra
       def self.from: (TrayIconId | String | Symbol id) -> TrayIconId
       def ==: (Object other) -> bool
       def to_s: () -> String
-      def to_json: (*JSON::State state) -> String
+      def to_json: (?JSON::State? state) -> String
     end
 
     class MouseButton < Data
@@ -26,7 +26,7 @@ module Tokra
       Right: MouseButton
       Middle: MouseButton
 
-      def to_json: (*JSON::State state) -> String
+      def to_json: (?JSON::State? state) -> String
     end
 
     class MouseButtonState < Data
@@ -40,13 +40,13 @@ module Tokra
       Up: MouseButtonState
       Down: MouseButtonState
 
-      def to_json: (*JSON::State state) -> String
+      def to_json: (?JSON::State? state) -> String
     end
 
     module TrayIconEvent
       type event = Click | DoubleClick | Enter | Move | Leave
       module Base : _Event
-        def to_json: (*JSON::State state) -> String
+        def to_json: (?JSON::State? state) -> String
 
         private
 

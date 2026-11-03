@@ -36,6 +36,12 @@ class TestEventTarget < Minitest::Test
     assert_equal '{"kind":"WebviewWindow","label":"a"}', T.webview_window("a").to_json
   end
 
+  def test_to_json_agrees_with_json_generate_for_every_variant
+    [T.any, T.app, T.labeled("a"), T.window("a"), T.webview("a"), T.webview_window("a")].each do |target|
+      assert_equal target.to_json, JSON.generate(target)
+    end
+  end
+
   def test_reads_each_variant_back
     [T.any, T.app, T.labeled("a"), T.window("a"), T.webview("a"), T.webview_window("a")].each do |target|
       assert_equal target, read(JSON.parse(target.to_json))

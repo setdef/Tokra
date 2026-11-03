@@ -27,6 +27,12 @@ class TestPermissionState < Minitest::Test
     assert_equal '["granted"]', JSON.generate([State::Granted])
   end
 
+  def test_to_json_agrees_with_json_generate
+    [State::Granted, State::Denied, State::Prompt, State::PromptWithRationale].each do |state|
+      assert_equal state.to_json, JSON.generate(state)
+    end
+  end
+
   def test_states_are_shareable_values
     assert Ractor.shareable?(State::Granted)
     assert_equal State::Denied, State.new(name: "denied")

@@ -82,8 +82,9 @@ module Tokra
 
       # The id as JSON: its text alone, as serde serializes the newtype
       # struct.
-      def to_json(*)
-        value.to_json(*)
+      def to_json(state = nil)
+        json = value
+        state ? json.to_json(state) : json.to_json
       end
     end
 
@@ -96,8 +97,9 @@ module Tokra
     #   app.on_menu_event { |_app, event| quit if event.id == "quit" }
     class MenuEvent < Data.define(:id)
       # The event as a JSON object holding its id, as Tauri serializes it.
-      def to_json(*) # :nodoc:
-        { "id" => id }.to_json(*)
+      def to_json(state = nil) # :nodoc:
+        json = { "id" => id }
+        state ? json.to_json(state) : json.to_json
       end
     end
 
