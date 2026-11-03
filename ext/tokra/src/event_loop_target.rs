@@ -31,6 +31,44 @@ thread_local! {
     static LENT: Cell<*const EventLoopWindowTarget<UserEvent>> = const { Cell::new(std::ptr::null()) };
 }
 
+thread_local! {
+    /// Whether Ruby runs from a menu-loop hook's hand-off (`menu_loop.rs`),
+    /// where the loop runs but has lent no target.
+    static IN_MENU_HAND_OFF: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Puts the hand-off flag back as it was, even if the call unwinds.
+#[cfg(any(windows, test))]
+struct RestoreFlag(bool);
+
+#[cfg(any(windows, test))]
+impl Drop for RestoreFlag {
+    fn drop(&mut self) {
+        IN_MENU_HAND_OFF.set(self.0);
+    }
+}
+
+/// Runs `call`, a hand-off from inside a menu's modal loop, marked so that
+/// a method that needs the window target says why it has none
+/// ([`no_target`]).
+#[cfg(any(windows, test))]
+pub fn outside_callbacks<R>(call: impl FnOnce() -> R) -> R {
+    let _restore = RestoreFlag(IN_MENU_HAND_OFF.replace(true));
+    call()
+}
+
+/// The message for a method that needs the window target and finds none:
+/// the loop has ended, or, during a hand-off inside a menu's modal loop,
+/// where a signal's handler or a finalizer may run (plan 053), it runs
+/// but is outside its callbacks.
+pub fn no_target() -> &'static str {
+    if IN_MENU_HAND_OFF.get() {
+        "the event loop is tracking a menu, outside its callbacks"
+    } else {
+        "the event loop has ended"
+    }
+}
+
 /// Puts the lent target back as it was, even if the callback unwinds.
 struct Restore(*const EventLoopWindowTarget<UserEvent>);
 
@@ -177,4 +215,20 @@ pub fn define_methods(class: RClass) -> Result<(), Error> {
     )?;
     class.define_method("set_theme", method!(RbEventLoop::set_theme, 1))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{no_target, outside_callbacks};
+
+    #[test]
+    fn without_a_target_the_message_says_whether_a_menu_hand_off_runs() {
+        assert_eq!(no_target(), "the event loop has ended");
+        let inside = outside_callbacks(no_target);
+        assert_eq!(
+            inside,
+            "the event loop is tracking a menu, outside its callbacks"
+        );
+        assert_eq!(no_target(), "the event loop has ended", "and only then");
+    }
 }

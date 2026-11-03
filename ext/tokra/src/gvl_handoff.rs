@@ -39,7 +39,7 @@
 
 use std::ffi::c_void;
 use std::ptr::NonNull;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -72,6 +72,74 @@ impl Pending {
         self.0.swap(false, Ordering::AcqRel)
     }
 }
+
+/// How often the GVL changed hands, process-wide, for the diagnostics of
+/// plan 053 (decision 4): the next Windows run reads them to tell which
+/// link of the hand-off failed while a menu tracked.
+#[derive(Debug, Default)]
+pub struct Counts {
+    /// `MainEventsCleared` events the loop saw.
+    cleared: AtomicU64,
+    /// Hand-offs the loop made at `MainEventsCleared`.
+    loop_handoffs: AtomicU64,
+    /// Messages a menu's modal loop showed the menu-loop hook
+    /// (`menu_loop.rs`).
+    menu_messages: AtomicU64,
+    /// Hand-offs the menu-loop hook made.
+    menu_handoffs: AtomicU64,
+}
+
+/// What [`Counts::snapshot`] answers: each count with its name.
+pub type Snapshot = [(&'static str, u64); 4];
+
+impl Counts {
+    /// All four at zero.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            cleared: AtomicU64::new(0),
+            loop_handoffs: AtomicU64::new(0),
+            menu_messages: AtomicU64::new(0),
+            menu_handoffs: AtomicU64::new(0),
+        }
+    }
+
+    /// Counts one `MainEventsCleared`.
+    pub fn cleared(&self) {
+        self.cleared.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Counts one hand-off at `MainEventsCleared`.
+    pub fn loop_handoff(&self) {
+        self.loop_handoffs.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Counts one message the menu-loop hook heard.
+    #[cfg(any(windows, test))]
+    pub fn menu_message(&self) {
+        self.menu_messages.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Counts one hand-off the menu-loop hook made.
+    #[cfg(any(windows, test))]
+    pub fn menu_handoff(&self) {
+        self.menu_handoffs.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The four counts, by the names Ruby reads.
+    #[must_use]
+    pub fn snapshot(&self) -> Snapshot {
+        [
+            ("cleared", self.cleared.load(Ordering::Relaxed)),
+            ("loop", self.loop_handoffs.load(Ordering::Relaxed)),
+            ("menu_messages", self.menu_messages.load(Ordering::Relaxed)),
+            ("menu", self.menu_handoffs.load(Ordering::Relaxed)),
+        ]
+    }
+}
+
+/// The process's counts.
+pub static COUNTS: Counts = Counts::new();
 
 /// Whether a READY event for `thread` should wake the loop. The main
 /// thread's own waits for the GVL need no hand-off: the loop is the main
@@ -238,6 +306,27 @@ mod tests {
         assert!(
             pending.request(),
             "after the hand-off, a new request wakes it again"
+        );
+    }
+
+    #[test]
+    fn each_count_counts_only_its_own_kind() {
+        let counts = Counts::new();
+        counts.cleared();
+        counts.cleared();
+        counts.loop_handoff();
+        counts.menu_message();
+        counts.menu_message();
+        counts.menu_message();
+        counts.menu_handoff();
+        assert_eq!(
+            counts.snapshot(),
+            [
+                ("cleared", 2),
+                ("loop", 1),
+                ("menu_messages", 3),
+                ("menu", 1)
+            ]
         );
     }
 

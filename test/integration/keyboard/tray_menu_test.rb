@@ -96,6 +96,28 @@ class TrayMenuTest < RealApp::TestCase
     assert_equal ["app:tray-show", "tray:tray-show"], report["log"].grep(/\A(app|tray):/), run.describe
   end
 
+  # An exception the GVL hand-off inside the menu meets, here a
+  # Thread#raise aimed at the main thread, ends the menu and the loop, and
+  # EventLoop#run raises it (plan 053, decision 1): the main thread rescues
+  # it, so it got there, and the fallback never had to close the menu
+  # first. It runs only in Windows CI.
+  def test_on_windows_an_exception_raised_while_the_menu_tracks_ends_it_and_the_loop
+    skip "the closer thread finds the menu window itself only on Windows" unless windows?
+
+    run = self.class.fixture_run(:raise_main) do
+      KeyboardNotice.taking_the_keyboard { RealApp.launch("tray_menu", "--no-main-timer", "--raise-main") }
+    end
+    assert_finished run
+    assert_equal 0, run.status, run.describe
+    report = run.report
+    refute_nil report, "the fixture printed no report\n#{run.describe}"
+    stages = run.lines.grep(/\APROGRESS /).map { |line| line.split[1] }
+    assert_includes stages, "tray:main-raised", run.describe
+    assert_equal "raised while the menu tracks", report["raised"], run.describe
+    refute report["fell_back"], run.describe
+    refute_includes stages, "tray:fallback-fired", run.describe
+  end
+
   # A chosen item is a menu event: the app's listeners, then the tray
   # builder's on_menu_event, which joins them (tray/mod.rs:427-435,
   # app.rs:2436-2444). tao's loop runs while the menu unwinds, so they may

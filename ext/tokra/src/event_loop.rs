@@ -6,14 +6,14 @@
 //! This module provides the Ruby-facing `Tokra::Native::EventLoop` class,
 //! which wraps `tao::event_loop::EventLoop<UserEvent>`.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use magnus::{
     error::ErrorType, function, kwargs, method, prelude::*, rb_sys::AsRawValue, ArgList, Error,
-    Exception, RClass, Ruby, Value,
+    Exception, RClass, RHash, Ruby, Value,
 };
 use tao::{
     event::{Event, WindowEvent},
@@ -21,7 +21,7 @@ use tao::{
     platform::run_return::EventLoopExtRunReturn,
 };
 
-use crate::gvl_handoff::{poll_tick, GvlHandoff, POLL_INTERVAL};
+use crate::gvl_handoff::{poll_tick, GvlHandoff, Pending, COUNTS, POLL_INTERVAL};
 use crate::interrupt_check::{InterruptTicker, INTERRUPT_CHECK};
 use crate::proxy::RbProxy;
 use crate::runtime_error;
@@ -211,15 +211,34 @@ impl RbEventLoop {
         let poll = handoff.is_none();
         // Without a hook (Windows), wake the loop with a user event every
         // POLL_INTERVAL while another Ruby thread exists, so that thread
-        // gets the GVL; never with a deadline (`poll_tick`).
+        // gets the GVL; never with a deadline (`poll_tick`). Each tick
+        // also owes the menu-loop hook a hand-off, marked before the post
+        // its menu loop will peek (`menu_loop.rs`, plan 053).
         let others = Arc::new(AtomicBool::new(false));
+        let menu_pending = Arc::new(Pending::default());
         let poll_ticker = poll.then(|| {
             let proxy = self.proxy.clone();
             let others = Arc::clone(&others);
+            let menu_pending = Arc::clone(&menu_pending);
             InterruptTicker::start(POLL_INTERVAL, move || {
-                poll_tick(&others, || proxy.send_event(UserEvent::Yield).is_ok())
+                poll_tick(&others, || {
+                    menu_pending.request();
+                    proxy.send_event(UserEvent::Yield).is_ok()
+                })
             })
         });
+        // An exception a hand-off inside a menu raised, which the loop
+        // takes at MainEventsCleared. It lives in this frame, on the main
+        // thread's stack, where Ruby's GC sees it, as it sees `raised`.
+        let menu_raised: Cell<Option<Error>> = Cell::new(None);
+        // While a Windows menu tracks, hand over from inside its modal
+        // loop (`menu_loop.rs`); removed before `menu_raised` goes.
+        #[cfg(windows)]
+        let menu_hook = poll
+            .then(|| {
+                crate::menu_loop::MenuLoopHook::install(Arc::clone(&menu_pending), &menu_raised)
+            })
+            .flatten();
         let mut raised = None;
         let mut inbox = VecDeque::new();
 
@@ -250,15 +269,30 @@ impl RbEventLoop {
                 // per turn of the loop and cannot starve the window, or if
                 // Ruby has an interrupt pending, such as a signal, which
                 // the hand-off runs.
+                COUNTS.cleared();
                 turn.deliver_inbox();
+                if let Some(error) = menu_raised.take() {
+                    turn.hand_off_failed(error);
+                }
                 let owed = handoff
                     .as_ref()
                     .map_or_else(|| poll && !ruby.thread_alone(), GvlHandoff::take_pending);
                 if hands_over(owed || interrupt_pending(&ruby), turn.exiting()) {
+                    COUNTS.loop_handoff();
                     turn.yield_gvl();
                 }
             } else {
                 turn.handle(event);
+            }
+            // tao can call this from inside a Windows menu its pump
+            // dispatched (tray-icon's, the menu bar's, the system menu's),
+            // and its loop cannot end until that menu does. So once the
+            // flow says exit, for whatever reason (an exit, an exception
+            // that ends the loop, AppHandle#exit from another thread),
+            // end the thread's menu, if one tracks (plan 053).
+            #[cfg(windows)]
+            if turn.exiting() {
+                crate::menu_loop::end_menu();
             }
             if poll {
                 // Ruby may have started or ended a thread in this event.
@@ -272,9 +306,16 @@ impl RbEventLoop {
             crate::event_loop_target::lend(target, || on_event(event, control_flow));
         });
         // Unregister before the loop and its proxy go.
+        #[cfg(windows)]
+        drop(menu_hook);
         drop(ticker);
         drop(poll_ticker);
         drop(handoff);
+        // A hand-off inside a menu that raised after the loop's last
+        // MainEventsCleared still ends it.
+        if raised.is_none() {
+            raised = menu_raised.take();
+        }
 
         // An interrupt that ended the loop (a signal's SignalException,
         // Thread#raise, Thread#kill) is raised again here, now that the loop
@@ -704,11 +745,19 @@ impl Turn<'_> {
     fn yield_gvl(&mut self) {
         let ruby = Ruby::get_with(self.callback);
         if let Err(error) = ruby.class_thread().funcall::<_, _, Value>("pass", ()) {
-            if system_exit_status(&ruby, &error).is_some() {
-                self.report(&ruby, error);
-            } else {
-                self.end_with(error);
-            }
+            self.hand_off_failed(error);
+        }
+    }
+
+    /// Handle the exception a hand-off of the GVL raised, here or inside
+    /// a menu's modal loop (`menu_loop.rs`): a `SystemExit` ends the loop
+    /// with its status, and anything else ends the loop for `run` to raise.
+    fn hand_off_failed(&mut self, error: Error) {
+        let ruby = Ruby::get_with(self.callback);
+        if system_exit_status(&ruby, &error).is_some() {
+            self.report(&ruby, error);
+        } else {
+            self.end_with(error);
         }
     }
 
@@ -755,7 +804,7 @@ impl Turn<'_> {
 /// which the loop, waiting in tao, would otherwise make only when an event
 /// or a hand-off reaches Ruby (`interrupt_check.rs`).
 #[allow(unsafe_code)]
-fn interrupt_pending(ruby: &Ruby) -> bool {
+pub fn interrupt_pending(ruby: &Ruby) -> bool {
     let main_thread = ruby.thread_main().as_raw();
     // SAFETY: `rb_thread_interrupted` is public Ruby API
     // (`include/ruby/internal/intern/thread.h:375`) that type-checks its
@@ -800,6 +849,23 @@ fn warn(ruby: &Ruby, message: &str) {
     }
 }
 
+/// `Native::EventLoop.gvl_handoff_counts`: how often the GVL changed
+/// hands in this process, by kind, for the diagnostics of plan 053
+/// (decision 4). `cleared` counts `MainEventsCleared` events, `loop` the
+/// hand-offs there, `menu_messages` the messages a Windows menu's modal
+/// loop showed its hook, and `menu` the hand-offs that hook made.
+///
+/// # Errors
+///
+/// Returns an error if a key cannot be stored.
+fn gvl_handoff_counts(ruby: &Ruby) -> Result<RHash, Error> {
+    let counts = ruby.hash_new();
+    for (name, count) in COUNTS.snapshot() {
+        counts.aset(name, count)?;
+    }
+    Ok(counts)
+}
+
 /// Define the `EventLoop` class methods on the given Ruby module.
 ///
 /// # Errors
@@ -808,6 +874,8 @@ fn warn(ruby: &Ruby, message: &str) {
 pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
     let event_loop_class = native.define_class("EventLoop", ruby.class_object())?;
     event_loop_class.define_singleton_method("new", function!(RbEventLoop::new, 0))?;
+    event_loop_class
+        .define_singleton_method("gvl_handoff_counts", function!(gvl_handoff_counts, 0))?;
     event_loop_class.define_method("create_proxy", method!(RbEventLoop::create_proxy, 0))?;
     event_loop_class.define_method("run", method!(RbEventLoop::run, 1))?;
     #[cfg(target_os = "macos")]

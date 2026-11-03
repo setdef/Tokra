@@ -68,6 +68,9 @@ mod icon;
 mod image;
 mod interrupt_check;
 mod menu;
+// Compiled where it runs, and for its tests everywhere.
+#[cfg(any(windows, test))]
+mod menu_loop;
 mod path;
 mod proxy;
 mod raw_handle;

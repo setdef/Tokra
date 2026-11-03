@@ -64,6 +64,20 @@ class NativeLoopTest < RealApp::TestCase
         "#{run.describe}"
   end
 
+  # The loop counts its MainEventsCleared events and the hand-offs it
+  # makes there, which Windows CI reads to tell where a hand-off failed
+  # (plan 053, decision 4). With a busy thread waiting, it hands over, and
+  # never more often than it clears.
+  def test_the_loop_counts_the_hand_offs_it_makes
+    run = cpu_bound(1)
+    line = run.lines.find { |l| l.start_with?("HANDOFFS ") }
+    refute_nil line, "the loop never reported its hand-offs\n#{run.describe}"
+    counts = line.split.drop(1).to_h { |pair| pair.split("=").then { |name, count| [name, Integer(count)] } }
+    assert_equal %w[cleared loop menu_messages menu], counts.keys, run.describe
+    assert_operator counts["loop"], :>=, 1, run.describe
+    assert_operator counts["cleared"], :>=, counts["loop"], run.describe
+  end
+
   def test_one_cpu_bound_thread_cannot_freeze_the_window_or_its_exit
     assert_the_window_keeps_turning(cpu_bound(1), 1)
   end

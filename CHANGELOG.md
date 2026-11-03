@@ -194,6 +194,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Native::Proxy#drop_response(request_id)` closes a pending protocol request
   without a reply
 - `Native::LoopDestroyedEvent`, delivered as the native event loop ends
+- `Native::EventLoop.gvl_handoff_counts`, how often the loop has handed the
+  GVL to other Ruby threads, at the end of a turn and inside a Windows menu
 - `Native::IpcEvent#url`, the URL of the frame that posted the message
 - `Rack::Handler::Tokra.run` accepts `native:`, like `Builder#run`
 - `tokra-clipboard` gem: `Tokra::Plugins::Clipboard::Plugin.new(app)` manages
@@ -502,8 +504,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   valid install name instead of an empty one
 - Request bodies sent over `tokra://` and `ipc://` arriving empty on Linux:
   wry's `linux-body` feature is now on, as in Tauri
-- Background Ruby threads stopping while the window is idle: the event loop
-  now hands them the GVL once per turn whenever they wait for it, so a
+- Background Ruby threads stopping while the window is idle and while a
+  Windows menu tracks: the event loop now hands them the GVL once per turn
+  whenever they wait for it, and from inside a menu's modal loop, so a
   CPU-bound thread can neither starve them nor freeze the window and its
   exit
 - `SIGTERM`, `SIGHUP`, and `SIGQUIT` with Ruby's default handlers being

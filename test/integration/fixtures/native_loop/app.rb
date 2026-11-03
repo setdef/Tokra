@@ -11,7 +11,8 @@
 # prints a few lines and ends the process itself; a hang is the failure.
 #
 #   --cpu=N          N CPU-bound threads spin; a ticker wakes the loop every
-#                    100 ms. Prints WAKEUPS <count> <max latency ms>, exits 0.
+#                    100 ms. Prints HANDOFFS <name>=<count>... (plan 053)
+#                    and WAKEUPS <count> <max latency ms>, exits 0.
 #   --before-run     with --cpu, start the threads before EventLoop#run, so
 #                    they already wait for the GVL when the loop starts.
 #   --ticker-wait    a ticker sleeps in a loop; prints READY and waits for a
@@ -125,6 +126,8 @@ handler = if options[:cpu].positive?
 
     latencies << ((now - Float(event.payload)) * 1000).round
     if now - started > 4
+      counts = Tokra::Native::EventLoop.gvl_handoff_counts
+      puts "HANDOFFS #{counts.map { |name, count| "#{name}=#{count}" }.join(' ')}"
       puts "WAKEUPS #{latencies.size} #{latencies.max}"
       exit 0
     end

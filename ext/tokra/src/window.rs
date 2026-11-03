@@ -174,7 +174,7 @@ impl RbWindow {
         let attributes = crate::window_builder::Attributes::read(ruby, attributes)?;
         let window = event_loop
             .with_target(|target| attributes.build(target))?
-            .ok_or_else(|| Error::new(runtime_error(), "the event loop has ended"))??;
+            .ok_or_else(|| Error::new(runtime_error(), crate::event_loop_target::no_target()))??;
         let id = window.id();
         rb_self
             .inner
