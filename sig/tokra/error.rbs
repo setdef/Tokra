@@ -17,6 +17,7 @@ module Tokra
       FAILED_TO_RECEIVE_MESSAGE: String
       FAILED_TO_GET_CURSOR_POSITION: String
       INVALID_WINDOW_LABEL: String
+      INVALID_PROXY_URL: String
       NO_EVENT_LOOP: String
 
       def initialize: (String message) -> void

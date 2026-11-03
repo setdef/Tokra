@@ -110,7 +110,9 @@ module Tokra
     class WebView
       def self.new_with_protocol: (Window, Proxy, String label, Array[String]) -> WebView
       def self.empty: (Proxy) -> WebView
-      type attribute = String | bool | Array[String] | Window::rgba | Window::dimensions | nil
+      type script = [String, bool]
+      type proxy = [String, String, String]
+      type attribute = String | bool | Array[script] | proxy | Array[Integer] | Window::rgba | Window::dimensions | nil
 
       def open: (Window, Proxy, String label, Hash[Symbol, attribute] attributes) -> nil
       def eval: (String) -> void

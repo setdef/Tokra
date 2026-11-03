@@ -186,33 +186,114 @@ const fn attach_resize_handler(_window: &tao::window::Window, _webview: &WebView
 
 // SPDX-SnippetEnd
 
-/// The webview rows a `Tokra::WebviewWindowBuilder` sets (plan 052,
-/// decision c10), read from `open`'s Hash; a key it lacks keeps wry's
-/// default, as `Default` does.
+/// The webview rows a `Tokra::WebviewBuilder` sets (plan 052, decisions
+/// c10 and e1-2), read from `open`'s Hash; a key it lacks keeps wry's
+/// default, as `Default` does. Each platform reads only its own keys,
+/// though Ruby sends every key everywhere.
 #[derive(Default)]
 struct Attributes {
     focused: Option<bool>,
     transparent: Option<bool>,
     background_color: Option<(u8, u8, u8, u8)>,
+    accept_first_mouse: Option<bool>,
+    incognito: Option<bool>,
+    clipboard: Option<bool>,
+    /// `None` keeps the handler, as Tauri's default does.
+    drag_drop_handler_enabled: Option<bool>,
+    user_agent: Option<String>,
+    proxy_config: Option<wry::ProxyConfig>,
+    background_throttling: Option<wry::BackgroundThrottlingPolicy>,
+    javascript_disabled: Option<bool>,
+    #[cfg(windows)]
+    additional_browser_args: Option<String>,
+    #[cfg(windows)]
+    browser_extensions_enabled: Option<bool>,
+    #[cfg(windows)]
+    scroll_bar_style: Option<wry::ScrollBarStyle>,
+    #[cfg(any(
+        windows,
+        target_os = "linux",
+        target_os = "dragonfly",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd"
+    ))]
+    extensions_path: Option<String>,
+    #[cfg(target_os = "macos")]
+    data_store_identifier: Option<[u8; 16]>,
+    #[cfg(target_os = "macos")]
+    allow_link_preview: Option<bool>,
     #[cfg(target_os = "macos")]
     traffic_light_position: Option<crate::window_state::Dimensions>,
 }
 
 impl Attributes {
-    /// Reads `focused`, `transparent`, `background_color`, and on macOS
-    /// `traffic_light_position` from `attributes`.
+    /// Reads the webview rows from `attributes`, each platform its own,
+    /// before anything is built.
     ///
     /// # Errors
     ///
-    /// Returns `TypeError` for a value of the wrong type.
+    /// Returns `TypeError` for a value of the wrong type, `ArgumentError`
+    /// for a policy or style no variant names, and `RuntimeError` "Invalid
+    /// proxy url" for a proxy whose scheme `parse_proxy_url` refuses.
     fn read(ruby: &Ruby, attributes: magnus::RHash) -> Result<Self, Error> {
+        let key = |name: &str| ruby.to_symbol(name);
+        let proxy_url: Option<(String, String, String)> = attributes.lookup(key("proxy_url"))?;
+        let policy: Option<String> = attributes.lookup(key("background_throttling"))?;
+        #[cfg(windows)]
+        let style: Option<String> = attributes.lookup(key("scroll_bar_style"))?;
         Ok(Self {
-            focused: attributes.lookup(ruby.to_symbol("focused"))?,
-            transparent: attributes.lookup(ruby.to_symbol("transparent"))?,
-            background_color: attributes.lookup(ruby.to_symbol("background_color"))?,
+            focused: attributes.lookup(key("focused"))?,
+            transparent: attributes.lookup(key("transparent"))?,
+            background_color: attributes.lookup(key("background_color"))?,
+            accept_first_mouse: attributes.lookup(key("accept_first_mouse"))?,
+            incognito: attributes.lookup(key("incognito"))?,
+            clipboard: attributes.lookup(key("clipboard"))?,
+            drag_drop_handler_enabled: attributes.lookup(key("drag_drop_handler_enabled"))?,
+            user_agent: attributes.lookup(key("user_agent"))?,
+            proxy_config: proxy_url
+                .map(|(scheme, host, port)| proxy_config(&scheme, host, port))
+                .transpose()
+                .map_err(|message| Error::new(ruby.exception_runtime_error(), message))?,
+            background_throttling: policy
+                .map(|name| background_throttling(&name))
+                .transpose()
+                .map_err(|message| Error::new(ruby.exception_arg_error(), message))?,
+            javascript_disabled: attributes.lookup(key("javascript_disabled"))?,
+            #[cfg(windows)]
+            additional_browser_args: attributes.lookup(key("additional_browser_args"))?,
+            #[cfg(windows)]
+            browser_extensions_enabled: attributes.lookup(key("browser_extensions_enabled"))?,
+            #[cfg(windows)]
+            scroll_bar_style: style
+                .map(|name| scroll_bar_style(&name))
+                .transpose()
+                .map_err(|message| Error::new(ruby.exception_arg_error(), message))?,
+            #[cfg(any(
+                windows,
+                target_os = "linux",
+                target_os = "dragonfly",
+                target_os = "freebsd",
+                target_os = "netbsd",
+                target_os = "openbsd"
+            ))]
+            extensions_path: attributes.lookup(key("extensions_path"))?,
             #[cfg(target_os = "macos")]
-            traffic_light_position: attributes.lookup(ruby.to_symbol("traffic_light_position"))?,
+            data_store_identifier: attributes.lookup(key("data_store_identifier"))?,
+            #[cfg(target_os = "macos")]
+            allow_link_preview: attributes.lookup(key("allow_link_preview"))?,
+            #[cfg(target_os = "macos")]
+            traffic_light_position: attributes.lookup(key("traffic_light_position"))?,
         })
+    }
+
+    /// The drag-drop handler `make` builds, or `None` when a row turned it
+    /// off. The default, a key absent or `true`, installs it, as Tauri's
+    /// `WebviewAttributes::new` sets `drag_drop_handler_enabled: true` and
+    /// its runtime installs the handler only then (tauri-runtime
+    /// `src/webview.rs:488`; tauri-runtime-wry `src/lib.rs:4669`).
+    fn drag_drop_handler<H>(&self, make: impl FnOnce() -> H) -> Option<H> {
+        self.drag_drop_handler_enabled.unwrap_or(true).then(make)
     }
 
     // SPDX-SnippetBegin
@@ -220,10 +301,11 @@ impl Attributes {
     // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
     // SPDX-SnippetComment: The webview attributes adapted from tauri-runtime-wry/src/lib.rs create_webview
 
-    /// `builder` with these rows, as Tauri's `create_webview` sets them:
-    /// focus and transparency always (`src/lib.rs:4626-4627`), the
-    /// background color when given (`:4665-4667`), and on macOS the
-    /// traffic-light inset (`:4943-4946`).
+    /// `builder` with these rows, as Tauri's `create_webview` sets them
+    /// (`src/lib.rs:4626-4946`): focus, transparency, first mouse,
+    /// incognito, and the clipboard always; the background throttling,
+    /// JavaScript, background color, user agent, and proxy when given;
+    /// then each platform's own (`apply_platform`).
     fn apply<'a>(&self, mut builder: WebViewBuilder<'a>) -> WebViewBuilder<'a> {
         if let Some(focused) = self.focused {
             builder = builder.with_focused(focused);
@@ -231,19 +313,190 @@ impl Attributes {
         if let Some(transparent) = self.transparent {
             builder = builder.with_transparent(transparent);
         }
+        if let Some(accept) = self.accept_first_mouse {
+            builder = builder.with_accept_first_mouse(accept);
+        }
+        if let Some(incognito) = self.incognito {
+            builder = builder.with_incognito(incognito);
+        }
+        if let Some(clipboard) = self.clipboard {
+            builder = builder.with_clipboard(clipboard);
+        }
+        if let Some(policy) = &self.background_throttling {
+            builder = builder.with_background_throttling(policy.clone());
+        }
+        if self.javascript_disabled == Some(true) {
+            builder = builder.with_javascript_disabled();
+        }
         if let Some(color) = self.background_color {
             builder = builder.with_background_color(color);
         }
-        #[cfg(target_os = "macos")]
-        if let Some(position) = self.traffic_light_position {
-            use wry::WebViewBuilderExtDarwin;
-            builder = builder.with_traffic_light_inset(crate::window_state::position(position));
+        if let Some(user_agent) = &self.user_agent {
+            builder = builder.with_user_agent(user_agent);
+        }
+        if let Some(config) = &self.proxy_config {
+            builder = builder.with_proxy_config(config.clone());
+        }
+        self.apply_platform(builder)
+    }
+
+    /// The Windows rows (`src/lib.rs:4866-4895`), and the extensions path
+    /// (`:4897-4909`).
+    #[cfg(windows)]
+    fn apply_platform<'a>(&self, mut builder: WebViewBuilder<'a>) -> WebViewBuilder<'a> {
+        use wry::WebViewBuilderExtWindows;
+
+        if let Some(args) = &self.additional_browser_args {
+            builder = builder.with_additional_browser_args(args);
+        }
+        if let Some(style) = self.scroll_bar_style {
+            builder = builder.with_scroll_bar_style(style);
+        }
+        if let Some(enabled) = self.browser_extensions_enabled {
+            builder = builder.with_browser_extensions_enabled(enabled);
+        }
+        if let Some(path) = &self.extensions_path {
+            builder = builder.with_extensions_path(path);
         }
         builder
     }
 
-    // SPDX-SnippetEnd
+    /// The Linux extensions path (`src/lib.rs:4897-4909`).
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "dragonfly",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd"
+    ))]
+    fn apply_platform<'a>(&self, mut builder: WebViewBuilder<'a>) -> WebViewBuilder<'a> {
+        use wry::WebViewBuilderExtUnix;
+
+        if let Some(path) = &self.extensions_path {
+            builder = builder.with_extensions_path(path);
+        }
+        builder
+    }
+
+    /// The macOS rows: the data store and the link preview
+    /// (`src/lib.rs:4923-4932`), and the traffic-light inset (`:4941-4946`).
+    #[cfg(target_os = "macos")]
+    fn apply_platform<'a>(&self, mut builder: WebViewBuilder<'a>) -> WebViewBuilder<'a> {
+        use wry::WebViewBuilderExtDarwin;
+
+        if let Some(identifier) = self.data_store_identifier {
+            builder = builder.with_data_store_identifier(identifier);
+        }
+        if let Some(allow) = self.allow_link_preview {
+            builder = builder.with_allow_link_preview(allow);
+        }
+        if let Some(position) = self.traffic_light_position {
+            builder = builder.with_traffic_light_inset(crate::window_state::position(position));
+        }
+        builder
+    }
 }
+
+/// wry's policy for the name a `Tokra::BackgroundThrottlingPolicy` gives,
+/// as Tauri's `create_webview` maps its own (`src/lib.rs:4647-4659`), or
+/// the message for a name no policy has.
+fn background_throttling(name: &str) -> Result<wry::BackgroundThrottlingPolicy, String> {
+    match name {
+        "Disabled" => Ok(wry::BackgroundThrottlingPolicy::Disabled),
+        "Suspend" => Ok(wry::BackgroundThrottlingPolicy::Suspend),
+        "Throttle" => Ok(wry::BackgroundThrottlingPolicy::Throttle),
+        other => Err(format!("unknown background throttling policy: {other}")),
+    }
+}
+
+/// wry's scroll bar style for the name a `Tokra::ScrollBarStyle` gives, as
+/// Tauri's `create_webview` maps its own (`src/lib.rs:4883-4889`), or the
+/// message for a name no style has.
+#[cfg(windows)]
+fn scroll_bar_style(name: &str) -> Result<wry::ScrollBarStyle, String> {
+    match name {
+        "Default" => Ok(wry::ScrollBarStyle::Default),
+        "FluentOverlay" => Ok(wry::ScrollBarStyle::FluentOverlay),
+        other => Err(format!("unknown scroll bar style: {other}")),
+    }
+}
+
+/// wry's proxy for a URL's `scheme`, `host`, and `port`, as
+/// `parse_proxy_url` builds it (`src/lib.rs:4301-4316`), or tauri-runtime's
+/// `Error::InvalidProxyUrl` message (`lib.rs:161-162`) for any scheme but
+/// `http` and `socks5`.
+fn proxy_config(scheme: &str, host: String, port: String) -> Result<wry::ProxyConfig, String> {
+    let endpoint = wry::ProxyEndpoint { host, port };
+    match scheme {
+        "http" => Ok(wry::ProxyConfig::Http(endpoint)),
+        "socks5" => Ok(wry::ProxyConfig::Socks5(endpoint)),
+        _ => Err("Invalid proxy url".to_string()),
+    }
+}
+
+// SPDX-SnippetEnd
+
+// SPDX-SnippetBegin
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+// SPDX-SnippetComment: Drag-drop handler pattern adapted from tauri-runtime-wry/lib.rs lines 4669-4703
+
+/// The drag-drop handler of the webview labeled `label`, which Tauri's
+/// `create_webview` installs unless the builder disabled it
+/// (tauri-runtime-wry `src/lib.rs:4669-4703`). It captures only a proxy and
+/// a copy of the label, and sends each event to Ruby through the loop
+/// (plan 043; plan 052, decision 2).
+fn drag_drop_handler(
+    proxy: &RbProxy,
+    label: &str,
+) -> impl Fn(wry::DragDropEvent) -> bool + 'static {
+    let proxy_for_drag_drop = proxy.inner().clone();
+    let label_for_drag_drop = label.to_string();
+    move |event| {
+        use wry::DragDropEvent as WryDragDropEvent;
+
+        let (event_name, paths, x, y) = match event {
+            WryDragDropEvent::Enter {
+                paths,
+                position: (x, y),
+            } => (
+                "enter",
+                paths
+                    .iter()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .collect(),
+                x,
+                y,
+            ),
+            WryDragDropEvent::Over { position: (x, y) } => ("over", vec![], x, y),
+            WryDragDropEvent::Drop {
+                paths,
+                position: (x, y),
+            } => (
+                "drop",
+                paths
+                    .iter()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .collect(),
+                x,
+                y,
+            ),
+            WryDragDropEvent::Leave => ("leave", vec![], 0, 0),
+            _ => return true, // Handle future variants gracefully
+        };
+
+        let _ = proxy_for_drag_drop.send_event(UserEvent::DragDrop {
+            label: label_for_drag_drop.clone(),
+            event: event_name.to_string(),
+            paths,
+            x,
+            y,
+        });
+        true // Block default OS behavior (like Tauri)
+    }
+}
+
+// SPDX-SnippetEnd
 
 // SPDX-SnippetBegin
 // SPDX-License-Identifier: Apache-2.0 OR MIT
@@ -267,7 +520,7 @@ fn build(
     proxy: &RbProxy,
     label: &str,
     url: String,
-    initialization_scripts: Vec<String>,
+    initialization_scripts: Vec<(String, bool)>,
     attributes: &Attributes,
 ) -> Result<WebView, Error> {
     let proxy_clone = proxy.inner().clone();
@@ -278,8 +531,14 @@ fn build(
     let label_for_page_load = label.to_string();
 
     let mut builder = attributes.apply(WebViewBuilder::new().with_id(label));
-    for script in initialization_scripts {
-        builder = builder.with_initialization_script(script);
+    // Each script for the main frame only or every frame, in order, as
+    // Tauri's `create_webview` adds them (tauri-runtime-wry
+    // `src/lib.rs:4958-4961`).
+    for (script, for_main_frame_only) in initialization_scripts {
+        builder = builder.with_initialization_script_for_main_only(script, for_main_frame_only);
+    }
+    if let Some(handler) = attributes.drag_drop_handler(|| drag_drop_handler(proxy, label)) {
+        builder = builder.with_drag_drop_handler(handler);
     }
 
     let builder = builder
@@ -303,57 +562,6 @@ fn build(
                 event: event_name.to_string(),
                 url,
             });
-        })
-        // SPDX-SnippetEnd
-        // SPDX-SnippetBegin
-        // SPDX-License-Identifier: Apache-2.0 OR MIT
-        // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
-        // SPDX-SnippetComment: Drag-drop handler pattern adapted from tauri-runtime-wry/lib.rs lines 4669-4703
-        .with_drag_drop_handler({
-            let proxy_for_drag_drop = proxy.inner().clone();
-            let label_for_drag_drop = label.to_string();
-            move |event| {
-                use wry::DragDropEvent as WryDragDropEvent;
-
-                let (event_name, paths, x, y) = match event {
-                    WryDragDropEvent::Enter {
-                        paths,
-                        position: (x, y),
-                    } => (
-                        "enter",
-                        paths
-                            .iter()
-                            .map(|p| p.to_string_lossy().to_string())
-                            .collect(),
-                        x,
-                        y,
-                    ),
-                    WryDragDropEvent::Over { position: (x, y) } => ("over", vec![], x, y),
-                    WryDragDropEvent::Drop {
-                        paths,
-                        position: (x, y),
-                    } => (
-                        "drop",
-                        paths
-                            .iter()
-                            .map(|p| p.to_string_lossy().to_string())
-                            .collect(),
-                        x,
-                        y,
-                    ),
-                    WryDragDropEvent::Leave => ("leave", vec![], 0, 0),
-                    _ => return true, // Handle future variants gracefully
-                };
-
-                let _ = proxy_for_drag_drop.send_event(UserEvent::DragDrop {
-                    label: label_for_drag_drop.clone(),
-                    event: event_name.to_string(),
-                    paths,
-                    x,
-                    y,
-                });
-                true // Block default OS behavior (like Tauri)
-            }
         })
         // SPDX-SnippetEnd
         .with_ipc_handler(move |msg| {
@@ -507,7 +715,10 @@ impl RbWebView {
             proxy,
             &label,
             "tokra://localhost/".to_string(),
-            initialization_scripts,
+            initialization_scripts
+                .into_iter()
+                .map(|script| (script, true))
+                .collect(),
             &Attributes::default(),
         )?;
         Ok(Self {
@@ -533,11 +744,12 @@ impl RbWebView {
     /// Build the webview `new_with_protocol` builds, labeled `label`, from
     /// `attributes`, as Tauri's `WebviewAttributes` holds them
     /// (tauri-runtime `src/webview.rs:323-398`): the `url` it loads, its
-    /// `initialization_scripts`, and the webview rows (`focused`,
-    /// `transparent`, `background_color`, and on macOS
-    /// `traffic_light_position`), into this empty webview, as Tauri's
-    /// runtime builds a webview window's webview right after its window
-    /// (tauri-runtime-wry `src/lib.rs:4489-4500`).
+    /// `initialization_scripts`, each `[script, for_main_frame_only]` in
+    /// order, and the webview rows a `Tokra::WebviewBuilder` sends (see
+    /// `Attributes`), into this empty webview, as Tauri's runtime builds a
+    /// webview window's webview right after its window (tauri-runtime-wry
+    /// `src/lib.rs:4489-4500`). Without `drag_drop_handler_enabled` false
+    /// the webview gets the drag-drop handler, as Tauri's does.
     ///
     /// On Windows `WebView2` creation runs a nested message loop
     /// (webview2-com `wait_with_pump`) inside the event loop's callback, as
@@ -548,7 +760,11 @@ impl RbWebView {
     ///
     /// Returns `ArgumentError` for a label holding NUL, `KeyError` without
     /// a `url` or `initialization_scripts`, and `TypeError` for an
-    /// attribute of the wrong type, before building anything; `ThreadError`
+    /// attribute of the wrong type, `RangeError` for a data store
+    /// identifier byte outside 0 to 255 (macOS), `ArgumentError` for a
+    /// background throttling policy or scroll bar style no variant names, and
+    /// `RuntimeError` "Invalid proxy url" for a proxy of a scheme but
+    /// `http` and `socks5`, before building anything; `ThreadError`
     /// off the loop's thread; and `RuntimeError` when the webview is or
     /// ever was open, when `window` is closed or was never filled, or when
     /// wry fails to build it.
@@ -562,7 +778,7 @@ impl RbWebView {
     ) -> Result<(), Error> {
         let label = crate::window_labels::checked(ruby, label)?;
         let url: String = attributes.fetch(ruby.to_symbol("url"))?;
-        let initialization_scripts: Vec<String> =
+        let initialization_scripts: Vec<(String, bool)> =
             attributes.fetch(ruby.to_symbol("initialization_scripts"))?;
         let attributes = Attributes::read(ruby, attributes)?;
         {
@@ -765,7 +981,85 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::{http_request_event, UserEvent};
+    use super::{background_throttling, http_request_event, proxy_config, Attributes, UserEvent};
+
+    #[test]
+    fn the_drag_drop_handler_is_built_unless_a_row_turned_it_off() {
+        let installed = |enabled: Option<bool>| {
+            let attributes = Attributes {
+                drag_drop_handler_enabled: enabled,
+                ..Attributes::default()
+            };
+            let mut built = false;
+            let handler = attributes.drag_drop_handler(|| {
+                built = true;
+                "handler"
+            });
+            (handler, built)
+        };
+        assert_eq!(
+            installed(None),
+            (Some("handler"), true),
+            "Tauri's default installs it"
+        );
+        assert_eq!(installed(Some(true)), (Some("handler"), true));
+        assert_eq!(
+            installed(Some(false)),
+            (None, false),
+            "disable_drag_drop_handler builds none"
+        );
+    }
+
+    #[test]
+    fn a_proxy_is_http_connect_or_socks5_as_parse_proxy_url_reads_it() {
+        match proxy_config("http", "proxy.test".into(), "3128".into()) {
+            Ok(wry::ProxyConfig::Http(endpoint)) => {
+                assert_eq!(
+                    (endpoint.host.as_str(), endpoint.port.as_str()),
+                    ("proxy.test", "3128")
+                );
+            }
+            other => panic!("expected an HTTP proxy, got {other:?}"),
+        }
+        match proxy_config("socks5", "127.0.0.1".into(), String::new()) {
+            Ok(wry::ProxyConfig::Socks5(endpoint)) => {
+                assert_eq!(
+                    (endpoint.host.as_str(), endpoint.port.as_str()),
+                    ("127.0.0.1", "")
+                );
+            }
+            other => panic!("expected a SOCKSv5 proxy, got {other:?}"),
+        }
+        for scheme in ["https", "socks4", "HTTP", ""] {
+            assert_eq!(
+                proxy_config(scheme, "proxy.test".into(), "1".into())
+                    .err()
+                    .as_deref(),
+                Some("Invalid proxy url"),
+                "{scheme:?} is refused with tauri-runtime's message"
+            );
+        }
+    }
+
+    #[test]
+    fn each_policy_name_is_its_wry_policy() {
+        assert!(matches!(
+            background_throttling("Disabled"),
+            Ok(wry::BackgroundThrottlingPolicy::Disabled)
+        ));
+        assert!(matches!(
+            background_throttling("Suspend"),
+            Ok(wry::BackgroundThrottlingPolicy::Suspend)
+        ));
+        assert!(matches!(
+            background_throttling("Throttle"),
+            Ok(wry::BackgroundThrottlingPolicy::Throttle)
+        ));
+        assert_eq!(
+            background_throttling("Off").err().as_deref(),
+            Some("unknown background throttling policy: Off")
+        );
+    }
 
     #[test]
     fn http_request_event_passes_the_body_through_as_exact_bytes() {

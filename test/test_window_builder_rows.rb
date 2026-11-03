@@ -57,9 +57,29 @@ class TestWindowBuilderRows < Minitest::Test
     background_color: nil,
   }.freeze
 
-  # What Native::WebView#open is handed with no rows: wry's defaults, as
-  # Tauri's WebviewAttributes start (tauri-runtime webview.rs:494-495).
-  WEBVIEW_DEFAULTS = { focused: true, transparent: false, background_color: nil, traffic_light_position: nil }.freeze
+  # What Native::WebView#open is handed with no rows, as Tauri's
+  # WebviewAttributes start (tauri-runtime webview.rs:482-526); its rows
+  # are test_webview_builder_rows.rb's.
+  WEBVIEW_DEFAULTS = {
+    focused: true,
+    transparent: false,
+    background_color: nil,
+    traffic_light_position: nil,
+    accept_first_mouse: false,
+    user_agent: nil,
+    additional_browser_args: nil,
+    drag_drop_handler_enabled: true,
+    clipboard: false,
+    incognito: false,
+    proxy_url: nil,
+    browser_extensions_enabled: false,
+    extensions_path: nil,
+    data_store_identifier: nil,
+    background_throttling: nil,
+    javascript_disabled: false,
+    scroll_bar_style: "Default",
+    allow_link_preview: true,
+  }.freeze
 
   def page = Tokra::WebviewUrl::App.new("index.html")
 

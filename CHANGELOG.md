@@ -58,6 +58,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   raised, with Tauri's "failed to create window" or "failed to create
   webview: ...", and does not keep the app from exiting. The app's `main` window is built this way before the setup hook,
   so the hook finds it
+- `WebviewWindowBuilder`'s webview rows from Tauri's `WebviewBuilder`:
+  `#accept_first_mouse`, `#initialization_script`,
+  `#initialization_script_for_all_frames`, `#user_agent`,
+  `#additional_browser_args`, `#disable_drag_drop_handler`,
+  `#enable_clipboard_access`, `#incognito`, `#proxy_url` (`http://` or
+  `socks5://`; any other scheme warns "Invalid proxy url"; ignored on macOS,
+  as in Tauri without `macos-proxy`), `#browser_extensions_enabled`,
+  `#extensions_path`, `#data_store_identifier`, `#background_throttling`,
+  `#disable_javascript`, `#scroll_bar_style`, and on macOS
+  `#allow_link_preview`, each with Tauri's default
+- `Tokra::BackgroundThrottlingPolicy` (`Disabled`, `Suspend`, `Throttle`) and
+  `Tokra::ScrollBarStyle` (`Default`, and on Windows `FluentOverlay`)
 - `Tokra::WebviewWindow`, a window and its webview as one object, with
   Tauri's window, webview, `Listener`, `Emitter`, and `Manager` methods;
   `Manager#get_webview_window`, `#webview_windows`, and
@@ -75,7 +87,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Native::Window.empty(proxy)`, `Native::Window#open(event_loop, label,
   attributes)`, `Native::Window#discard`, `Native::WebView.empty(proxy)`, and
   `Native::WebView#open(window, proxy, label, attributes)`, each `attributes` a
-  Hash of a builder's rows
+  Hash of a builder's rows; the webview's `initialization_scripts` are
+  `[script, for_main_frame_only]` pairs
 - `Tokra::Ipc::Invoke`, whose responders receive the response as JSON text; a
   value JSON cannot encode rejects the invoke with the serializer's message
 - `Window#set_title`, `Window#set_size`, `Webview#eval`, and `AppHandle#emit`

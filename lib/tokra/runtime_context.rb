@@ -45,6 +45,10 @@ module Tokra
   #
   #   title = context.getter { window.native.title }
   class RuntimeContext
+    # The proxy schemes tauri-runtime-wry's parse_proxy_url reads
+    # (lib.rs:4301-4316).
+    PROXY_SCHEMES = %w[http socks5].freeze
+
     # The exception a query raised, carried back to the thread that asked.
     Failure = Data.define(:error)
 
@@ -254,7 +258,18 @@ module Tokra
 
     # Fills +native_webview+ in +native_window+, and only then lets the
     # window join the store; when the webview fails, the window goes too.
+    # A proxy of any scheme but the two tauri-runtime-wry's parse_proxy_url
+    # reads fails the webview before it is built, warned with Tauri's
+    # error, which its runtime logs bare (lib.rs:4301-4316, 4861-4865;
+    # plan 052, decision e1-5).
     private def open_webview(native_window, native_webview, proxy, label, url, initialization_scripts, attributes)
+      proxy_url = attributes[:proxy_url]
+      scheme = proxy_url.first if proxy_url.is_a?(Array)
+      if scheme.is_a?(String) && !PROXY_SCHEMES.include?(scheme)
+        native_window.discard
+        return warn(Error::Runtime::INVALID_PROXY_URL)
+      end
+
       native_webview.open(native_window, proxy, label, attributes.merge(url:, initialization_scripts:))
       @open_windows << label
     rescue RuntimeError => e

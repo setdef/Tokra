@@ -4,6 +4,8 @@
 module Tokra
   # Runs window and webview work on the main thread, from any thread.
   class RuntimeContext
+    PROXY_SCHEMES: Array[String]
+
     class Failure < Data
       attr_reader error: Exception
       def self.new: (error: Exception) -> Failure
@@ -36,7 +38,7 @@ module Tokra
     def close: () -> nil
     def create_window: (String label, window_attributes: Hash[Symbol, Native::Window::attribute],
                         webview_attributes: Hash[Symbol, Native::WebView::attribute], url: String,
-                        initialization_scripts: Array[String], menu: Menu::Menu?) -> [Native::Window, Native::WebView]
+                        initialization_scripts: Array[Native::WebView::script], menu: Menu::Menu?) -> [Native::Window, Native::WebView]
     def window_destroyed: (String label) -> bool
 
     private
@@ -49,6 +51,6 @@ module Tokra
     def answer: [T] ([T] | Failure | nil reply, Exception unanswered) -> T
     def init_window_menu: (Native::Window native_window, Menu::Menu menu, String theme) -> void
     def open_window: (Native::Window native_window, String label, Hash[Symbol, Native::Window::attribute] attributes, Menu::Menu? menu) -> bool
-    def open_webview: (Native::Window native_window, Native::WebView native_webview, Native::Proxy proxy, String label, String url, Array[String] initialization_scripts, Hash[Symbol, Native::WebView::attribute] attributes) -> void
+    def open_webview: (Native::Window native_window, Native::WebView native_webview, Native::Proxy proxy, String label, String url, Array[Native::WebView::script] initialization_scripts, Hash[Symbol, Native::WebView::attribute] attributes) -> void
   end
 end

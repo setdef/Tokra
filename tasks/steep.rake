@@ -77,6 +77,10 @@ namespace :rbs do
     args += %w[--exclude-sig sig/tokra/window_builder/windows.rbs] unless host.match?(/mswin|mingw|cygwin/)
     args += %w[--exclude-sig sig/tokra/window_builder/linux.rbs] unless host.include?("linux")
     args += %w[--exclude-sig sig/tokra/window_builder/transparent.rbs] if host.include?("darwin")
+    # Tauri compiles allow_link_preview only for macOS, and ScrollBarStyle's
+    # FluentOverlay only for Windows (plan 052, decision e1-6).
+    args += %w[--exclude-sig sig/tokra/webview_builder/macos.rbs] unless host.include?("darwin")
+    args += %w[--exclude-sig sig/tokra/scroll_bar_style/windows.rbs] unless host.match?(/mswin|mingw|cygwin/)
     # Only Windows themes a webview through WebView2 (plan 047, decision 11).
     args += %w[--exclude-sig sig/tokra/webview/windows.rbs] unless host.match?(/mswin|mingw|cygwin/)
     ruby File.expand_path("rbs_parity.rb", __dir__), *args

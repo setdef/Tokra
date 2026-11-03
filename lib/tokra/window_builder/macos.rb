@@ -107,7 +107,8 @@ module Tokra
     #
     #   builder.title_bar_style(Tokra::TitleBarStyle::Overlay).traffic_light_position(Tokra::LogicalPosition.new(x: 16, y: 20))
     def traffic_light_position(position)
-      webview(:traffic_light_position, Dpi.position_dimensions(position))
+      dimensions = Dpi.position_dimensions(position)
+      webview_row { |rows| rows.set_traffic_light_position(dimensions) }
     end
   end
 end

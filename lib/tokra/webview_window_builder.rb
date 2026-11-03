@@ -28,11 +28,14 @@ module Tokra
   # Each setting is a method that answers the builder, so they chain:
   # the window's size and its limits, where it opens, its frame and
   # buttons, its menu, its theme and colors, and how it stacks with your
-  # other windows. A few exist only on the platform that has them:
-  # #title_bar_style, #hidden_title, #tabbing_identifier, and
-  # #traffic_light_position on macOS; #owner and #drag_and_drop on
-  # Windows; #transient_for on Linux; and #transparent everywhere but
-  # macOS. Ask with <tt>respond_to?</tt>.
+  # other windows; and for its webview, the scripts every page runs
+  # first, the user agent, the proxy, private browsing, JavaScript, and
+  # how drops and the clipboard reach the page. A few exist only on the
+  # platform that has them: #title_bar_style, #hidden_title,
+  # #tabbing_identifier, #traffic_light_position, and #allow_link_preview
+  # on macOS; #owner and #drag_and_drop on Windows; #transient_for on
+  # Linux; and #transparent everywhere but macOS. Ask with
+  # <tt>respond_to?</tt>.
   #
   # Build from any thread, at any time once App#run has started, the
   # setup hook included. On the main thread the window exists when #build
@@ -42,11 +45,12 @@ module Tokra
   # there for it.
   #
   # Mirrors Tauri's WebviewWindowBuilder (webview_window.rs:52-111,
-  # 445-897), which holds a WindowBuilder for the window's rows
-  # (window/mod.rs:429-906) and sets the webview's own. Tauri's rustdoc
-  # warns that on Windows building a window inside a synchronous command
-  # deadlocks; Tokra's commands run outside WebView2's callbacks, so they
-  # do not (plan 052, decision 5).
+  # 445-1231), which holds a WindowBuilder for the window's rows
+  # (window/mod.rs:429-906) and a WebviewBuilder for the webview's
+  # (webview/mod.rs:816-1203). Tauri's rustdoc warns that on Windows
+  # building a window inside a synchronous command deadlocks; Tokra's
+  # commands run outside WebView2's callbacks, so they do not (plan 052,
+  # decision 5).
   #
   # === Examples
   #
@@ -88,12 +92,9 @@ module Tokra
     #   Tokra::WebviewWindowBuilder.new(app, "about", Tokra::WebviewUrl::App.new("about.html"))
     def initialize(manager, label, url)
       @window_builder = WindowBuilder.new(manager, label)
+      @webview_builder = WebviewBuilder.new(label, url)
       @manager = manager
       @label = label
-      @url = url
-      @webview_attributes = {
-        focused: true, transparent: false, background_color: nil, traffic_light_position: nil
-      } #: Hash[Symbol, Native::WebView::attribute]
     end
 
     # Gives the window +menu+, a Menu, as its own, and returns the builder.
@@ -349,7 +350,7 @@ module Tokra
     def focus
       WindowBuilder.warn_focus_deprecated(self.class)
       @window_builder.focused(true)
-      webview(:focused, true)
+      webview_row { |rows| rows.focused(true) }
     end
 
     # Lets the window take focus, or not, and returns the builder.
@@ -374,7 +375,7 @@ module Tokra
     #   builder.focused(false)
     def focused(focused)
       @window_builder.focused(focused)
-      webview(:focused, focused ? true : false)
+      webview_row { |rows| rows.focused(focused) }
     end
 
     # Opens the window maximized, or not, and returns the builder.
@@ -595,7 +596,293 @@ module Tokra
     #   builder.background_color(Tokra::Color.from_str("#1e1e1e"))
     def background_color(color)
       @window_builder.background_color(color)
-      webview(:background_color, [color.red, color.green, color.blue, color.alpha])
+      webview_row { |rows| rows.background_color(color) }
+    end
+
+    # Lets a click on the window, while another app is in front, reach the
+    # page as well as bring the window forward, and returns the builder.
+    # Off by default, so the first click only activates the window. Only
+    # macOS has the choice.
+    #
+    # Mirrors Tauri's WebviewWindowBuilder::accept_first_mouse
+    # (webview_window.rs:903-906; tauri-runtime-wry lib.rs:4628).
+    #
+    # === Example
+    #
+    #   builder.accept_first_mouse(true)
+    def accept_first_mouse(accept)
+      webview_row { |rows| rows.accept_first_mouse(accept) }
+    end
+
+    # Runs +script+, a String of JavaScript, in every page the webview
+    # loads, and returns the builder.
+    #
+    # It runs once the page's global object exists, before the HTML is
+    # parsed and before any script of the page's own, and only in the main
+    # frame; on Windows it runs in every frame. Tokra's own scripts, and
+    # each plugin's, run first, and yours in the order you add them. It
+    # runs on every top-level navigation, so check
+    # <tt>window.location</tt> if it should run only for your own pages.
+    # Anything but a String raises TypeError.
+    #
+    # Mirrors Tauri's WebviewWindowBuilder::initialization_script
+    # (webview_window.rs:946-949, webview/mod.rs:873-882), whose scripts
+    # follow Tauri's own (manager/webview.rs:152-218).
+    #
+    # === Example
+    #
+    #   builder.initialization_script(<<~JS)
+    #     if (window.location.origin === "tokra://localhost") window.__MY_FLAG__ = true
+    #   JS
+    def initialization_script(script)
+      webview_row { |rows| rows.initialization_script(script) }
+    end
+
+    # Runs +script+ in every frame of every page the webview loads, the
+    # main frame and each iframe, and returns the builder. It runs where
+    # and when #initialization_script does, in the same order as the
+    # scripts you add with it. Check <tt>window.location</tt> to keep it
+    # off frames you do not own.
+    #
+    # Mirrors Tauri's WebviewWindowBuilder::initialization_script_for_all_frames
+    # (webview_window.rs:988-994, webview/mod.rs:932-941).
+    #
+    # === Example
+    #
+    #   builder.initialization_script_for_all_frames("window.__IN_APP__ = true")
+    def initialization_script_for_all_frames(script)
+      webview_row { |rows| rows.initialization_script_for_all_frames(script) }
+    end
+
+    # Has the webview send +user_agent+, a String, as its User-Agent, in
+    # place of the platform's, and returns the builder. The page reads it
+    # as <tt>navigator.userAgent</tt>. Anything but a String raises
+    # TypeError.
+    #
+    # Mirrors Tauri's WebviewWindowBuilder::user_agent (webview_window.rs:997-1000;
+    # tauri-runtime-wry lib.rs:4857-4859).
+    #
+    # === Example
+    #
+    #   builder.user_agent("MyApp/1.0")
+    def user_agent(user_agent)
+      webview_row { |rows| rows.user_agent(user_agent) }
+    end
+
+    # Starts WebView2 with +additional_args+, a String of Chromium
+    # switches, and returns the builder. Only Windows reads it.
+    #
+    # WebView2 already starts with
+    # <tt>--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection</tt>,
+    # and your String replaces that, so repeat those switches if you want
+    # them kept, and WebView2's
+    # <tt>--autoplay-policy=no-user-gesture-required</tt>. wry turns
+    # #proxy_url into a <tt>--proxy-server</tt> switch only when you give
+    # no switches of your own, so with this row the proxy is dropped
+    # without a word; add <tt>--proxy-server</tt> here yourself (wry
+    # webview2/mod.rs:294-323). Webviews that share a data directory share
+    # one browser process, which takes the switches of the first webview
+    # made in it; a later webview that asks for other switches can fail to
+    # open.
+    #
+    # Mirrors Tauri's WebviewWindowBuilder::additional_browser_args
+    # (webview_window.rs:1013-1018; tauri-runtime-wry lib.rs:4868-4871).
+    #
+    # === Example
+    #
+    #   builder.additional_browser_args("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-gpu")
+    def additional_browser_args(additional_args)
+      webview_row { |rows| rows.additional_browser_args(additional_args) }
+    end
+
+    # Hands files dragged onto the page to the page, as a browser does,
+    # and returns the builder.
+    #
+    # By default Tokra takes each drag and drop itself, and the window
+    # hears it as WindowEvent::DragDrop, with the paths, while the page
+    # sees none of it. On Windows a page that uses HTML5 drag and drop
+    # needs this row; on every platform the window then hears no drops.
+    #
+    # Mirrors Tauri's WebviewWindowBuilder::disable_drag_drop_handler
+    # (webview_window.rs:1029-1032; tauri-runtime-wry lib.rs:4669).
+    #
+    # === Example
+    #
+    #   builder.disable_drag_drop_handler
+    def disable_drag_drop_handler
+      webview_row(&:disable_drag_drop_handler)
+    end
+
+    # Lets the page read and write the clipboard, on Linux and Windows,
+    # and returns the builder. macOS always lets it; there the page's
+    # copy and paste shortcuts still come from your app menu's
+    # accelerators.
+    #
+    # Mirrors Tauri's WebviewWindowBuilder::enable_clipboard_access
+    # (webview_window.rs:1039-1042; tauri-runtime-wry lib.rs:4630).
+    #
+    # === Example
+    #
+    #   builder.enable_clipboard_access
+    def enable_clipboard_access
+      webview_row(&:enable_clipboard_access)
+    end
+
+    # Opens the webview in private browsing, which keeps no cookies,
+    # storage, or cache once it closes, or not, and returns the builder.
+    #
+    # On macOS the webview gets a data store of its own that lives only
+    # in memory. On Windows it needs the WebView2 Runtime 101.0.1210.39 or
+    # newer, and does nothing on an older one.
+    #
+    # Mirrors Tauri's WebviewWindowBuilder::incognito (webview_window.rs:1050-1053;
+    # tauri-runtime-wry lib.rs:4629).
+    #
+    # === Example
+    #
+    #   builder.incognito(true)
+    def incognito(incognito)
+      webview_row { |rows| rows.incognito(incognito) }
+    end
+
+    # Sends every request the webview makes through the proxy at +url+, a
+    # URI, and returns the builder. Anything but a URI raises TypeError.
+    #
+    # The URL is <tt>http://</tt>, for an HTTP CONNECT proxy, or
+    # <tt>socks5://</tt>, for a SOCKSv5 proxy, with the proxy's host and
+    # port. With any other scheme the webview fails to open: the window
+    # is dropped and the failure is warned on $stderr as "Invalid proxy
+    # url", not raised, as Tauri logs it. The window and webview stay in
+    # the app and answer as closed ones do, as any failed window does.
+    #
+    # On Windows the proxy becomes a WebView2 <tt>--proxy-server</tt>
+    # switch, which wry adds only when #additional_browser_args gives none
+    # of its own; with that row the proxy is dropped without a word, so
+    # put the switch there yourself (wry webview2/mod.rs:294-323).
+    #
+    # macOS ignores the proxy. Tauri reads it there only with its
+    # macos-proxy feature, which needs macOS 14, and Tokra does not build
+    # that feature in (plan 052, question 3).
+    #
+    # Mirrors Tauri's WebviewWindowBuilder::proxy_url (webview_window.rs:1066-1069)
+    # and tauri-runtime-wry's parse_proxy_url (lib.rs:4301-4316, 4861-4865).
+    # *Deviation*: a host reaches the proxy as Ruby's URI parsed it, where
+    # the url crate would normalize an <tt>http://</tt> one: an IDNA host to
+    # ASCII, and an IPv4
+    # address in another form, such as <tt>0x7f.1</tt>, to dotted decimal
+    # (<tt>127.0.0.1</tt>).
+    #
+    # === Example
+    #
+    #   builder.proxy_url(URI("socks5://127.0.0.1:1080"))
+    def proxy_url(url)
+      webview_row { |rows| rows.proxy_url(url) }
+    end
+
+    # Lets the person install browser extensions in the webview, or not,
+    # and returns the builder. Only WebView2 on Windows has them; see
+    # #extensions_path.
+    #
+    # Mirrors Tauri's WebviewWindowBuilder::browser_extensions_enabled
+    # (webview_window.rs:1110-1113; tauri-runtime-wry lib.rs:4892-4895).
+    #
+    # === Example
+    #
+    #   builder.browser_extensions_enabled(true)
+    def browser_extensions_enabled(enabled)
+      webview_row { |rows| rows.browser_extensions_enabled(enabled) }
+    end
+
+    # Loads the extensions in the directory +path+, a String or a
+    # Pathname, and returns the builder.
+    #
+    # On Windows the directory holds unpacked Chrome extensions, which
+    # load once #browser_extensions_enabled is on. On Linux it holds
+    # compiled WebKitGTK web extensions, <tt>.so</tt> files. macOS ignores
+    # it. Anything that is not a path raises TypeError.
+    #
+    # Mirrors Tauri's WebviewWindowBuilder::extensions_path
+    # (webview_window.rs:1122-1125; tauri-runtime-wry lib.rs:4897-4909).
+    #
+    # === Example
+    #
+    #   builder.browser_extensions_enabled(true).extensions_path(Pathname("extensions"))
+    def extensions_path(path)
+      webview_row { |rows| rows.extensions_path(path) }
+    end
+
+    # Keeps the webview's cookies, storage, and cache in the data store
+    # named +data_store_identifier+, 16 Integers from 0 to 255 that make a
+    # UUID, and returns the builder.
+    #
+    # Webviews with one identifier share their data, and webviews with
+    # different ones keep theirs apart, as a data directory does
+    # elsewhere. Only macOS 14 and newer have such stores; older macOS
+    # and the other platforms use the default one. With #incognito the
+    # webview keeps its data in memory instead. Anything but an Array of
+    # Integers raises TypeError, and a wrong count or a byte out of range
+    # ArgumentError.
+    #
+    # Mirrors Tauri's WebviewWindowBuilder::data_store_identifier
+    # (webview_window.rs:1133-1138; tauri-runtime-wry lib.rs:4925-4928),
+    # whose Rust <tt>[u8; 16]</tt> is 16 Integers, as the config's array
+    # of 16 numbers is.
+    #
+    # === Example
+    #
+    #   builder.data_store_identifier(SecureRandom.uuid.delete("-").scan(/../).map(&:hex))
+    def data_store_identifier(data_store_identifier)
+      webview_row { |rows| rows.data_store_identifier(data_store_identifier) }
+    end
+
+    # Chooses how the page runs while nobody can see it, with +policy+, a
+    # BackgroundThrottlingPolicy, and returns the builder.
+    #
+    # By default a hidden or minimized page runs its timers slower, and
+    # after about five minutes it stops until it is in sight again. Only
+    # macOS 14 and newer take a policy; Linux and Windows keep their own,
+    # where a pending Web Lock may keep a page running. Anything but a
+    # BackgroundThrottlingPolicy raises TypeError.
+    #
+    # Mirrors Tauri's WebviewWindowBuilder::background_throttling
+    # (webview_window.rs:1202-1205; tauri-runtime-wry lib.rs:4647-4659).
+    #
+    # === Example
+    #
+    #   builder.background_throttling(Tokra::BackgroundThrottlingPolicy::Disabled)
+    def background_throttling(policy)
+      webview_row { |rows| rows.background_throttling(policy) }
+    end
+
+    # Turns off the page's JavaScript, and returns the builder. The page's
+    # own scripts never run, so it cannot call your commands, and its
+    # <tt>noscript</tt> elements show instead.
+    #
+    # Mirrors Tauri's WebviewWindowBuilder::disable_javascript
+    # (webview_window.rs:1209-1212; tauri-runtime-wry lib.rs:4661-4663).
+    #
+    # === Example
+    #
+    #   builder.disable_javascript
+    def disable_javascript
+      webview_row(&:disable_javascript)
+    end
+
+    # Draws the webview's scroll bars in +style+, a ScrollBarStyle, and
+    # returns the builder. Anything else raises TypeError.
+    #
+    # Only Windows has a style but Default: ScrollBarStyle::FluentOverlay.
+    # Give every webview that shares a data directory the same style. CSS
+    # that styles the scroll bars applies on top.
+    #
+    # Mirrors Tauri's WebviewWindowBuilder::scroll_bar_style
+    # (webview_window.rs:1228-1231; tauri-runtime-wry lib.rs:4883-4889).
+    #
+    # === Example
+    #
+    #   builder.scroll_bar_style(Tokra::ScrollBarStyle::Default)
+    def scroll_bar_style(style)
+      webview_row { |rows| rows.scroll_bar_style(style) }
     end
 
     # Makes the window and its webview, joins them to the app, and answers
@@ -653,13 +940,16 @@ module Tokra
       check_label
       raise Error::WebviewLabelAlreadyExists, @label if handle.webviews.key?(@label)
 
-      url = webviews.webview_url(@url)
-      scripts = webviews.initialization_scripts(@label, @label)
+      url = webviews.webview_url(@webview_builder.url)
+      # Tauri's own scripts, each for the main frame, and then the
+      # builder's (manager/webview.rs:152-218).
+      scripts = webviews.initialization_scripts(@label, @label).map { |script| [script, true] } #: Array[[String, bool]]
+      scripts.concat(@webview_builder.initialization_scripts)
       raise Error::WindowLabelAlreadyExists, @label if handle.windows.key?(@label)
 
       menu = @window_builder.window_menu(handle)
       native_window, native_webview = handle.runtime_context.create_window(@label,
-        window_attributes: @window_builder.native_attributes, webview_attributes: @webview_attributes.dup,
+        window_attributes: @window_builder.native_attributes, webview_attributes: @webview_builder.native_attributes,
         url:, initialization_scripts: scripts, menu: menu&.menu)
       window = WindowManager.attach_window(Window.new(label: @label, native: native_window, app_handle: handle, menu:))
       webview = webviews.attach_webview(Webview.new(label: @label, native: native_webview, window:, app_handle: handle))
@@ -696,9 +986,10 @@ module Tokra
       self
     end
 
-    # Records the webview attribute +key+ and answers this builder.
-    private def webview(key, value)
-      @webview_attributes[key] = value
+    # Hands the webview builder to the block, which sets a row on it as
+    # Tauri's webview rows forward theirs, and answers this builder.
+    private def webview_row
+      yield @webview_builder
       self
     end
 

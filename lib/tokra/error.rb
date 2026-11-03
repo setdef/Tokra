@@ -86,6 +86,10 @@ module Tokra
       # (tauri-runtime lib.rs:129-130).
       INVALID_WINDOW_LABEL = "Window labels must only include alphanumeric characters, `-`, `/`, `:` and `_`."
 
+      # A webview's proxy URL is neither <tt>http://</tt> nor
+      # <tt>socks5://</tt> (tauri-runtime lib.rs:161-162).
+      INVALID_PROXY_URL = "Invalid proxy url"
+
       # A window was asked for before App#run built the event loop. Tauri's
       # app has its runtime from the moment it is built; Tokra's loop
       # exists from App#run (plan 052, decision b4).

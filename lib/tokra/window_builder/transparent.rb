@@ -5,8 +5,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
-# Tauri compiles WindowBuilder::transparent everywhere but macOS, where it
-# needs the macos-private-api feature (window/mod.rs:625-634;
+# Tauri compiles WindowBuilder::transparent and WebviewBuilder::transparent
+# everywhere but macOS, where they need the macos-private-api feature
+# (window/mod.rs:625-634; webview/mod.rs:1021-1030;
 # webview_window.rs:1073-1086). Whether Tokra builds that feature in is
 # plan 052's question 2, so until it is answered the row does not exist
 # on macOS (decision c4).
@@ -27,6 +28,14 @@ module Tokra
     end
   end
 
+  class WebviewBuilder # :nodoc:
+    # Tauri's WebviewBuilder::transparent (webview/mod.rs:1021-1030;
+    # lib.rs:4627).
+    def transparent(transparent)
+      flag(:transparent, transparent)
+    end
+  end
+
   class WebviewWindowBuilder
     # Makes the window and its webview transparent, or not, and returns
     # the builder. In a transparent window, colors whose alpha is below
@@ -41,7 +50,7 @@ module Tokra
     #   builder.transparent(true).decorations(false)
     def transparent(transparent)
       @window_builder.transparent(transparent)
-      webview(:transparent, transparent ? true : false)
+      webview_row { |rows| rows.transparent(transparent) }
     end
   end
 end

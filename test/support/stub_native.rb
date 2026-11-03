@@ -67,6 +67,11 @@ module StubNative
     Thread.current[:stub_native_windows] ||= []
   end
 
+  # Webviews created across the run, in order, "main" first.
+  def self.webviews
+    WebView.instances
+  end
+
   # Protocol responses recorded across the run, observable by tests
   # (the proxy is created inside App#run, so the sink is module-level).
   def self.responses
@@ -532,9 +537,10 @@ set_enabled: :is_enabled,
       end
     end
 
-    # The URL #open loaded, the native window it was built in, and the
-    # webview rows it was given, without the URL and scripts.
-    attr_reader :url, :window, :attributes
+    # The URL #open loaded, the native window it was built in, the
+    # webview rows it was given, without the URL and scripts, and the
+    # scripts as #open took them, each <tt>[script, main_frame_only]</tt>.
+    attr_reader :url, :window, :attributes, :initialization_script_pairs
 
     # Fills the empty webview, as Native::WebView#open builds the wry
     # webview in +window+, which must be open.
@@ -549,7 +555,8 @@ set_enabled: :is_enabled,
       @label = label
       @url = attributes.fetch(:url)
       @attributes = attributes.except(:url, :initialization_scripts)
-      @initialization_scripts = attributes.fetch(:initialization_scripts)
+      @initialization_script_pairs = attributes.fetch(:initialization_scripts)
+      @initialization_scripts = @initialization_script_pairs.map(&:first)
       @closed = false
       nil
     end

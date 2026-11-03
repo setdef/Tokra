@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class WebviewBuilder
+    def allow_link_preview: (bool allow_link_preview) -> self
+  end
+
+  class WebviewWindowBuilder
+    def allow_link_preview: (bool allow_link_preview) -> self
+  end
+end

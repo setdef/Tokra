@@ -6,6 +6,10 @@ module Tokra
     def transparent: (bool transparent) -> self
   end
 
+  class WebviewBuilder
+    def transparent: (bool transparent) -> self
+  end
+
   class WebviewWindowBuilder
     def transparent: (bool transparent) -> self
   end

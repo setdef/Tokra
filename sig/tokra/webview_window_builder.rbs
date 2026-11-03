@@ -6,10 +6,9 @@ module Tokra
     DEFAULT_TITLE: String
 
     @window_builder: WindowBuilder
+    @webview_builder: WebviewBuilder
     @manager: Manager
     @label: String
-    @url: webview_url
-    @webview_attributes: Hash[Symbol, Native::WebView::attribute]
 
     def initialize: (Manager manager, String label, webview_url url) -> void
     def menu: (Menu::Menu menu) -> self
@@ -46,6 +45,21 @@ module Tokra
     def parent: (WebviewWindow parent) -> self
     def effects: (WindowEffectsConfig effects) -> self
     def background_color: (Color color) -> self
+    def accept_first_mouse: (bool accept) -> self
+    def initialization_script: (String script) -> self
+    def initialization_script_for_all_frames: (String script) -> self
+    def user_agent: (String user_agent) -> self
+    def additional_browser_args: (String additional_args) -> self
+    def disable_drag_drop_handler: () -> self
+    def enable_clipboard_access: () -> self
+    def incognito: (bool incognito) -> self
+    def proxy_url: (URI::Generic url) -> self
+    def browser_extensions_enabled: (bool enabled) -> self
+    def extensions_path: (String | _ToPath path) -> self
+    def data_store_identifier: (Array[Integer] data_store_identifier) -> self
+    def background_throttling: (BackgroundThrottlingPolicy policy) -> self
+    def disable_javascript: () -> self
+    def scroll_bar_style: (ScrollBarStyle style) -> self
     def build: () -> WebviewWindow
 
     private
@@ -53,7 +67,7 @@ module Tokra
     def after_creation: (AppHandle handle, Window window) -> void
     def apply_effects: (Window window, WindowEffectsConfig effects) -> void
     def forward: () { (WindowBuilder rows) -> void } -> self
-    def webview: (Symbol key, Native::WebView::attribute value) -> self
+    def webview_row: () { (WebviewBuilder rows) -> void } -> self
     def webview_window: (Object value) -> WebviewWindow
     def check_label: () -> void
   end
