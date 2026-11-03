@@ -15,31 +15,31 @@ class TestNativeIpcEvent < Minitest::Test
   end
 
   def test_new_accepts_message
-    event = Tokra::Native::IpcEvent.new("hello from JS", "tokra://localhost/")
+    event = Tokra::Native::IpcEvent.new("main", "hello from JS", "tokra://localhost/")
 
     assert_kind_of Tokra::Native::IpcEvent, event
   end
 
   def test_message_returns_stored_string
-    event = Tokra::Native::IpcEvent.new("test message", "tokra://localhost/")
+    event = Tokra::Native::IpcEvent.new("main", "test message", "tokra://localhost/")
 
     assert_equal "test message", event.message
   end
 
   def test_message_preserves_unicode
-    event = Tokra::Native::IpcEvent.new("こんにちは 🎌", "tokra://localhost/")
+    event = Tokra::Native::IpcEvent.new("main", "こんにちは 🎌", "tokra://localhost/")
 
     assert_equal "こんにちは 🎌", event.message
   end
 
   def test_message_preserves_empty_string
-    event = Tokra::Native::IpcEvent.new("", "tokra://localhost/")
+    event = Tokra::Native::IpcEvent.new("main", "", "tokra://localhost/")
 
     assert_equal "", event.message
   end
 
   def test_url_is_the_posting_frame_url
-    event = Tokra::Native::IpcEvent.new(message: "{}", url: "tokra://localhost/page")
+    event = Tokra::Native::IpcEvent.new(label: "main", message: "{}", url: "tokra://localhost/page")
 
     assert_equal "tokra://localhost/page", event.url
     assert_equal "{}", event.message

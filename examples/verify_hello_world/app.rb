@@ -49,14 +49,14 @@ LOGGER.debug { "Creating Proxy" }
 proxy = event_loop.create_proxy
 
 LOGGER.debug { "Creating Window" }
-window = Tokra::Native::Window.new(event_loop)
+window = Tokra::Native::Window.new(event_loop, "main")
 window.set_title("Hello, Tokra!")
 window.set_size(600.0, 400.0)
 LOGGER.info { "Window created: 600x400, title='Hello, Tokra!'" }
 
 # Create WebView - navigates to tokra://localhost/
 LOGGER.debug { "Creating WebView with tokra:// protocol" }
-Tokra::Native::WebView.new_with_protocol(window, proxy, [])
+Tokra::Native::WebView.new_with_protocol(window, proxy, "main", [])
 LOGGER.info { "WebView created, navigating to tokra://localhost/" }
 
 LOGGER.info { "-" * 50 }
@@ -106,7 +106,7 @@ event_loop.run(
 
     when Tokra::Native::WindowCloseEvent
       LOGGER.info { "-" * 50 }
-      LOGGER.info { "Window close requested" }
+      LOGGER.info { "Window #{event.label} close requested" }
       LOGGER.info { "Session stats: #{request_count} requests, #{page_load_count} page loads" }
       LOGGER.info { "Goodbye!" }
       # The loop keeps running until the window is gone: close it, and the
@@ -115,6 +115,7 @@ event_loop.run(
 
     when Tokra::Native::WindowDestroyedEvent
       # Answering true ends the loop.
+      LOGGER.info { "Window #{event.label} destroyed" }
       true
     end
   }

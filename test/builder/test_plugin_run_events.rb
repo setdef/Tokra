@@ -61,7 +61,7 @@ class TestBuilderPluginRunEvents < Minitest::Test
     plugin = RecordingPlugin.new
     app = Tokra::Builder.default.build(native: StubNative)
     app.handle.plugin(plugin)
-    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new)
+    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new("main"))
 
     app.run
 

@@ -21,6 +21,7 @@ module Tokra
 
     def initialize: (label: String, native: Native::WebView, window: Window, app_handle: AppHandle) -> void
     def window: () -> Window
+    def window=: (Window) -> Window
     def resources_table: () -> ResourceTable
     def evaluate: (String script) -> nil
     alias eval evaluate

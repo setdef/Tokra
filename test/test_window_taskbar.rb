@@ -24,7 +24,7 @@ class TestWindowTaskbar < Minitest::Test
   end
 
   def native
-    @native ||= StubNative::Window.new(nil)
+    @native ||= StubNative::Window.new(nil, "main")
   end
 
   def window
@@ -159,7 +159,7 @@ class TestWindowTaskbar < Minitest::Test
   # Tauri's Window::webviews: the webviews whose window is this one, as a
   # list (window/mod.rs:1071-1081).
   def test_webviews_are_the_ones_in_this_window
-    other = Tokra::Window.new(label: "other", native: StubNative::Window.new(nil), app_handle:)
+    other = Tokra::Window.new(label: "other", native: StubNative::Window.new(nil, "other"), app_handle:)
     mine = Tokra::Webview.new(label: "mine", native: StubNative::WebView.new, window:, app_handle:)
     theirs = Tokra::Webview.new(label: "theirs", native: StubNative::WebView.new, window: other, app_handle:)
     app_handle.webviews["mine"] = mine

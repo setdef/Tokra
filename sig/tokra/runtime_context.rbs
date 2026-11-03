@@ -30,7 +30,7 @@ module Tokra
     def run_on_main_thread: () { () -> void } -> nil
     def getter: [T] () { () -> T } -> T
     def request_exit: (Integer code) -> nil
-    def request_close: () -> nil
+    def request_close: (String label) -> nil
     def handle_task: () -> nil
     def close: () -> nil
 

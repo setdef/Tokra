@@ -27,6 +27,7 @@ use crate::proxy::RbProxy;
 use crate::runtime_error;
 use crate::thread_bound::{wrong_thread, ThreadBound};
 use crate::user_event::UserEvent;
+use crate::window_labels::{self, Labels};
 
 /// The Ruby class name, for the wrong-thread error.
 const CLASS: &str = "Tokra::Native::EventLoop";
@@ -312,6 +313,13 @@ struct Turn<'a> {
 #[derive(Debug)]
 enum ForRuby {
     User(UserEvent),
+    /// A tao window event, with the label of its window.
+    Window(String, Change),
+}
+
+/// What tao reported about a window, in the shape Ruby takes it.
+#[derive(Debug, Clone, Copy)]
+enum Change {
     CloseRequested,
     Destroyed,
     /// tao's size is not passed on: Ruby asks the window for its inner
@@ -326,6 +334,52 @@ enum ForRuby {
     ScaleFactorChanged(f64, u32, u32),
     ThemeChanged(&'static str),
 }
+
+// SPDX-SnippetBegin
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+// SPDX-SnippetComment: The window events Tauri passes on, adapted from
+//                      tauri-runtime-wry/src/lib.rs WindowEventWrapper::map_from_tao
+/// The change Ruby hears for a tao window event, or `None` for one it
+/// does not.
+fn change(event: WindowEvent<'_>) -> Option<Change> {
+    Some(match event {
+        WindowEvent::CloseRequested => Change::CloseRequested,
+        WindowEvent::Destroyed => Change::Destroyed,
+        WindowEvent::Resized(_) => Change::Resized,
+        WindowEvent::Moved(position) => Change::Moved(position.x, position.y),
+        #[cfg(not(windows))]
+        WindowEvent::Focused(focused) => Change::Focused(focused),
+        WindowEvent::ScaleFactorChanged {
+            scale_factor,
+            new_inner_size,
+        } => Change::ScaleFactorChanged(scale_factor, new_inner_size.width, new_inner_size.height),
+        WindowEvent::ThemeChanged(theme) => Change::ThemeChanged(theme_name(theme)),
+        _ => return None,
+    })
+}
+// SPDX-SnippetEnd
+
+// SPDX-SnippetBegin
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+// SPDX-SnippetComment: Resolving a window event's window adapted from tauri-runtime-wry/src/lib.rs handle_event_loop
+/// The label of the window `id`, for an event Ruby hears: `None` for an
+/// id `labels` does not know, whose event is dropped, as Tauri's runtime
+/// drops one missing from its `window_id_map` (`lib.rs:4126-4128`).
+/// `Destroyed` forgets the id, as the window it named is gone.
+fn label_for<K: std::hash::Hash + Eq>(
+    labels: &mut Labels<K>,
+    id: &K,
+    change: &Change,
+) -> Option<String> {
+    if matches!(change, Change::Destroyed) {
+        labels.remove(id)
+    } else {
+        labels.get(id)
+    }
+}
+// SPDX-SnippetEnd
 
 // SPDX-SnippetBegin
 // SPDX-License-Identifier: Apache-2.0 OR MIT
@@ -371,50 +425,8 @@ impl Turn<'_> {
         match event {
             Event::UserEvent(user_event) => self.queue_user_event(user_event),
             Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => self.inbox.push_back(ForRuby::CloseRequested),
-            Event::WindowEvent {
-                event: WindowEvent::Destroyed,
-                ..
-            } => self.inbox.push_back(ForRuby::Destroyed),
-            // SPDX-SnippetBegin
-            // SPDX-License-Identifier: Apache-2.0 OR MIT
-            // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
-            // SPDX-SnippetComment: The window events Tauri passes on, adapted from
-            //                      tauri-runtime-wry/src/lib.rs WindowEventWrapper::map_from_tao
-            Event::WindowEvent {
-                event: WindowEvent::Resized(_),
-                ..
-            } => self.inbox.push_back(ForRuby::Resized),
-            Event::WindowEvent {
-                event: WindowEvent::Moved(position),
-                ..
-            } => self.inbox.push_back(ForRuby::Moved(position.x, position.y)),
-            #[cfg(not(windows))]
-            Event::WindowEvent {
-                event: WindowEvent::Focused(focused),
-                ..
-            } => self.inbox.push_back(ForRuby::Focused(focused)),
-            Event::WindowEvent {
-                event:
-                    WindowEvent::ScaleFactorChanged {
-                        scale_factor,
-                        new_inner_size,
-                    },
-                ..
-            } => self.inbox.push_back(ForRuby::ScaleFactorChanged(
-                scale_factor,
-                new_inner_size.width,
-                new_inner_size.height,
-            )),
-            Event::WindowEvent {
-                event: WindowEvent::ThemeChanged(theme),
-                ..
-            } => self
-                .inbox
-                .push_back(ForRuby::ThemeChanged(theme_name(theme))),
-            // SPDX-SnippetEnd
+                window_id, event, ..
+            } => self.queue_window_event(window_id, event),
             // SPDX-SnippetBegin
             // SPDX-License-Identifier: Apache-2.0 OR MIT
             // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
@@ -428,6 +440,18 @@ impl Turn<'_> {
             }
             // SPDX-SnippetEnd
             _ => {}
+        }
+    }
+
+    /// Queue a tao window event for Ruby with its window's label, or drop
+    /// it when Ruby does not hear it or Tokra did not build the window.
+    fn queue_window_event(&mut self, window_id: tao::window::WindowId, event: WindowEvent<'_>) {
+        let Some(change) = change(event) else {
+            return;
+        };
+        let label = window_labels::with(|labels| label_for(labels, &window_id, &change));
+        if let Some(label) = label {
+            self.inbox.push_back(ForRuby::Window(label, change));
         }
     }
 
@@ -461,81 +485,104 @@ impl Turn<'_> {
         for event in batch {
             match event {
                 ForRuby::User(user_event) => self.handle_user_event(user_event),
-                // Ruby asks its handlers and closes the window unless one
-                // prevents it (tauri-runtime-wry lib.rs:4262-4290).
-                ForRuby::CloseRequested => self.deliver("::Tokra::Native::WindowCloseEvent", ()),
-                // SPDX-SnippetBegin
-                // SPDX-License-Identifier: Apache-2.0 OR MIT
-                // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
-                // SPDX-SnippetComment: Exit after the last window adapted from tauri-runtime-wry/src/lib.rs handle_event_loop
-                // Ruby drops the window from its store and, with none left,
-                // asks its handlers whether to exit; `true` means no one
-                // prevented it (lib.rs:4168-4185).
-                ForRuby::Destroyed => {
-                    if self.ask("::Tokra::Native::WindowDestroyedEvent", ()) {
-                        self.exit_with(0);
-                    }
-                } // SPDX-SnippetEnd
-                // Data.define; Ruby asks the window for its inner size.
-                ForRuby::Resized => self.deliver("::Tokra::Native::WindowResizedEvent", ()),
-                // Data.define(:x, :y)
-                ForRuby::Moved(x, y) => self.deliver("::Tokra::Native::WindowMovedEvent", (x, y)),
-                // Data.define(:focused)
-                #[cfg(not(windows))]
-                ForRuby::Focused(focused) => {
-                    self.deliver("::Tokra::Native::WindowFocusedEvent", (focused,));
+                ForRuby::Window(label, change) => self.deliver_window_event(label, change),
+            }
+        }
+    }
+
+    /// Deliver one window event to Ruby, its window's label first.
+    fn deliver_window_event(&mut self, label: String, change: Change) {
+        match change {
+            // Ruby asks its handlers and closes the window unless one
+            // prevents it (tauri-runtime-wry lib.rs:4262-4290).
+            Change::CloseRequested => {
+                self.deliver("::Tokra::Native::WindowCloseEvent", (label,));
+            }
+            // SPDX-SnippetBegin
+            // SPDX-License-Identifier: Apache-2.0 OR MIT
+            // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+            // SPDX-SnippetComment: Exit after the last window adapted from tauri-runtime-wry/src/lib.rs handle_event_loop
+            // Ruby drops the window from its store and, with none left,
+            // asks its handlers whether to exit; `true` means no one
+            // prevented it (lib.rs:4168-4185).
+            Change::Destroyed => {
+                if self.ask("::Tokra::Native::WindowDestroyedEvent", (label,)) {
+                    self.exit_with(0);
                 }
-                // Data.define(:scale_factor, :width, :height)
-                ForRuby::ScaleFactorChanged(scale_factor, width, height) => self.deliver(
-                    "::Tokra::Native::WindowScaleFactorChangedEvent",
-                    (scale_factor, width, height),
-                ),
-                // Data.define(:theme)
-                ForRuby::ThemeChanged(theme) => {
-                    self.deliver("::Tokra::Native::WindowThemeChangedEvent", (theme,));
-                }
+            } // SPDX-SnippetEnd
+            // Data.define(:label); Ruby asks the window for its inner size.
+            Change::Resized => self.deliver("::Tokra::Native::WindowResizedEvent", (label,)),
+            // Data.define(:label, :x, :y)
+            Change::Moved(x, y) => {
+                self.deliver("::Tokra::Native::WindowMovedEvent", (label, x, y));
+            }
+            // Data.define(:label, :focused)
+            #[cfg(not(windows))]
+            Change::Focused(focused) => {
+                self.deliver("::Tokra::Native::WindowFocusedEvent", (label, focused));
+            }
+            // Data.define(:label, :scale_factor, :width, :height)
+            Change::ScaleFactorChanged(scale_factor, width, height) => self.deliver(
+                "::Tokra::Native::WindowScaleFactorChangedEvent",
+                (label, scale_factor, width, height),
+            ),
+            // Data.define(:label, :theme)
+            Change::ThemeChanged(theme) => {
+                self.deliver("::Tokra::Native::WindowThemeChangedEvent", (label, theme));
             }
         }
     }
 
     fn handle_user_event(&mut self, user_event: UserEvent) {
         match user_event {
-            UserEvent::IpcMessage { url, body } => {
-                // Data.define(:message, :url)
-                self.deliver("::Tokra::Native::IpcEvent", (body, url));
+            UserEvent::IpcMessage { label, url, body } => {
+                // Data.define(:label, :message, :url)
+                self.deliver("::Tokra::Native::IpcEvent", (label, body, url));
             }
             UserEvent::HttpRequest {
+                label,
                 request_id,
                 method,
                 uri,
                 headers,
                 body,
             } => {
-                // Data.define(:request_id, :method, :uri, :headers, :body);
-                // the body arrives as a binary String holding the exact bytes.
+                // Data.define(:label, :request_id, :method, :uri, :headers,
+                // :body); the body arrives as a binary String holding the
+                // exact bytes.
                 let body = Ruby::get_with(self.callback).str_from_slice(&body);
                 self.deliver(
                     "::Tokra::Native::HttpRequestEvent",
-                    (request_id, method, uri, headers, body),
+                    (label, request_id, method, uri, headers, body),
                 );
             }
-            UserEvent::PageLoad { event, url } => {
-                // Data.define(:event, :url)
-                self.deliver("::Tokra::Native::PageLoadEvent", (event, url));
+            UserEvent::PageLoad { label, event, url } => {
+                // Data.define(:label, :event, :url)
+                self.deliver("::Tokra::Native::PageLoadEvent", (label, event, url));
             }
-            UserEvent::DragDrop { event, paths, x, y } => {
-                // Data.define(:event, :paths, :x, :y)
-                self.deliver("::Tokra::Native::DragDropEvent", (event, paths, x, y));
+            UserEvent::DragDrop {
+                label,
+                event,
+                paths,
+                x,
+                y,
+            } => {
+                // Data.define(:label, :event, :paths, :x, :y)
+                self.deliver(
+                    "::Tokra::Native::DragDropEvent",
+                    (label, event, paths, x, y),
+                );
             }
             UserEvent::WakeUp(payload) => {
                 // Data.define(:payload)
                 self.deliver("::Tokra::Native::WakeUpEvent", (payload,));
             }
-            // WebView2's focus, which Windows takes for the window's
-            // (`webview_focus.rs`). Data.define(:focused)
+            // WebView2's focus, which Windows takes for the focus of the
+            // webview's window (`webview_focus.rs`).
+            // Data.define(:label, :focused), the webview's label.
             #[cfg(windows)]
-            UserEvent::Focused(focused) => {
-                self.deliver("::Tokra::Native::WindowFocusedEvent", (focused,));
+            UserEvent::Focused { label, focused } => {
+                self.deliver("::Tokra::Native::WebviewFocusedEvent", (label, focused));
             }
             UserEvent::Task => {
                 // Data.define; the App runs the oldest queued task.
@@ -572,8 +619,11 @@ impl Turn<'_> {
                     self.exit_with(code);
                 }
             }
-            // The close button's path (lib.rs:4229-4231).
-            UserEvent::CloseWindow => self.deliver("::Tokra::Native::WindowCloseEvent", ()),
+            // The close button's path (lib.rs:4229-4231), for the window
+            // labeled `label`.
+            UserEvent::CloseWindow(label) => {
+                self.deliver("::Tokra::Native::WindowCloseEvent", (label,));
+            }
             // SPDX-SnippetEnd
             // Handled as they arrive (queue_user_event).
             UserEvent::Yield | UserEvent::Respond(_) | UserEvent::Release(_) | UserEvent::Exit => {}
@@ -770,7 +820,7 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::{hands_over, needs_ruby, ForRuby, UserEvent, VecDeque};
+    use super::{hands_over, label_for, needs_ruby, Change, ForRuby, Labels, UserEvent, VecDeque};
 
     #[test]
     fn the_gvl_is_handed_over_only_when_owed_and_no_exit_is_set() {
@@ -796,11 +846,56 @@ mod tests {
         // queue_user_event fill it.
         let mut inbox = VecDeque::new();
         inbox.push_back(ForRuby::User(UserEvent::WakeUp("first".into())));
-        inbox.push_back(ForRuby::CloseRequested);
+        inbox.push_back(ForRuby::Window("second".into(), Change::CloseRequested));
         let order: Vec<_> = inbox
             .into_iter()
             .map(|event| format!("{event:?}"))
             .collect();
-        assert_eq!(order, ["User(WakeUp(\"first\"))", "CloseRequested"]);
+        assert_eq!(
+            order,
+            [
+                "User(WakeUp(\"first\"))",
+                "Window(\"second\", CloseRequested)"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_window_event_takes_its_windows_label() {
+        let mut labels = Labels::new();
+        labels.insert(1, "main".to_string());
+        labels.insert(2, "second".to_string());
+        assert_eq!(
+            label_for(&mut labels, &2, &Change::Resized),
+            Some("second".to_string())
+        );
+        assert_eq!(
+            labels.get(&2),
+            Some("second".to_string()),
+            "only Destroyed forgets the window"
+        );
+    }
+
+    #[test]
+    fn an_unknown_windows_event_is_dropped() {
+        let mut labels = Labels::new();
+        labels.insert(1, "main".to_string());
+        assert_eq!(label_for(&mut labels, &9, &Change::CloseRequested), None);
+        assert_eq!(label_for(&mut labels, &9, &Change::Destroyed), None);
+    }
+
+    #[test]
+    fn destroyed_names_the_window_and_forgets_it() {
+        let mut labels = Labels::new();
+        labels.insert(1, "main".to_string());
+        assert_eq!(
+            label_for(&mut labels, &1, &Change::Destroyed),
+            Some("main".to_string())
+        );
+        assert_eq!(
+            label_for(&mut labels, &1, &Change::Resized),
+            None,
+            "a later event for the destroyed window is dropped"
+        );
     }
 }

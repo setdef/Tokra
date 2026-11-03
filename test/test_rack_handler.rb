@@ -702,6 +702,7 @@ class TestRackHandler < Minitest::Test
       true
     }
     StubNative.inject_event(Tokra::Native::IpcEvent.new(
+      "main",
       JSON.generate("cmd" => "ping", "callback" => 1, "error" => 2, "__TAURI_INVOKE_KEY__" => "known-key"),
       LocalOrigin.url
     ))

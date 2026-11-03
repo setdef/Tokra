@@ -42,8 +42,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   evaluate instead of raising; `Window#title` on a closed window raises
   `Error::Runtime` (`failed to receive message from webview`)
 - `Native::WindowResizedEvent`, `WindowMovedEvent`, `WindowFocusedEvent`,
-  `WindowScaleFactorChangedEvent`, `WindowThemeChangedEvent`, and
+  `WindowScaleFactorChangedEvent`, and `WindowThemeChangedEvent`, each
+  carrying its window's label; `Native::DragDropEvent` and, on Windows,
+  `Native::WebviewFocusedEvent`, each carrying its webview's label; and
   `Native::WebView#set_theme` (Windows)
+- `Builder#on_page_load`'s block receives the `Webview` that loaded the
+  page, and each plugin's `Plugin#on_page_load` hears the load after it
 - Dependency: webview2-com 0.38.2 on Windows
 - `Tokra::Webview` wrapper class with per-webview `ResourceTable`
 - `Tokra::Window` wrapper class with per-window `ResourceTable`
@@ -271,8 +275,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `WindowEvent::Destroyed` is emitted once a closed window is gone
 - `Window#close` asks to close the window as its close button does, and
   `Window#destroy` closes it without asking
-- `Native::Proxy#request_exit` and `#request_close`, `Native::Window#close`,
-  `Native::WebView#close`, `Native::WindowDestroyedEvent`, and
+- `Native::Proxy#request_exit` and `#request_close(label)`, which names the
+  window to close, `Native::Window#close`, `Native::WebView#close`,
+  `Native::WindowDestroyedEvent`, carrying its window's label, and
   `Native::ExitRequestedEvent`
 - `Window` getters: `scale_factor`, `inner_position`, `outer_position`,
   `inner_size`, `outer_size`, `is_fullscreen`, `is_minimized`,
@@ -394,9 +399,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   IPC responses and injected scripts; its `invoke_handler` receives an
   `Ipc::Invoke` and must be Ractor-shareable (breaking)
 - `tokra` now requires `rb_sys ~> 0.9.129`
-- `Native::WebView.new_with_protocol` takes `(window, proxy,
-  initialization_scripts)` (breaking)
-- `Native::IpcEvent` gains a required `url` member (breaking)
+- `Native::WebView.new_with_protocol` takes `(window, proxy, label,
+  initialization_scripts)` and builds the webview with `label` as wry's id;
+  a label holding NUL raises `ArgumentError` (breaking)
+- `Native::Window.new` takes `(event_loop, label)`, and every event the
+  loop delivers for the window carries `label`; a label holding NUL raises
+  `ArgumentError` (breaking)
+- `Native::IpcEvent` gains required `label` and `url` members; `label` is
+  its first positional member, before `message` (breaking)
+- `Native::HttpRequestEvent`, `Native::PageLoadEvent`, and
+  `Native::WindowCloseEvent` gain a required first `label` member, the
+  label of their webview or window (breaking)
 - `Native::HttpRequestEvent#body` is a binary (ASCII-8BIT) string holding the
   exact request bytes, no longer UTF-8 (breaking)
 - `ipc://` and `postMessage` invokes from any origin other than the app's own

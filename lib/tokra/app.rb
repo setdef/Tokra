@@ -270,7 +270,7 @@ module Tokra
       rack_app = @builder.__send__(:rack_app)
       @rack_handler = ::Rack::Handler::Tokra.new(rack_app, proxy) if rack_app
 
-      native_window = @window_class.new(event_loop)
+      native_window = @window_class.new(event_loop, "main")
       native_window.set_title(@window_config[:title].to_s)
       native_window.set_size(@window_config[:width].to_f, @window_config[:height].to_f)
 
@@ -280,7 +280,6 @@ module Tokra
 
       # Wrap the native window and register in manager
       window = Window.new(label: "main", native: native_window, app_handle: @handle, menu: window_menu)
-      @window = window
       # The manager's listener comes first: it tells the page and Ruby
       # listeners, then calls the builder's (manager/window.rs:93-100).
       window_event_listeners = @builder.__send__(:window_event_listeners)
@@ -291,9 +290,9 @@ module Tokra
       @handle.windows["main"] = window
 
       # Create and wrap the webview, register in manager
-      native_webview = @webview_class.new_with_protocol(native_window, proxy, initialization_scripts)
+      native_webview = @webview_class.new_with_protocol(native_window, proxy, "main",
+        initialization_scripts("main", "main"))
       webview = Webview.new(label: "main", native: native_webview, window:, app_handle: @handle)
-      @webview = webview
       @handle.webviews["main"] = webview
 
       # Emit Ready event
@@ -306,7 +305,7 @@ module Tokra
       begin
         event_loop.run(
           lambda { |event|
-            dispatch_event(event, callback, native_window, proxy)
+            dispatch_event(event, callback, proxy)
           }
         )
       ensure
@@ -502,11 +501,11 @@ module Tokra
     # running its API in a webview with no frontend bundler. Tauri's list
     # also carries plugin global API scripts, which its build scripts
     # collect at compile time; no Tokra plugin ships one yet (Plan 016).
-    private def initialization_scripts
+    private def initialization_scripts(window_label, webview_label)
       scripts = [
         bootstrap_script,
         invoke_initialization_script,
-        metadata_script,
+        metadata_script(window_label, webview_label),
         init_script,
       ]
       scripts.concat(@manager.plugins.initialization_script)
@@ -549,13 +548,15 @@ module Tokra
         invoke_key: JSON.generate(@manager.invoke_key))
     end
 
-    # Webview identity for the frontend API (manager/webview.rs:177-188).
-    private def metadata_script
+    # Webview identity for the frontend API: the labels of the webview's
+    # window and of the webview, each a JSON string as serde_json's
+    # to_string writes it (manager/webview.rs:177-188).
+    private def metadata_script(window_label, webview_label)
       <<~JS
         Object.defineProperty(window.__TAURI_INTERNALS__, 'metadata', {
           value: {
-            currentWindow: { label: "main" },
-            currentWebview: { label: "main" }
+            currentWindow: { label: #{JSON.generate(window_label)} },
+            currentWebview: { label: #{JSON.generate(webview_label)} }
           }
         })
       JS
@@ -602,9 +603,16 @@ module Tokra
 
     # Hands a native event to its handler. Answers the loop only for the
     # events whose answer it reads, +true+ ending it, and +nil+ otherwise.
-    private def dispatch_event(event, callback, window, proxy)
+    #
+    # Each window event names its window, and each webview event its
+    # webview, by label, and goes to the window or webview the manager
+    # holds by that label, as Tauri's runtime resolves them
+    # (tauri-runtime-wry lib.rs:4097-4150; manager/webview.rs:229-233,
+    # 282-300). An event for a label the manager does not hold reaches
+    # nothing.
+    private def dispatch_event(event, callback, proxy)
       # Only these two answer the loop (ext/tokra/src/event_loop.rs ask).
-      return window_destroyed(window, callback) if event.is_a?(Native::WindowDestroyedEvent)
+      return window_destroyed(event.label, callback) if event.is_a?(Native::WindowDestroyedEvent)
       return exit_requested(event.code, callback) if event.is_a?(Native::ExitRequestedEvent)
 
       # Use is_a? instead of case/when to support mock event injection in tests
@@ -617,20 +625,23 @@ module Tokra
       elsif event.is_a?(Native::PageLoadEvent)
         dispatch_page_load(event)
       elsif event.is_a?(Native::WindowCloseEvent)
-        close_requested(window, callback)
+        close_requested(event.label, callback)
       elsif event.is_a?(Native::DragDropEvent)
-        dispatch_window_event(WindowEvent::DragDrop.new(event: drag_drop_event(event)), callback)
+        dispatch_webview_window_event(event.label, WindowEvent::DragDrop.new(event: drag_drop_event(event)), callback)
+      elsif event.is_a?(Native::WebviewFocusedEvent)
+        dispatch_webview_window_event(event.label, WindowEvent::Focused.new(focused: event.focused), callback)
       elsif event.is_a?(Native::WindowResizedEvent)
-        window_resized(callback)
+        window_resized(event.label, callback)
       elsif event.is_a?(Native::WindowMovedEvent)
-        dispatch_window_event(WindowEvent::Moved.new(position: PhysicalPosition.new(x: event.x, y: event.y)), callback)
+        dispatch_window_event(event.label, WindowEvent::Moved.new(position: PhysicalPosition.new(x: event.x, y: event.y)),
+          callback)
       elsif event.is_a?(Native::WindowFocusedEvent)
-        dispatch_window_event(WindowEvent::Focused.new(focused: event.focused), callback)
+        dispatch_window_event(event.label, WindowEvent::Focused.new(focused: event.focused), callback)
       elsif event.is_a?(Native::WindowScaleFactorChangedEvent)
-        dispatch_window_event(WindowEvent::ScaleFactorChanged.new(scale_factor: event.scale_factor,
+        dispatch_window_event(event.label, WindowEvent::ScaleFactorChanged.new(scale_factor: event.scale_factor,
           new_inner_size: PhysicalSize.new(width: event.width, height: event.height)), callback)
       elsif event.is_a?(Native::WindowThemeChangedEvent)
-        theme_changed(event.theme, callback)
+        theme_changed(event.label, event.theme, callback)
       elsif event.is_a?(Native::MenuEvent)
         dispatch_menu_event(event, callback)
       elsif event.is_a?(Native::TrayIconEvent)
@@ -659,13 +670,15 @@ module Tokra
       async_protocols = @builder.__send__(:async_uri_scheme_protocols)
 
       # Try sync protocol first (for backwards compatibility)
+      # The context names the webview by the id wry handed the handler,
+      # its label (manager/webview.rs:229-233).
       if sync_protocols && (handler = sync_protocols["tokra"])
-        ctx = UriSchemeContext.new(app_handle: @handle, webview_label: "main")
+        ctx = UriSchemeContext.new(app_handle: @handle, webview_label: event.label)
         response = handler.call(ctx, event)
         header_pairs = response.headers.map { |k, v| [k.to_s, v.to_s] } #: Array[[String, String]]
         proxy.respond(event.request_id, response.status, header_pairs, response.body)
       elsif async_protocols && (handler = async_protocols["tokra"])
-        ctx = UriSchemeContext.new(app_handle: @handle, webview_label: "main")
+        ctx = UriSchemeContext.new(app_handle: @handle, webview_label: event.label)
         responder = UriSchemeResponder.new(port: proxy, request_id: event.request_id)
         handler.call(ctx, event, responder)
       elsif (rack_handler = @rack_handler)
@@ -709,14 +722,21 @@ module Tokra
     # +options.headers+ (post_message_headers), read before the key check
     # as serde reads them (ipc/protocol.rs:233-242, 291-298). A missing
     # +payload+ is the empty object.
+    #
+    # The message goes to the webview whose label it carries, and a
+    # message from a webview the manager no longer holds is dropped before
+    # it is read (ipc/protocol.rs:185-186).
     private def dispatch_ipc(event)
+      webview = @handle.webviews[event.label]
+      return unless webview
+
       parsed = Ipc::Json.parse(event.message)
       return warn("failed to parse IPC message: not a JSON object") unless parsed.is_a?(Hash)
 
       cmd = parsed.fetch("cmd", "")
       unless cmd.is_a?(String)
         return report_ipc_message_error(
-          "JSON error: invalid type: #{Ipc::Unexpected.describe(cmd)}, expected a string"
+          webview, "JSON error: invalid type: #{Ipc::Unexpected.describe(cmd)}, expected a string"
         )
       end
 
@@ -733,12 +753,12 @@ module Tokra
 
       empty_payload = {} #: Hash[String, json_value]
       body = parsed.fetch("payload", empty_payload)
-      responder = build_ipc_responder(parsed["callback"], parsed["error"],
+      responder = build_ipc_responder(webview, parsed["callback"], parsed["error"],
         can_use_channel: can_use_channel_for_response?(cmd, parsed["options"]))
 
-      route_invoke(cmd, body, headers, responder, event.url)
+      route_invoke(webview, cmd, body, headers, responder, event.url)
     rescue Ipc::Json::Error, IpcMessageError => e
-      report_ipc_message_error("JSON error: #{e.message}")
+      report_ipc_message_error(webview, "JSON error: #{e.message}") if webview
     end
 
     # Raised internally when a postMessage's options.headers cannot become
@@ -795,11 +815,11 @@ module Tokra
 
     # Reports a postMessage Tauri could not read the way Tauri does: the
     # message, as a JSON string literal, logged with console.error in the
-    # webview (ipc/protocol.rs:422-430). serde_json's Value::String and
-    # JSON.generate escape a String alike: quotes, backslashes, and control
-    # characters, nothing else.
-    private def report_ipc_message_error(message)
-      @webview&.eval("console.error(#{JSON.generate(message)})")
+    # +webview+ that sent it (ipc/protocol.rs:422-430). serde_json's
+    # Value::String and JSON.generate escape a String alike: quotes,
+    # backslashes, and control characters, nothing else.
+    private def report_ipc_message_error(webview, message)
+      webview.eval("console.error(#{JSON.generate(message)})")
     end
 
     # Routes a parsed invoke to its handler, shared by both transports.
@@ -827,14 +847,16 @@ module Tokra
     # A handler that raises does not leave the frontend waiting: the error
     # is logged and, if the invoke has not responded yet, it rejects with
     # the exception message, the way a Tauri command returning Err does.
-    private def route_invoke(cmd, body, headers, responder, origin)
+    #
+    # The invoke's webview is +webview+, the one that sent it.
+    private def route_invoke(webview, cmd, body, headers, responder, origin)
       plugin_name, command = plugin_command(cmd)
       invoke = Ipc::Invoke.new(
         command: command || cmd,
         payload: body,
         headers:,
         responder:,
-        webview: @webview # steep:ignore ArgumentTypeMismatch
+        webview:
       )
       unless cmd == Ipc::Channel::FETCH_CHANNEL_DATA_COMMAND || local_url?(origin)
         return invoke.reject("Command #{cmd} not allowed by ACL")
@@ -851,9 +873,9 @@ module Tokra
       invoke&.reject(e.message)
     end
 
-    # Builds a responder that evaluates Tauri's callback script in the
-    # calling webview: success resolves the callback ID, failure the
-    # error ID. Mirrors responder_eval (ipc/protocol.rs). Messages
+    # Builds a responder that evaluates Tauri's callback script in
+    # +webview+, the calling one: success resolves the callback ID, failure
+    # the error ID. Mirrors responder_eval (ipc/protocol.rs). Messages
     # without integer callback IDs (hand-rolled postMessage calls)
     # get no responder: fire and forget.
     #
@@ -876,11 +898,8 @@ module Tokra
     # the webview, so it must never cross a Ractor boundary. The Worker
     # Ractor phase (ADR 001) will swap this implementation for a proxy
     # round-trip without touching handlers.
-    private def build_ipc_responder(callback, error, can_use_channel: false)
+    private def build_ipc_responder(webview, callback, error, can_use_channel: false)
       return nil unless callback.is_a?(Integer) && error.is_a?(Integer)
-
-      webview = @webview
-      return nil unless webview
 
       over_channel = can_use_channel && os_name != "macos"
       lambda do |success, body|
@@ -984,8 +1003,14 @@ module Tokra
       end
     end
 
-    # Handles a POST to ipc://: parse per Tauri, verify the invoke key, then
-    # route through the shared dispatcher with an HTTP responder.
+    # Handles a POST to ipc://: find the webview, parse per Tauri, verify
+    # the invoke key, then route through the shared dispatcher with an HTTP
+    # responder.
+    #
+    # The webview is the one whose label wry handed the handler, found
+    # before anything else is read: a request from a webview the manager
+    # no longer holds answers 500 text/plain <tt>failed to acquire webview
+    # reference</tt>, whatever its key (ipc/protocol.rs:59-61, 152-160).
     #
     # A malformed request replies 500 text/plain with the parse error
     # (ipc/protocol.rs:143-151). A well-formed request with a mismatched key
@@ -995,6 +1020,9 @@ module Tokra
     # stays pending and the invoke never settles, as in Tauri. The client
     # does not fall back to postMessage, because its fetch never rejects.
     private def dispatch_ipc_protocol_post(event, proxy)
+      webview = @handle.webviews[event.label]
+      return respond_ipc_error(proxy, event.request_id, 500, "failed to acquire webview reference") unless webview
+
       cmd, invoke_key, origin, body = parse_ipc_protocol_request(event)
 
       unless invoke_key == @manager.invoke_key
@@ -1005,7 +1033,7 @@ module Tokra
       end
 
       responder = build_ipc_protocol_responder(proxy, event.request_id)
-      route_invoke(cmd, body, request_headers(event.headers), responder, origin)
+      route_invoke(webview, cmd, body, request_headers(event.headers), responder, origin)
     rescue IpcProtocolError => e
       respond_ipc_error(proxy, event.request_id, 500, e.message)
     end
@@ -1159,7 +1187,8 @@ module Tokra
     end
 
     # Replies to an ipc:// request with a plain-text error and the CORS
-    # headers, used for the 500 malformed and 405 non-POST paths.
+    # headers, used for the 500 malformed, 500 unknown-webview, and 405
+    # non-POST paths.
     private def respond_ipc_error(proxy, request_id, status, message)
       headers = [["Content-Type", "text/plain"]] #: Array[[String, String]]
       proxy.respond(request_id, status, headers + IPC_CORS_HEADERS, message)
@@ -1175,13 +1204,25 @@ module Tokra
 
     # SPDX-SnippetEnd
 
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: Page load dispatch adapted from tauri/src/manager/webview.rs prepare_pending_webview
+
+    # A page started or finished loading in the webview labeled as the
+    # event says: the builder's hook hears it with the Webview, then every
+    # plugin's on_page_load; a webview the manager no longer holds is
+    # nothing to tell (manager/webview.rs:282-300; plugin.rs:965-972).
     private def dispatch_page_load(event)
-      hook = @builder.__send__(:on_page_load_hook)
-      return unless hook
+      webview = @handle.webviews[event.label]
+      return unless webview
 
       payload = PageLoadPayload.new(url: event.url, started: event.started?)
-      hook.call(nil, payload) # webview object not yet wired
+      @builder.__send__(:on_page_load_hook)&.call(webview, payload)
+      @manager.plugins.on_page_load(webview, payload)
     end
+
+    # SPDX-SnippetEnd
 
     # SPDX-SnippetBegin
     # SPDX-License-Identifier: Apache-2.0 OR MIT
@@ -1190,14 +1231,14 @@ module Tokra
     # tauri-runtime-wry/src/lib.rs (handle_event_loop, on_close_requested,
     # on_window_close) and tauri/crates/tauri/src/app.rs (on_event_loop_event)
 
-    # Asks the window's listeners, then plugins and the run callback,
-    # whether the window may close, then closes the native window unless
-    # one prevented it (on_close_requested, lib.rs:4262-4290). Its
-    # Destroyed event follows from the platform. A window already closed
-    # is no longer in the store, and the request is dropped, as Tauri's
-    # is.
-    private def close_requested(native_window, callback)
-      window = @handle.windows["main"]
+    # Asks the listeners of the window labeled +label+, then plugins and
+    # the run callback, whether the window may close, then closes its
+    # native window unless one prevented it (on_close_requested,
+    # lib.rs:4262-4290). Its Destroyed event follows from the platform. A
+    # window already closed is no longer in the store, and the request is
+    # dropped, as Tauri's is.
+    private def close_requested(label, callback)
+      window = @handle.windows[label]
       return unless window
 
       api = CloseRequestApi.new
@@ -1206,21 +1247,21 @@ module Tokra
         window.window_event_listeners.each { |listener| listener.call(event) }
         emit_run_event(RunEvent::WindowEvent.new(label: window.label, event:), callback)
       end
-      native_window.close unless api.prevented?
+      window.native.close unless api.prevented?
     end
 
-    # The native window is gone. The manager drops it and its webviews
-    # first (on_window_close, manager/mod.rs:651-658), then the run
+    # The native window labeled +label+ is gone. The manager drops it and
+    # its webviews first (on_window_close, manager/mod.rs:651-658), then the run
     # callback hears Destroyed, then the window's listeners
     # (lib.rs:4126-4148), and the runtime drops the webviews
     # (lib.rs:4172). With no window left the app asks to exit with no code
     # (lib.rs:4172-4185). Answers the loop: +true+ ends it.
-    private def window_destroyed(_native_window, callback)
-      window = @handle.windows.delete("main")
+    private def window_destroyed(label, callback)
+      window = @handle.windows.delete(label)
       return false unless window
 
-      webviews = @handle.webviews.select { |_label, webview| webview.window.label == "main" }
-      webviews.each_key { |label| @handle.webviews.delete(label) }
+      webviews = @handle.webviews.select { |_webview_label, webview| webview.window.label == label }
+      webviews.each_key { |webview_label| @handle.webviews.delete(webview_label) }
       reporting { notify_window_event(window, WindowEvent::Destroyed.new, callback) }
       webviews.each_value { |webview| webview.native.close }
       return false unless @handle.windows.empty?
@@ -1260,11 +1301,22 @@ module Tokra
     # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
     # SPDX-SnippetComment: Window events adapted from tauri-runtime-wry/src/lib.rs (handle_event_loop)
 
-    # Tells the run callback, then the window's listeners, of +event+
-    # (lib.rs:4126-4148). A window already closed hears nothing more.
-    private def dispatch_window_event(event, callback)
-      window = @handle.windows["main"]
+    # Tells the run callback, then the listeners of the window labeled
+    # +label+, of +event+ (lib.rs:4126-4148). A window already closed hears
+    # nothing more.
+    private def dispatch_window_event(label, event, callback)
+      window = @handle.windows[label]
       notify_window_event(window, event, callback) if window
+    end
+
+    # A webview's own report, a drop on it or (Windows) its focus, as a
+    # window event of the window holding it now, which Webview#window
+    # names, as Tauri's runtime sends a webview's synthesized window event
+    # to the webview's window (lib.rs:4097-4122). A webview the manager no
+    # longer holds reports nothing.
+    private def dispatch_webview_window_event(webview_label, event, callback)
+      webview = @handle.webviews[webview_label]
+      dispatch_window_event(webview.window.label, event, callback) if webview
     end
 
     private def notify_window_event(window, event, callback)
@@ -1273,30 +1325,36 @@ module Tokra
     end
 
     # The theme tao reports, mapped as map_theme maps it, any theme but
-    # dark being light (lib.rs:578-584). On Windows the webview takes the
-    # theme too, once the listeners have heard it (lib.rs:4153-4166).
-    private def theme_changed(name, callback)
+    # dark being light (lib.rs:578-584). On Windows each webview of the
+    # window labeled +label+ takes the theme too, once the listeners have
+    # heard it (lib.rs:4153-4166).
+    private def theme_changed(label, name, callback)
       theme = (name == "dark") ? Theme::Dark : Theme::Light
-      dispatch_window_event(WindowEvent::ThemeChanged.new(theme:), callback)
-      native = @webview&.native
-      return unless native && native.respond_to?(:set_theme)
+      window = @handle.windows[label]
+      return unless window
 
-      begin
-        native.set_theme(theme.name)
-      rescue RuntimeError => e
-        warn("failed to set theme: #{e.message}")
+      notify_window_event(window, WindowEvent::ThemeChanged.new(theme:), callback)
+      window.webviews.each do |webview|
+        native = webview.native
+        next unless native.respond_to?(:set_theme)
+
+        begin
+          native.set_theme(theme.name)
+        rescue RuntimeError => e
+          warn("failed to set theme: #{e.message}")
+        end
       end
     end
 
     # The window's inner size, as tauri-runtime-wry's parse reads it in
     # place of tao's; a window whose native window is already closed has
     # none, and its Resized is dropped (lib.rs:557-575).
-    private def window_resized(callback)
-      window = @handle.windows["main"]
+    private def window_resized(label, callback)
+      window = @handle.windows[label]
       return unless window
 
       size = inner_size_of(window)
-      dispatch_window_event(WindowEvent::Resized.new(size:), callback) if size
+      dispatch_window_event(label, WindowEvent::Resized.new(size:), callback) if size
     end
 
     # The window's inner size, or +nil+ once its native window is gone.

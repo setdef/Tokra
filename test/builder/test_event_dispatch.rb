@@ -17,6 +17,7 @@ class TestBuilderEventDispatch < Minitest::Test
   def test_uri_scheme_protocol_handler_receives_http_request_event
     Thread.current[:received] = nil
     StubNative.inject_event(Tokra::Native::HttpRequestEvent.new(
+      "main",
       42, "GET", "tokra://test/", {}, ""
     ))
     handler = Ractor.shareable_proc { |ctx, evt|
@@ -38,6 +39,7 @@ class TestBuilderEventDispatch < Minitest::Test
   def test_async_uri_scheme_protocol_handler_receives_responder
     Thread.current[:received] = nil
     StubNative.inject_event(Tokra::Native::HttpRequestEvent.new(
+      "main",
       42, "GET", "tokra://test/", {}, ""
     ))
     handler = Ractor.shareable_proc { |ctx, evt, responder|
@@ -69,7 +71,7 @@ class TestBuilderEventDispatch < Minitest::Test
       "payload" => { "text" => "Hello" },
       "__TAURI_INVOKE_KEY__" => app.invoke_key,
     }
-    StubNative.inject_event(Tokra::Native::IpcEvent.new(JSON.generate(message), LocalOrigin.url))
+    StubNative.inject_event(Tokra::Native::IpcEvent.new("main", JSON.generate(message), LocalOrigin.url))
 
     app.run
 
@@ -91,7 +93,7 @@ class TestBuilderEventDispatch < Minitest::Test
       true
     }
     app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
-    StubNative.inject_event(Tokra::Native::IpcEvent.new(JSON.generate(
+    StubNative.inject_event(Tokra::Native::IpcEvent.new("main", JSON.generate(
       { "cmd" => "read_text", "__TAURI_INVOKE_KEY__" => app.invoke_key }
     ),
       LocalOrigin.url
@@ -111,6 +113,7 @@ class TestBuilderEventDispatch < Minitest::Test
   def test_on_page_load_receives_page_load_event
     Thread.current[:received] = nil
     StubNative.inject_event(Tokra::Native::PageLoadEvent.new(
+      "main",
       "started", "tokra://localhost/test"
     ))
     hook = Ractor.shareable_proc { |_webview, payload| Thread.current[:received] = payload }
@@ -128,7 +131,7 @@ class TestBuilderEventDispatch < Minitest::Test
 
   def test_on_window_event_receives_close_event
     Thread.current[:received_events] = []
-    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new)
+    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new("main"))
     hook = Ractor.shareable_proc { |_window, evt| Thread.current[:received_events] << evt.class }
 
     Tokra::Builder.default
@@ -142,7 +145,7 @@ class TestBuilderEventDispatch < Minitest::Test
 
   def test_on_window_event_listeners_are_called_on_close
     Thread.current[:listener_called] = false
-    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new)
+    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new("main"))
     hook = Ractor.shareable_proc { |_window, evt|
       Thread.current[:listener_called] = true if evt.is_a?(Tokra::WindowEvent::CloseRequested)
     }

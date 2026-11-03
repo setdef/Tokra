@@ -13,10 +13,13 @@
 //! Tauri's runtime drops tao's `Focused` there for a window without child
 //! webviews and takes `WebView2`'s `GotFocus` and `LostFocus` instead
 //! (tauri-runtime-wry `src/lib.rs:521-549`, `5070-5128`). This is that
-//! code for Tokra's one webview: Tauri keeps the label of the focused
-//! webview, and with one webview whether one is focused is all it can
-//! learn, so a flag stands in for the label. A lost focus always reports,
-//! as Tauri's does when the focused webview is this one.
+//! code for a window with one webview: Tauri keeps the label of the
+//! focused webview, and with one webview whether one is focused is all it
+//! can learn, so a flag stands in for the label. A lost focus always
+//! reports, as Tauri's does when the focused webview is this one. Each
+//! event carries the webview's label, and Ruby tells the webview's window,
+//! as Tauri's `SynthesizedWindowEvent` goes to the webview's window
+//! (`src/lib.rs:4097-4122`).
 
 #![cfg(windows)]
 
@@ -29,13 +32,18 @@ use wry::{WebView, WebViewExtWindows};
 
 use crate::user_event::UserEvent;
 
-/// Sends `UserEvent::Focused` for the webview's `GotFocus`, unless it
-/// already has focus, and for each `LostFocus`.
+/// Sends `UserEvent::Focused` with `label`, the webview's, for the
+/// webview's `GotFocus`, unless it already has focus, and for each
+/// `LostFocus`.
 ///
 /// # Errors
 ///
 /// Returns `WebView2`'s error if it refuses a handler.
-pub fn attach(webview: &WebView, proxy: &EventLoopProxy<UserEvent>) -> windows::core::Result<()> {
+pub fn attach(
+    webview: &WebView,
+    proxy: &EventLoopProxy<UserEvent>,
+    label: &str,
+) -> windows::core::Result<()> {
     let controller = webview.controller();
     let focused = Arc::new(AtomicBool::new(false));
     let mut token = 0;
@@ -43,9 +51,13 @@ pub fn attach(webview: &WebView, proxy: &EventLoopProxy<UserEvent>) -> windows::
     let got = {
         let focused = Arc::clone(&focused);
         let proxy = proxy.clone();
+        let label = label.to_string();
         FocusChangedEventHandler::create(Box::new(move |_, _| {
             if !focused.swap(true, Ordering::AcqRel) {
-                let _ = proxy.send_event(UserEvent::Focused(true));
+                let _ = proxy.send_event(UserEvent::Focused {
+                    label: label.clone(),
+                    focused: true,
+                });
             }
             Ok(())
         }))
@@ -62,9 +74,13 @@ pub fn attach(webview: &WebView, proxy: &EventLoopProxy<UserEvent>) -> windows::
 
     let lost = {
         let proxy = proxy.clone();
+        let label = label.to_string();
         FocusChangedEventHandler::create(Box::new(move |_, _| {
             focused.store(false, Ordering::Release);
-            let _ = proxy.send_event(UserEvent::Focused(false));
+            let _ = proxy.send_event(UserEvent::Focused {
+                label: label.clone(),
+                focused: false,
+            });
             Ok(())
         }))
     };

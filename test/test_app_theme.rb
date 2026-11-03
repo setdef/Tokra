@@ -158,8 +158,8 @@ class TestAppTheme < Minitest::Test
   def test_on_windows_each_windows_menu_bar_follows
     app = Tokra::Builder.default.build(native: StubWindowsMenusNative)
     handle = app.handle
-    with_menu = Tokra::Window.new(label: "a", native: StubWindowsMenusNative::Window.new(nil), app_handle: handle)
-    without = Tokra::Window.new(label: "b", native: StubWindowsMenusNative::Window.new(nil), app_handle: handle)
+    with_menu = Tokra::Window.new(label: "a", native: StubWindowsMenusNative::Window.new(nil, "a"), app_handle: handle)
+    without = Tokra::Window.new(label: "b", native: StubWindowsMenusNative::Window.new(nil, "b"), app_handle: handle)
     handle.windows["a"] = with_menu
     handle.windows["b"] = without
     with_menu.set_menu(Tokra::Menu::Menu.with_id(handle, "bar"))

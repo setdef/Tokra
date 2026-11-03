@@ -35,12 +35,12 @@ module Tokra
   #   event_loop = Tokra::Native::EventLoop.new
   #   proxy = event_loop.create_proxy
   #
-  #   window = Tokra::Native::Window.new(event_loop)
+  #   window = Tokra::Native::Window.new(event_loop, "main")
   #   window.set_title("My App")
   #   window.set_size(800, 600)
   #
   #   # Loads tokra://localhost/, whose requests arrive as HttpRequestEvent.
-  #   webview = Tokra::Native::WebView.new_with_protocol(window, proxy, [])
+  #   webview = Tokra::Native::WebView.new_with_protocol(window, proxy, "main", [])
   #
   #   event_loop.run do |event|
   #     case event
@@ -52,7 +52,7 @@ module Tokra
   #     when Tokra::Native::WakeUpEvent
   #       puts "Wake: #{event.payload}"
   #     when Tokra::Native::WindowCloseEvent
-  #       puts "Goodbye!"
+  #       puts "Goodbye from #{event.label}!"
   #     end
   #   end
   #
@@ -63,6 +63,13 @@ module Tokra
   module Native
     # Native classes defined in Rust extension:
     #
+    # Each window and webview has a label, which every event it causes
+    # carries. A label belongs to one live window and one live webview:
+    # wry's macOS backend keeps each webview's protocol handlers in a
+    # process-wide table keyed by its label, so two live webviews with one
+    # label lose their protocols when either goes (plan 052, decision 2).
+    # A label holding NUL raises ArgumentError.
+    #
     # - EventLoop: Main thread event loop
     #   - .new -> EventLoop
     #   - #create_proxy -> Proxy (must call before #run)
@@ -70,7 +77,7 @@ module Tokra
     #     loop's exit code when the loop ends
     #
     # - Window: Native window
-    #   - .new(event_loop) -> Window
+    #   - .new(event_loop, label) -> Window
     #   - #title -> String, or nil once closed
     #   - #set_title(string)
     #   - #close - drop the native window; tao then reports Destroyed
@@ -82,7 +89,7 @@ module Tokra
     #     RawWindowHandle.display_handle reads
     #
     # - WebView: WebKit/WebView2 webview
-    #   - .new_with_protocol(window, proxy, initialization_scripts) -> WebView
+    #   - .new_with_protocol(window, proxy, label, initialization_scripts) -> WebView
     #   - #eval(js_string)
     #   - #close - drop the native webview
     #
@@ -90,18 +97,21 @@ module Tokra
     #   - #wake_up(payload) - Send wake event to main thread
     #   - #send_task - Wake the loop to run one queued RuntimeContext task
     #   - #request_exit(code) - Ask the loop to exit (ExitRequestedEvent)
-    #   - #request_close - Ask to close the window (WindowCloseEvent)
+    #   - #request_close(label) - Ask to close that window (WindowCloseEvent)
     #
     # - IpcEvent: Event fired when WebView sends IPC message
+    #   - #label -> String, the webview's
     #   - #message -> String
     #
     # - WakeUpEvent: Event fired when Proxy#wake_up is called
     #   - #payload -> String
     #
     # - WindowCloseEvent: Event fired when window close is requested
+    #   - #label -> String, the window's
     #
     # - WindowDestroyedEvent: Event fired when the native window is gone;
     #   the callback answers true to end the loop
+    #   - #label -> String, the window's
     #
     # - ExitRequestedEvent: Event fired for Proxy#request_exit
     #   - #code -> Integer; the callback answers true to end the loop

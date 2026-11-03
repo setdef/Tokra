@@ -15,7 +15,7 @@ class TestContextMenu < Minitest::Test
   def setup
     @app = Tokra::Builder.default.build(native: StubWindowsMenusNative)
     @handle = @app.handle
-    @window = Tokra::Window.new(label: "main", native: StubWindowsMenusNative::Window.new(nil), app_handle: @handle)
+    @window = Tokra::Window.new(label: "main", native: StubWindowsMenusNative::Window.new(nil, "main"), app_handle: @handle)
   end
 
   def teardown
@@ -120,7 +120,7 @@ class TestContextMenu < Minitest::Test
   def test_elsewhere_set_theme_leaves_the_menu_alone
     skip "on Windows every native window themes its menu" if Tokra::Native::Window.method_defined?(:set_menu_theme)
 
-    window = Tokra::Window.new(label: "main", native: StubWindowMenusNative::Window.new(nil), app_handle: @handle)
+    window = Tokra::Window.new(label: "main", native: StubWindowMenusNative::Window.new(nil, "main"), app_handle: @handle)
     window.set_menu(Tokra::Menu::Menu.with_id(@handle, "bar"))
 
     assert_nil window.set_theme(Tokra::Theme::Dark)

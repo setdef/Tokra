@@ -250,10 +250,10 @@ module StubNative
       nil
     end
 
-    # Queues the window's close request, which the loop delivers as the
-    # close button's WindowCloseEvent.
-    def request_close
-      @queue << Tokra::Native::WindowCloseEvent.new
+    # Queues the close request for the window labeled +label+, which the
+    # loop delivers as the close button's WindowCloseEvent.
+    def request_close(label)
+      @queue << Tokra::Native::WindowCloseEvent.new(label)
       nil
     end
 
@@ -272,16 +272,17 @@ module StubNative
     end
   end
 
-  # Stub Window recording its title and size. Closing it queues its
-  # WindowDestroyedEvent, as the platform answers tao's dropped window.
+  # Stub Window recording its label, title, and size. Closing it queues
+  # its WindowDestroyedEvent, as the platform answers tao's dropped window.
   class Window
     include WindowMenus if Tokra::Native::Window.method_defined?(:init_menu)
     include WindowMenuThemes if Tokra::Native::Window.method_defined?(:set_menu_theme)
     include WindowPopups
 
-    attr_reader :size
+    attr_reader :size, :label
 
-    def initialize(event_loop)
+    def initialize(event_loop, label)
+      @label = label
       @queue = event_loop&.queue || []
       @closed = false
       @state = STATE.dup
@@ -295,7 +296,7 @@ module StubNative
       return if @closed
 
       @closed = true
-      @queue << Tokra::Native::WindowDestroyedEvent.new
+      @queue << Tokra::Native::WindowDestroyedEvent.new(@label)
       nil
     end
 
@@ -437,24 +438,26 @@ set_enabled: :is_enabled,
     def raw_display_handle = (!@closed && @raw_display_handle) || [:Unavailable]
   end
 
-  # Stub WebView factory recording initialization scripts and evals
+  # Stub WebView factory recording its label, initialization scripts, and
+  # evals
   class WebView
     # A script whose evaluation fails, the way wry's evaluate_script can.
     FAILING_SCRIPT = "throw from wry"
 
-    attr_reader :initialization_scripts, :evals, :background_colors
+    attr_reader :label, :initialization_scripts, :evals, :background_colors
 
     # The error wry's set_background_color gives, for a test to set.
     attr_accessor :background_color_error
 
-    def self.new_with_protocol(_, _, scripts) = new(scripts).tap { |webview| instances << webview }
+    def self.new_with_protocol(_, _, label, scripts) = new(scripts, label:).tap { |webview| instances << webview }
 
     # Webviews created across the run.
     def self.instances
       Thread.current[:stub_native_webviews] ||= []
     end
 
-    def initialize(scripts = [])
+    def initialize(scripts = [], label: "main")
+      @label = label
       @initialization_scripts = scripts
       @evals = []
       @background_colors = []

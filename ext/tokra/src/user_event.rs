@@ -85,14 +85,25 @@ impl fmt::Debug for Answer {
 pub enum UserEvent {
     /// IPC message received from `WebView` JavaScript.
     ///
-    /// `url` is the sending frame's URL, which wry passes as the request URI
-    /// and Tauri uses as the invoke origin (`ipc/protocol.rs` `InvokeRequest`).
-    IpcMessage { url: String, body: String },
+    /// `label` is the sending webview's, which the handler captured, as
+    /// tauri-runtime-wry's `create_ipc_handler` captures it
+    /// (`src/lib.rs:5169-5192`). `url` is the sending frame's URL, which wry
+    /// passes as the request URI and Tauri uses as the invoke origin
+    /// (`ipc/protocol.rs` `InvokeRequest`).
+    IpcMessage {
+        label: String,
+        url: String,
+        body: String,
+    },
 
     /// HTTP request received from `WebView` (via custom protocol)
     /// Contains: (`request_id`, method, uri, headers, body)
-    /// The `request_id` is used to correlate with the async response
+    /// The `request_id` is used to correlate with the async response.
+    /// `label` is the id wry hands the protocol handler, which is the
+    /// webview's label (`with_id`), as Tauri reads it
+    /// (`manager/webview.rs:229-233`).
     HttpRequest {
+        label: String,
         request_id: u64,
         method: String,
         uri: String,
@@ -102,8 +113,9 @@ pub enum UserEvent {
     },
 
     /// Page load event (Started or Finished)
-    /// Matches Tauri's `on_page_load` API
+    /// Matches Tauri's `on_page_load` API; `label` is the webview's.
     PageLoad {
+        label: String,
         event: String, // "started" or "finished"
         url: String,
     },
@@ -113,8 +125,10 @@ pub enum UserEvent {
     // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
     // SPDX-SnippetComment: DragDrop event structure adapted from tauri-runtime/window.rs DragDropEvent enum
     /// Drag-drop event from webview
-    /// Matches Tauri's `DragDropEvent` variants: Enter, Over, Drop, Leave
+    /// Matches Tauri's `DragDropEvent` variants: Enter, Over, Drop, Leave;
+    /// `label` is the webview's, whose window Ruby tells.
     DragDrop {
+        label: String,
         event: String, // "enter", "over", "drop", "leave"
         paths: Vec<String>,
         x: i32,
@@ -139,11 +153,14 @@ pub enum UserEvent {
     /// with the code unless a handler prevented it.
     RequestExit(i32),
 
-    /// Code asked to close the window (`Proxy#request_close`).
+    /// Code asked to close the window labeled with this label
+    /// (`Proxy#request_close`).
     ///
     /// Tauri's `Message::Window(id, WindowMessage::Close)`, which takes the
-    /// close button's path (`src/lib.rs:4229-4231`). Tokra has one window.
-    CloseWindow,
+    /// close button's path (`src/lib.rs:4229-4231`). Tauri names the window
+    /// by an id no later window reuses; a label can be reused once its
+    /// window is gone (plan 052, decision 2).
+    CloseWindow(String),
     // SPDX-SnippetEnd
 
     // SPDX-SnippetBegin
@@ -158,12 +175,13 @@ pub enum UserEvent {
     /// run the oldest one.
     Task,
 
-    /// The webview gained focus, `true`, or the window lost it, `false`:
-    /// on Windows, `WebView2`'s `GotFocus` and `LostFocus`, which Tauri's
-    /// runtime sends as `SynthesizedWindowEvent::Focused`
-    /// (tauri-runtime-wry `src/lib.rs:5070-5128`; `webview_focus.rs`).
+    /// The webview labeled `label` gained focus, `true`, or lost it,
+    /// `false`: on Windows, `WebView2`'s `GotFocus` and `LostFocus`, which
+    /// Tauri's runtime sends as `SynthesizedWindowEvent::Focused` for the
+    /// webview's window (tauri-runtime-wry `src/lib.rs:5070-5128`;
+    /// `webview_focus.rs`).
     #[cfg(windows)]
-    Focused(bool),
+    Focused { label: String, focused: bool },
 
     /// A menu item was activated: its id, from muda's event handler
     /// (`menu.rs`).
@@ -207,6 +225,7 @@ mod tests {
     #[test]
     fn test_user_event_ipc_message_stores_string() {
         let event = UserEvent::IpcMessage {
+            label: "main".to_string(),
             url: "tokra://localhost/".to_string(),
             body: "hello from JS".to_string(),
         };
@@ -219,6 +238,7 @@ mod tests {
     #[test]
     fn test_user_event_ipc_message_preserves_unicode() {
         let event = UserEvent::IpcMessage {
+            label: "main".to_string(),
             url: "tokra://localhost/".to_string(),
             body: "こんにちは 🎌".to_string(),
         };
@@ -235,6 +255,7 @@ mod tests {
             ("content-type".to_string(), "application/json".to_string()),
         ];
         let event = UserEvent::HttpRequest {
+            label: "main".to_string(),
             request_id: 42,
             method: "POST".to_string(),
             uri: "tokra://localhost/api".to_string(),
@@ -249,6 +270,7 @@ mod tests {
                 uri,
                 headers: h,
                 body,
+                ..
             } => {
                 assert_eq!(request_id, 42);
                 assert_eq!(method, "POST");
@@ -265,12 +287,13 @@ mod tests {
     #[test]
     fn test_user_event_page_load_started() {
         let event = UserEvent::PageLoad {
+            label: "main".to_string(),
             event: "started".to_string(),
             url: "https://example.com/".to_string(),
         };
 
         match event {
-            UserEvent::PageLoad { event, url } => {
+            UserEvent::PageLoad { event, url, .. } => {
                 assert_eq!(event, "started");
                 assert_eq!(url, "https://example.com/");
             }
@@ -281,12 +304,13 @@ mod tests {
     #[test]
     fn test_user_event_page_load_finished() {
         let event = UserEvent::PageLoad {
+            label: "main".to_string(),
             event: "finished".to_string(),
             url: "https://example.com/page".to_string(),
         };
 
         match event {
-            UserEvent::PageLoad { event, url } => {
+            UserEvent::PageLoad { event, url, .. } => {
                 assert_eq!(event, "finished");
                 assert_eq!(url, "https://example.com/page");
             }
@@ -312,6 +336,7 @@ mod tests {
     #[test]
     fn test_user_event_debug_format_ipc() {
         let event = UserEvent::IpcMessage {
+            label: "main".to_string(),
             url: "tokra://localhost/".to_string(),
             body: "debug test".to_string(),
         };
@@ -336,6 +361,7 @@ mod tests {
     #[test]
     fn test_http_request_id_can_be_zero() {
         let event = UserEvent::HttpRequest {
+            label: "main".to_string(),
             request_id: 0,
             method: "GET".to_string(),
             uri: "tokra://test".to_string(),
@@ -352,6 +378,7 @@ mod tests {
     #[test]
     fn test_http_request_id_can_be_max_u64() {
         let event = UserEvent::HttpRequest {
+            label: "main".to_string(),
             request_id: u64::MAX,
             method: "GET".to_string(),
             uri: "tokra://test".to_string(),
@@ -368,6 +395,7 @@ mod tests {
     #[test]
     fn test_empty_strings_are_preserved() {
         let event = UserEvent::IpcMessage {
+            label: "main".to_string(),
             url: "tokra://localhost/".to_string(),
             body: String::new(),
         };

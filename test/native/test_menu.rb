@@ -196,7 +196,7 @@ class TestNativeMenu < Minitest::Test
     reason = NativeEventLoop.unavailable_reason
     skip reason if reason
 
-    window = Tokra::Native::Window.new(NativeEventLoop.shared)
+    window = Tokra::Native::Window.new(NativeEventLoop.shared, "menu-1")
     menu = Tokra::Native::Menu.new
     menu.append(Tokra::Native::Submenu.new("File", true))
 
@@ -229,7 +229,7 @@ class TestNativeMenu < Minitest::Test
     reason = NativeEventLoop.unavailable_reason
     skip reason if reason
 
-    window = Tokra::Native::Window.new(NativeEventLoop.shared)
+    window = Tokra::Native::Window.new(NativeEventLoop.shared, "menu-2")
     window.close
     menu = Tokra::Native::Menu.new
     submenu = Tokra::Native::Submenu.new("Nested", true)
@@ -257,7 +257,7 @@ class TestNativeMenu < Minitest::Test
     reason = NativeEventLoop.unavailable_reason
     skip reason if reason
 
-    window = Tokra::Native::Window.new(NativeEventLoop.shared)
+    window = Tokra::Native::Window.new(NativeEventLoop.shared, "menu-3")
     menu = Tokra::Native::Menu.new
     submenu = Tokra::Native::Submenu.new("Zoom", true)
     submenu.append(Tokra::Native::MenuItem.new("In", true, "CmdOrCtrl+NumpadAdd"))
@@ -285,7 +285,7 @@ class TestNativeMenu < Minitest::Test
     skip reason if reason
 
     require_relative "../integration/support/platform_menu"
-    window = Tokra::Native::Window.new(NativeEventLoop.shared)
+    window = Tokra::Native::Window.new(NativeEventLoop.shared, "menu-4")
     go = Tokra::Native::MenuItem.new("Go", true, "CmdOrCtrl+K")
     edit = Tokra::Native::Submenu.new("Accelerated #{Process.pid}", true)
     edit.append(go)
@@ -328,7 +328,7 @@ class TestNativeMenu < Minitest::Test
   def test_on_windows_a_window_holds_its_menu_after_ruby_lets_go
     skip "only Windows subclasses a window for its menu" unless RbConfig::CONFIG["host_os"].match?(/mswin|mingw|cygwin/)
 
-    window = Tokra::Native::Window.new(NativeEventLoop.shared)
+    window = Tokra::Native::Window.new(NativeEventLoop.shared, "menu-5")
     menu = put_a_menu_on_and_let_go(window)
     3.times { GC.start(full_mark: true, immediate_sweep: true) }
     skip "Ruby kept the menu through the collection" if menu.weakref_alive?

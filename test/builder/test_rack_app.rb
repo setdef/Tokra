@@ -46,6 +46,7 @@ class TestBuilderRackApp < Minitest::Test
 
   def test_rack_app_is_served_over_tokra_protocol
     StubNative.inject_event(Tokra::Native::HttpRequestEvent.new(
+      "main",
       7, "GET", "tokra://localhost/greet", {}, ""
     ))
     Tokra::Builder.new.app(ECHO_APP).run(native: StubNative)
@@ -62,6 +63,7 @@ class TestBuilderRackApp < Minitest::Test
 
   def test_explicit_protocol_handler_takes_precedence_over_rack_app
     StubNative.inject_event(Tokra::Native::HttpRequestEvent.new(
+      "main",
       1, "GET", "tokra://localhost/", {}, ""
     ))
     handler = Ractor.shareable_proc { |_ctx, _event| Tokra::Response.ok("from protocol handler") }
@@ -93,7 +95,7 @@ class TestBuilderRackApp < Minitest::Test
       "payload" => { "ping" => "hi" },
       "__TAURI_INVOKE_KEY__" => app.invoke_key,
     }
-    StubNative.inject_event(Tokra::Native::IpcEvent.new(JSON.generate(message), LocalOrigin.url))
+    StubNative.inject_event(Tokra::Native::IpcEvent.new("main", JSON.generate(message), LocalOrigin.url))
 
     app.run
 

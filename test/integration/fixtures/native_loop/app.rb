@@ -69,7 +69,7 @@ event_loop = Tokra::Native::EventLoop.new
 # (support/fixture_app.rb); tao defines set_activation_policy only there.
 BACKGROUND = event_loop.respond_to?(:set_activation_policy)
 event_loop.set_activation_policy("Prohibited") if BACKGROUND
-main_window = Tokra::Native::Window.new(event_loop)
+main_window = Tokra::Native::Window.new(event_loop, "main")
 main_window.set_size(320.0, 240.0)
 if BACKGROUND
   main_window.set_always_on_top(true)
@@ -84,23 +84,28 @@ def spin = Thread.new { x = 0; loop { x += 1 } }
 def ticker(proxy) = Thread.new { loop { sleep 0.1; proxy.wake_up(now.to_s) } }
 
 # Three webviews that beat over tokra:// every 100 ms, built in a method so
-# nothing in Ruby keeps them. Their windows stay: a closed window would
-# throttle its page's timers and hide whether the webview itself went.
-# Three bare windows go too.
+# nothing in Ruby keeps them but HELD_WEBVIEWS, which the collecting thread
+# empties: were they unreachable from the start, a collection Ruby runs on
+# its own before their pages load would drop them all, and no beat would
+# ever come. Their windows stay: a closed window would throttle its page's
+# timers and hide whether the webview itself went. Three bare windows go
+# at once. Each window and webview has its own label, as the natives
+# require of live ones (plan 052, decision 2).
 KEPT_WINDOWS = []
+HELD_WEBVIEWS = []
 
 def heartbeats(event_loop, proxy)
   3.times do |id|
-    window = Tokra::Native::Window.new(event_loop)
+    window = Tokra::Native::Window.new(event_loop, "beat-#{id}")
     window.set_size(160.0, 120.0)
     if BACKGROUND
       window.set_always_on_top(true)
       window.set_ignore_cursor_events(true)
     end
     KEPT_WINDOWS << window
-    Tokra::Native::WebView.new_with_protocol(window, proxy, ["window.BEAT_ID = #{id};"])
+    HELD_WEBVIEWS << Tokra::Native::WebView.new_with_protocol(window, proxy, "beat-#{id}", ["window.BEAT_ID = #{id};"])
   end
-  3.times { Tokra::Native::Window.new(event_loop) }
+  3.times { |id| Tokra::Native::Window.new(event_loop, "bare-#{id}") }
   nil
 end
 
@@ -155,6 +160,7 @@ elsif options[:gc_drop]
         if first
           Thread.new do
             sleep 1
+            HELD_WEBVIEWS.clear
             3.times { GC.start }
             proxy.wake_up("collected")
           end
@@ -184,7 +190,7 @@ elsif options[:responses]
     end.value
     puts "LATE_RESPONSE #{late}"
     %i[request_exit request_close].each do |request|
-      args = (request == :request_exit) ? [0] : []
+      args = (request == :request_exit) ? [0] : ["main"]
       outcome = begin
         proxy.public_send(request, *args)
         "sent"
@@ -194,7 +200,7 @@ elsif options[:responses]
       puts "LATE_#{request.upcase} #{outcome}"
     end
   end
-  Tokra::Native::WebView.new_with_protocol(main_window, proxy, [])
+  Tokra::Native::WebView.new_with_protocol(main_window, proxy, "main", [])
   script = <<~JS
     (async () => {
       const answered = await (await fetch('/answer')).text();

@@ -9,7 +9,7 @@ module Tokra
     def window_created: (Native::Window window) -> void
     def webview_created: (Native::WebView webview) -> void
     def on_navigation: (Native::WebView webview, String url) -> bool
-    def on_page_load: (Native::WebView webview, PageLoadPayload payload) -> void
+    def on_page_load: (Webview webview, PageLoadPayload payload) -> void
     def on_event: (AppHandle app, run_event event) -> void
     def extend_api: (Ipc::Invoke invoke) -> bool
   end
@@ -32,5 +32,6 @@ module Tokra
     def extend_api: (String name, Ipc::Invoke invoke) -> bool
     def initialization_script: () -> Array[String]
     def on_event: (AppHandle app, run_event event) -> void
+    def on_page_load: (Webview webview, PageLoadPayload payload) -> nil
   end
 end

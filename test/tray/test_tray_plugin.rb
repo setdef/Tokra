@@ -15,7 +15,7 @@ class TestTrayPlugin < Minitest::Test
   def setup
     @app = Tokra::Builder.default.build(native: StubNative)
     @handle = @app.handle
-    @window = Tokra::Window.new(label: "main", native: StubNative::Window.new(nil), app_handle: @handle)
+    @window = Tokra::Window.new(label: "main", native: StubNative::Window.new(nil, "main"), app_handle: @handle)
     @handle.windows["main"] = @window
     @native_webview = StubNative::WebView.new
     @webview = Tokra::Webview.new(label: "main", native: @native_webview, window: @window, app_handle: @handle)

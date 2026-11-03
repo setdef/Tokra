@@ -26,7 +26,7 @@ class TestNativeWindowEffects < Minitest::Test
     skip reason if reason
 
     @event_loop = NativeEventLoop.shared
-    @window = Tokra::Native::Window.new(@event_loop)
+    @window = Tokra::Native::Window.new(@event_loop, "window-effects-1")
   end
 
   def teardown

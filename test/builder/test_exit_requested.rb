@@ -50,7 +50,7 @@ class TestBuilderExitRequested < Minitest::Test
 
   def test_closing_the_last_window_asks_to_exit_and_the_loop_ends_with_zero
     app = build
-    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new)
+    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new("main"))
 
     app.run
 
@@ -67,7 +67,7 @@ class TestBuilderExitRequested < Minitest::Test
 
   def test_an_unprevented_close_closes_the_native_window_and_its_webview
     app = build
-    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new)
+    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new("main"))
 
     app.run
 
@@ -82,7 +82,7 @@ class TestBuilderExitRequested < Minitest::Test
     @plugin.reaction = lambda { |_app, event|
       event.event.api.prevent_close if close_requested?(event)
     }
-    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new)
+    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new("main"))
 
     app.run
 
@@ -99,7 +99,7 @@ class TestBuilderExitRequested < Minitest::Test
   def test_prevent_exit_keeps_the_loop_running_with_no_window
     app = build
     @plugin.reaction = -> (_app, event) { event.api.prevent_exit if event.is_a?(Tokra::RunEvent::ExitRequested) }
-    StubNative.inject_event([Tokra::Native::WindowCloseEvent.new, Tokra::Native::TaskEvent.new])
+    StubNative.inject_event([Tokra::Native::WindowCloseEvent.new("main"), Tokra::Native::TaskEvent.new])
 
     app.run
 
@@ -147,7 +147,7 @@ class TestBuilderExitRequested < Minitest::Test
     order = []
     app = build
     @plugin.reaction = -> (_app, event) { order << :plugin if event.is_a?(Tokra::RunEvent::ExitRequested) }
-    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new)
+    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new("main"))
 
     app.run { |_handle, event| order << :callback if event.is_a?(Tokra::RunEvent::ExitRequested) }
 
@@ -159,7 +159,7 @@ class TestBuilderExitRequested < Minitest::Test
     @plugin.reaction = lambda { |_app, event|
       raise "deliberate exit-request failure" if event.is_a?(Tokra::RunEvent::ExitRequested)
     }
-    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new)
+    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new("main"))
 
     _, stderr = capture_io { app.run }
 
@@ -172,7 +172,7 @@ class TestBuilderExitRequested < Minitest::Test
     @plugin.reaction = lambda { |_app, event|
       raise "deliberate close failure" if close_requested?(event)
     }
-    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new)
+    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new("main"))
 
     _, stderr = capture_io { app.run }
 
@@ -188,7 +188,7 @@ class TestBuilderExitRequested < Minitest::Test
       })
       .build(native: StubNative)
     Thread.current[:exit_requested_order] = seen
-    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new)
+    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new("main"))
 
     app.run do |handle, event|
       next unless event.is_a?(Tokra::RunEvent::WindowEvent) && event.event.is_a?(Tokra::WindowEvent::Destroyed)
@@ -268,7 +268,7 @@ class TestBuilderExitRequested < Minitest::Test
   def test_a_second_destroyed_event_emits_nothing
     app = build
     @plugin.reaction = -> (_app, event) { event.api.prevent_exit if event.is_a?(Tokra::RunEvent::ExitRequested) }
-    StubNative.inject_event([Tokra::Native::WindowCloseEvent.new, Tokra::Native::WindowDestroyedEvent.new])
+    StubNative.inject_event([Tokra::Native::WindowCloseEvent.new("main"), Tokra::Native::WindowDestroyedEvent.new("main")])
 
     app.run
 
@@ -291,7 +291,7 @@ class TestBuilderExitRequested < Minitest::Test
   def test_a_closed_window_title_fails_to_receive_the_answer
     app = build
     window = nil
-    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new)
+    StubNative.inject_event(Tokra::Native::WindowCloseEvent.new("main"))
     app.run { |handle, event| window = handle.get_window("main") if event.is_a?(Tokra::RunEvent::Ready) }
 
     error = assert_raises(Tokra::Error::Runtime) { window.title }

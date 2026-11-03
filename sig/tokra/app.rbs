@@ -31,8 +31,6 @@ module Tokra
     @event_loop_class: singleton(Native::EventLoop)
     @window_class: singleton(Native::Window)
     @webview_class: singleton(Native::WebView)
-    @window: Window?
-    @webview: Webview?
     @rack_handler: ::Rack::Handler::Tokra?
 
     attr_reader handle: AppHandle
@@ -71,22 +69,22 @@ module Tokra
     def dispatch_menu_event: (Native::MenuEvent native_event, (^(AppHandle, run_event) -> void)? callback) -> void
     def dispatch_tray_icon_event: (Native::TrayIconEvent native_event, (^(AppHandle, run_event) -> void)? callback) -> void
     def emit_run_event: (run_event event, (^(AppHandle, run_event) -> void)? callback) -> void
-    def build_ipc_responder: (json_value callback, json_value error, ?can_use_channel: bool) -> ipc_responder?
+    def build_ipc_responder: (Webview webview, json_value callback, json_value error, ?can_use_channel: bool) -> ipc_responder?
     def can_use_channel_for_response?: (String cmd, json_value options) -> bool
-    def report_ipc_message_error: (String message) -> void
-    def initialization_scripts: () -> Array[String]
+    def report_ipc_message_error: (Webview webview, String message) -> void
+    def initialization_scripts: (String window_label, String webview_label) -> Array[String]
     def global_api_script: () -> String
     def bootstrap_script: () -> String
     def invoke_initialization_script: () -> String
-    def metadata_script: () -> String
+    def metadata_script: (String window_label, String webview_label) -> String
     def init_script: () -> String
     def render_js_template: (String name, Hash[Symbol, String] values) -> String
     def os_name: () -> String
-    def dispatch_event: (native_event event, (^(AppHandle, run_event) -> void)? callback, Native::Window window, Native::Proxy proxy) -> bool?
+    def dispatch_event: (native_event event, (^(AppHandle, run_event) -> void)? callback, Native::Proxy proxy) -> bool?
     def dispatch_http_request: (Native::HttpRequestEvent event, Native::Proxy proxy) -> void
     def dispatch_ipc: (Native::IpcEvent event) -> void
     def post_message_headers: (json_value options) -> Hash[String, String]
-    def route_invoke: (String cmd, invoke_body body, Hash[String, String] headers, ipc_responder? responder, String origin) -> void
+    def route_invoke: (Webview webview, String cmd, invoke_body body, Hash[String, String] headers, ipc_responder? responder, String origin) -> void
     def plugin_command: (String cmd) -> [String, String]?
     def tokra_protocol_url: () -> URI::Generic
     def local_url?: (String url) -> bool
@@ -106,14 +104,15 @@ module Tokra
     def respond_ipc_error: (Native::Proxy proxy, Integer request_id, Integer status, String message) -> void
     def ipc_protocol_request?: (String uri) -> bool
     def dispatch_page_load: (Native::PageLoadEvent event) -> void
-    def close_requested: (Native::Window native_window, (^(AppHandle, run_event) -> void)? callback) -> void
-    def window_destroyed: (Native::Window _native_window, (^(AppHandle, run_event) -> void)? callback) -> bool
+    def close_requested: (String label, (^(AppHandle, run_event) -> void)? callback) -> void
+    def window_destroyed: (String label, (^(AppHandle, run_event) -> void)? callback) -> bool
     def exit_requested: (Integer? code, (^(AppHandle, run_event) -> void)? callback) -> bool
     def reporting: () { () -> void } -> void
-    def dispatch_window_event: (window_event event, (^(AppHandle, run_event) -> void)? callback) -> void
+    def dispatch_window_event: (String label, window_event event, (^(AppHandle, run_event) -> void)? callback) -> void
+    def dispatch_webview_window_event: (String webview_label, window_event event, (^(AppHandle, run_event) -> void)? callback) -> void
     def notify_window_event: (Window window, window_event event, (^(AppHandle, run_event) -> void)? callback) -> void
-    def theme_changed: (String name, (^(AppHandle, run_event) -> void)? callback) -> void
-    def window_resized: ((^(AppHandle, run_event) -> void)? callback) -> void
+    def theme_changed: (String label, String name, (^(AppHandle, run_event) -> void)? callback) -> void
+    def window_resized: (String label, (^(AppHandle, run_event) -> void)? callback) -> void
     def inner_size_of: (Window window) -> PhysicalSize?
     def drag_drop_event: (Native::DragDropEvent native_event) -> drag_drop_event
   end

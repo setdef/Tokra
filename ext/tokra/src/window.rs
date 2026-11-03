@@ -73,13 +73,24 @@ impl Drop for RbWindow {
 }
 
 impl RbWindow {
-    /// Create a new `Window` attached to the given `EventLoop`.
+    /// Create a new `Window` labeled `label`, attached to the given
+    /// `EventLoop`.
+    ///
+    /// Every event the loop delivers for this window carries `label`, as
+    /// Tauri's runtime names a window's events by its label
+    /// (tauri-runtime-wry `src/lib.rs:4126-4150`). A label belongs to one
+    /// live window: a second window built with the label of one still open
+    /// takes its events, and the first window's events carry a label Ruby
+    /// no longer finds. The caller keeps labels unique, as `Tokra::App`
+    /// does.
     ///
     /// # Errors
     ///
-    /// Returns `ThreadError` off the event loop's thread, or an error if the
-    /// event loop has been consumed or window creation fails.
-    pub fn new(event_loop: &RbEventLoop) -> Result<Self, Error> {
+    /// Returns `ArgumentError` for a label holding NUL, before building
+    /// anything; `ThreadError` off the event loop's thread; or an error if
+    /// the event loop has been consumed or window creation fails.
+    pub fn new(ruby: &Ruby, event_loop: &RbEventLoop, label: String) -> Result<Self, Error> {
+        let label = crate::window_labels::checked(ruby, label)?;
         let el = event_loop.loop_cell()?.borrow();
         let el_ref = el.as_ref().ok_or_else(|| {
             Error::new(
@@ -92,6 +103,7 @@ impl RbWindow {
             .with_title("Tokra")
             .build(el_ref)
             .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
+        crate::window_labels::insert(window.id(), label);
 
         Ok(Self {
             inner: RefCell::new(ThreadBound::new(window)),
@@ -298,7 +310,7 @@ impl RbWindow {
 /// Returns an error if class or method definition fails.
 pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
     let window_class = native.define_class("Window", ruby.class_object())?;
-    window_class.define_singleton_method("new", function!(RbWindow::new, 1))?;
+    window_class.define_singleton_method("new", function!(RbWindow::new, 2))?;
     window_class.define_method("set_title", method!(RbWindow::set_title, 1))?;
     window_class.define_method("title", method!(RbWindow::title, 0))?;
     window_class.define_method("set_size", method!(RbWindow::set_size, 2))?;

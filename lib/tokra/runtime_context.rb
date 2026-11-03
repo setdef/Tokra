@@ -129,12 +129,18 @@ module Tokra
       send_event { |proxy| proxy.request_exit(code) }
     end
 
-    # Asks the event loop to close the window, as its close button does,
-    # and returns +nil+ without waiting. Handlers hear
+    # Asks the event loop to close the window labeled +label+, as its close
+    # button does, and returns +nil+ without waiting. Handlers hear
     # WindowEvent::CloseRequested on a later turn of the loop.
     #
     # Like #request_exit, the request always travels through the loop.
     # Raises Error::Runtime when the event loop has ended.
+    #
+    # Tokra names the window by its label, where Tauri's
+    # WindowMessage::Close carries a WindowId no later window reuses
+    # (tauri-runtime-wry lib.rs:2142-2149), so a request for a window that
+    # closed before the loop handles it reaches a new window with that
+    # label; plan 052's phase 2 revisits this.
     #
     # Mirrors the window dispatcher's close, which sends
     # WindowMessage::Close straight through the proxy (tauri-runtime-wry
@@ -142,9 +148,9 @@ module Tokra
     #
     # === Example
     #
-    #   context.request_close
-    def request_close
-      send_event(&:request_close)
+    #   context.request_close("main")
+    def request_close(label)
+      send_event { |proxy| proxy.request_close(label) }
     end
 
     # Runs +task+ on the main thread and returns +nil+ without waiting for

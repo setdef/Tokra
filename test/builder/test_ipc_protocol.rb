@@ -36,6 +36,7 @@ class TestBuilderIpcProtocol < Minitest::Test
     headers = headers.map { |(name, value)| [name.downcase, value] } if lowercase
 
     Tokra::Native::HttpRequestEvent.new(
+      label: "main",
       request_id: 7,
       method:,
       uri: uri || "ipc://localhost/#{cmd}",

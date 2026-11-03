@@ -15,7 +15,7 @@ class TestNativeWindowCloseEvent < Minitest::Test
   end
 
   def test_new_requires_no_arguments
-    event = Tokra::Native::WindowCloseEvent.new
+    event = Tokra::Native::WindowCloseEvent.new("main")
 
     assert_kind_of Tokra::Native::WindowCloseEvent, event
   end

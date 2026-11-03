@@ -61,7 +61,7 @@ module DialogTest
   # +raw_display_handle+ with +display_handle+, tagged Arrays as the
   # native layer builds them; by default it has neither.
   private def stub_webview(handle, window_handle: nil, display_handle: nil)
-    native = StubNative::Window.new(nil)
+    native = StubNative::Window.new(nil, "main")
     native.raw_window_handle = window_handle
     native.raw_display_handle = display_handle
     window = Tokra::Window.new(label: "main", native:, app_handle: handle)
@@ -154,7 +154,7 @@ module DialogTest
       handle = app.handle
       plugin = Tokra::Plugins::Dialog::Plugin.new(handle)
       handle.plugin(plugin)
-      window = Tokra::Window.new(label: "main", native: StubNative::Window.new(nil), app_handle: handle)
+      window = Tokra::Window.new(label: "main", native: StubNative::Window.new(nil, "main"), app_handle: handle)
       handle.windows["main"] = window
       webview = Tokra::Webview.new(label: "main", native: Object.new, window:, app_handle: handle)
       answers = Thread::Queue.new

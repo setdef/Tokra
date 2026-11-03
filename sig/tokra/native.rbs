@@ -19,7 +19,7 @@ module Tokra
     end
 
     class Window
-      def self.new: (EventLoop) -> Window
+      def self.new: (EventLoop, String label) -> Window
       def id: () -> String?
       def title: () -> String?
       def close: () -> nil
@@ -103,7 +103,7 @@ module Tokra
     end
 
     class WebView
-      def self.new_with_protocol: (Window, Proxy, Array[String]) -> WebView
+      def self.new_with_protocol: (Window, Proxy, String label, Array[String]) -> WebView
       def eval: (String) -> void
       def close: () -> nil
       def set_background_color: (Window::rgba?) -> nil
@@ -113,25 +113,28 @@ module Tokra
       def wake_up: (String payload) -> void
       def send_task: () -> nil
       def request_exit: (Integer code) -> nil
-      def request_close: () -> nil
+      def request_close: (String label) -> nil
       def respond: (Integer request_id, Integer status, Array[[String, String]] headers, String body) -> void
       def drop_response: (Integer request_id) -> void
     end
 
     class HttpRequestEvent < Data
+      def label: () -> String
       def request_id: () -> Integer
       def method: () -> String
       def uri: () -> String
       def headers: () -> Array[[String, String]]
       def body: () -> String
-      def self.new: (Integer request_id, String method, String uri, Array[[String, String]] headers, String body) -> HttpRequestEvent
+      def self.new: (String label, Integer request_id, String method, String uri, Array[[String, String]] headers, String body) -> HttpRequestEvent
+                  | (label: String, request_id: Integer, method: String, uri: String, headers: Array[[String, String]], body: String) -> HttpRequestEvent
     end
 
     class IpcEvent < Data
+      def label: () -> String
       def message: () -> String
       def url: () -> String
-      def self.new: (String message, String url) -> IpcEvent
-                  | (message: String, url: String) -> IpcEvent
+      def self.new: (String label, String message, String url) -> IpcEvent
+                  | (label: String, message: String, url: String) -> IpcEvent
     end
 
     class WakeUpEvent < Data
@@ -140,38 +143,51 @@ module Tokra
     end
 
     class WindowCloseEvent < Data
-      def self.new: () -> WindowCloseEvent
+      attr_reader label: String
+      def self.new: (String label) -> WindowCloseEvent
     end
 
     class WindowDestroyedEvent < Data
-      def self.new: () -> WindowDestroyedEvent
+      attr_reader label: String
+      def self.new: (String label) -> WindowDestroyedEvent
     end
 
     class WindowResizedEvent < Data
-      def self.new: () -> WindowResizedEvent
+      attr_reader label: String
+      def self.new: (String label) -> WindowResizedEvent
     end
 
     class WindowMovedEvent < Data
+      attr_reader label: String
       attr_reader x: Integer
       attr_reader y: Integer
-      def self.new: (Integer x, Integer y) -> WindowMovedEvent
+      def self.new: (String label, Integer x, Integer y) -> WindowMovedEvent
     end
 
     class WindowFocusedEvent < Data
+      attr_reader label: String
       attr_reader focused: bool
-      def self.new: (bool focused) -> WindowFocusedEvent
+      def self.new: (String label, bool focused) -> WindowFocusedEvent
+    end
+
+    class WebviewFocusedEvent < Data
+      attr_reader label: String
+      attr_reader focused: bool
+      def self.new: (String label, bool focused) -> WebviewFocusedEvent
     end
 
     class WindowScaleFactorChangedEvent < Data
+      attr_reader label: String
       attr_reader scale_factor: Float
       attr_reader width: Integer
       attr_reader height: Integer
-      def self.new: (Float scale_factor, Integer width, Integer height) -> WindowScaleFactorChangedEvent
+      def self.new: (String label, Float scale_factor, Integer width, Integer height) -> WindowScaleFactorChangedEvent
     end
 
     class WindowThemeChangedEvent < Data
+      attr_reader label: String
       attr_reader theme: String
-      def self.new: (String theme) -> WindowThemeChangedEvent
+      def self.new: (String label, String theme) -> WindowThemeChangedEvent
     end
 
     class ExitRequestedEvent < Data
@@ -188,7 +204,8 @@ module Tokra
     end
 
     class PageLoadEvent < Data
-      def self.new: (String event, String url) -> PageLoadEvent
+      def self.new: (String label, String event, String url) -> PageLoadEvent
+      def label: () -> String
       def event: () -> String
       def url: () -> String
       def started?: () -> bool
@@ -198,11 +215,12 @@ module Tokra
     def self.load_js_template: (String name) -> String
 
     class DragDropEvent < Data
+      def label: () -> String
       def event: () -> String
       def paths: () -> Array[String]
       def x: () -> Integer
       def y: () -> Integer
-      def self.new: (String, Array[String], Integer, Integer) -> DragDropEvent
+      def self.new: (String label, String, Array[String], Integer, Integer) -> DragDropEvent
     end
 
     def self.home_dir: () -> String

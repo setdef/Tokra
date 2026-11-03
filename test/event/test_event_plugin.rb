@@ -18,7 +18,7 @@ class TestEventPlugin < Minitest::Test
     @app = Tokra::Builder.default.build(native: StubNative)
     @handle = @app.handle
     @native_webview = StubNative::WebView.new
-    window = Tokra::Window.new(label: "main", native: StubNative::Window.new(nil), app_handle: @handle)
+    window = Tokra::Window.new(label: "main", native: StubNative::Window.new(nil, "main"), app_handle: @handle)
     @webview = Tokra::Webview.new(label: "main", native: @native_webview, window:, app_handle: @handle)
     @handle.windows["main"] = window
     @handle.webviews["main"] = @webview

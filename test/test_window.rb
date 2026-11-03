@@ -58,7 +58,7 @@ class TestWindow < Minitest::Test
   end
 
   def test_set_title_returns_nil
-    window = Tokra::Window.new(label: "win", native: StubNative::Window.new(nil), app_handle:)
+    window = Tokra::Window.new(label: "win", native: StubNative::Window.new(nil, "win"), app_handle:)
 
     assert_nil window.set_title("My App")
   end
@@ -74,7 +74,7 @@ class TestWindow < Minitest::Test
   end
 
   def test_set_always_on_top_returns_nil
-    window = Tokra::Window.new(label: "win", native: StubNative::Window.new(nil), app_handle:)
+    window = Tokra::Window.new(label: "win", native: StubNative::Window.new(nil, "win"), app_handle:)
 
     assert_nil window.set_always_on_top(false)
   end
@@ -90,7 +90,7 @@ class TestWindow < Minitest::Test
   end
 
   def test_set_ignore_cursor_events_returns_nil
-    window = Tokra::Window.new(label: "win", native: StubNative::Window.new(nil), app_handle:)
+    window = Tokra::Window.new(label: "win", native: StubNative::Window.new(nil, "win"), app_handle:)
 
     assert_nil window.set_ignore_cursor_events(false)
   end

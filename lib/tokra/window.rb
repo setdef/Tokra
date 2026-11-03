@@ -1500,7 +1500,7 @@ module Tokra
     #
     #   window.close
     def close
-      @app_handle.runtime_context.request_close
+      @app_handle.runtime_context.request_close(@label)
     end
 
     # Closes this window without asking and returns +nil+.

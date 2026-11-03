@@ -40,13 +40,13 @@ class TestAppWrapperRegistration < Minitest::Test
     end
 
     class Window
-      def initialize(_event_loop); end
+      def initialize(_event_loop, _label); end
       def set_title(_title); end
       def set_size(_w, _h); end
     end
 
     class WebView
-      def self.new_with_protocol(_window, _proxy, _scripts); new; end
+      def self.new_with_protocol(_window, _proxy, _label, _scripts); new; end
       def eval(_script); end
     end
 

@@ -236,8 +236,17 @@ module Tokra
 
     # Defines the page load hook.
     #
-    # The block receives (webview, payload).
+    # The block receives the Tokra::Webview that started or finished
+    # loading a page and a PageLoadPayload, before any plugin's
+    # Plugin#on_page_load, as Tauri's on_page_load does
+    # (manager/webview.rs:282-300).
     # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
+    #
+    # === Example
+    #
+    #   builder.on_page_load(&Ractor.shareable_proc { |webview, payload|
+    #     puts "#{webview.label} loaded #{payload.url}" if payload.finished?
+    #   })
     def on_page_load(&block)
       require_shareable!(block, "on_page_load")
       @on_page_load_hook = block

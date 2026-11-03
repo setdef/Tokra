@@ -17,7 +17,7 @@ class TestWindowPlatformState < Minitest::Test
   end
 
   def native
-    @native ||= StubNative::Window.new(nil)
+    @native ||= StubNative::Window.new(nil, "main")
   end
 
   def window

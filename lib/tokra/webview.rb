@@ -57,6 +57,11 @@ module Tokra
       @window
     end
 
+    # Moves this webview to +window+ in the manager's books, so its window
+    # events go there (plan 052, decision 2). Phase 4's reparent sets it
+    # when it moves the native webview.
+    attr_writer :window # :nodoc:
+
     # Per-webview resource table for managed resources.
     #
     # Resources added here are scoped to this webview. The table

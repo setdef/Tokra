@@ -24,7 +24,7 @@ class TestLogRegistration < Minitest::Test
     end
 
     class Window
-      def initialize(_event_loop) = nil
+      def initialize(_event_loop, _label) = nil
       def set_title(_title) = nil
       def set_size(_width, _height) = nil
     end

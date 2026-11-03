@@ -7,7 +7,7 @@ module Tokra
     @invoke_handler: (^(Ipc::Invoke) -> bool)?
     @uri_scheme_protocols: Hash[String, ^(UriSchemeContext, Native::HttpRequestEvent) -> Response]
     @setup: (^(App) -> void)?
-    @on_page_load: (^(Native::WebView?, PageLoadPayload) -> void)?
+    @on_page_load: (^(Webview, PageLoadPayload) -> void)?
     @window_event_listeners: Array[^(Window, window_event) -> void]
     @webview_event_listeners: Array[^(Native::WebView?, webview_event) -> void]
     @state_manager: StateManager
@@ -35,7 +35,7 @@ module Tokra
     def register_uri_scheme_protocol: (String uri_scheme) { (UriSchemeContext, Native::HttpRequestEvent) -> Response } -> self
     def register_asynchronous_uri_scheme_protocol: (String uri_scheme) { (UriSchemeContext, Native::HttpRequestEvent, UriSchemeResponder) -> void } -> self
     def setup: () { (App) -> void } -> self
-    def on_page_load: () { (Native::WebView?, PageLoadPayload) -> void } -> self
+    def on_page_load: () { (Webview, PageLoadPayload) -> void } -> self
     def on_window_event: () { (Window, window_event) -> void } -> self
     def on_webview_event: () { (Native::WebView?, webview_event) -> void } -> self
     def build: (?native: Module) -> App
@@ -47,7 +47,7 @@ module Tokra
     attr_reader uri_scheme_protocols: Hash[String, ^(UriSchemeContext, Native::HttpRequestEvent) -> Response]
     attr_reader async_uri_scheme_protocols: Hash[String, ^(UriSchemeContext, Native::HttpRequestEvent, UriSchemeResponder) -> void]
     attr_reader setup_hook: (^(App) -> void)?
-    attr_reader on_page_load_hook: (^(Native::WebView?, PageLoadPayload) -> void)?
+    attr_reader on_page_load_hook: (^(Webview, PageLoadPayload) -> void)?
     attr_reader menu_hook: (^(AppHandle) -> Menu::Menu)?
     attr_reader menu_event_listeners: Array[MenuManager::app_listener]
     attr_reader tray_icon_event_listeners: Array[TrayManager::app_listener]

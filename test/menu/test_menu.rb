@@ -350,7 +350,7 @@ class TestMenu < Minitest::Test
   def test_a_menu_visibility_query_the_main_thread_never_answers_is_false
     app = Tokra::Builder.default.build(native: StubWindowMenusNative)
     handle = app.handle
-    window = Tokra::Window.new(label: "main", native: StubWindowMenusNative::Window.new(nil), app_handle: handle)
+    window = Tokra::Window.new(label: "main", native: StubWindowMenusNative::Window.new(nil, "main"), app_handle: handle)
     window.set_menu(Tokra::Menu::Menu.with_id(handle, "bar"))
     assert window.is_menu_visible, "the main thread answers at once"
     context = handle.runtime_context

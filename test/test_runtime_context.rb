@@ -39,10 +39,10 @@ class TestRuntimeContext < Minitest::Test
       nil
     end
 
-    def request_close
+    def request_close(label)
       raise "Failed to send close request: event loop closed" if @closed
 
-      @log << :request_close
+      @log << [:request_close, label]
       nil
     end
 
@@ -156,12 +156,12 @@ class TestRuntimeContext < Minitest::Test
     Thread.new { context.run_on_main_thread { nil } }.join
     context.request_exit(3)
     Thread.new { context.run_on_main_thread { nil } }.join
-    context.request_close
+    context.request_close("second")
 
     proxy = RecordingProxy.new
     context.attach(proxy)
 
-    assert_equal [:send_task, [:request_exit, 3], :send_task, :request_close], proxy.log
+    assert_equal [:send_task, [:request_exit, 3], :send_task, [:request_close, "second"]], proxy.log
   end
 
   def test_an_exit_request_goes_through_the_proxy_even_on_the_main_thread
@@ -177,7 +177,7 @@ class TestRuntimeContext < Minitest::Test
 
   def test_after_close_an_exit_request_fails_with_failed_to_send_message
     @context.close
-    error = assert_raises(Tokra::Error::Runtime) { @context.request_close }
+    error = assert_raises(Tokra::Error::Runtime) { @context.request_close("main") }
     assert_equal FAILED_TO_SEND, error.message
   end
 

@@ -115,22 +115,28 @@ impl RbProxy {
             })
     }
 
-    /// Ask the loop to close the window, as its close button does.
+    /// Ask the loop to close the window labeled `label`, as its close
+    /// button does.
     ///
-    /// The loop delivers `Tokra::Native::WindowCloseEvent`, as Tauri's
-    /// `WindowDispatch::close` sends `WindowMessage::Close` straight through
-    /// the proxy (tauri-runtime-wry `src/lib.rs:2142-2149`).
+    /// The loop delivers `Tokra::Native::WindowCloseEvent` with `label`, as
+    /// Tauri's `WindowDispatch::close` sends `WindowMessage::Close` for its
+    /// window straight through the proxy (tauri-runtime-wry
+    /// `src/lib.rs:2142-2149`). Tauri names the window by an id no later
+    /// window reuses; a request for a label whose window closed before the
+    /// loop handles it reaches whichever window has the label then.
     ///
     /// # Errors
     ///
     /// Returns an error if the event loop has been closed.
-    pub fn request_close(&self) -> Result<(), Error> {
-        self.inner.send_event(UserEvent::CloseWindow).map_err(|_| {
-            Error::new(
-                runtime_error(),
-                "Failed to send close request: event loop closed",
-            )
-        })
+    pub fn request_close(&self, label: String) -> Result<(), Error> {
+        self.inner
+            .send_event(UserEvent::CloseWindow(label))
+            .map_err(|_| {
+                Error::new(
+                    runtime_error(),
+                    "Failed to send close request: event loop closed",
+                )
+            })
     }
     // SPDX-SnippetEnd
 
@@ -269,7 +275,7 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
     proxy_class.define_method("wake_up", method!(RbProxy::wake_up, 1))?;
     proxy_class.define_method("send_task", method!(RbProxy::send_task, 0))?;
     proxy_class.define_method("request_exit", method!(RbProxy::request_exit, 1))?;
-    proxy_class.define_method("request_close", method!(RbProxy::request_close, 0))?;
+    proxy_class.define_method("request_close", method!(RbProxy::request_close, 1))?;
     proxy_class.define_method("respond", method!(RbProxy::respond, 4))?;
     proxy_class.define_method("drop_response", method!(RbProxy::drop_response, 1))?;
     Ok(())

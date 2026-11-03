@@ -14,6 +14,7 @@
 //! - [`user_event`] - Cross-thread communication payload enum
 //! - [`event_loop`] - Main event loop wrapper (`Tokra::Native::EventLoop`)
 //! - [`window`] - Window wrapper (`Tokra::Native::Window`)
+//! - [`window_labels`] - Each window's label, by tao's window id
 //! - [`webview`] - `WebView` wrapper with custom protocol (`Tokra::Native::WebView`)
 //! - [`proxy`] - Ractor-safe proxy for cross-thread communication (`Tokra::Native::Proxy`)
 //! - [`responders`] - Async protocol responder storage
@@ -81,6 +82,7 @@ mod webview;
 mod webview_focus;
 mod window;
 mod window_ext;
+mod window_labels;
 mod window_state;
 mod without_gvl;
 

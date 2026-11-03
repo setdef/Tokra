@@ -17,6 +17,7 @@ require_relative "../support/stub_native"
 class TestBuilderIpcResponse < Minitest::Test
   private def inject_ipc(app, message, url = LocalOrigin.url(app:))
     StubNative.inject_event(Tokra::Native::IpcEvent.new(
+      "main",
       JSON.generate(message.merge("__TAURI_INVOKE_KEY__" => app.invoke_key)),
       url
     ))
@@ -113,7 +114,7 @@ class TestBuilderIpcResponse < Minitest::Test
     handler = Ractor.shareable_proc { |_invoke| Thread.current[:handler_called] = true }
     app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
     # Deliberately wrong key
-    StubNative.inject_event(Tokra::Native::IpcEvent.new(JSON.generate(
+    StubNative.inject_event(Tokra::Native::IpcEvent.new("main", JSON.generate(
       { "cmd" => "ping", "callback" => 1, "error" => 2, "__TAURI_INVOKE_KEY__" => "wrong" }
     ),
       LocalOrigin.url(app:)
@@ -139,6 +140,7 @@ class TestBuilderIpcResponse < Minitest::Test
     handler = Ractor.shareable_proc { |_invoke| Thread.current[:handler_called] = true }
     app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
     StubNative.inject_event(Tokra::Native::IpcEvent.new(
+      "main",
       '{"cmd":"ping","callback":1,"error":2,"payload":{"text":"\udc00"},' \
         "\"__TAURI_INVOKE_KEY__\":\"#{app.invoke_key}\"}",
       LocalOrigin.url(app:)
@@ -162,7 +164,7 @@ class TestBuilderIpcResponse < Minitest::Test
     handler = Ractor.shareable_proc { |_invoke| Thread.current[:handler_called] = true }
     { 5 => "integer `5`", nil => "null" }.each do |cmd, described|
       app = Tokra::Builder.default.invoke_handler(&handler).build(native: StubNative)
-      StubNative.inject_event(Tokra::Native::IpcEvent.new(JSON.generate(
+      StubNative.inject_event(Tokra::Native::IpcEvent.new("main", JSON.generate(
         { "cmd" => cmd, "callback" => 1, "error" => 2, "__TAURI_INVOKE_KEY__" => "wrong" }
       ), LocalOrigin.url(app:)))
       _out, err = capture_subprocess_io { app.run }
@@ -180,7 +182,7 @@ class TestBuilderIpcResponse < Minitest::Test
   # backslashes in serde_json's control-character message are escaped.
   def test_message_error_report_is_a_json_string_literal
     app = Tokra::Builder.default.build(native: StubNative)
-    StubNative.inject_event(Tokra::Native::IpcEvent.new("{\"cmd\":\"a\tb\"}", LocalOrigin.url(app:)))
+    StubNative.inject_event(Tokra::Native::IpcEvent.new("main", "{\"cmd\":\"a\tb\"}", LocalOrigin.url(app:)))
     app.run
 
     assert_equal [
@@ -376,6 +378,7 @@ class TestBuilderIpcResponse < Minitest::Test
       Thread.current[:seen] = nil
       app = recording_app
       StubNative.inject_event(Tokra::Native::IpcEvent.new(
+        "main",
         JSON.generate("cmd" => "ping", "callback" => 1, "error" => 2, "payload" => {},
           "options" => { "headers" => headers }, "__TAURI_INVOKE_KEY__" => "wrong"),
         LocalOrigin.url(app:)

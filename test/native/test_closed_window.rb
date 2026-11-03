@@ -20,7 +20,7 @@ class TestNativeClosedWindow < Minitest::Test
 
     @event_loop = NativeEventLoop.shared
     @proxy = @event_loop.create_proxy
-    @window = Tokra::Native::Window.new(@event_loop)
+    @window = Tokra::Native::Window.new(@event_loop, "closed-window-1")
   end
 
   def test_a_closed_window_ignores_setters_and_answers_nil_and_unavailable
@@ -79,7 +79,7 @@ class TestNativeClosedWindow < Minitest::Test
   end
 
   def test_a_webview_takes_a_background_color_and_ignores_it_once_closed
-    webview = Tokra::Native::WebView.new_with_protocol(@window, @proxy, [])
+    webview = Tokra::Native::WebView.new_with_protocol(@window, @proxy, "closed-window-2", [])
 
     assert_nil webview.set_background_color([30, 30, 30, 255])
     assert_nil webview.set_background_color(nil)
@@ -177,7 +177,7 @@ class TestNativeClosedWindow < Minitest::Test
   end
 
   def test_a_closed_webview_ignores_scripts_and_closes_once
-    webview = Tokra::Native::WebView.new_with_protocol(@window, @proxy, [])
+    webview = Tokra::Native::WebView.new_with_protocol(@window, @proxy, "closed-window-3", [])
 
     assert_nil webview.close
     assert_nil webview.eval("throw new Error('never evaluated')")
@@ -185,7 +185,7 @@ class TestNativeClosedWindow < Minitest::Test
   end
 
   def test_closing_a_webview_off_its_thread_raises_thread_error
-    webview = Tokra::Native::WebView.new_with_protocol(@window, @proxy, [])
+    webview = Tokra::Native::WebView.new_with_protocol(@window, @proxy, "closed-window-4", [])
 
     error = assert_raises(ThreadError) { quietly { webview.close } }
     assert_equal "Tokra::Native::WebView can only be used on the thread that created it", error.message

@@ -124,9 +124,14 @@ module Tokra
       nil
     end
 
-    # Called when the webview finishes loading a page.
+    # Called when a webview starts or finishes loading a page.
     #
-    # Override this to perform post-load setup or analytics.
+    # Override this to perform post-load setup or analytics. +webview+ is
+    # the Tokra::Webview that loaded the page, and +payload+ a
+    # PageLoadPayload with its URL and whether it started or finished. The
+    # App calls it after Builder#on_page_load's block, for each plugin in
+    # the order they were registered, as Tauri does (manager/webview.rs:282-300,
+    # plugin.rs:965-972).
     # Returns +nil+ by default (no-op).
     public def on_page_load(webview, payload)
       nil
@@ -218,6 +223,19 @@ module Tokra
     # Mirrors Tauri's PluginStore#on_event (plugin.rs).
     def on_event(app, event)
       @store.each { |plugin| plugin.on_event(app, event) }
+    end
+
+    # Tells every registered plugin, in registration order, that +webview+
+    # started or finished loading a page, and returns +nil+.
+    #
+    # Mirrors Tauri's PluginStore#on_page_load (plugin.rs:965-972).
+    #
+    # === Example
+    #
+    #   store.on_page_load(webview, Tokra::PageLoadPayload.new(url: "tokra://localhost/", started: false))
+    def on_page_load(webview, payload)
+      @store.each { |plugin| plugin.on_page_load(webview, payload) }
+      nil
     end
   end
 

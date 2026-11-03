@@ -10,16 +10,18 @@ module Tokra
   module Native
     # IPC message received from WebView JavaScript.
     #
-    # Created when JavaScript calls +window.ipc.postMessage()+. +message+
-    # is the posted string; +url+ is the URL of the frame that posted it,
-    # which wry reports as the request URI and Tauri treats as the invoke
-    # origin (ipc/protocol.rs handle_ipc_message).
+    # Created when JavaScript calls +window.ipc.postMessage()+. +label+ is
+    # the label of the webview that posted it, which its handler captured
+    # (tauri-runtime-wry lib.rs:5169-5192); +message+ is the posted string;
+    # +url+ is the URL of the frame that posted it, which wry reports as the
+    # request URI and Tauri treats as the invoke origin (ipc/protocol.rs
+    # handle_ipc_message).
     #
     #   case event
     #   when Tokra::Native::IpcEvent
-    #     puts "Received #{event.message} from #{event.url}"
+    #     puts "#{event.label} sent #{event.message} from #{event.url}"
     #   end
-    IpcEvent = Data.define(:message, :url)
+    IpcEvent = Data.define(:label, :message, :url)
 
     # Wake-up signal from a Ractor via Proxy.
     #
@@ -32,7 +34,7 @@ module Tokra
     #   end
     WakeUpEvent = Data.define(:payload)
 
-    # Window close requested.
+    # Window close requested, for the window labeled +label+.
     #
     # Created when the user clicks the window close button, or when
     # Proxy#request_close asks for the same. The loop keeps running: the
@@ -41,11 +43,11 @@ module Tokra
     #
     #   case event
     #   when Tokra::Native::WindowCloseEvent
-    #     window.close unless keep_open?
+    #     windows[event.label].close unless keep_open?
     #   end
-    WindowCloseEvent = Data.define
+    WindowCloseEvent = Data.define(:label)
 
-    # The native window is gone.
+    # The native window labeled +label+ is gone.
     #
     # Created from tao's <tt>WindowEvent::Destroyed</tt>, which follows
     # Window#close. The callback's answer matters for this event: +true+
@@ -55,9 +57,10 @@ module Tokra
     #
     #   case event
     #   when Tokra::Native::WindowDestroyedEvent
-    #     windows_left.empty?
+    #     windows.delete(event.label)
+    #     windows.empty?
     #   end
-    WindowDestroyedEvent = Data.define
+    WindowDestroyedEvent = Data.define(:label)
 
     # SPDX-SnippetBegin
     # SPDX-License-Identifier: Apache-2.0 OR MIT
@@ -69,27 +72,40 @@ module Tokra
     # runtime asks the window for its inner size instead of trusting
     # tao's, which wry's NSView makes unreliable on macOS
     # (tauri-runtime-wry lib.rs:557-575).
-    WindowResizedEvent = Data.define
+    #
+    # Its +label+, as each window event's below, is the label of the
+    # window tao reported it for, as Tauri's runtime names a window
+    # event's window (tauri-runtime-wry lib.rs:4126-4150). The loop drops
+    # an event for a window Native::Window.new did not build.
+    WindowResizedEvent = Data.define(:label)
 
     # The window moved to (+x+, +y+), physical pixels: tao's
     # <tt>WindowEvent::Moved</tt>.
-    WindowMovedEvent = Data.define(:x, :y)
+    WindowMovedEvent = Data.define(:label, :x, :y)
 
     # The window gained focus, +focused+ +true+, or lost it: tao's
-    # <tt>WindowEvent::Focused</tt> off Windows, and WebView2's GotFocus
-    # and LostFocus on Windows, as Tauri's runtime takes them
-    # (tauri-runtime-wry lib.rs:521-549, 5070-5128).
-    WindowFocusedEvent = Data.define(:focused)
+    # <tt>WindowEvent::Focused</tt>, off Windows only. On Windows the
+    # webview's focus stands in for its window's (WebviewFocusedEvent), as
+    # Tauri's runtime takes it (tauri-runtime-wry lib.rs:521-549).
+    WindowFocusedEvent = Data.define(:label, :focused)
+
+    # The webview labeled +label+ gained focus, +focused+ +true+, or lost
+    # it: WebView2's GotFocus and LostFocus, on Windows only. The App tells
+    # the webview's window, as Tauri's runtime sends them as the window's
+    # SynthesizedWindowEvent::Focused (tauri-runtime-wry lib.rs:4097-4122,
+    # 5070-5128). Its +label+ is a webview's, where WindowFocusedEvent's is
+    # a window's.
+    WebviewFocusedEvent = Data.define(:label, :focused)
 
     # The window's scale factor changed to +scale_factor+, and its inner
     # area to +width+ by +height+ physical pixels: tao's
     # <tt>WindowEvent::ScaleFactorChanged</tt>.
-    WindowScaleFactorChangedEvent = Data.define(:scale_factor, :width, :height)
+    WindowScaleFactorChangedEvent = Data.define(:label, :scale_factor, :width, :height)
 
     # The system's theme changed: tao's <tt>WindowEvent::ThemeChanged</tt>,
     # +theme+ <tt>"light"</tt>, <tt>"dark"</tt>, or another name tao may
     # add.
-    WindowThemeChangedEvent = Data.define(:theme)
+    WindowThemeChangedEvent = Data.define(:label, :theme)
 
     # SPDX-SnippetEnd
 
@@ -109,27 +125,30 @@ module Tokra
     # HTTP request from WebView via the <tt>tokra://</tt> custom protocol.
     #
     # Contains all request data including a +request_id+ for correlating
-    # the async response via +proxy.respond()+. +headers+ is an array of
-    # [name, value] pairs with lowercase names, and +body+ is a binary
-    # (ASCII-8BIT) String holding the exact request bytes.
+    # the async response via +proxy.respond()+. +label+ is the label of the
+    # webview that made the request, the id wry hands the protocol handler
+    # (Tauri's protocol context reads it so, manager/webview.rs:229-233).
+    # +headers+ is an array of [name, value] pairs with lowercase names,
+    # and +body+ is a binary (ASCII-8BIT) String holding the exact request
+    # bytes.
     #
     #   case event
     #   when Tokra::Native::HttpRequestEvent
     #     # Build Rack response...
     #     proxy.respond(event.request_id, 200, headers, body)
     #   end
-    HttpRequestEvent = Data.define(:request_id, :method, :uri, :headers, :body)
+    HttpRequestEvent = Data.define(:label, :request_id, :method, :uri, :headers, :body)
 
-    # Page load event (started or finished).
+    # Page load event (started or finished) in the webview labeled +label+.
     #
     # Matches Tauri's +on_page_load+ API.
     #
     #   case event
     #   when Tokra::Native::PageLoadEvent
-    #     puts "Page #{event.url} #{event.event}"
+    #     puts "Page #{event.url} #{event.event} in #{event.label}"
     #     app.initialize_js if event.finished?
     #   end
-    class PageLoadEvent < Data.define(:event, :url)
+    class PageLoadEvent < Data.define(:label, :event, :url)
       ##
       # Returns true if this is a page load started event.
       def started?
@@ -143,7 +162,8 @@ module Tokra
       end
     end
 
-    # Drag-drop event from webview.
+    # Drag-drop event from the webview labeled +label+, which the App tells
+    # the webview's window (tauri-runtime-wry lib.rs:4097-4122, 4695-4700).
     #
     # Matches Tauri's +DragDropEvent+ enum with Enter, Over, Drop, Leave variants.
     #
@@ -154,7 +174,7 @@ module Tokra
     #     when "drop"  then handle_drop(event.paths, event.x, event.y)
     #     end
     #   end
-    DragDropEvent = Data.define(:event, :paths, :x, :y)
+    DragDropEvent = Data.define(:label, :event, :paths, :x, :y)
 
     # The native event loop is shutting down.
     #

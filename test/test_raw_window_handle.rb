@@ -31,7 +31,7 @@ class TestRawWindowHandle < Minitest::Test
   def setup
     @app = Tokra::Builder.default.build(native: StubNative)
     @handle = @app.handle
-    @native = StubNative::Window.new(nil)
+    @native = StubNative::Window.new(nil, "main")
     @window = Tokra::Window.new(label: "main", native: @native, app_handle: @handle)
   end
 
@@ -172,7 +172,7 @@ class TestRawWindowHandle < Minitest::Test
   def test_a_windows_display_handle_is_the_apps
     open_window
     @native.raw_display_handle = [:Windows]
-    other = Tokra::Window.new(label: "other", native: StubNative::Window.new(nil), app_handle: @handle)
+    other = Tokra::Window.new(label: "other", native: StubNative::Window.new(nil, "other"), app_handle: @handle)
 
     assert_equal Handles::WindowsDisplayHandle.new, other.display_handle
   end

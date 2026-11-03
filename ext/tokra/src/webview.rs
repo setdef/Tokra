@@ -32,11 +32,14 @@ const CLASS: &str = "Tokra::Native::WebView";
 ///
 /// Both the `tokra://` content protocol and the `ipc://` transport share this
 /// path: store the wry responder by a fresh `request_id`, then send a
-/// `UserEvent::HttpRequest` carrying the request. Ruby routes on the URI scheme
+/// `UserEvent::HttpRequest` carrying the request and `label`, the id wry
+/// hands the handler, which is the webview's label (`with_id`), as Tauri's
+/// protocol context reads it (`manager/webview.rs:229-233`). Ruby routes on the URI scheme
 /// and later replies (or drops) via the `Proxy` keyed by that `request_id`. wry
 /// registers each scheme independently, so both protocols reuse one handler.
 fn forward_request_to_ruby(
     proxy: &EventLoopProxy<UserEvent>,
+    label: &str,
     request: &wry::http::Request<Vec<u8>>,
     responder: wry::RequestAsyncResponder,
 ) {
@@ -48,7 +51,7 @@ fn forward_request_to_ruby(
         .unwrap()
         .insert(request_id, responder);
 
-    let _ = proxy.send_event(http_request_event(request_id, request));
+    let _ = proxy.send_event(http_request_event(request_id, label, request));
 }
 
 /// Build the `UserEvent::HttpRequest` Ruby receives for one protocol request.
@@ -61,7 +64,11 @@ fn forward_request_to_ruby(
 /// `to_str`'s visible-ASCII rule where Tauri does. The body
 /// travels as its exact bytes: a lossy UTF-8 conversion would corrupt binary
 /// uploads.
-fn http_request_event(request_id: u64, request: &wry::http::Request<Vec<u8>>) -> UserEvent {
+fn http_request_event(
+    request_id: u64,
+    label: &str,
+    request: &wry::http::Request<Vec<u8>>,
+) -> UserEvent {
     let headers: Vec<(String, String)> = request
         .headers()
         .iter()
@@ -74,6 +81,7 @@ fn http_request_event(request_id: u64, request: &wry::http::Request<Vec<u8>>) ->
         .collect();
 
     UserEvent::HttpRequest {
+        label: label.to_string(),
         request_id,
         method: request.method().to_string(),
         uri: request.uri().to_string(),
@@ -86,12 +94,16 @@ fn http_request_event(request_id: u64, request: &wry::http::Request<Vec<u8>>) ->
 ///
 /// wry sets the request URI to the sending frame's URL; Tauri parses it as
 /// the invoke origin (`ipc/protocol.rs` `handle_ipc_message`), so it travels
-/// with the body.
+/// with the body, and with `label`, the webview's, which the handler
+/// captured as tauri-runtime-wry's `create_ipc_handler` does
+/// (`src/lib.rs:5169-5192`).
 fn forward_ipc_message_to_ruby(
     proxy: &EventLoopProxy<UserEvent>,
+    label: &str,
     msg: &wry::http::Request<String>,
 ) {
     let _ = proxy.send_event(UserEvent::IpcMessage {
+        label: label.to_string(),
         url: msg.uri().to_string(),
         body: msg.body().clone(),
     });
@@ -241,9 +253,24 @@ impl RbWebView {
     /// On Windows the window's focus events come from this webview's
     /// `GotFocus` and `LostFocus` (`webview_focus.rs`).
     ///
+    /// The webview is built with `label` as wry's id, as Tauri's runtime
+    /// builds each webview `with_id(&label)` (tauri-runtime-wry
+    /// `src/lib.rs:4625`), and every event it sends carries `label`: its
+    /// protocol requests read the id wry hands back, and its IPC, page-load,
+    /// drag-drop, and (Windows) focus handlers capture a copy. A label
+    /// belongs to one live webview: wry's macOS backend keeps each
+    /// webview's protocol handlers in a process-wide table keyed by its id
+    /// and removes the entry when a webview drops (`src/wkwebview/mod.rs:290-293`,
+    /// `:1292-1294`), so two live webviews with one label share an entry,
+    /// and dropping either leaves the other without its protocols. The
+    /// caller keeps labels unique, as `Tokra::App` does.
+    ///
     /// # Errors
     ///
-    /// Returns an error if `WebView` creation fails, or on Windows if
+    /// Returns `ArgumentError` for a label holding NUL, before building
+    /// anything: wry copies the id into a C string with `unwrap` on macOS
+    /// (`src/wkwebview/mod.rs:274-277`). Returns `ThreadError` off the
+    /// window's thread, an error if `WebView` creation fails, or on Windows if
     /// `WebView2` refuses a focus handler. Tauri `unwrap()`s there
     /// (tauri-runtime-wry `src/lib.rs:5076-5130`); a panic across magnus
     /// would be a fatal error Ruby cannot rescue, so this raises
@@ -253,16 +280,21 @@ impl RbWebView {
     ///
     /// Panics if the responders mutex is poisoned (internal invariant violation).
     pub fn new_with_protocol(
+        ruby: &Ruby,
         window: &RbWindow,
         proxy: &RbProxy,
+        label: String,
         initialization_scripts: Vec<String>,
     ) -> Result<Self, Error> {
+        let label = crate::window_labels::checked(ruby, label)?;
         let proxy_clone = proxy.inner().clone();
+        let label_for_ipc_message = label.clone();
         let proxy_for_protocol = proxy.inner().clone();
         let proxy_for_ipc = proxy.inner().clone();
         let proxy_for_page_load = proxy.inner().clone();
+        let label_for_page_load = label.clone();
 
-        let mut builder = WebViewBuilder::new();
+        let mut builder = WebViewBuilder::new().with_id(&label);
         for script in initialization_scripts {
             builder = builder.with_initialization_script(script);
         }
@@ -270,13 +302,13 @@ impl RbWebView {
         let builder = builder
             .with_url("tokra://localhost/")
             // The tokra:// content protocol: Ruby serves HTML, assets, and Rack.
-            .with_asynchronous_custom_protocol("tokra".into(), move |_id, request, responder| {
-                forward_request_to_ruby(&proxy_for_protocol, &request, responder);
+            .with_asynchronous_custom_protocol("tokra".into(), move |id, request, responder| {
+                forward_request_to_ruby(&proxy_for_protocol, id, &request, responder);
             })
             // The ipc:// transport: Tauri's desktop-default invoke channel. Same
             // request shape, different scheme; Ruby dispatches on the URI scheme.
-            .with_asynchronous_custom_protocol("ipc".into(), move |_id, request, responder| {
-                forward_request_to_ruby(&proxy_for_ipc, &request, responder);
+            .with_asynchronous_custom_protocol("ipc".into(), move |id, request, responder| {
+                forward_request_to_ruby(&proxy_for_ipc, id, &request, responder);
             })
             .with_on_page_load_handler(move |event, url| {
                 let event_name = match event {
@@ -284,6 +316,7 @@ impl RbWebView {
                     PageLoadEvent::Finished => "finished",
                 };
                 let _ = proxy_for_page_load.send_event(UserEvent::PageLoad {
+                    label: label_for_page_load.clone(),
                     event: event_name.to_string(),
                     url,
                 });
@@ -295,6 +328,7 @@ impl RbWebView {
             // SPDX-SnippetComment: Drag-drop handler pattern adapted from tauri-runtime-wry/lib.rs lines 4669-4703
             .with_drag_drop_handler({
                 let proxy_for_drag_drop = proxy.inner().clone();
+                let label_for_drag_drop = label.clone();
                 move |event| {
                     use wry::DragDropEvent as WryDragDropEvent;
 
@@ -329,6 +363,7 @@ impl RbWebView {
                     };
 
                     let _ = proxy_for_drag_drop.send_event(UserEvent::DragDrop {
+                        label: label_for_drag_drop.clone(),
                         event: event_name.to_string(),
                         paths,
                         x,
@@ -339,7 +374,7 @@ impl RbWebView {
             })
             // SPDX-SnippetEnd
             .with_ipc_handler(move |msg| {
-                forward_ipc_message_to_ruby(&proxy_clone, &msg);
+                forward_ipc_message_to_ruby(&proxy_clone, &label_for_ipc_message, &msg);
             });
         let tao_window = window.window()?;
         let webview = build_in(builder, &tao_window)
@@ -348,7 +383,7 @@ impl RbWebView {
         // Windows reports the window's focus from the webview's, as
         // tauri-runtime-wry's create_webview does (`src/lib.rs:5069-5130`).
         #[cfg(windows)]
-        crate::webview_focus::attach(&webview, proxy.inner())
+        crate::webview_focus::attach(&webview, proxy.inner(), &label)
             .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
         drop(tao_window);
 
@@ -511,7 +546,7 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
     webview_class.undef_default_alloc_func();
     webview_class.define_singleton_method(
         "new_with_protocol",
-        function!(RbWebView::new_with_protocol, 3),
+        function!(RbWebView::new_with_protocol, 4),
     )?;
     webview_class.define_method("eval", method!(RbWebView::eval, 1))?;
     webview_class.define_method("close", method!(RbWebView::close, 0))?;
@@ -540,14 +575,16 @@ mod tests {
             .body(body.clone())
             .unwrap();
 
-        match http_request_event(7, &request) {
+        match http_request_event(7, "side", &request) {
             UserEvent::HttpRequest {
+                label,
                 request_id,
                 method,
                 uri,
                 headers,
                 body: forwarded,
             } => {
+                assert_eq!(label, "side", "the event names the webview wry passed");
                 assert_eq!(request_id, 7);
                 assert_eq!(method, "POST");
                 assert_eq!(uri, "ipc://localhost/upload");
@@ -571,7 +608,7 @@ mod tests {
             .body(Vec::new())
             .unwrap();
 
-        match http_request_event(1, &request) {
+        match http_request_event(1, "main", &request) {
             UserEvent::HttpRequest { headers, .. } => {
                 assert_eq!(headers, vec![("x-probe".to_string(), "café".to_string())]);
             }

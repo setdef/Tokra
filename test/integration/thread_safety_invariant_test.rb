@@ -77,7 +77,7 @@ class ThreadSafetyInvariantTest < Minitest::Test
     proxy = event_loop.create_proxy
     assert_kind_of Tokra::Native::Proxy, proxy
 
-    window = Tokra::Native::Window.new(event_loop)
+    window = Tokra::Native::Window.new(event_loop, "thread-safety-invariant-1")
     assert_kind_of Tokra::Native::Window, window
   end
 
@@ -93,7 +93,7 @@ class ThreadSafetyInvariantTest < Minitest::Test
     skip reason if reason
 
     event_loop = NativeEventLoop.shared
-    window = Tokra::Native::Window.new(event_loop)
+    window = Tokra::Native::Window.new(event_loop, "thread-safety-invariant-2")
 
     # These operations should not raise
     window.set_title("Test Title")
@@ -113,7 +113,7 @@ class ThreadSafetyInvariantTest < Minitest::Test
     skip reason if reason
 
     event_loop = NativeEventLoop.shared
-    window = Tokra::Native::Window.new(event_loop)
+    window = Tokra::Native::Window.new(event_loop, "thread-safety-invariant-3")
 
     # Should not raise with unicode
     window.set_title("日本語タイトル 🎌")
@@ -124,7 +124,7 @@ class ThreadSafetyInvariantTest < Minitest::Test
     skip reason if reason
 
     event_loop = NativeEventLoop.shared
-    window = Tokra::Native::Window.new(event_loop)
+    window = Tokra::Native::Window.new(event_loop, "thread-safety-invariant-4")
 
     # Should accept float dimensions
     window.set_size(1024.5, 768.5)
@@ -135,8 +135,8 @@ class ThreadSafetyInvariantTest < Minitest::Test
     skip reason if reason
 
     event_loop = NativeEventLoop.shared
-    window1 = Tokra::Native::Window.new(event_loop)
-    window2 = Tokra::Native::Window.new(event_loop)
+    window1 = Tokra::Native::Window.new(event_loop, "thread-safety-invariant-5")
+    window2 = Tokra::Native::Window.new(event_loop, "thread-safety-invariant-6")
 
     refute_equal window1.id, window2.id, "Each window should have a unique ID"
   end
@@ -165,7 +165,7 @@ class ThreadSafetyInvariantTest < Minitest::Test
     reason = NativeEventLoop.unavailable_reason
     skip reason if reason
 
-    window = Tokra::Native::Window.new(NativeEventLoop.shared)
+    window = Tokra::Native::Window.new(NativeEventLoop.shared, "thread-safety-invariant-7")
 
     assert_refused("Tokra::Native::Window") { window.set_title("from a thread") }
     assert_refused("Tokra::Native::Window") { window.set_size(1.0, 1.0) }
@@ -181,7 +181,7 @@ class ThreadSafetyInvariantTest < Minitest::Test
     reason = NativeEventLoop.unavailable_reason
     skip reason if reason
 
-    window = Tokra::Native::Window.new(NativeEventLoop.shared)
+    window = Tokra::Native::Window.new(NativeEventLoop.shared, "thread-safety-invariant-8")
 
     assert_equal "Tokra", window.title
   end
@@ -191,7 +191,7 @@ class ThreadSafetyInvariantTest < Minitest::Test
     skip reason if reason
 
     event_loop = NativeEventLoop.shared
-    assert_refused("Tokra::Native::EventLoop") { Tokra::Native::Window.new(event_loop) }
+    assert_refused("Tokra::Native::EventLoop") { Tokra::Native::Window.new(event_loop, "thread-safety-invariant-9") }
   end
 
   def test_the_event_loop_refuses_to_run_on_another_thread_and_stays_runnable
@@ -202,7 +202,7 @@ class ThreadSafetyInvariantTest < Minitest::Test
     assert_refused("Tokra::Native::EventLoop") { event_loop.run(-> (_event) {}) }
 
     # The refusal did not consume the loop: it still builds windows here.
-    assert_kind_of Tokra::Native::Window, Tokra::Native::Window.new(event_loop)
+    assert_kind_of Tokra::Native::Window, Tokra::Native::Window.new(event_loop, "thread-safety-invariant-10")
   end
 
   def test_any_thread_can_create_a_proxy_and_wake_the_loop
