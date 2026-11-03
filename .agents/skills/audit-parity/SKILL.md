@@ -58,6 +58,11 @@ Automated mutation testing is deferred (Plan 017). Do it by hand instead:
    N=/test_name/` (a plugin test from its directory with
    `bundle exec rake test N=/test_name/`), confirm it fails, then
    restore the line and confirm `git diff` shows nothing you introduced.
+   Neither reaches a real-window test (Plan 056): run one through the
+   routed tasks, `bundle exec rake test:gui` (hidden on the maintainer's
+   Mac), or with `TOKRA_REAL_WINDOWS=local` `rake test:keyboard`,
+   `test:real_windows`, or `test:real_windows:plugins` and `N=/test_name/`.
+   Outside those tasks a real-window test fails on purpose.
 3. Report each spot-check: the line, the mutation, the test, and whether it
    failed.
 

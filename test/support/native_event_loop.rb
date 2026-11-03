@@ -5,6 +5,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
+require_relative "real_windows_run"
+
 # The one Native::EventLoop the in-process tests share.
 #
 # On Linux, tao registers a GtkApplication on the session bus for each event
@@ -26,6 +28,9 @@ module NativeEventLoop
 
   # The shared loop, built on first use on the main thread.
   def self.shared
-    @shared ||= Tokra::Native::EventLoop.new
+    @shared ||= begin
+      RealWindowsRun.require!("NativeEventLoop.shared")
+      Tokra::Native::EventLoop.new
+    end
   end
 end

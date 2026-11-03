@@ -29,20 +29,32 @@ end
 task compile: "sync:tauri"
 task build: :compile
 
+require_relative "tasks/real_windows"
+
 # Plugin directories
 PLUGINS = Dir["plugins/*"].select { |f| File.directory?(f) }
 
+# Runs +files+, test files of +plugin+ relative to it, through its own
+# Rakefile, which runs those TOKRA_TESTS names (Plan 056), letting them
+# open real windows if +windows+. Each plugin has its own Gemfile.
+# Without an unbundled environment, the inherited BUNDLE_GEMFILE would
+# run the plugin under the root bundle. In a hidden job the gems are
+# shared and read-only, so Bundler installs there only what is missing.
+def run_plugin_tests(plugin, files, windows:)
+  return if files.empty?
+
+  install = ENV["TOKRA_HIDDEN_JOB"] ? "(bundle check > #{File::NULL} || bundle install --quiet)" : "bundle install --quiet"
+  Bundler.with_unbundled_env do
+    sh({ "TOKRA_TESTS" => files.join(",") }.merge(RealWindows.run_env(windows)),
+      "cd #{plugin} && #{install} && bundle exec rake test")
+  end
+end
+
 # Plugin tasks that delegate to each plugin's Rakefile
 namespace :plugins do
-  desc "Test all plugins"
+  desc "Test all plugins, but for their real-window tests, which run in test:gui"
   task :test do
-    PLUGINS.each do |plugin|
-      # Each plugin has its own Gemfile. Without an unbundled environment,
-      # the inherited BUNDLE_GEMFILE would run the plugin under the root bundle.
-      Bundler.with_unbundled_env do
-        sh "cd #{plugin} && bundle install --quiet && bundle exec rake test"
-      end
-    end
+    PLUGINS.each { |plugin| run_plugin_tests(plugin, RealWindows.plugin_tests(plugin, windows: false), windows: false) }
   end
 
   desc "Lint all plugins (RuboCop)"
@@ -70,4 +82,6 @@ end
 # Import all tasks from the tasks/ directory
 Dir.glob("tasks/*.rake").each { |r| import r }
 
-task default: %w[compile:strict test:keyboard lint:fix test lint steep lint:rust package:check]
+# The real-window tests run first, hidden on the maintainer's Mac and
+# here on CI (test:gui, Plan 056).
+task default: %w[compile:strict test:gui lint:fix test lint steep lint:rust package:check]

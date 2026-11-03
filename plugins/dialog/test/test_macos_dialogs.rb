@@ -6,6 +6,7 @@
 #++
 
 require_relative "support/dialog_test"
+require "support/real_windows_run"
 
 # The file commands on macOS, end to end, without a window.
 #
@@ -57,6 +58,7 @@ class TestMacosDialogs < Minitest::Test
 
   def setup
     skip_unless_platform(:macos)
+    RealWindowsRun.require!("AppKit's file panels")
   end
 
   private def cancelled(command, payload)

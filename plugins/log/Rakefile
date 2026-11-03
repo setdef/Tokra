@@ -7,10 +7,15 @@
 
 require "bundler/gem_tasks"
 require "rake/testtask"
+require_relative "../../tasks/real_windows"
 
 Rake::TestTask.new do |t|
   t.libs << "lib"
-  t.pattern = "test/**/test_*.rb"
+  # Tokra's Rakefile names the files to run in TOKRA_TESTS, comma-separated.
+  # Without it, the real-window tests stay out: they run in Tokra's
+  # test:gui, never in a plain test run (Plan 056).
+  plugin = "plugins/#{File.basename(__dir__)}"
+  t.test_files = ENV.fetch("TOKRA_TESTS") { RealWindows.plugin_tests(plugin, windows: false).join(",") }.split(",")
   t.warning = true
 end
 

@@ -9,6 +9,7 @@ require "test_helper"
 require "json"
 require "rbconfig"
 require_relative "frontmost"
+require_relative "../../support/real_windows_run"
 
 # Runs a fixture app (test/integration/fixtures/*/app.rb) in a real window.
 #
@@ -93,6 +94,7 @@ module RealApp
   # environment. +drain+ is how many seconds the readers get to finish
   # once the child is gone.
   def self.launch(name, *, on_line: nil, fixtures: FIXTURES, env: {}, drain: DRAIN)
+    RealWindowsRun.require!("RealApp.launch(#{name.inspect})")
     started = now
     signalled_at = nil
     out_reader, out_writer = IO.pipe

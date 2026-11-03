@@ -6,6 +6,7 @@
 #++
 
 require_relative "support/notification_test"
+require "support/real_windows_run"
 
 # macOS, in child processes only.
 #
@@ -27,6 +28,7 @@ class TestMacosNotifications < Minitest::Test
 
   def setup
     skip_unless_platform(:macos)
+    RealWindowsRun.require!("the notification center")
   end
 
   # Tokra serves its pages through its own protocol, as Tauri's release
