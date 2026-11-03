@@ -126,6 +126,236 @@ module Tokra
     # SPDX-SnippetBegin
     # SPDX-License-Identifier: Apache-2.0 OR MIT
     # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: The page and cookie methods adapted from tauri/crates/tauri/src/webview/mod.rs
+    #                      and the webview messages of tauri-runtime-wry/src/lib.rs
+
+    # The address of the page this webview shows, a URI.
+    #
+    # From another thread this asks the main thread and waits for its
+    # answer. Raises Error::InvalidUrl when the address has no scheme, as
+    # before WebKitGTK's first load, or Ruby's URI cannot parse it;
+    # Error::Runtime "failed to send message to the webview" when the
+    # platform cannot tell; and Error::Runtime "failed to receive message
+    # from webview" once the webview is closed, or when the event loop
+    # has ended.
+    #
+    # Where wry panics reading the address (macOS unwraps the WKWebView's
+    # URL, wkwebview/mod.rs:1244-1246), this raises "failed to send message
+    # to the webview" as for wry's error, and Rust prints the panic to
+    # standard error; Tauri's app panics there.
+    #
+    # Mirrors Tauri's Webview::url (webview/mod.rs:1662-1668;
+    # tauri-runtime-wry lib.rs:1580-1582, 3758-3765).
+    #
+    # === Example
+    #
+    #   webview.url  #=> #<URI::Generic tokra://localhost/>
+    def url
+      address = query(&:url)
+      parsed = URI.parse(address)
+      raise Error::InvalidUrl, Error::InvalidUrl::RELATIVE_URL_WITHOUT_BASE unless parsed.absolute?
+
+      parsed
+    rescue URI::InvalidURIError => e
+      raise Error::InvalidUrl, e.message
+    end
+
+    # Loads +url+, a URI::Generic, in this webview, and returns +nil+.
+    #
+    # Runs as #evaluate does: from another thread it returns without
+    # waiting for the load. Anything but a URI raises TypeError on the
+    # calling thread, and a relative one ArgumentError "relative URL
+    # without a base", as Tauri's Url is always absolute. A URL the
+    # webview fails to load is logged, never raised, as Tauri's runtime
+    # logs it; a closed webview ignores it. On
+    # macOS wry panics on a URL NSURL cannot parse (wkwebview/mod.rs:775),
+    # where Tauri's app panics; here that is logged too, with the panic's
+    # message.
+    #
+    # Mirrors Tauri's Webview::navigate (webview/mod.rs:1670-1673;
+    # tauri-runtime-wry lib.rs:1598-1607, 3647-3651).
+    #
+    # === Example
+    #
+    #   webview.navigate(URI("https://tauri.app"))
+    def navigate(url)
+      address = absolute(url).to_s
+      command("failed to navigate to url #{address}") { |native| native.navigate(address) }
+    end
+
+    # Reloads the page this webview shows, and returns +nil+. Runs as
+    # #navigate does, and logs a failure as "failed to reload: ...".
+    #
+    # Mirrors Tauri's Webview::reload (webview/mod.rs:1675-1678;
+    # tauri-runtime-wry lib.rs:1609-1618, 3652-3656).
+    #
+    # === Example
+    #
+    #   webview.reload
+    def reload
+      command("failed to reload", &:reload)
+    end
+
+    # The cookies in this webview's cookie store that go with requests
+    # to +url+, a URI::Generic, as an Array of Cookie, HTTP-only and
+    # secure ones included.
+    #
+    # Only +http+ and +https+ URLs have cookies: cookies a page served over
+    # a custom protocol, such as Tokra's own, sets through JavaScript are
+    # not in the store. On
+    # macOS wry reads every cookie and keeps those whose domain is the
+    # URL's host, so there a URL whose host is an IP address answers none.
+    #
+    # Answers as #cookies does, and raises on the calling thread TypeError
+    # for anything but a URI and ArgumentError for a relative one, as
+    # #navigate does.
+    #
+    # Mirrors Tauri's Webview::cookies_for_url (webview/mod.rs:2094-2113;
+    # tauri-runtime-wry lib.rs:1704-1717, 3785-3790). For a closed webview
+    # Tauri's runtime panics on the channel it leaves unanswered, where
+    # this raises "failed to receive message from webview".
+    #
+    # === Example
+    #
+    #   webview.cookies_for_url(URI("https://tauri.app"))
+    #   #=> [#<data Tokra::Cookie name="session", value="abc", ...>]
+    def cookies_for_url(url)
+      address = absolute(url).to_s
+      query { |native| native.cookies_for_url(address) }.map { |fields| Cookie.from_native(fields) }
+    end
+
+    # Every cookie in this webview's cookie store, for every URL, as an
+    # Array of Cookie, HTTP-only and secure ones included.
+    #
+    # Only pages served over +http+ or +https+ have cookies. Cookies a page
+    # served over a custom protocol, such as Tokra's own, sets through
+    # JavaScript are not in the store.
+    #
+    # The platform reads its store while the main thread waits:
+    #
+    # [macOS] wry runs the main run loop until the store answers, for at
+    #         most a second or so, and fails when it does not.
+    # [Windows] wry runs a nested message loop until WebView2 answers.
+    # [Linux] wry runs GTK's main loop until WebKitGTK answers.
+    #
+    # Window and webview events that arrive meanwhile wait for the loop,
+    # and no callback of yours runs inside the wait (plan 052, decision
+    # e2-1). From another thread this asks the main thread and waits for
+    # its answer. Raises Error::Runtime "failed to send message to the
+    # webview" when the platform fails, and "failed to receive message
+    # from webview" once the webview is closed or when the event loop has
+    # ended.
+    #
+    # Tauri warns that on Windows this deadlocks inside a synchronous
+    # command or event handler (wry issue 583). That needs the call to run
+    # inside one of WebView2's own callbacks, and Tokra runs none of your
+    # code there: commands, listeners, and page-load hooks run from the
+    # event loop.
+    #
+    # Mirrors Tauri's Webview::cookies (webview/mod.rs:2115-2138;
+    # tauri-runtime-wry lib.rs:1719-1721, 3768-3771).
+    #
+    # === Example
+    #
+    #   webview.cookies.map(&:name)  #=> ["session", "theme"]
+    def cookies
+      query(&:cookies).map { |fields| Cookie.from_native(fields) }
+    end
+
+    # Puts +cookie+, a Cookie, in this webview's cookie store, replacing
+    # one of the same name, domain, and path, and returns +nil+.
+    #
+    # Runs as #navigate does: from another thread it returns without
+    # waiting. Anything but a Cookie raises TypeError on the calling
+    # thread. A cookie the platform refuses is logged as "failed to set
+    # webview cookie: ...", never raised; a closed webview ignores it. On
+    # macOS and Linux the main thread waits for the store, as #cookies
+    # does.
+    #
+    # Some cookies make wry panic, where Tauri's app panics: on macOS one
+    # with an empty name or a value holding a line break, which the
+    # platform cannot make into a cookie (wkwebview/mod.rs:1082-1083), and
+    # on Linux one that expires before the year 1
+    # (webkitgtk/mod.rs:981-983). Here that is logged with the panic's
+    # message, "failed to set webview cookie: failed to create wkwebview
+    # cookie, report this as bug to `wry`" on macOS, and Rust prints the
+    # panic to standard error.
+    #
+    # Mirrors Tauri's Webview::set_cookie (webview/mod.rs:2140-2151;
+    # tauri-runtime-wry lib.rs:1723-1733, 3773-3777).
+    #
+    # === Example
+    #
+    #   webview.set_cookie(Tokra::Cookie.new(name: "theme", value: "dark", domain: "localhost", path: "/"))
+    def set_cookie(cookie)
+      raise TypeError, "wrong argument type #{cookie.class} (expected Tokra::Cookie)" unless cookie.is_a?(Cookie)
+
+      fields = cookie.native_fields
+      command("failed to set webview cookie") { |native| native.set_cookie(fields) }
+    end
+
+    # Takes the cookie that matches +cookie+, a Cookie, out of this
+    # webview's cookie store, and returns +nil+. Runs as #set_cookie does,
+    # and logs a failure as "failed to delete webview cookie: ...".
+    #
+    # Mirrors Tauri's Webview::delete_cookie (webview/mod.rs:2153-2164;
+    # tauri-runtime-wry lib.rs:1735-1745, 3779-3783).
+    #
+    # === Example
+    #
+    #   webview.cookies.each { |cookie| webview.delete_cookie(cookie) }
+    def delete_cookie(cookie)
+      raise TypeError, "wrong argument type #{cookie.class} (expected Tokra::Cookie)" unless cookie.is_a?(Cookie)
+
+      fields = cookie.native_fields
+      command("failed to delete webview cookie") { |native| native.delete_cookie(fields) }
+    end
+
+    # Runs a native query on the main thread and answers it, as the
+    # runtime's webview getters do: wry's error is FailedToSendMessage,
+    # and a closed webview, which answers +nil+, goes unanswered
+    # (tauri-runtime-wry lib.rs:196-230, 3758-3792).
+    private def query
+      native = @native
+      answer = @app_handle.runtime_context.getter do
+        yield native
+      rescue RuntimeError
+        raise Error::Runtime, Error::Runtime::FAILED_TO_SEND_MESSAGE
+      end
+      raise Error::Runtime, Error::Runtime::FAILED_TO_RECEIVE_MESSAGE if answer.nil?
+
+      answer
+    end
+
+    # Runs a native command on the main thread, logging its failure after
+    # +failure+, as the runtime's handler logs wry's. Every refusal the
+    # native side gives is logged, not only wry's RuntimeError: the
+    # KeyError, TypeError, ArgumentError, and RangeError a malformed Hash
+    # raises (cookie.rs). So the command never raises there, nor ends the
+    # loop from another thread's task. Anything else, such as a
+    # NoMethodError from a bug, still raises.
+    private def command(failure)
+      native = @native
+      @app_handle.runtime_context.run_on_main_thread do
+        yield native
+      rescue RuntimeError, KeyError, TypeError, ArgumentError, RangeError => e
+        warn("#{failure}: #{e.message}")
+      end
+    end
+
+    # +url+, which must be an absolute URI::Generic.
+    private def absolute(url)
+      raise TypeError, "wrong argument type #{url.class} (expected URI::Generic)" unless url.is_a?(URI::Generic)
+      raise ArgumentError, Error::InvalidUrl::RELATIVE_URL_WITHOUT_BASE unless url.absolute?
+
+      url
+    end
+
+    # SPDX-SnippetEnd
+
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
     # SPDX-SnippetComment: Page listeners and Listener for Webview adapted from
     #                      tauri/crates/tauri/src/webview/mod.rs
 

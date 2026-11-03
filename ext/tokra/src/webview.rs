@@ -866,6 +866,166 @@ impl RbWebView {
     }
     // SPDX-SnippetEnd
 
+    /// The open wry webview handed to `call`, on its own thread, or `None`
+    /// once closed or before `open` fills it. wry's error becomes a
+    /// `RuntimeError` with its message, which `Tokra::Webview` turns into
+    /// the runtime's error or log line.
+    ///
+    /// So does a panic wry raises at one of `sites`, the unwraps this call
+    /// reaches in its own frames (see [`guarded`]): on macOS
+    /// `-[WKWebView URL]` and its `absoluteString`
+    /// (`src/wkwebview/mod.rs:1245-1246`), the `NSURL` a navigation parses
+    /// (`:775`), and the `NSHTTPCookie` a cookie becomes, which is nil for
+    /// an empty name or a value holding a newline (`:1082-1083`); on Linux
+    /// the `GDateTime` of an expiration before year 1
+    /// (`src/webkitgtk/mod.rs:982`). Tauri panics there; across magnus a
+    /// panic is a `fatal` Ruby cannot rescue. Each fires in wry's Rust,
+    /// after the platform call it unwraps has returned and before the next,
+    /// so no foreign frame lies between it and this call, and the webview
+    /// is as it was. Any other panic, such as one in a delegate the cookie
+    /// spin runs, would have unwound through `CFRunLoop` or `WebKit`, so it
+    /// is resumed and stays fatal. Rust's panic hook still prints each.
+    ///
+    /// The borrow is held for the whole call, which for a cookie call
+    /// spins a nested loop (plan 052, decision e2-1). Nothing that runs in
+    /// that loop reaches this webview, except under Windows' menu-loop
+    /// hook, where a nested `close` fails with `WebView is in use`.
+    fn with_open<T>(
+        &self,
+        sites: &[Site<'_>],
+        call: impl FnOnce(&WebView) -> wry::Result<T>,
+    ) -> Result<Option<T>, Error> {
+        let inner = self
+            .inner
+            .try_borrow()
+            .map_err(|_| Error::new(runtime_error(), "WebView is closing"))?;
+        if !inner.owner().is_current() {
+            return Err(wrong_thread(CLASS));
+        }
+        inner
+            .get()
+            .map(|webview| {
+                guarded(sites, || call(webview))
+                    .map_err(|message| Error::new(runtime_error(), message))?
+                    .map_err(|e| Error::new(runtime_error(), e.to_string()))
+            })
+            .transpose()
+    }
+
+    // SPDX-SnippetBegin
+    // SPDX-License-Identifier: Apache-2.0 OR MIT
+    // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    // SPDX-SnippetComment: The webview's Url, Navigate, Reload, and cookie arms adapted from
+    //                      tauri-runtime-wry/src/lib.rs handle_user_message
+    /// wry's `WebView::url`, the page's address, or `nil` once closed, as
+    /// Tauri's runtime answers its `Url` message (`src/lib.rs:3758-3765`).
+    ///
+    /// # Errors
+    ///
+    /// Returns `ThreadError` off the webview's thread, or a `RuntimeError`
+    /// with wry's error.
+    pub fn url(&self) -> Result<Option<String>, Error> {
+        self.with_open(URL_SITES, WebView::url)
+    }
+
+    /// wry's `WebView::load_url`, as Tauri's runtime handles `Navigate`
+    /// (`src/lib.rs:3647-3651`). A closed webview ignores it.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ThreadError` off the webview's thread, or a `RuntimeError`
+    /// with wry's error, which `Tokra::Webview` logs.
+    pub fn navigate(&self, url: magnus::RString) -> Result<(), Error> {
+        let url = url.to_string()?;
+        self.with_open(NAVIGATE_SITES, |webview| webview.load_url(&url))
+            .map(|_| ())
+    }
+
+    /// wry's `WebView::reload`, as Tauri's runtime handles `Reload`
+    /// (`src/lib.rs:3652-3656`). A closed webview ignores it.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ThreadError` off the webview's thread, or a `RuntimeError`
+    /// with wry's error, which `Tokra::Webview` logs.
+    pub fn reload(&self) -> Result<(), Error> {
+        self.with_open(&[], WebView::reload).map(|_| ())
+    }
+
+    /// wry's `WebView::cookies`, as an Array of Hashes, or `nil` once
+    /// closed (`src/lib.rs:3768-3771`).
+    ///
+    /// wry waits for the platform's cookie store on the main thread: on
+    /// macOS by running the main `NSRunLoop` in its default mode, two
+    /// milliseconds at a time, up to 500 times
+    /// (`src/wkwebview/mod.rs:1341-1369`); on Windows by a nested
+    /// `GetMessage` loop until `WebView2` answers (webview2-com
+    /// `src/lib.rs:60-81`); on Linux by `gtk::main_iteration` until
+    /// `WebKitGTK` answers (`src/webkitgtk/mod.rs:1031-1056`). The GVL stays
+    /// held. Plan 052, decision e2-1, says why no tao handler and no Ruby
+    /// runs inside those loops.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ThreadError` off the webview's thread, or a `RuntimeError`
+    /// with wry's error, such as macOS's "timed out waiting for cookies
+    /// response".
+    pub fn cookies(ruby: &Ruby, rb_self: &Self) -> Result<Option<magnus::RArray>, Error> {
+        rb_self
+            .with_open(&[], WebView::cookies)?
+            .map(|cookies| crate::cookie::cookies_to_array(ruby, &cookies))
+            .transpose()
+    }
+
+    /// wry's `WebView::cookies_for_url`, as `cookies` answers
+    /// (`src/lib.rs:3785-3790`).
+    ///
+    /// # Errors
+    ///
+    /// As `cookies`.
+    pub fn cookies_for_url(
+        ruby: &Ruby,
+        rb_self: &Self,
+        url: magnus::RString,
+    ) -> Result<Option<magnus::RArray>, Error> {
+        let url = url.to_string()?;
+        rb_self
+            .with_open(&[], |webview| webview.cookies_for_url(&url))?
+            .map(|cookies| crate::cookie::cookies_to_array(ruby, &cookies))
+            .transpose()
+    }
+
+    /// wry's `WebView::set_cookie` with the cookie `Tokra::Cookie` sends
+    /// as `fields`, as Tauri's runtime handles `SetCookie`
+    /// (`src/lib.rs:3773-3777`). A closed webview ignores it. On macOS and
+    /// Linux wry waits for the store as `cookies` does.
+    ///
+    /// # Errors
+    ///
+    /// Returns the errors `cookie::cookie_from_hash` gives for a malformed
+    /// Hash, before anything else; `ThreadError` off the webview's thread;
+    /// or a `RuntimeError` with wry's error, which `Tokra::Webview` logs.
+    pub fn set_cookie(ruby: &Ruby, rb_self: &Self, fields: magnus::RHash) -> Result<(), Error> {
+        let cookie = crate::cookie::cookie_from_hash(ruby, fields)?;
+        rb_self
+            .with_open(COOKIE_SITES, |webview| webview.set_cookie(&cookie))
+            .map(|_| ())
+    }
+
+    /// wry's `WebView::delete_cookie`, as `set_cookie` runs, as Tauri's
+    /// runtime handles `DeleteCookie` (`src/lib.rs:3779-3783`).
+    ///
+    /// # Errors
+    ///
+    /// As `set_cookie`.
+    pub fn delete_cookie(ruby: &Ruby, rb_self: &Self, fields: magnus::RHash) -> Result<(), Error> {
+        let cookie = crate::cookie::cookie_from_hash(ruby, fields)?;
+        rb_self
+            .with_open(COOKIE_SITES, |webview| webview.delete_cookie(&cookie))
+            .map(|_| ())
+    }
+    // SPDX-SnippetEnd
+
     // SPDX-SnippetBegin
     // SPDX-License-Identifier: Apache-2.0 OR MIT
     // SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
@@ -952,12 +1112,136 @@ impl RbWebView {
     }
 }
 
+/// Where in wry's locked source a panic is raised: the end of the file's
+/// path, with `/` between its parts, and the line. wry's unwraps are
+/// `#[track_caller]`, so the location a panic reports is wry's own line.
+#[derive(Debug, Clone, Copy)]
+struct Site<'a> {
+    file: &'a str,
+    line: u32,
+}
+
+/// wry's macOS backend, at the version `Cargo.lock` holds.
+const WKWEBVIEW: &str = "wry-0.54.1/src/wkwebview/mod.rs";
+
+/// `url_from_webview`'s two unwraps (`src/wkwebview/mod.rs:1245-1246`).
+const URL_SITES: &[Site<'static>] = &[
+    Site {
+        file: WKWEBVIEW,
+        line: 1245,
+    },
+    Site {
+        file: WKWEBVIEW,
+        line: 1246,
+    },
+];
+
+/// `navigate_to_url`'s `NSURL` unwrap (`src/wkwebview/mod.rs:775`).
+const NAVIGATE_SITES: &[Site<'static>] = &[Site {
+    file: WKWEBVIEW,
+    line: 775,
+}];
+
+/// `cookie_into_wkwebview`'s expect (`src/wkwebview/mod.rs:1082-1083`)
+/// and `cookie_into_soup_cookie`'s `GDateTime` unwrap
+/// (`src/webkitgtk/mod.rs:982`). Each runs before the call waits for the
+/// store, and nothing else reaches it.
+const COOKIE_SITES: &[Site<'static>] = &[
+    Site {
+        file: WKWEBVIEW,
+        line: 1083,
+    },
+    Site {
+        file: "wry-0.54.1/src/webkitgtk/mod.rs",
+        line: 982,
+    },
+];
+
+thread_local! {
+    /// Where the last panic on this thread was raised, as the hook
+    /// [`guarded`] installs records it.
+    static LAST_PANIC: std::cell::RefCell<Option<(String, u32)>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Puts a panic hook in front of whichever one is set, once, that records
+/// each panic's location for [`guarded`] and then runs the one before it,
+/// so a panic still prints as it did.
+///
+/// `define_class` calls it from `Init_tokra`, where no other Ruby thread
+/// runs Tokra's code yet, so no hook another thread sets can fall between
+/// `take_hook` and `set_hook`; `guarded` calls it too, in case it runs
+/// first, as in a Rust test. What remains is an extension that sets a
+/// hook after this one: that disables the recording, so every panic is
+/// resumed, which is the safe side.
+fn record_panic_sites() {
+    static INSTALL: std::sync::Once = std::sync::Once::new();
+    INSTALL.call_once(|| {
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            if let Some(location) = info.location() {
+                let site = (location.file().replace('\\', "/"), location.line());
+                let _ = LAST_PANIC.try_with(|last| {
+                    if let Ok(mut last) = last.try_borrow_mut() {
+                        *last = Some(site);
+                    }
+                });
+            }
+            previous(info);
+        }));
+    });
+}
+
+/// `call`'s answer, or the message of a panic it raised at one of `sites`.
+/// A panic raised anywhere else is resumed.
+///
+/// Matching on the place, not the message, tells a panic in the calling
+/// frames from one in a delegate or a completion block the platform ran
+/// meanwhile: wry's delegates and blocks are `C-unwind` (objc2 0.6.3
+/// `src/__macro_helpers/define_class.rs:1279`; block2 0.6.2
+/// `src/abi.rs:239`), so such a panic would arrive here through
+/// `CFRunLoop` and `WebKit`, and a message like "called `Option::unwrap()`
+/// on a `None` value" could come from either. Each call names only the
+/// sites its own frames reach before or without spinning a loop.
+///
+/// # Panics
+///
+/// Resumes any panic not raised at one of `sites`.
+fn guarded<T>(sites: &[Site<'_>], call: impl FnOnce() -> T) -> Result<T, String> {
+    record_panic_sites();
+    LAST_PANIC.with(|last| last.borrow_mut().take());
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(call)).map_err(|panic| {
+        let raised = LAST_PANIC.with(|last| last.borrow().clone());
+        let known = raised.is_some_and(|(file, line)| {
+            sites
+                .iter()
+                .any(|site| site.line == line && file.ends_with(site.file))
+        });
+        if !known {
+            std::panic::resume_unwind(panic);
+        }
+        panic_message(&*panic)
+    })
+}
+
+/// The message a caught panic carries: the `&str` or `String` that
+/// `panic!`, `unwrap`, and `expect` give it, or a fixed one for anything
+/// else.
+fn panic_message(panic: &(dyn std::any::Any + Send)) -> String {
+    panic
+        .downcast_ref::<&str>()
+        .map(|message| (*message).to_owned())
+        .or_else(|| panic.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "wry panicked".to_owned())
+}
+
 /// Define the `WebView` class methods on the given Ruby module.
 ///
 /// # Errors
 ///
 /// Returns an error if class or method definition fails.
 pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
+    record_panic_sites();
     let webview_class = native.define_class("WebView", ruby.class_object())?;
     // `new_with_protocol` is the only constructor; without this, Class#new
     // would answer an empty object whose methods all raise.
@@ -974,6 +1258,13 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
         "set_background_color",
         method!(RbWebView::set_background_color, 1),
     )?;
+    webview_class.define_method("url", method!(RbWebView::url, 0))?;
+    webview_class.define_method("navigate", method!(RbWebView::navigate, 1))?;
+    webview_class.define_method("reload", method!(RbWebView::reload, 0))?;
+    webview_class.define_method("cookies", method!(RbWebView::cookies, 0))?;
+    webview_class.define_method("cookies_for_url", method!(RbWebView::cookies_for_url, 1))?;
+    webview_class.define_method("set_cookie", method!(RbWebView::set_cookie, 1))?;
+    webview_class.define_method("delete_cookie", method!(RbWebView::delete_cookie, 1))?;
     #[cfg(windows)]
     webview_class.define_method("set_theme", method!(RbWebView::set_theme, 1))?;
     Ok(())
@@ -981,7 +1272,71 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::{background_throttling, http_request_event, proxy_config, Attributes, UserEvent};
+    use super::{
+        background_throttling, http_request_event, panic_message, proxy_config, Attributes,
+        UserEvent,
+    };
+
+    #[test]
+    fn a_panic_at_a_known_site_is_its_message_and_any_other_is_resumed() {
+        let raise = || {
+            std::hint::black_box(None::<()>)
+                .expect("failed to create wkwebview cookie, report this as bug to `wry`");
+        };
+        // With no known site the panic is resumed, and the hook has
+        // recorded where it was raised.
+        let resumed = std::panic::catch_unwind(|| super::guarded(&[], raise)).unwrap_err();
+        let (file, line) = super::LAST_PANIC
+            .with(|last| last.borrow().clone())
+            .unwrap();
+        let elsewhere = super::Site {
+            file: &file,
+            line: line + 1,
+        };
+        let resumed_again =
+            std::panic::catch_unwind(|| super::guarded(&[elsewhere], raise)).unwrap_err();
+        let converted = super::guarded(&[super::Site { file: &file, line }], raise);
+
+        assert!(file.ends_with("src/webview.rs"), "{file}");
+        assert_eq!(
+            panic_message(&*resumed),
+            "failed to create wkwebview cookie, report this as bug to `wry`"
+        );
+        assert_eq!(
+            panic_message(&*resumed_again),
+            panic_message(&*resumed),
+            "another line is another site"
+        );
+        assert_eq!(
+            converted,
+            Err("failed to create wkwebview cookie, report this as bug to `wry`".into())
+        );
+        assert_eq!(super::guarded(&[], || 5), Ok(5));
+    }
+
+    #[test]
+    fn a_caught_panic_reads_as_the_message_wry_gave_it() {
+        // A `None` the compiler cannot see through, as wry's are.
+        let none = || std::hint::black_box(None::<()>);
+        let expected = std::panic::catch_unwind(|| {
+            none().expect("failed to create wkwebview cookie, report this as bug to `wry`");
+        })
+        .unwrap_err();
+        let unwrapped = std::panic::catch_unwind(|| none().unwrap()).unwrap_err();
+        let formatted = std::panic::catch_unwind(|| panic!("{} {}", "a", 1)).unwrap_err();
+        let other = std::panic::catch_unwind(|| std::panic::panic_any(5)).unwrap_err();
+
+        assert_eq!(
+            panic_message(&*expected),
+            "failed to create wkwebview cookie, report this as bug to `wry`"
+        );
+        assert_eq!(
+            panic_message(&*unwrapped),
+            "called `Option::unwrap()` on a `None` value"
+        );
+        assert_eq!(panic_message(&*formatted), "a 1");
+        assert_eq!(panic_message(&*other), "wry panicked");
+    }
 
     #[test]
     fn the_drag_drop_handler_is_built_unless_a_row_turned_it_off() {

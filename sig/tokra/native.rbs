@@ -118,6 +118,13 @@ module Tokra
       def eval: (String) -> void
       def close: () -> nil
       def set_background_color: (Window::rgba?) -> nil
+      def url: () -> String?
+      def navigate: (String url) -> nil
+      def reload: () -> nil
+      def cookies: () -> Array[Cookie::native_fields]?
+      def cookies_for_url: (String url) -> Array[Cookie::native_fields]?
+      def set_cookie: (Cookie::native_fields fields) -> nil
+      def delete_cookie: (Cookie::native_fields fields) -> nil
     end
 
     class Proxy

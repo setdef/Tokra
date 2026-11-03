@@ -1,0 +1,59 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class Cookie < Data
+    type expiration = Expiration::DateTime | Expiration::Session
+    type native_fields = { name: String, value: String, expires: (String | Integer)?, max_age: Integer?,
+                           domain: String?, path: String?, secure: bool?, http_only: bool?, same_site: String?,
+                           partitioned: bool? }
+
+    class SameSite < Data
+      extend ClosedEnum
+      include ClosedEnum::With
+
+      attr_reader name: String
+
+      private def self.new: (name: String) -> SameSite
+
+      Strict: SameSite
+      Lax: SameSite
+      None: SameSite
+    end
+
+    module Expiration
+      class DateTime < Data
+        SECONDS: Range[Integer]
+
+        attr_reader datetime: Time
+        def self.new: (Time datetime) -> DateTime
+                    | (datetime: Time) -> DateTime
+      end
+
+      class Session < Data
+        def self.new: () -> Session
+      end
+    end
+
+    TYPES: Hash[Symbol, Array[Module]]
+    MAX_AGE: Range[Integer]
+
+    attr_reader name: String
+    attr_reader value: String
+    attr_reader expires: expiration?
+    attr_reader max_age: Integer?
+    attr_reader domain: String?
+    attr_reader path: String?
+    attr_reader secure: bool?
+    attr_reader http_only: bool?
+    attr_reader same_site: SameSite?
+    attr_reader partitioned: bool?
+
+    def self.new: (name: String, value: String, ?expires: expiration?, ?max_age: Integer?, ?domain: String?,
+                   ?path: String?, ?secure: bool?, ?http_only: bool?, ?same_site: SameSite?,
+                   ?partitioned: bool?) -> Cookie
+
+    def native_fields: () -> native_fields
+    def self.from_native: (native_fields fields) -> Cookie
+  end
+end

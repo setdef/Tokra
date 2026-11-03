@@ -98,6 +98,13 @@ module Tokra
     def eval: (String script) -> nil
     def cursor_position: () -> PhysicalPosition
     def resources_table: () -> ResourceTable
+    def url: () -> URI::Generic
+    def navigate: (URI::Generic url) -> nil
+    def reload: () -> nil
+    def cookies_for_url: (URI::Generic url) -> Array[Cookie]
+    def cookies: () -> Array[Cookie]
+    def set_cookie: (Cookie cookie) -> nil
+    def delete_cookie: (Cookie cookie) -> nil
     def app_handle: () -> AppHandle
     def set_background_color: (Color? color) -> nil
     def display_handle: () -> RawWindowHandle::display_handle

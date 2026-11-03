@@ -26,6 +26,16 @@ module Tokra
     def evaluate: (String script) -> nil
     alias eval evaluate
     def set_background_color: (Color? color) -> nil
+    def url: () -> URI::Generic
+    def navigate: (URI::Generic url) -> nil
+    def reload: () -> nil
+    def cookies_for_url: (URI::Generic url) -> Array[Cookie]
+    def cookies: () -> Array[Cookie]
+    def set_cookie: (Cookie cookie) -> nil
+    def delete_cookie: (Cookie cookie) -> nil
+    private def query: [T < Object] () { (Native::WebView) -> T? } -> T
+    private def absolute: (Object url) -> URI::Generic
+    private def command: (String failure) { (Native::WebView) -> void } -> nil
     def cursor_position: () -> PhysicalPosition
     def run_on_main_thread: () { () -> void } -> nil
     def listen_js: (String event, event_target target, Integer handler) -> Integer

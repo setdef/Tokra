@@ -70,6 +70,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `#allow_link_preview`, each with Tauri's default
 - `Tokra::BackgroundThrottlingPolicy` (`Disabled`, `Suspend`, `Throttle`) and
   `Tokra::ScrollBarStyle` (`Default`, and on Windows `FluentOverlay`)
+- `Webview#url`, `#navigate`, `#reload`, `#cookies`, `#cookies_for_url`,
+  `#set_cookie`, and `#delete_cookie`, the same on `WebviewWindow`, with
+  `Tokra::Cookie` (and its `SameSite` and `Expiration`) and
+  `Error::InvalidUrl`; a failed navigation, reload, or cookie write is
+  logged in Tauri's words, and where wry panics (some cookies on macOS
+  and Linux) the call raises or logs wry's message instead
 - `Tokra::WebviewWindow`, a window and its webview as one object, with
   Tauri's window, webview, `Listener`, `Emitter`, and `Manager` methods;
   `Manager#get_webview_window`, `#webview_windows`, and

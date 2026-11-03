@@ -52,7 +52,9 @@ module Tokra
   #              #set_badge_label, on Windows #set_overlay_icon);
   #              #on_window_event; and #window_handle.
   # [The webview] #label, #run_on_main_thread, #eval, #cursor_position,
-  #               and #resources_table.
+  #               #resources_table, #url, #navigate, #reload,
+  #               #cookies_for_url, #cookies, #set_cookie, and
+  #               #delete_cookie.
   # [Both] #set_background_color colors the window, then the webview.
   #
   # Each behaves as its Window or Webview method does; see there. Listener
@@ -60,9 +62,8 @@ module Tokra
   # and the Emitter and Manager methods reach the app as any handle does.
   #
   # Mirrors Tauri's WebviewWindow (webview_window.rs:1382-2599). The
-  # methods Tokra's Window and Webview lack (url, navigate, reload,
-  # print, zoom, cookies, devtools, on_webview_event) arrive with them
-  # (plan 052, phases 4 and 5).
+  # methods Tokra's Window and Webview lack (print, zoom, devtools,
+  # on_webview_event) arrive with them (plan 052, phases 4 and 5).
   #
   # === Example
   #
@@ -116,6 +117,10 @@ module Tokra
     # The webview's (webview_window.rs:1454-1462, 1820-1831, 2322-2325,
     # 2573-2581).
     def_delegators :@webview, :label, :run_on_main_thread, :eval, :cursor_position, :resources_table
+
+    # The webview's page and cookies (webview_window.rs:2299-2311,
+    # 2445-2490).
+    def_delegators :@webview, :url, :navigate, :reload, :cookies_for_url, :cookies, :set_cookie, :delete_cookie
 
     # The app handle, as the webview reaches it.
     def app_handle

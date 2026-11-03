@@ -60,6 +60,7 @@
 //! and Ractors by design.
 // SPDX-SnippetEnd
 
+mod cookie;
 mod event_loop;
 mod event_loop_target;
 mod fs;

@@ -537,10 +537,10 @@ set_enabled: :is_enabled,
       end
     end
 
-    # The URL #open loaded, the native window it was built in, the
-    # webview rows it was given, without the URL and scripts, and the
-    # scripts as #open took them, each <tt>[script, main_frame_only]</tt>.
-    attr_reader :url, :window, :attributes, :initialization_script_pairs
+    # The native window it was built in, the webview rows it was given,
+    # without the URL and scripts, and the scripts as #open took them, each
+    # <tt>[script, main_frame_only]</tt>. #url answers the URL it loaded.
+    attr_reader :window, :attributes, :initialization_script_pairs
 
     # Fills the empty webview, as Native::WebView#open builds the wry
     # webview in +window+, which must be open.
@@ -602,6 +602,85 @@ set_enabled: :is_enabled,
       raise "evaluation failed" if js == FAILING_SCRIPT
 
       @evals << js
+    end
+
+    # The error wry's url, load_url, reload, and cookie calls give, for a
+    # test to set.
+    attr_accessor :page_error
+
+    # What #url answers while open, for a test to set; the URL #open
+    # loaded, then the last one #navigate loaded, until it does.
+    attr_writer :current_url
+
+    # The URLs #navigate loaded, in order, and how many times #reload ran.
+    def navigations = (@navigations ||= [])
+    def reloads = (@reloads ||= 0)
+
+    # The cookies #set_cookie stored, each as Native::WebView takes it, and
+    # the URLs #cookies_for_url was asked for.
+    def cookie_store = (@cookie_store ||= [])
+    def cookie_urls = (@cookie_urls ||= [])
+
+    # The page's URL, or nil once closed, as Native::WebView#url answers.
+    def url
+      return nil if @closed
+      raise page_error if page_error
+
+      @current_url || @url
+    end
+
+    def navigate(url)
+      return if @closed
+      raise page_error if page_error
+
+      navigations << url
+      @current_url = url
+      nil
+    end
+
+    def reload
+      return if @closed
+      raise page_error if page_error
+
+      @reloads = reloads + 1
+      nil
+    end
+
+    # Every cookie stored, as Hashes, or nil once closed.
+    def cookies
+      return nil if @closed
+      raise page_error if page_error
+
+      cookie_store.map(&:dup)
+    end
+
+    # The cookies whose domain is +url+'s host, as wry's macOS backend
+    # filters them (wkwebview/mod.rs:1086-1109), or nil once closed.
+    def cookies_for_url(url)
+      return nil if @closed
+      raise page_error if page_error
+
+      cookie_urls << url
+      cookie_store.select { |fields| fields[:domain] == URI(url).host }.map(&:dup)
+    end
+
+    # Stores +fields+, replacing a cookie of the same name, domain, and
+    # path, as a cookie store does.
+    def set_cookie(fields)
+      return if @closed
+      raise page_error if page_error
+
+      delete_cookie(fields)
+      cookie_store << fields
+      nil
+    end
+
+    def delete_cookie(fields)
+      return if @closed
+      raise page_error if page_error
+
+      cookie_store.reject! { |stored| stored.values_at(:name, :domain, :path) == fields.values_at(:name, :domain, :path) }
+      nil
     end
   end
 
