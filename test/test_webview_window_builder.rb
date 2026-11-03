@@ -353,8 +353,16 @@ class TestWebviewWindowBuilder < Minitest::Test
     assert_equal data, webviews.webview_url(Tokra::WebviewUrl::CustomProtocol.new(url(data)))
     # Tauri maps a failed join to Error::InvalidUrl, then unwraps it
     # (manager/webview.rs:423-427); here it raises.
-    error = assert_raises(Tokra::Error::InvalidUrl) { webviews.webview_url(page("//exa mple")) }
-    assert_equal "invalid url: invalid domain character", error.message
+    # The words are the url crate's, and depend on the app URL's scheme: an
+    # http host (Windows) goes through IDNA, a tokra:// host does not.
+    {
+      "windows" => "invalid url: invalid international domain name",
+      "macos" => "invalid url: invalid domain character",
+    }.each do |os_name, message|
+      on = Tokra::WebviewManager.new(manager, os_name:)
+      error = assert_raises(Tokra::Error::InvalidUrl) { on.webview_url(page("//exa mple")) }
+      assert_equal message, error.message, os_name
+    end
   end
 
   # An http app URL is special, so the url crate reads a path's \\ as /
