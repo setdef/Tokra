@@ -10,17 +10,18 @@ module Tokra
     end
 
     class External < Data
-      attr_reader url: URI::Generic
-      def self.new: (URI::Generic url) -> External
-                  | (url: URI::Generic) -> External
+      attr_reader url: URI::Generic | Ferro::Url::Url
+      def self.new: (URI::Generic | Ferro::Url::Url url) -> External
+                  | (url: URI::Generic | Ferro::Url::Url) -> External
     end
 
     class CustomProtocol < Data
-      attr_reader url: URI::Generic
-      def self.new: (URI::Generic url) -> CustomProtocol
-                  | (url: URI::Generic) -> CustomProtocol
+      attr_reader url: URI::Generic | Ferro::Url::Url
+      def self.new: (URI::Generic | Ferro::Url::Url url) -> CustomProtocol
+                  | (url: URI::Generic | Ferro::Url::Url) -> CustomProtocol
     end
 
+    def self.deserialize: (json_value value) -> (App | External | CustomProtocol)
     def self.expect_uri: (Object url) -> nil
   end
 

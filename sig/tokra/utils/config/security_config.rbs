@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      class SecurityConfig < Data
+        CSP: reader
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader csp: csp?
+        attr_reader dev_csp: csp?
+        attr_reader freeze_prototype: bool
+        attr_reader dangerous_disable_asset_csp_modification: disabled_csp_modification_kind
+        attr_reader asset_protocol: AssetProtocolConfig
+        attr_reader pattern: pattern_kind
+        attr_reader capabilities: Array[capability_entry]
+        attr_reader headers: HeaderConfig?
+
+        def self.new: (?csp: csp?, ?dev_csp: csp?, ?freeze_prototype: bool,
+                       ?dangerous_disable_asset_csp_modification: disabled_csp_modification_kind,
+                       ?asset_protocol: AssetProtocolConfig, ?pattern: pattern_kind,
+                       ?capabilities: Array[capability_entry], ?headers: HeaderConfig?) -> SecurityConfig
+        def self.deserialize: (json_value value) -> SecurityConfig
+      end
+    end
+  end
+end

@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      class Config < Data
+        STRING: reader
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+        VERSION_EXPECTING: String
+        NOT_SEMVER: String
+        NOT_AN_OBJECT: String
+        NO_VERSION_FIELD: String
+        SEMVER: Regexp
+        U64_MAX: Integer
+
+        attr_reader schema: String?
+        attr_reader product_name: String?
+        attr_reader main_binary_name: String?
+        attr_reader version: String?
+        attr_reader identifier: String
+        attr_reader app: AppConfig
+        attr_reader build: BuildConfig
+        attr_reader bundle: BundleConfig
+        attr_reader plugins: Hash[String, json_value]
+
+        def self.new: (identifier: String, ?schema: String?, ?product_name: String?, ?main_binary_name: String?,
+                       ?version: String?, ?app: AppConfig, ?build: BuildConfig, ?bundle: BundleConfig,
+                       ?plugins: Hash[String, json_value]) -> Config
+        def self.deserialize: (json_value value, String config_parent) -> Config
+        private def self.package_version: (json_value value, String config_parent) -> String
+        private def self.version_json: (String path) -> json_value
+        private def self.semver: (String version) -> String
+      end
+    end
+  end
+end

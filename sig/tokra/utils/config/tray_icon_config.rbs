@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      class TrayIconConfig < Data
+        BOOL: reader
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader id: String?
+        attr_reader icon_path: Pathname
+        attr_reader icon_as_template: bool
+        attr_reader menu_on_left_click: bool
+        attr_reader show_menu_on_left_click: bool
+        attr_reader title: String?
+        attr_reader tooltip: String?
+
+        def self.new: (icon_path: Pathname, ?id: String?, ?icon_as_template: bool, ?menu_on_left_click: bool,
+                       ?show_menu_on_left_click: bool, ?title: String?, ?tooltip: String?) -> TrayIconConfig
+        def self.deserialize: (json_value value) -> TrayIconConfig
+      end
+    end
+  end
+end

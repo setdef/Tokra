@@ -53,14 +53,15 @@ module Tokra
       end
     end
 
-    # A page on the web, at +url+, a URI. It must use the +http+ or
-    # +https+ scheme. Anything but a URI raises TypeError.
+    # A page on the web, at +url+, a URI, or a Ferro::Url::Url as a
+    # config's URL reads. It must use the +http+ or +https+ scheme.
+    # Anything else raises TypeError.
     #
     # === Example
     #
     #   Tokra::WebviewUrl::External.new(URI("https://tauri.app"))
     class External < Data.define(:url)
-      # Takes +url+ as a URI::Generic. A Data class validating in
+      # Takes +url+ as a URI::Generic or a Ferro::Url::Url. A Data class validating in
       # initialize, as App is.
       def initialize(url:) # steep:ignore MethodParameterMismatch
         WebviewUrl.expect_uri(url)
@@ -70,7 +71,8 @@ module Tokra
 
     # A page a custom protocol serves, at +url+, a URI such as
     # <tt>doom://index.html</tt>, or a <tt>data:</tt> URL, which loads as
-    # given. Anything but a URI raises TypeError.
+    # given. A Ferro::Url::Url, as a config's URL reads, works too;
+    # anything else raises TypeError.
     #
     # Ruby's URI refuses characters the url crate percent-encodes as it
     # parses, such as the <tt><</tt> of a <tt>data:</tt> URL's HTML, so
@@ -80,7 +82,7 @@ module Tokra
     #
     #   Tokra::WebviewUrl::CustomProtocol.new(URI("doom://index.html"))
     class CustomProtocol < Data.define(:url)
-      # Takes +url+ as a URI::Generic. A Data class validating in
+      # Takes +url+ as a URI::Generic or a Ferro::Url::Url. A Data class validating in
       # initialize, as App is.
       def initialize(url:) # steep:ignore MethodParameterMismatch
         WebviewUrl.expect_uri(url)
@@ -88,9 +90,30 @@ module Tokra
       end
     end
 
-    # Raises TypeError, in Ruby's words, unless +url+ is a URI.
+    # Reads +value+, a JSON value, as Tauri's own deserializer does
+    # (config.rs:88-109): through an untagged enum of a URL, then a path.
+    # A URL with the +http+ or +https+ scheme is External, any other URL
+    # CustomProtocol, and any other string App. Anything but a string
+    # raises Ipc::CommandItem::Mismatch with serde's words.
+    #
+    # A URL is the url crate's own, a Ferro::Url::Url, so a config's URL
+    # reads, normalizes, and splits as Tauri's does (Utils::Config.url).
+    def self.deserialize(value) # :nodoc:
+      Ipc::Serde.untagged(value, "WebviewUrlDeserializer", [
+        lambda do |raw|
+          url = Utils::Config.url(raw)
+          %w[http https].include?(url.scheme.to_s) ? External.new(url:) : CustomProtocol.new(url:)
+        end,
+        -> (raw) { App.new(path: Utils::Config.path(raw)) },
+      ])
+    end
+
+    # Raises TypeError, in Ruby's words, unless +url+ is a URI or a
+    # Ferro::Url::Url, url's own <tt>url::Url</tt>, which a config's URL is.
     def self.expect_uri(url) # :nodoc:
-      raise TypeError, "wrong argument type #{url.class} (expected URI::Generic)" unless url.is_a?(URI::Generic)
+      unless url.is_a?(URI::Generic) || url.is_a?(Ferro::Url::Url)
+        raise TypeError, "wrong argument type #{url.class} (expected URI::Generic or Ferro::Url::Url)"
+      end
 
       nil
     end

@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Platform
+      class Target < Data
+        extend ClosedEnum
+        include ClosedEnum::With
+
+        attr_reader name: String
+
+        private def self.new: (name: String) -> Target
+        def self.current: () -> Target
+        def self.for_ruby_platform: (String platform) -> Target
+
+        MacOS: Target
+        Windows: Target
+        Linux: Target
+      end
+    end
+  end
+end

@@ -28,6 +28,9 @@ PACKAGES = [
       Tokra::Event.emit_js_script("f", Tokra::Event::EmitArgs.new(event: "tokra://smoke", payload: "null"), "[]")
       abort "no home directory from the native extension" unless Tokra::Native.home_dir.is_a?(String)
       abort "Native::EventLoop missing" unless Tokra::Native::EventLoop.method_defined?(:run)
+      # ferro-url, from its own installed gem, reads the config's URLs.
+      dev_url = Tokra::Utils::Config::BuildConfig.deserialize({ "devUrl" => "HTTP://LocalHost:1420/a/../b" }).dev_url
+      abort "ferro-url did not read the config's URL" unless dev_url.as_str == "http://localhost:1420/b"
       puts "tokra \#{Tokra::VERSION} loads; \#{scripts.size} initialization scripts render"
     RUBY
   PackageCheck::Target.new(

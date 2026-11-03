@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      class BuildConfig < Data
+        HOOK: reader
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader runner: runner_config?
+        attr_reader dev_url: Ferro::Url::Url?
+        attr_reader frontend_dist: frontend_dist?
+        attr_reader before_dev_command: before_dev_command?
+        attr_reader before_build_command: hook_command?
+        attr_reader before_bundle_command: hook_command?
+        attr_reader features: Array[String]?
+        attr_reader remove_unused_commands: bool
+        attr_reader additional_watch_folders: Array[Pathname]
+
+        def self.new: (?runner: runner_config?, ?dev_url: Ferro::Url::Url?, ?frontend_dist: frontend_dist?,
+                       ?before_dev_command: before_dev_command?, ?before_build_command: hook_command?,
+                       ?before_bundle_command: hook_command?, ?features: Array[String]?, ?remove_unused_commands: bool,
+                       ?additional_watch_folders: Array[Pathname]) -> BuildConfig
+        def self.deserialize: (json_value value) -> BuildConfig
+      end
+    end
+  end
+end

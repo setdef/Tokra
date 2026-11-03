@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      class LogicalPosition < Data
+        FIELDS: Array[Field]
+
+        attr_reader x: Float
+        attr_reader y: Float
+
+        def self.new: (Float x, Float y) -> LogicalPosition
+                    | (x: Float, y: Float) -> LogicalPosition
+        def self.deserialize: (json_value value) -> LogicalPosition
+      end
+    end
+  end
+end

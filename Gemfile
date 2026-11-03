@@ -22,7 +22,8 @@ gem "ferro-rfd", git: "https://github.com/setdef/Ferro", tag: "ferro-rfd/v0.1.0.
 # only ferro-notify-rust, so the other Ferro gems keep their own tags.
 gem "ferro-notify-rust", git: "https://github.com/setdef/Ferro", tag: "ferro-notify-rust/v0.1.0.pre.4",
   glob: "gems/notify-rust/*.gemspec"
-# tokra-notification reads attachment URLs with ferro-url (Plan 030).
+# Tokra reads its config's URLs with ferro-url (Plan 054), and
+# tokra-notification its attachment URLs (Plan 030).
 gem "ferro-url", git: "https://github.com/setdef/Ferro", tag: "ferro-url/v0.1.0.pre.1", glob: "gems/url/*.gemspec"
 # tokra-notification reads a scheduled date with ferro-time (Plans 031 and 048).
 gem "ferro-time", git: "https://github.com/setdef/Ferro", tag: "ferro-time/v0.1.0.pre.3", glob: "gems/time/*.gemspec"

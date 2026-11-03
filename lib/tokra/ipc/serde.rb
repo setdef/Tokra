@@ -247,8 +247,11 @@ module Tokra
       # sequence runs out (serde_core de/impls.rs:1411-1423), and
       # serde_json then rejects elements left over (value/de.rs:731-746,
       # 970-985).
-      def self.tuple(value, size, &read)
-        expecting = "a tuple of size #{size}"
+      #
+      # A Rust array of +size+ reads the same way, with its own words:
+      # pass <tt>expecting: "an array of length 16"</tt> for a
+      # <tt>[T; 16]</tt> (de/impls.rs:1268-1292).
+      def self.tuple(value, size, expecting: "a tuple of size #{size}", &read)
         raise CommandItem::Mismatch.invalid_type(value, expecting) unless value.is_a?(Array)
 
         elements = Array.new(size) do |index|

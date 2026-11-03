@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class Context
+    @config: Utils::Config::Config
+    @package_info: Utils::PackageInfo
+    @pattern: pattern
+    @dev: bool
+
+    attr_reader config: Utils::Config::Config
+    attr_reader package_info: Utils::PackageInfo
+    attr_reader pattern: pattern
+    attr_accessor dev: bool
+
+    def initialize: (config: Utils::Config::Config, package_info: Utils::PackageInfo, pattern: pattern) -> void
+    def config=: (Utils::Config::Config config) -> Utils::Config::Config
+    def package_info=: (Utils::PackageInfo package_info) -> Utils::PackageInfo
+  end
+end

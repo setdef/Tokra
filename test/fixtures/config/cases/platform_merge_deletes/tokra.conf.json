@@ -1,0 +1,5 @@
+{
+  "identifier": "com.tokra.fixture",
+  "productName": "Main",
+  "app": { "security": { "freezePrototype": true, "csp": "default-src 'self'" } }
+}

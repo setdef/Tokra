@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Codegen
+    class CodegenConfigError < Tokra::Error
+      class Json < CodegenConfigError
+      end
+    end
+
+    class ContextData < Data
+      attr_reader dev: bool
+      attr_reader config: Utils::Config::Config
+      attr_reader config_parent: String
+
+      def self.new: (bool dev, Utils::Config::Config config, String config_parent) -> ContextData
+                  | (dev: bool, config: Utils::Config::Config, config_parent: String) -> ContextData
+    end
+
+    def self.get_config: (String | Pathname path) -> [Utils::Config::Config, String]
+    private def self.config_from: (json_value raw, String parent) -> Utils::Config::Config
+    def self.context_codegen: (ContextData data) -> Context
+  end
+end

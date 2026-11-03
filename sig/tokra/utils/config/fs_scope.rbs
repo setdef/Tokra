@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      module FsScope
+        class AllowedPaths < Data
+          attr_reader paths: Array[Pathname]
+          def self.new: (Array[Pathname] paths) -> AllowedPaths
+                      | (paths: Array[Pathname]) -> AllowedPaths
+        end
+
+        class Scope < Data
+          attr_reader allow: Array[Pathname]
+          attr_reader deny: Array[Pathname]
+          attr_reader require_literal_leading_dot: bool?
+          def self.new: (Array[Pathname] allow, Array[Pathname] deny, bool? require_literal_leading_dot) -> Scope
+                      | (allow: Array[Pathname], deny: Array[Pathname], require_literal_leading_dot: bool?) -> Scope
+        end
+
+        SCOPE_FIELDS: Array[String]
+
+        def self.deserialize: (json_value value) -> (AllowedPaths | Scope)
+        private def self.scope: (json_value value) -> Scope
+        private def self.paths: (json_value value) -> Array[Pathname]
+      end
+
+      type fs_scope = FsScope::AllowedPaths | FsScope::Scope
+
+      class AssetProtocolConfig < Data
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader scope: fs_scope
+        attr_reader enable: bool
+
+        def self.new: (?fs_scope scope, ?bool enable) -> AssetProtocolConfig
+                    | (?scope: fs_scope, ?enable: bool) -> AssetProtocolConfig
+        def self.deserialize: (json_value value) -> AssetProtocolConfig
+      end
+    end
+  end
+end

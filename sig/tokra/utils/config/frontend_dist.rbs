@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      module FrontendDist
+        class Url < Data
+          attr_reader url: Ferro::Url::Url
+          def self.new: (Ferro::Url::Url url) -> Url
+                      | (url: Ferro::Url::Url) -> Url
+        end
+
+        class Directory < Data
+          attr_reader path: Pathname
+          def self.new: (Pathname path) -> Directory
+                      | (path: Pathname) -> Directory
+        end
+
+        class Files < Data
+          attr_reader paths: Array[Pathname]
+          def self.new: (Array[Pathname] paths) -> Files
+                      | (paths: Array[Pathname]) -> Files
+        end
+
+        def self.deserialize: (json_value value) -> (Url | Directory | Files)
+      end
+
+      type frontend_dist = FrontendDist::Url | FrontendDist::Directory | FrontendDist::Files
+    end
+  end
+end

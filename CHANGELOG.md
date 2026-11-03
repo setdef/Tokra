@@ -453,6 +453,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `#set_title_bar_style`, `#set_badge_label` (macOS), and
   `#set_overlay_icon` (Windows); `Native::EventLoop#set_theme`
 - Dependency: window-vibrancy 0.6.0 on macOS and Windows
+- `Tokra.generate_context(path = nil)` reads `tokra.conf.json` beside the
+  entry script (or at `path`), merges `tokra.<platform>.conf.json` over
+  it, and returns a `Tokra::Context`; the schema is Tauri's
+- `Tokra::Context` (`config`, `config=`, `package_info`, `package_info=`,
+  `pattern`) and `Tokra::PackageInfo`
+- `Tokra::Utils::Config` (Tauri's config types) and its `Parse`,
+  `Tokra::Codegen`, `Tokra::Pattern`, and `Tokra::Utils::Platform::Target`
+- `WebviewUrl::External` and `CustomProtocol` also take a `Ferro::Url::Url`
+- Dependency: ferro-url 0.1.0.pre.1 (url 2.5.8), for the config's URLs
 
 ### Changed
 

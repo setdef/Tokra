@@ -18,4 +18,7 @@ target :lib do
   library "securerandom"
   library "erb"
   library "forwardable"
+  # ferro-url ships its signatures in its gem; Tokra's config reads its
+  # URLs with it (plan 054, decision 25).
+  library "ferro-url"
 end

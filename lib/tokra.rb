@@ -102,6 +102,10 @@ require_relative "tokra/progress_bar_state"
 require_relative "tokra/title_bar_style"
 require_relative "tokra/drag_drop_event"
 require_relative "tokra/webview_event"
+require_relative "tokra/utils"
+require_relative "tokra/pattern"
+require_relative "tokra/context"
+require_relative "tokra/codegen"
 # On Windows the extension imports WebView2Loader.dll, which its build
 # installs beside it (ext/tokra/extconf.rb), and Windows does not look for an
 # extension's DLLs in the extension's own directory. RubyInstaller limits the
@@ -139,4 +143,104 @@ module Tokra
   def self.generate_invoke_key
     Z85.encode(SecureRandom.random_bytes(16))
   end
+
+  # Your app's package information, Tokra::Utils::PackageInfo, at the
+  # root where Tauri re-exports it (lib.rs:217-237).
+  PackageInfo = Utils::PackageInfo
+
+  #--
+  # SPDX-SnippetBegin
+  # SPDX-License-Identifier: Apache-2.0 OR MIT
+  # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+  # SPDX-SnippetComment: generate_context adapted from tauri-macros src/lib.rs:76-87
+  #   and src/context.rs:24-169 at vendor/tauri 9f0306fbc
+  #++
+
+  # Reads your app's config and answers the Context to build your app
+  # from.
+  #
+  # A Tauri app's <tt>main</tt> hands the builder
+  # <tt>tauri::generate_context!()</tt>, a macro that reads
+  # <tt>tauri.conf.json</tt> when the app compiles. A Ruby app has no
+  # compile step, so this method reads <tt>tokra.conf.json</tt> when you
+  # call it, with the same rules and the same errors, raised before any
+  # window exists (ADR 014 §2).
+  #
+  # With no +path+ it reads <tt>tokra.conf.json</tt> in the entry
+  # script's directory, the one Ruby was started with, taken when
+  # <tt>tokra</tt> loads, so a later <tt>Dir.chdir</tt> does not move it,
+  # and a symlinked launcher resolves to the script it points at (ADR 014
+  # §5). With +path+, a String or Pathname, a relative path joins that
+  # directory and an absolute one is taken as given; a path where no
+  # config file exists raises ArgumentError, "no file at path {path}
+  # exists, expected tokra config file". Once the path is found only its
+  # directory counts: the directory's <tt>tokra.conf.json</tt> is read,
+  # with the platform's file merged over it (Tokra::Codegen.get_config).
+  #
+  # Raises Tokra::Utils::Config::Parse::ConfigError when the files
+  # cannot be read, and Tokra::Codegen::CodegenConfigError::Json when
+  # they do not fit Tauri's schema. Reads no environment variable: Tauri's
+  # <tt>TAURI_CONFIG</tt> belongs to its CLI (ADR 014 §6).
+  #
+  # Mirrors Tauri's <tt>generate_context!</tt> (tauri-macros
+  # src/lib.rs:76-87, src/context.rs:24-169). Its <tt>capabilities</tt>,
+  # <tt>assets</tt>, and <tt>test</tt> arguments arrive with the plans
+  # that port what they feed.
+  #
+  # === Examples
+  #
+  #   context = Tokra.generate_context
+  #   context.config.identifier  #=> "com.example.notes"
+  #
+  #   context = Tokra.generate_context("src-tokra/tokra.conf.json")
+  def self.generate_context(path = nil)
+    config_file = if path.nil?
+      File.join(anchor, Utils::Config::Parse::ConfigFormat::Json.into_file_name)
+    else
+      given_config_file(path.to_s)
+    end
+    config, config_parent = Codegen.get_config(config_file)
+    # Tauri's dev is !cfg!(feature = "custom-protocol") (tauri-macros
+    # context.rs:155). Plan 054's question 1 settles how a Tokra app
+    # sets it; until 054a-5, which reads it, it is true.
+    Codegen.context_codegen(Codegen::ContextData.new(dev: true, config:, config_parent:))
+  end
+
+  # +path+ joined to the anchor when relative, checked for a config file
+  # as the macro checks the path it is given (context.rs:36-56).
+  def self.given_config_file(path) # :nodoc:
+    path = File.join(anchor, path) unless File.absolute_path?(path)
+    return path if Utils::Config::Parse.does_supported_file_name_exist(Utils::Platform::Target.current, path)
+
+    raise ArgumentError, "no file at path #{Utils::Config::Parse.display(path)} exists, expected tokra config file"
+  end
+  private_class_method :given_config_file
+
+  #--
+  # SPDX-SnippetEnd
+  #++
+
+  # The entry script's directory, which a config path is relative to,
+  # as Tauri's is to CARGO_MANIFEST_DIR (ADR 014 §5).
+  def self.anchor # :nodoc:
+    @anchor
+  end
+
+  # The entry script's name without its extension, which stands in for
+  # Cargo's package name (Utils::PackageInfo), taken with the anchor so a
+  # later change to $PROGRAM_NAME does not rename the app.
+  def self.script_name # :nodoc:
+    @script_name
+  end
+
+  # Records the anchor from +program+: the real directory of the script
+  # it names, or the working directory when it names no file, as for
+  # <tt>ruby -e</tt> or IRB; and the script's name. Runs once when tokra
+  # loads; a test that sets $PROGRAM_NAME runs it again.
+  def self.record_anchor(program = $PROGRAM_NAME) # :nodoc:
+    @script_name = File.basename(program, ".*").freeze
+    @anchor = (File.file?(program) ? File.dirname(File.realpath(program)) : Dir.pwd).freeze
+  end
+
+  record_anchor
 end

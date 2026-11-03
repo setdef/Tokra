@@ -1,0 +1,6 @@
+{"build":"json","case":"cases/plugins_string_keys","path":null,"probes":{"/plugins":{"log":{"level":"info","nested":{"a":[true,null,2.5],"b":1}},"store":null}},"target":"aarch64-apple-darwin"}
+{"build":"json","case":"cases/plugins_string_keys","path":null,"probes":{"/plugins":{"log":{"level":"info","nested":{"a":[true,null,2.5],"b":1}},"store":null}},"target":"x86_64-pc-windows-msvc"}
+{"build":"json","case":"cases/plugins_string_keys","path":null,"probes":{"/plugins":{"log":{"level":"info","nested":{"a":[true,null,2.5],"b":1}},"store":null}},"target":"x86_64-unknown-linux-gnu"}
+{"build":"formats","case":"cases/plugins_string_keys","path":null,"probes":{"/plugins":{"log":{"level":"info","nested":{"a":[true,null,2.5],"b":1}},"store":null}},"target":"aarch64-apple-darwin"}
+{"build":"formats","case":"cases/plugins_string_keys","path":null,"probes":{"/plugins":{"log":{"level":"info","nested":{"a":[true,null,2.5],"b":1}},"store":null}},"target":"x86_64-pc-windows-msvc"}
+{"build":"formats","case":"cases/plugins_string_keys","path":null,"probes":{"/plugins":{"log":{"level":"info","nested":{"a":[true,null,2.5],"b":1}},"store":null}},"target":"x86_64-unknown-linux-gnu"}

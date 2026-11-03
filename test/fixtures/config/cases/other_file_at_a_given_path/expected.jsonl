@@ -1,0 +1,6 @@
+{"build":"json","case":"cases/other_file_at_a_given_path","check":null,"path":"custom.json","probes":{"/identifier":"com.tokra.main"},"target":"aarch64-apple-darwin"}
+{"build":"json","case":"cases/other_file_at_a_given_path","check":null,"path":"custom.json","probes":{"/identifier":"com.tokra.main"},"target":"x86_64-pc-windows-msvc"}
+{"build":"json","case":"cases/other_file_at_a_given_path","check":null,"path":"custom.json","probes":{"/identifier":"com.tokra.main"},"target":"x86_64-unknown-linux-gnu"}
+{"build":"formats","case":"cases/other_file_at_a_given_path","check":null,"path":"custom.json","probes":{"/identifier":"com.tokra.main"},"target":"aarch64-apple-darwin"}
+{"build":"formats","case":"cases/other_file_at_a_given_path","check":null,"path":"custom.json","probes":{"/identifier":"com.tokra.main"},"target":"x86_64-pc-windows-msvc"}
+{"build":"formats","case":"cases/other_file_at_a_given_path","check":null,"path":"custom.json","probes":{"/identifier":"com.tokra.main"},"target":"x86_64-unknown-linux-gnu"}

@@ -13,6 +13,14 @@ module Tokra
   type ipc_responder = ^(bool success, String body) -> void
 
   def self.generate_invoke_key: () -> String
+  def self.generate_context: (?(String | Pathname)? path) -> Context
+  private def self.given_config_file: (String path) -> String
+  def self.anchor: () -> String
+  def self.script_name: () -> String
+  def self.record_anchor: (?String program) -> String
+
+  self.@anchor: String
+  self.@script_name: String
 
   class Error < StandardError
   end

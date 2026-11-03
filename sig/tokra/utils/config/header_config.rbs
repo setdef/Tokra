@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      module HeaderSource
+        class Inline < Data
+          attr_reader value: String
+          def self.new: (String value) -> Inline
+                      | (value: String) -> Inline
+        end
+
+        class List < Data
+          attr_reader values: Array[String]
+          def self.new: (Array[String] values) -> List
+                      | (values: Array[String]) -> List
+        end
+
+        class Map < Data
+          attr_reader values: Hash[String, String]
+          def self.new: (Hash[String, String] values) -> Map
+                      | (values: Hash[String, String]) -> Map
+        end
+
+        def self.deserialize: (json_value value) -> (Inline | List | Map)
+      end
+
+      type header_source = HeaderSource::Inline | HeaderSource::List | HeaderSource::Map
+
+      class HeaderConfig < Data
+        SOURCE: reader
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader access_control_allow_credentials: header_source?
+        attr_reader access_control_allow_headers: header_source?
+        attr_reader access_control_allow_methods: header_source?
+        attr_reader access_control_expose_headers: header_source?
+        attr_reader access_control_max_age: header_source?
+        attr_reader cross_origin_embedder_policy: header_source?
+        attr_reader cross_origin_opener_policy: header_source?
+        attr_reader cross_origin_resource_policy: header_source?
+        attr_reader permissions_policy: header_source?
+        attr_reader service_worker_allowed: header_source?
+        attr_reader timing_allow_origin: header_source?
+        attr_reader x_content_type_options: header_source?
+        attr_reader tauri_custom_header: header_source?
+
+        def self.new: (?access_control_allow_credentials: header_source?, ?access_control_allow_headers: header_source?,
+                       ?access_control_allow_methods: header_source?, ?access_control_expose_headers: header_source?,
+                       ?access_control_max_age: header_source?, ?cross_origin_embedder_policy: header_source?,
+                       ?cross_origin_opener_policy: header_source?, ?cross_origin_resource_policy: header_source?,
+                       ?permissions_policy: header_source?, ?service_worker_allowed: header_source?,
+                       ?timing_allow_origin: header_source?, ?x_content_type_options: header_source?,
+                       ?tauri_custom_header: header_source?) -> HeaderConfig
+        def self.deserialize: (json_value value) -> HeaderConfig
+      end
+    end
+  end
+end

@@ -1,0 +1,6 @@
+{"build":"json","case":"cases/platform_syntax_error","path":null,"probes":{},"target":"aarch64-apple-darwin"}
+{"build":"json","case":"cases/platform_syntax_error","error":"unable to parse JSON {Brand} config file at {dir}/{brand}.windows.conf.json because expected value at line 1 column 17","path":null,"target":"x86_64-pc-windows-msvc"}
+{"build":"json","case":"cases/platform_syntax_error","path":null,"probes":{},"target":"x86_64-unknown-linux-gnu"}
+{"build":"formats","case":"cases/platform_syntax_error","path":null,"probes":{},"target":"aarch64-apple-darwin"}
+{"build":"formats","case":"cases/platform_syntax_error","error":"unable to parse JSON {Brand} config file at {dir}/{brand}.windows.conf.json because expected value at line 1 column 17","path":null,"target":"x86_64-pc-windows-msvc"}
+{"build":"formats","case":"cases/platform_syntax_error","path":null,"probes":{},"target":"x86_64-unknown-linux-gnu"}

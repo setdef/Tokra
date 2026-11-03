@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      type reader = ^(json_value raw) -> top
+
+      class Field < Data
+        NONE: Object
+
+        attr_reader member: Symbol
+        attr_reader key: String
+        attr_reader reader: reader
+        attr_reader aliases: Array[String]
+        attr_reader default: top
+        attr_reader option: bool
+
+        def self.new: (member: Symbol, key: String, reader: reader, aliases: Array[String], default: top, option: bool) -> Field
+        def self.required: (Symbol member, String key, reader reader, ?aliases: Array[String]) -> Field
+        def self.defaulted: (Symbol member, String key, reader reader, top default, ?aliases: Array[String], ?option: bool) -> Field
+        def self.option: (Symbol member, String key, reader reader, ?aliases: Array[String]) -> Field
+        def default?: () -> bool
+      end
+
+      def self.read_struct: (json_value value, String name, Array[Field] fields, ?deny_unknown: bool) -> Hash[Symbol, top]
+      def self.defaults_of: (Array[Field] fields) -> Hash[Symbol, top]
+      def self.path: (json_value value) -> Pathname
+      def self.sequence: [T] (json_value value) { (json_value item) -> T } -> Array[T]
+      def self.map: [T] (json_value value) { (json_value item) -> T } -> Hash[String, T]
+      def self.url: (json_value value) -> Ferro::Url::Url
+    end
+  end
+end

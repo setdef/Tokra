@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      class PreventOverflowMargin < Data
+        FIELDS: Array[Field]
+
+        attr_reader width: Integer
+        attr_reader height: Integer
+
+        def self.new: (Integer width, Integer height) -> PreventOverflowMargin
+                    | (width: Integer, height: Integer) -> PreventOverflowMargin
+        def self.deserialize: (json_value value) -> PreventOverflowMargin
+      end
+
+      module PreventOverflowConfig
+        class Enable < Data
+          attr_reader enabled: bool
+          def self.new: (bool enabled) -> Enable
+                      | (enabled: bool) -> Enable
+        end
+
+        class Margin < Data
+          attr_reader margin: PreventOverflowMargin
+          def self.new: (PreventOverflowMargin margin) -> Margin
+                      | (margin: PreventOverflowMargin) -> Margin
+        end
+
+        def self.deserialize: (json_value value) -> (Enable | Margin)
+      end
+
+      type prevent_overflow_config = PreventOverflowConfig::Enable | PreventOverflowConfig::Margin
+    end
+  end
+end

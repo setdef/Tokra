@@ -40,6 +40,14 @@ module Tokra
     # The page runs slower while it is out of sight, but never stops.
     Throttle = new(name: "Throttle")
 
+    # Reads +value+, a JSON value, as the derived Deserialize reads it: a
+    # unit variant renamed camelCase, <tt>"disabled"</tt>,
+    # <tt>"suspend"</tt>, or <tt>"throttle"</tt> (config.rs:1559-1570).
+    def self.deserialize(value) # :nodoc:
+      policies = { "disabled" => Disabled, "suspend" => Suspend, "throttle" => Throttle }
+      policies.fetch(Ipc::Serde.unit_variant(value, policies.keys))
+    end
+
     close
   end
 end

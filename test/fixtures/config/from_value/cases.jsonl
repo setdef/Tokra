@@ -45,3 +45,101 @@
 {"name": "pattern_from_a_long_array", "type": "PatternKind", "value": ["brownfield", null, 1]}
 {"name": "pattern_tag_in_an_array_as_a_map", "type": "PatternKind", "value": [{"brownfield": null}, null]}
 {"name": "pattern_not_a_map", "type": "PatternKind", "value": "brownfield"}
+{"name": "config_missing_identifier", "type": "Config", "value": {}}
+{"name": "config_identifier_not_a_string", "type": "Config", "value": {"identifier": 1}}
+{"name": "config_unknown_field", "type": "Config", "value": {"identifier": "com.tokra.a", "bogus": 1}}
+{"name": "config_aliases", "type": "Config", "value": {"identifier": "com.tokra.a", "product-name": "Product", "main-binary-name": "main-bin"}, "probes": ["/productName", "/mainBinaryName"]}
+{"name": "config_defaults", "type": "Config", "value": {"identifier": "com.tokra.a"}, "probes": ["/$schema", "/productName", "/mainBinaryName", "/version", "/identifier", "/app/windows", "/app/withGlobalTauri", "/app/macOSPrivateApi", "/app/enableGTKAppId", "/app/trayIcon", "/app/security/freezePrototype", "/build/removeUnusedCommands", "/build/additionalWatchFolders", "/bundle/active", "/bundle/icon", "/plugins"]}
+{"name": "config_values", "type": "Config", "value": {"$schema": "https://schema.tauri.app/config/2", "identifier": "com.tokra.a", "productName": "Product", "mainBinaryName": "main-bin", "version": "1.2.3-beta.1+build.5", "plugins": {"log": {"level": "info", "targets": [1, 2.5, null]}}}, "probes": ["/$schema", "/productName", "/mainBinaryName", "/version", "/plugins"]}
+{"name": "config_version_null", "type": "Config", "value": {"identifier": "com.tokra.a", "version": null}, "probes": ["/version"]}
+{"name": "config_version_not_a_string", "type": "Config", "value": {"identifier": "com.tokra.a", "version": 1}}
+{"name": "config_plugins_not_a_map", "type": "Config", "value": {"identifier": "com.tokra.a", "plugins": []}}
+{"name": "config_short_array", "type": "Config", "value": [null, null, null, null]}
+{"name": "app_windows_and_tray", "type": "AppConfig", "value": {"windows": [{"label": "a"}, {"label": "b", "create": false}], "trayIcon": {"iconPath": "icons/tray.png"}}, "probes": ["/windows/0/label", "/windows/1/label", "/windows/1/create", "/trayIcon/iconPath", "/trayIcon/iconAsTemplate"]}
+{"name": "app_windows_not_a_sequence", "type": "AppConfig", "value": {"windows": {}}}
+{"name": "tray_icon_path_not_a_string", "type": "TrayIconConfig", "value": {"iconPath": 1}}
+{"name": "window_defaults", "type": "WindowConfig", "value": {}}
+{"name": "window_unknown_field", "type": "WindowConfig", "value": {"bogus": 1}}
+{"name": "window_short_array", "type": "WindowConfig", "value": []}
+{"name": "window_aliases", "type": "WindowConfig", "value": {"user-agent": "UA", "drag-drop-enabled": false, "min-width": 1, "min-height": 2, "max-width": 3, "max-height": 4, "prevent-overflow": true, "always-on-bottom": true, "always-on-top": true, "visible-on-all-workspaces": true, "content-protected": true, "skip-taskbar": true, "title-bar-style": "Overlay", "traffic-light-position": {"x": 1, "y": 2}, "hidden-title": true, "accept-first-mouse": true, "tabbing-identifier": "tabs", "additional-browser-args": "--a", "window-effects": {"effects": ["mica"]}, "proxy-url": "http://localhost:8080", "zoom-hotkeys-enabled": true, "browser-extensions-enabled": true, "use-https-scheme": true, "background-color": "#ff0000", "background-throttling": "throttle", "javascript-disabled": true, "allow-link-preview": false, "disable-input-accessory-view": true, "data-directory": "data", "data-store-identifier": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 255], "scroll-bar-style": "fluentOverlay"}}
+{"name": "window_underscore_alias", "type": "WindowConfig", "value": {"disable_input_accessory_view": true}, "probes": ["/disableInputAccessoryView"]}
+{"name": "window_values", "type": "WindowConfig", "value": {"label": "settings", "create": false, "url": "https://tauri.app", "center": true, "x": 10, "y": 20.5, "width": 300, "height": 200, "resizable": false, "maximizable": false, "minimizable": false, "closable": false, "title": "Settings", "fullscreen": true, "focus": false, "focusable": false, "transparent": true, "maximized": true, "visible": false, "decorations": false, "windowClassname": "klass", "theme": "Dark", "shadow": false, "incognito": true, "parent": "main", "devtools": true, "preventOverflow": {"width": 10, "height": 20}}}
+{"name": "window_url_custom_protocol", "type": "WindowConfig", "value": {"url": "doom://index.html"}, "probes": ["/url"]}
+{"name": "window_url_path", "type": "WindowConfig", "value": {"url": "users/john"}, "probes": ["/url"]}
+{"name": "window_url_not_a_string", "type": "WindowConfig", "value": {"url": 1}}
+{"name": "window_theme_unknown_is_light", "type": "WindowConfig", "value": {"theme": "Purple", "titleBarStyle": "bogus"}, "probes": ["/theme", "/titleBarStyle"]}
+{"name": "window_data_store_identifier_short", "type": "WindowConfig", "value": {"dataStoreIdentifier": [1, 2]}}
+{"name": "window_data_store_identifier_long", "type": "WindowConfig", "value": {"dataStoreIdentifier": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}}
+{"name": "window_data_store_identifier_out_of_range", "type": "WindowConfig", "value": {"dataStoreIdentifier": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 256]}}
+{"name": "window_proxy_url_relative", "type": "WindowConfig", "value": {"proxyUrl": "not a url"}}
+{"name": "window_data_directory_not_a_string", "type": "WindowConfig", "value": {"dataDirectory": 1}}
+{"name": "window_background_throttling_unknown", "type": "WindowConfig", "value": {"backgroundThrottling": "sometimes"}}
+{"name": "window_scroll_bar_style_unknown", "type": "WindowConfig", "value": {"scrollBarStyle": "fluent"}}
+{"name": "window_width_not_a_number", "type": "WindowConfig", "value": {"width": "800"}}
+{"name": "window_null_option", "type": "WindowConfig", "value": {"x": null, "userAgent": null}, "probes": ["/x", "/userAgent"]}
+{"name": "logical_position_missing_field", "type": "LogicalPosition", "value": {"x": 1}}
+{"name": "logical_position_unknown_field", "type": "LogicalPosition", "value": {"x": 1, "y": 2, "z": 3}}
+{"name": "webview_url_external", "type": "WebviewUrl", "value": "http://localhost:1420"}
+{"name": "webview_url_app", "type": "WebviewUrl", "value": "index.html"}
+{"name": "background_throttling_policy_disabled", "type": "BackgroundThrottlingPolicy", "value": "disabled"}
+{"name": "scroll_bar_style_fluent_overlay", "type": "ScrollBarStyle", "value": "fluentOverlay"}
+{"name": "security_defaults", "type": "SecurityConfig", "value": {}}
+{"name": "security_unknown_field", "type": "SecurityConfig", "value": {"bogus": 1}}
+{"name": "security_aliases", "type": "SecurityConfig", "value": {"dev-csp": "default-src 'self'", "freeze-prototype": true, "dangerous-disable-asset-csp-modification": true, "asset-protocol": {"enable": true}}}
+{"name": "security_values", "type": "SecurityConfig", "value": {"csp": {"default-src": "'self'", "img-src": ["'self'", "asset:"]}, "devCsp": "default-src *", "dangerousDisableAssetCspModification": ["style-src"], "assetProtocol": {"enable": true, "scope": {"allow": ["$APPDATA/**"], "deny": ["$APPDATA/secret"]}}, "pattern": {"use": "isolation", "options": {"dir": "../dist-isolation"}}, "capabilities": ["main-capability"], "headers": {"Access-Control-Max-Age": "3600", "Tauri-Custom-Header": ["a", "b"], "Permissions-Policy": {"camera": "()"}}}}
+{"name": "security_pattern_dir_not_a_string", "type": "SecurityConfig", "value": {"pattern": {"use": "isolation", "options": {"dir": 1}}}}
+{"name": "csp_policy", "type": "Csp", "value": "default-src 'self'"}
+{"name": "csp_no_variant", "type": "Csp", "value": 1}
+{"name": "csp_directive_no_variant", "type": "Csp", "value": {"default-src": 1}}
+{"name": "disabled_csp_modification_no_variant", "type": "DisabledCspModificationKind", "value": "style-src"}
+{"name": "capability_entry_reference", "type": "CapabilityEntry", "value": "main-capability"}
+{"name": "capability_entry_not_a_string_or_map", "type": "CapabilityEntry", "value": 1}
+{"name": "capability_entry_sequence", "type": "CapabilityEntry", "value": ["main-capability"]}
+{"name": "header_config_unknown_field", "type": "HeaderConfig", "value": {"X-Bogus": "1"}}
+{"name": "header_config_no_variant", "type": "HeaderConfig", "value": {"Access-Control-Max-Age": 1}}
+{"name": "header_config_defaults", "type": "HeaderConfig", "value": {}}
+{"name": "build_defaults", "type": "BuildConfig", "value": {}}
+{"name": "build_unknown_field", "type": "BuildConfig", "value": {"bogus": 1}}
+{"name": "build_aliases", "type": "BuildConfig", "value": {"dev-url": "http://localhost:1420", "frontend-dist": "../dist", "before-dev-command": "npm run dev", "before-build-command": "npm run build", "before-bundle-command": {"script": "npm run bundle", "cwd": "web"}, "remove-unused-commands": true, "additional-watch-directories": ["../lib"]}}
+{"name": "build_values", "type": "BuildConfig", "value": {"runner": {"cmd": "cross", "cwd": "x", "args": ["--release"]}, "devUrl": "HTTP://LocalHost:1420", "frontendDist": ["index.html", "app.js"], "beforeDevCommand": {"script": "npm run dev", "cwd": "web", "wait": true}, "features": ["a"]}}
+{"name": "build_runner_string", "type": "BuildConfig", "value": {"runner": "cargo"}, "probes": ["/runner"]}
+{"name": "build_frontend_dist_url", "type": "BuildConfig", "value": {"frontendDist": "https://example.com/app"}, "probes": ["/frontendDist"]}
+{"name": "build_frontend_dist_no_variant", "type": "BuildConfig", "value": {"frontendDist": 1}}
+{"name": "build_dev_url_relative", "type": "BuildConfig", "value": {"devUrl": "localhost"}}
+{"name": "build_dev_url_empty_host", "type": "BuildConfig", "value": {"devUrl": "http://"}}
+{"name": "build_dev_url_not_a_string", "type": "BuildConfig", "value": {"devUrl": 1}}
+{"name": "before_dev_command_no_variant", "type": "BeforeDevCommand", "value": {"cwd": "web"}}
+{"name": "before_dev_command_script_with_options_defaults", "type": "BeforeDevCommand", "value": {"script": "npm run dev"}}
+{"name": "hook_command_no_variant", "type": "HookCommand", "value": 1}
+{"name": "frontend_dist_directory", "type": "FrontendDist", "value": "../dist"}
+{"name": "bundle_defaults", "type": "BundleConfig", "value": {}, "probes": ["/active", "/publisher", "/homepage", "/icon", "/resources", "/copyright", "/license", "/licenseFile", "/category", "/fileAssociations", "/shortDescription", "/longDescription", "/useLocalToolsDir", "/externalBin"]}
+{"name": "bundle_unknown_field", "type": "BundleConfig", "value": {"bogus": 1}}
+{"name": "bundle_aliases", "type": "BundleConfig", "value": {"license-file": "LICENSE", "short-description": "Short", "long-description": "Long", "use-local-tools-dir": true, "external-bin": ["bin/tool"]}, "probes": ["/licenseFile", "/shortDescription", "/longDescription", "/useLocalToolsDir", "/externalBin"]}
+{"name": "bundle_values", "type": "BundleConfig", "value": {"active": true, "publisher": "Tokra", "homepage": "https://example.com", "icon": ["icons/icon.png", "icons/icon.icns"], "copyright": "(c) 2026", "license": "MIT", "category": "Utility"}, "probes": ["/active", "/publisher", "/homepage", "/icon", "/copyright", "/license", "/category"]}
+{"name": "bundle_icon_not_a_sequence", "type": "BundleConfig", "value": {"icon": "icons/icon.png"}}
+{"name": "window_array_to_accept_first_mouse", "type": "WindowConfig", "value": ["main", true, "index.html", null, true, false, null, null, 800, 600, null, null, null, null, null, true, true, true, true, "T", false, true, true, false, false, true, true, false, false, false, false, false, null, null, "Visible", null, false, false]}
+{"name": "url_invalid_port", "type": "BuildConfig", "value": {"devUrl": "http://a:99999"}}
+{"name": "url_missing_slashes", "type": "BuildConfig", "value": {"devUrl": "http:/localhost"}, "probes": ["/devUrl"]}
+{"name": "url_idn_host", "type": "BuildConfig", "value": {"devUrl": "http://bücher.de"}, "probes": ["/devUrl"]}
+{"name": "url_bad_percent_escape", "type": "BuildConfig", "value": {"devUrl": "http://a/%zz"}, "probes": ["/devUrl"]}
+{"name": "url_opaque_with_space", "type": "BuildConfig", "value": {"devUrl": "foo:bar baz"}, "probes": ["/devUrl"]}
+{"name": "url_dot_segments", "type": "BuildConfig", "value": {"devUrl": "http://a/b/../../c"}, "probes": ["/devUrl"]}
+{"name": "url_ipv4_shorthand", "type": "BuildConfig", "value": {"devUrl": "http://0x7f.1/"}, "probes": ["/devUrl"]}
+{"name": "url_windows_path", "type": "BuildConfig", "value": {"devUrl": "C:\\dist"}, "probes": ["/devUrl"]}
+{"name": "url_invalid_ipv4", "type": "BuildConfig", "value": {"devUrl": "http://1.2.3.256/"}}
+{"name": "url_invalid_domain_character", "type": "BuildConfig", "value": {"devUrl": "http://a<b/"}}
+{"name": "proxy_url_invalid_port", "type": "WindowConfig", "value": {"proxyUrl": "socks5://127.0.0.1:99999"}}
+{"name": "proxy_url_dot_segments", "type": "WindowConfig", "value": {"proxyUrl": "http://Proxy.Example:8080/a/.."}, "probes": ["/proxyUrl"]}
+{"name": "frontend_dist_windows_path", "type": "FrontendDist", "value": "C:\\dist"}
+{"name": "frontend_dist_missing_slashes", "type": "FrontendDist", "value": "https:/example.com/app"}
+{"name": "frontend_dist_invalid_port", "type": "FrontendDist", "value": "http://a:99999"}
+{"name": "frontend_dist_idn_host", "type": "FrontendDist", "value": "https://bücher.de/app"}
+{"name": "webview_url_invalid_port", "type": "WebviewUrl", "value": "http://a:99999"}
+{"name": "webview_url_missing_slashes", "type": "WebviewUrl", "value": "http:/localhost"}
+{"name": "webview_url_idn_host", "type": "WebviewUrl", "value": "https://bücher.de"}
+{"name": "webview_url_dot_segments", "type": "WebviewUrl", "value": "https://a/b/../c"}
+{"name": "webview_url_ipv4_shorthand", "type": "WebviewUrl", "value": "http://0x7f.1/"}
+{"name": "webview_url_bad_percent_escape", "type": "WebviewUrl", "value": "http://a/%zz"}
+{"name": "webview_url_windows_path", "type": "WebviewUrl", "value": "C:\\dist"}
+{"name": "webview_url_opaque_with_space", "type": "WebviewUrl", "value": "foo:bar baz"}
+{"name": "window_default_width_is_a_float", "type": "WindowConfig", "value": {"width": 1024}, "probes": ["/width", "/height"]}

@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      module CapabilityEntry
+        class Inlined < Data
+          attr_reader capability: Hash[String, json_value]
+          def self.new: (Hash[String, json_value] capability) -> Inlined
+                      | (capability: Hash[String, json_value]) -> Inlined
+        end
+
+        class Reference < Data
+          attr_reader name: String
+          def self.new: (String name) -> Reference
+                      | (name: String) -> Reference
+        end
+
+        def self.deserialize: (json_value value) -> (Inlined | Reference)
+      end
+
+      type capability_entry = CapabilityEntry::Inlined | CapabilityEntry::Reference
+    end
+  end
+end

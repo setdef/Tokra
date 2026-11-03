@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    class PackageInfo < Data
+      attr_reader name: String
+      attr_reader version: String
+      attr_reader authors: String
+      attr_reader description: String
+      attr_reader crate_name: String
+
+      def self.new: (String name, String version, String authors, String description, String crate_name) -> PackageInfo
+                  | (name: String, version: String, authors: String, description: String, crate_name: String) -> PackageInfo
+    end
+  end
+
+  class PackageInfo = Utils::PackageInfo
+end

@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      module RunnerConfig
+        class String < Data
+          attr_reader cmd: ::String
+          def self.new: (::String cmd) -> RunnerConfig::String
+                      | (cmd: ::String) -> RunnerConfig::String
+        end
+
+        class Object < Data
+          attr_reader cmd: ::String
+          attr_reader cwd: ::String?
+          attr_reader args: Array[::String]?
+          def self.new: (::String cmd, ::String? cwd, Array[::String]? args) -> RunnerConfig::Object
+                      | (cmd: ::String, cwd: ::String?, args: Array[::String]?) -> RunnerConfig::Object
+        end
+
+        def self.deserialize: (json_value value) -> (RunnerConfig::String | RunnerConfig::Object)
+      end
+
+      type runner_config = RunnerConfig::String | RunnerConfig::Object
+    end
+  end
+end

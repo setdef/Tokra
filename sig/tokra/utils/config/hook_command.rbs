@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      module BeforeDevCommand
+        class Script < Data
+          attr_reader script: String
+          def self.new: (String script) -> Script
+                      | (script: String) -> Script
+        end
+
+        class ScriptWithOptions < Data
+          attr_reader script: String
+          attr_reader cwd: String?
+          attr_reader wait: bool
+          def self.new: (String script, String? cwd, bool wait) -> ScriptWithOptions
+                      | (script: String, cwd: String?, wait: bool) -> ScriptWithOptions
+        end
+
+        def self.deserialize: (json_value value) -> (Script | ScriptWithOptions)
+      end
+
+      type before_dev_command = BeforeDevCommand::Script | BeforeDevCommand::ScriptWithOptions
+
+      module HookCommand
+        class Script < Data
+          attr_reader script: String
+          def self.new: (String script) -> Script
+                      | (script: String) -> Script
+        end
+
+        class ScriptWithOptions < Data
+          attr_reader script: String
+          attr_reader cwd: String?
+          def self.new: (String script, String? cwd) -> ScriptWithOptions
+                      | (script: String, cwd: String?) -> ScriptWithOptions
+        end
+
+        def self.deserialize: (json_value value) -> (Script | ScriptWithOptions)
+      end
+
+      type hook_command = HookCommand::Script | HookCommand::ScriptWithOptions
+    end
+  end
+end

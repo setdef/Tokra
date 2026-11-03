@@ -63,6 +63,7 @@ PATH
   remote: .
   specs:
     tokra (0.0.1.pre.2)
+      ferro-url (= 0.1.0.pre.1)
       rb_sys (~> 0.9.129)
 
 GEM

@@ -1,0 +1,4 @@
+{
+  "identifier": "com.tokra.fixture",
+  "plugins": { "log": { "level": "info", "nested": { "b": 1, "a": [true, null, 2.5] } }, "store": null }
+}

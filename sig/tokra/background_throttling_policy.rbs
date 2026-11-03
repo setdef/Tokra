@@ -9,6 +9,7 @@ module Tokra
     attr_reader name: String
 
     private def self.new: (name: String) -> BackgroundThrottlingPolicy
+    def self.deserialize: (json_value value) -> BackgroundThrottlingPolicy
 
     Disabled: BackgroundThrottlingPolicy
     Suspend: BackgroundThrottlingPolicy

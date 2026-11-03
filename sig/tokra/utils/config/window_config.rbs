@@ -1,0 +1,94 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      class WindowConfig < Data
+        STRING: ^(json_value raw) -> String
+        BOOL: ^(json_value raw) -> bool
+        F64: ^(json_value raw) -> Float
+        BYTES16: ^(json_value raw) -> Array[Integer]
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader label: String
+        attr_reader create: bool
+        attr_reader url: Tokra::webview_url
+        attr_reader user_agent: String?
+        attr_reader drag_drop_enabled: bool
+        attr_reader center: bool
+        attr_reader x: Float?
+        attr_reader y: Float?
+        attr_reader width: Float
+        attr_reader height: Float
+        attr_reader min_width: Float?
+        attr_reader min_height: Float?
+        attr_reader max_width: Float?
+        attr_reader max_height: Float?
+        attr_reader prevent_overflow: prevent_overflow_config?
+        attr_reader resizable: bool
+        attr_reader maximizable: bool
+        attr_reader minimizable: bool
+        attr_reader closable: bool
+        attr_reader title: String
+        attr_reader fullscreen: bool
+        attr_reader focus: bool
+        attr_reader focusable: bool
+        attr_reader transparent: bool
+        attr_reader maximized: bool
+        attr_reader visible: bool
+        attr_reader decorations: bool
+        attr_reader always_on_bottom: bool
+        attr_reader always_on_top: bool
+        attr_reader visible_on_all_workspaces: bool
+        attr_reader content_protected: bool
+        attr_reader skip_taskbar: bool
+        attr_reader window_classname: String?
+        attr_reader theme: Tokra::Theme?
+        attr_reader title_bar_style: Tokra::TitleBarStyle
+        attr_reader traffic_light_position: LogicalPosition?
+        attr_reader hidden_title: bool
+        attr_reader accept_first_mouse: bool
+        attr_reader tabbing_identifier: String?
+        attr_reader additional_browser_args: String?
+        attr_reader shadow: bool
+        attr_reader window_effects: Tokra::WindowEffectsConfig?
+        attr_reader incognito: bool
+        attr_reader parent: String?
+        attr_reader proxy_url: Ferro::Url::Url?
+        attr_reader zoom_hotkeys_enabled: bool
+        attr_reader browser_extensions_enabled: bool
+        attr_reader use_https_scheme: bool
+        attr_reader devtools: bool?
+        attr_reader background_color: Tokra::Color?
+        attr_reader background_throttling: Tokra::BackgroundThrottlingPolicy?
+        attr_reader javascript_disabled: bool
+        attr_reader allow_link_preview: bool
+        attr_reader disable_input_accessory_view: bool
+        attr_reader data_directory: Pathname?
+        attr_reader data_store_identifier: Array[Integer]?
+        attr_reader scroll_bar_style: ScrollBarStyle
+
+        def self.new: (?label: String, ?create: bool, ?url: Tokra::webview_url, ?user_agent: String?,
+                       ?drag_drop_enabled: bool, ?center: bool, ?x: Float?, ?y: Float?, ?width: Float, ?height: Float,
+                       ?min_width: Float?, ?min_height: Float?, ?max_width: Float?, ?max_height: Float?,
+                       ?prevent_overflow: prevent_overflow_config?, ?resizable: bool, ?maximizable: bool,
+                       ?minimizable: bool, ?closable: bool, ?title: String, ?fullscreen: bool, ?focus: bool,
+                       ?focusable: bool, ?transparent: bool, ?maximized: bool, ?visible: bool, ?decorations: bool,
+                       ?always_on_bottom: bool, ?always_on_top: bool, ?visible_on_all_workspaces: bool,
+                       ?content_protected: bool, ?skip_taskbar: bool, ?window_classname: String?, ?theme: Tokra::Theme?,
+                       ?title_bar_style: Tokra::TitleBarStyle, ?traffic_light_position: LogicalPosition?,
+                       ?hidden_title: bool, ?accept_first_mouse: bool, ?tabbing_identifier: String?,
+                       ?additional_browser_args: String?, ?shadow: bool, ?window_effects: Tokra::WindowEffectsConfig?,
+                       ?incognito: bool, ?parent: String?, ?proxy_url: Ferro::Url::Url?, ?zoom_hotkeys_enabled: bool,
+                       ?browser_extensions_enabled: bool, ?use_https_scheme: bool, ?devtools: bool?,
+                       ?background_color: Tokra::Color?, ?background_throttling: Tokra::BackgroundThrottlingPolicy?,
+                       ?javascript_disabled: bool, ?allow_link_preview: bool, ?disable_input_accessory_view: bool,
+                       ?data_directory: Pathname?, ?data_store_identifier: Array[Integer]?,
+                       ?scroll_bar_style: ScrollBarStyle) -> WindowConfig
+        def self.deserialize: (json_value value) -> WindowConfig
+      end
+    end
+  end
+end

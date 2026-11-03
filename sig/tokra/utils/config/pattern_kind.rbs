@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      module PatternKind
+        class Brownfield < Data
+          def self.new: () -> Brownfield
+        end
+
+        class Isolation < Data
+          attr_reader dir: Pathname
+          def self.new: (Pathname dir) -> Isolation
+                      | (dir: Pathname) -> Isolation
+        end
+
+        def self.deserialize: (json_value value) -> (Brownfield | Isolation)
+      end
+
+      type pattern_kind = PatternKind::Brownfield | PatternKind::Isolation
+    end
+  end
+end

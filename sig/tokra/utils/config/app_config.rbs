@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      class AppConfig < Data
+        BOOL: reader
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader windows: Array[WindowConfig]
+        attr_reader security: SecurityConfig
+        attr_reader tray_icon: TrayIconConfig?
+        attr_reader macos_private_api: bool
+        attr_reader with_global_tauri: bool
+        attr_reader enable_gtk_app_id: bool
+
+        def self.new: (?windows: Array[WindowConfig], ?security: SecurityConfig, ?tray_icon: TrayIconConfig?,
+                       ?macos_private_api: bool, ?with_global_tauri: bool, ?enable_gtk_app_id: bool) -> AppConfig
+        def self.deserialize: (json_value value) -> AppConfig
+      end
+    end
+  end
+end

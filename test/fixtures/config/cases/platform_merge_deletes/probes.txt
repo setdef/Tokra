@@ -1,0 +1,4 @@
+/productName
+/app/security/freezePrototype
+/app/security/csp
+/app/security/devCsp

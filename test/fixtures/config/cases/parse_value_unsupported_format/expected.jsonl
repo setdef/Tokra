@@ -1,0 +1,6 @@
+{"build":"json","case":"cases/parse_value_unsupported_format","error":"unsupported format encountered yaml","parse_value":"tokra.conf.yaml","path":null,"target":"aarch64-apple-darwin"}
+{"build":"json","case":"cases/parse_value_unsupported_format","error":"unsupported format encountered yaml","parse_value":"tokra.conf.yaml","path":null,"target":"x86_64-pc-windows-msvc"}
+{"build":"json","case":"cases/parse_value_unsupported_format","error":"unsupported format encountered yaml","parse_value":"tokra.conf.yaml","path":null,"target":"x86_64-unknown-linux-gnu"}
+{"build":"formats","case":"cases/parse_value_unsupported_format","error":"unsupported format encountered yaml","parse_value":"tokra.conf.yaml","path":null,"target":"aarch64-apple-darwin"}
+{"build":"formats","case":"cases/parse_value_unsupported_format","error":"unsupported format encountered yaml","parse_value":"tokra.conf.yaml","path":null,"target":"x86_64-pc-windows-msvc"}
+{"build":"formats","case":"cases/parse_value_unsupported_format","error":"unsupported format encountered yaml","parse_value":"tokra.conf.yaml","path":null,"target":"x86_64-unknown-linux-gnu"}

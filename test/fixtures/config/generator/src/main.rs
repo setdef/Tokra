@@ -34,6 +34,11 @@
 //! `path.txt` the macro checks nothing and `check` is absent. Then come
 //! `error`, `get_config`'s error, or `probes`, the values at the case's
 //! pointers in the config serialized back.
+//!
+//! A case with `parse_value.txt` instead asks
+//! `tauri_utils::config::parse::parse_value` about the path it names,
+//! which `get_config` never reaches with a name of its own: the answer is
+//! the parse's error, or `probes` read from the raw value.
 
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::{json, Map, Value};
@@ -43,8 +48,12 @@ use std::{
 };
 use tauri_utils::{
     config::{
-        parse::does_supported_file_name_exist, AppConfig, AssetProtocolConfig, FsScope,
-        PatternKind, PreventOverflowConfig, PreventOverflowMargin, RunnerConfig, TrayIconConfig,
+        parse::{does_supported_file_name_exist, parse_value},
+        AppConfig, AssetProtocolConfig, BackgroundThrottlingPolicy, BeforeDevCommand, BuildConfig,
+        BundleConfig, CapabilityEntry, Config, Csp, DisabledCspModificationKind, FrontendDist,
+        FsScope, HeaderConfig, HookCommand, LogicalPosition, PatternKind, PreventOverflowConfig,
+        PreventOverflowMargin, RunnerConfig, ScrollBarStyle, SecurityConfig, TrayIconConfig,
+        WebviewUrl, WindowConfig,
     },
     platform::Target,
 };
@@ -64,7 +73,12 @@ const TARGETS: [&str; 3] = [
 ];
 
 /// The files a case may hold that are not config files.
-const CASE_FILES: [&str; 3] = ["expected.jsonl", "path.txt", "probes.txt"];
+const CASE_FILES: [&str; 4] = [
+    "expected.jsonl",
+    "parse_value.txt",
+    "path.txt",
+    "probes.txt",
+];
 
 fn main() {
     let root = env::args_os()
@@ -97,12 +111,28 @@ fn from_value_cases(dir: &Path) {
         let result = match kind {
             "AppConfig" => read::<AppConfig>(value),
             "AssetProtocolConfig" => read::<AssetProtocolConfig>(value),
+            "BackgroundThrottlingPolicy" => read::<BackgroundThrottlingPolicy>(value),
+            "BeforeDevCommand" => read::<BeforeDevCommand>(value),
+            "BuildConfig" => read::<BuildConfig>(value),
+            "BundleConfig" => read::<BundleConfig>(value),
+            "CapabilityEntry" => read::<CapabilityEntry>(value),
+            "Config" => read::<Config>(value),
+            "Csp" => read::<Csp>(value),
+            "DisabledCspModificationKind" => read::<DisabledCspModificationKind>(value),
+            "FrontendDist" => read::<FrontendDist>(value),
             "FsScope" => read::<FsScope>(value),
+            "HeaderConfig" => read::<HeaderConfig>(value),
+            "HookCommand" => read::<HookCommand>(value),
+            "LogicalPosition" => read::<LogicalPosition>(value),
             "PatternKind" => read::<PatternKind>(value),
             "PreventOverflowConfig" => read::<PreventOverflowConfig>(value),
             "PreventOverflowMargin" => read::<PreventOverflowMargin>(value),
             "RunnerConfig" => read::<RunnerConfig>(value),
+            "ScrollBarStyle" => read::<ScrollBarStyle>(value),
+            "SecurityConfig" => read::<SecurityConfig>(value),
             "TrayIconConfig" => read::<TrayIconConfig>(value),
+            "WebviewUrl" => read::<WebviewUrl>(value),
+            "WindowConfig" => read::<WindowConfig>(value),
             other => panic!("{name}: no type {other} in the generator"),
         };
         let mut answer =
@@ -143,6 +173,9 @@ fn config_case(root: &Path, case: &Path) {
     let given = fs::read_to_string(case.join("path.txt"))
         .ok()
         .map(|path| path.trim().to_owned());
+    let parsed = fs::read_to_string(case.join("parse_value.txt"))
+        .ok()
+        .map(|path| path.trim().to_owned());
     let probes: Vec<String> = fs::read_to_string(case.join("probes.txt"))
         .unwrap_or_default()
         .lines()
@@ -160,6 +193,16 @@ fn config_case(root: &Path, case: &Path) {
                 .map_or("tauri.conf.json".to_owned(), tauri_name),
         );
         let mut answer = json!({ "case": name, "build": BUILD, "target": target, "path": given });
+        if let Some(parsed) = &parsed {
+            answer["parse_value"] = Value::String(parsed.clone());
+            match parse_value(Target::from_triple(target), dir.join(tauri_name(parsed))) {
+                Ok((value, _)) => answer["probes"] = probe_all(&value, &probes),
+                Err(error) => answer["error"] = Value::String(error.to_string()),
+            }
+            println!("{}", placeholders(&answer, &dir));
+            fs::remove_dir_all(&dir).expect("the scratch directory removed");
+            continue;
+        }
         let checked = given
             .is_some()
             .then(|| check(Target::from_triple(target), &path));
@@ -171,14 +214,7 @@ fn config_case(root: &Path, case: &Path) {
             match tauri_codegen::get_config(&path) {
                 Ok((config, _)) => {
                     let config = serde_json::to_value(&config).expect("serializes");
-                    let mut found = Map::new();
-                    for probe in &probes {
-                        found.insert(
-                            probe.clone(),
-                            config.pointer(probe).cloned().unwrap_or(Value::Null),
-                        );
-                    }
-                    answer["probes"] = Value::Object(found);
+                    answer["probes"] = probe_all(&config, &probes);
                 }
                 Err(error) => answer["error"] = Value::String(error.to_string()),
             }
@@ -189,6 +225,18 @@ fn config_case(root: &Path, case: &Path) {
         println!("{}", placeholders(&answer, &dir));
         fs::remove_dir_all(&dir).expect("the scratch directory removed");
     }
+}
+
+/// The values at `probes` in `value`, `null` where a pointer finds none.
+fn probe_all(value: &Value, probes: &[String]) -> Value {
+    let mut found = Map::new();
+    for probe in probes {
+        found.insert(
+            probe.clone(),
+            value.pointer(probe).cloned().unwrap_or(Value::Null),
+        );
+    }
+    Value::Object(found)
 }
 
 // SPDX-SnippetBegin

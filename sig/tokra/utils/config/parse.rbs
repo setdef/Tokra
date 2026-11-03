@@ -1,0 +1,69 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      module Parse
+        EXTENSIONS_SUPPORTED: Array[String]
+        SUPPORTED_FORMATS: Array[ConfigFormat]
+        ENABLED_FORMATS: Array[ConfigFormat]
+        NOT_FOUND: String
+        INVALID_UTF8: String
+
+        class ConfigFormat < Data
+          extend ClosedEnum
+          include ClosedEnum::With
+
+          PLATFORMS: Hash[String, String]
+
+          attr_reader name: String
+
+          private def self.new: (name: String) -> ConfigFormat
+          def into_file_name: () -> String
+          def into_platform_file_name: (Platform::Target target) -> String
+
+          Json: ConfigFormat
+          Json5: ConfigFormat
+          Toml: ConfigFormat
+        end
+
+        class ConfigError < Tokra::Error
+          class FormatJson < ConfigError
+            attr_reader path: String
+            attr_reader error: Ipc::Json::Error
+            def initialize: (String path, Ipc::Json::Error error) -> void
+          end
+
+          class UnsupportedFormat < ConfigError
+            attr_reader extension: String
+            def initialize: (String extension) -> void
+          end
+
+          class DisabledFormat < ConfigError
+            attr_reader extension: String
+            attr_reader feature: String
+            def initialize: (String extension, String feature) -> void
+          end
+
+          class Io < ConfigError
+            attr_reader path: String
+            attr_reader error: String
+            def initialize: (String path, String error) -> void
+          end
+        end
+
+        def self.read_from: (Platform::Target target, String root_dir) -> [json_value, Array[String]]
+        def self.read_platform: (Platform::Target target, String root_dir) -> [json_value, String]?
+        def self.does_supported_file_name_exist: (Platform::Target target, String | Pathname path) -> bool
+        def self.parse_value: (Platform::Target target, String | Pathname path) -> [json_value, String]
+        private def self.sibling: (String path, ConfigFormat format, Platform::Target target, bool platform) -> String
+        private def self.do_parse_json: (String raw, String path) -> json_value
+        def self.read_to_string: (String path) -> String
+        private def self.io_error: (SystemCallError error) -> String
+        def self.display: (String | Pathname path) -> String
+        def self.merge: (json_value doc, json_value patch) -> json_value
+      end
+    end
+  end
+end

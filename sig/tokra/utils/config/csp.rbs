@@ -1,0 +1,62 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      module CspDirectiveSources
+        class Inline < Data
+          attr_reader sources: String
+          def self.new: (String sources) -> Inline
+                      | (sources: String) -> Inline
+        end
+
+        class List < Data
+          attr_reader sources: Array[String]
+          def self.new: (Array[String] sources) -> List
+                      | (sources: Array[String]) -> List
+        end
+
+        def self.deserialize: (json_value value) -> (Inline | List)
+      end
+
+      type csp_directive_sources = CspDirectiveSources::Inline | CspDirectiveSources::List
+
+      module Csp
+        class Policy < Data
+          attr_reader policy: String
+          def self.new: (String policy) -> Policy
+                      | (policy: String) -> Policy
+        end
+
+        class DirectiveMap < Data
+          attr_reader directives: Hash[String, csp_directive_sources]
+          def self.new: (Hash[String, csp_directive_sources] directives) -> DirectiveMap
+                      | (directives: Hash[String, csp_directive_sources]) -> DirectiveMap
+        end
+
+        def self.deserialize: (json_value value) -> (Policy | DirectiveMap)
+      end
+
+      type csp = Csp::Policy | Csp::DirectiveMap
+
+      module DisabledCspModificationKind
+        class Flag < Data
+          attr_reader flag: bool
+          def self.new: (bool flag) -> Flag
+                      | (flag: bool) -> Flag
+        end
+
+        class List < Data
+          attr_reader directives: Array[String]
+          def self.new: (Array[String] directives) -> List
+                      | (directives: Array[String]) -> List
+        end
+
+        def self.deserialize: (json_value value) -> (Flag | List)
+      end
+
+      type disabled_csp_modification_kind = DisabledCspModificationKind::Flag | DisabledCspModificationKind::List
+    end
+  end
+end
