@@ -166,11 +166,24 @@ app.run do |handle, event|
     closer_closed = false
     macos = Tokra::Menu.os == :macos
     # On Windows the closer thread finds and ends the menu itself, through
-    # tray-icon's window, which owns it, and that window's thread, which
-    # runs it (plan 051).
+    # tray-icon's window, which owns it, on the main thread, which runs it
+    # (plan 051).
     owner = macos ? nil : PlatformTray::Win32.tray_windows.first
-    main_thread = owner && PlatformPopup::Win32.thread_of(owner)
+    main_thread = nil
+    # On Windows, a thread that only sleeps and counts. It advances only
+    # when the main thread lets go of the GVL, through Tokra's
+    # Thread.pass, a Fiddle call, or IO, so its count beside closer-looks
+    # shows whether the main thread ever did while the menu tracked.
+    slept = 0
+    sleeper = macos ? nil : Thread.new { loop { sleep 0.01; slept += 1 } }
     TrayMenuFixture.on_main(handle) do
+      unless macos
+        # The thread that runs the menu is the main thread, whose id only
+        # it can read; the window's own thread is printed beside it.
+        main_thread = PlatformPopup::Win32.current_thread
+        window_thread = owner ? PlatformPopup::Win32.thread_of(owner) : 0
+        FixtureApp.progress("tray:threads main=#{main_thread} window=#{window_thread}")
+      end
       if macos
         PlatformPopup::Appkit.observe
         PlatformPopup.every(window, 50) do
@@ -191,14 +204,14 @@ app.run do |handle, event|
           next false if done
           next true unless PlatformPopup::Win32.find(PlatformPopup::Win32.current_thread, hmenu)
 
-          FixtureApp.progress("tray:main-timer-saw")
+          FixtureApp.progress("tray:main-timer-saw closer-looks=#{PlatformPopup::Win32.looks} tray:sleeper=#{slept}")
           false
         end
       end
       PlatformPopup.every(window, 8000) do
         unless done
           fell_back = true
-          FixtureApp.progress("tray:fallback-fired")
+          FixtureApp.progress(macos ? "tray:fallback-fired" : "tray:fallback-fired closer-looks=#{PlatformPopup::Win32.looks} tray:sleeper=#{slept}")
           TrayMenuFixture.close(PlatformPopup.find(TrayMenuFixture::LABELS, shown: false), hmenu, choose: false,
             on_main: true)
         end
@@ -263,6 +276,7 @@ app.run do |handle, event|
     returned.pop(timeout: 30)
     closer.join(5)
     ticker.stop
+    sleeper&.kill
     report["timer_errors"] = macos ? nil : PlatformPopup::Win32.timer_errors
     # The menu closes only once something closes it: the fallback, if it
     # fired first, or else the closer thread.

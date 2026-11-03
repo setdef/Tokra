@@ -443,6 +443,7 @@ module PlatformPopup
       started = now
       probed = false
       loop do
+        @looks = looks + 1
         menu = find(thread, hmenu)
         return menu if menu
 
@@ -455,6 +456,13 @@ module PlatformPopup
         end
         sleep 0.01
       end
+    end
+
+    # How many times await_menu has looked so far. A thread that looks
+    # every 10 ms but has looked only a few times in seconds was not
+    # running: something held the GVL (plan 051).
+    def self.looks
+      @looks || 0
     end
 
     # Waits until +thread+ shows no menu window showing +hmenu+, looking
