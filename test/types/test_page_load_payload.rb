@@ -11,15 +11,16 @@ require "test_helper"
 # Tests for Tokra::PageLoadPayload type.
 class TestPageLoadPayload < Minitest::Test
   def test_stores_url_and_started
-    payload = Tokra::PageLoadPayload.new(url: "tokra://localhost/", started: true)
+    url = Ferro::Url::Url.parse("tokra://localhost/")
+    payload = Tokra::PageLoadPayload.new(url:, started: true)
 
-    assert_equal "tokra://localhost/", payload.url
+    assert_same url, payload.url
     assert payload.started?
     refute payload.finished?
   end
 
   def test_finished_is_inverse_of_started
-    payload = Tokra::PageLoadPayload.new(url: "tokra://localhost/about", started: false)
+    payload = Tokra::PageLoadPayload.new(url: Ferro::Url::Url.parse("tokra://localhost/about"), started: false)
 
     refute payload.started?
     assert payload.finished?

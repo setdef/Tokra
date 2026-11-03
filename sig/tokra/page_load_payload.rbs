@@ -5,10 +5,10 @@ module Tokra
   # Page load payload passed to on_page_load callbacks.
   # Created via Data.define(:url, :started)
   class PageLoadPayload < Data
-    attr_reader url: String
+    attr_reader url: Ferro::Url::Url
     attr_reader started: bool
 
-    def self.new: (url: String, started: bool) -> PageLoadPayload
+    def self.new: (url: Ferro::Url::Url, started: bool) -> PageLoadPayload
     def started?: () -> bool
     def finished?: () -> bool
   end

@@ -45,7 +45,7 @@ builder = FixtureApp.builder(FixtureApp::Site.new(__dir__, options), "exit paths
 
 if options[:raise_on_page_load]
   builder.on_page_load(&Ractor.shareable_proc { |_webview, payload|
-    raise "exit-paths: deliberate page-load failure" if payload.started? && payload.url == "tokra://localhost/"
+    raise "exit-paths: deliberate page-load failure" if payload.started? && payload.url.as_str == "tokra://localhost/"
   })
 end
 

@@ -746,7 +746,8 @@ module Tokra
     end
 
     # Sends every request the webview makes through the proxy at +url+, a
-    # URI, and returns the builder. Anything but a URI raises TypeError.
+    # Ferro::Url::Url, and returns the builder. Anything else, a Ruby URI
+    # included, raises TypeError.
     #
     # The URL is <tt>http://</tt>, for an HTTP CONNECT proxy, or
     # <tt>socks5://</tt>, for a SOCKSv5 proxy, with the proxy's host and
@@ -766,15 +767,10 @@ module Tokra
     #
     # Mirrors Tauri's WebviewWindowBuilder::proxy_url (webview_window.rs:1066-1069)
     # and tauri-runtime-wry's parse_proxy_url (lib.rs:4301-4316, 4861-4865).
-    # *Deviation*: a host reaches the proxy as Ruby's URI parsed it, where
-    # the url crate would normalize an <tt>http://</tt> one: an IDNA host to
-    # ASCII, and an IPv4
-    # address in another form, such as <tt>0x7f.1</tt>, to dotted decimal
-    # (<tt>127.0.0.1</tt>).
     #
     # === Example
     #
-    #   builder.proxy_url(URI("socks5://127.0.0.1:1080"))
+    #   builder.proxy_url(Ferro::Url::Url.parse("socks5://127.0.0.1:1080"))
     def proxy_url(url)
       webview_row { |rows| rows.proxy_url(url) }
     end
@@ -917,6 +913,12 @@ module Tokra
     # raises Error::WebviewLabelAlreadyExists, as in Tauri. Before App#run
     # there is no event loop to make a window in, and this raises
     # Error::Runtime.
+    #
+    # A WebviewUrl::App path the url crate cannot join to the app URL, one
+    # naming another host such as <tt>//exa mple</tt>, raises
+    # Error::InvalidUrl with the crate's reason, before anything is built.
+    # *Deviation*: Tauri unwraps that error, so its app panics
+    # (manager/webview.rs:423-427); a panic would end Ruby's VM.
     #
     # Two threads that build one label at the same moment can both pass
     # the check, as in Tauri, whose check and insert are separate too. In

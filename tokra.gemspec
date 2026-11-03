@@ -47,8 +47,8 @@ Gem::Specification.new do |spec|
 
   # Runtime dependency for Rust extension
   spec.add_dependency "rb_sys", "~> 0.9.129"
-  # The config's URLs are url::Url in Tauri; ferro-url binds the url crate
-  # (ADR 011: Ferro for crate bindings; plan 054, decision 25).
+  # Tokra reads its URLs with ferro-url, Ferro's binding of the url crate
+  # whose url::Url Tauri uses (ADR 011; Plans 054 and 055).
   spec.add_dependency "ferro-url", "= 0.1.0.pre.1"
 
   # Development dependencies

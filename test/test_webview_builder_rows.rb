@@ -6,6 +6,7 @@
 #++
 
 require "test_helper"
+require "uri"
 require_relative "support/stub_native"
 require_relative "support/test_app"
 
@@ -83,7 +84,7 @@ class TestWebviewBuilderRows < Minitest::Test
       [:disable_drag_drop_handler, [], :drag_drop_handler_enabled, false],
       [:enable_clipboard_access, [], :clipboard, true],
       [:incognito, [true], :incognito, true],
-      [:proxy_url, [URI("http://proxy.test:3128")], :proxy_url, ["http", "proxy.test", "3128"]],
+      [:proxy_url, [Ferro::Url::Url.parse("http://proxy.test:3128")], :proxy_url, ["http", "proxy.test", "3128"]],
       [:browser_extensions_enabled, [true], :browser_extensions_enabled, true],
       [:extensions_path, ["/opt/extensions"], :extensions_path, "/opt/extensions"],
       [:extensions_path, [Pathname("/opt/extensions")], :extensions_path, "/opt/extensions"],
@@ -141,13 +142,17 @@ class TestWebviewBuilderRows < Minitest::Test
       "http://proxy.test" => ["http", "proxy.test", ""],
       "http://proxy.test:80" => ["http", "proxy.test", ""],
       "http://[::1]:8080" => ["http", "[::1]", "8080"],
+      # The url crate writes an http host's IPv4 shorthand and IDNA as it
+      # parses (plan 055, decision 5).
+      "http://0x7f.1:3128" => ["http", "127.0.0.1", "3128"],
+      "http://bücher.test" => ["http", "xn--bcher-kva.test", ""],
       "socks5://Proxy.Test:1080" => ["socks5", "Proxy.Test", "1080"],
       "socks5://proxy.test" => ["socks5", "proxy.test", ""],
     }
     got = {}
     run_app do |handle|
       cases.each_key.with_index do |url, index|
-        got[url] = Tokra::WebviewWindowBuilder.new(handle, "proxy-#{index}", page).proxy_url(URI(url)).build
+        got[url] = Tokra::WebviewWindowBuilder.new(handle, "proxy-#{index}", page).proxy_url(Ferro::Url::Url.parse(url)).build
           .webview.native.attributes[:proxy_url]
       end
     end
@@ -159,7 +164,7 @@ class TestWebviewBuilderRows < Minitest::Test
     built = nil
     assert_output(nil, "Invalid proxy url\n") do
       run_app do |handle|
-        built = Tokra::WebviewWindowBuilder.new(handle, "side", page).proxy_url(URI("https://proxy.test:3128")).build
+        built = Tokra::WebviewWindowBuilder.new(handle, "side", page).proxy_url(Ferro::Url::Url.parse("https://proxy.test:3128")).build
       end
     end
 
@@ -176,7 +181,7 @@ class TestWebviewBuilderRows < Minitest::Test
         initialization_script_for_all_frames: [nil],
         user_agent: [:probe],
         additional_browser_args: [1],
-        proxy_url: ["http://proxy.test:3128"],
+        proxy_url: [URI("http://proxy.test:3128")],
         extensions_path: [3],
         data_store_identifier: ["0123456789abcdef"],
         background_throttling: ["Disabled"],
@@ -185,6 +190,7 @@ class TestWebviewBuilderRows < Minitest::Test
         assert_raises(TypeError, row.to_s) { builder.public_send(row, *args) }
         raised << row
       end
+      assert_raises(TypeError, "a String is no Url either") { builder.proxy_url("http://proxy.test:3128") }
       assert_raises(TypeError) { builder.data_store_identifier([1.0] * 16) }
       assert_raises(ArgumentError) { builder.data_store_identifier([0] * 15) }
       assert_raises(ArgumentError) { builder.data_store_identifier(([0] * 15) + [256]) }

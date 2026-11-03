@@ -24,10 +24,11 @@ module Tokra
     # The URL Tokra serves its own pages from: tokra://localhost on macOS
     # and Linux, http://tokra.localhost on Windows, where WebView2 serves
     # custom protocols over http (wry webview2 custom_protocol_workaround).
-    # Mirrors tauri_protocol_url (manager/mod.rs:331-338); Tokra does not
+    # Mirrors tauri_protocol_url (manager/mod.rs:331-338), a
+    # Ferro::Url::Url as Tauri's is the url crate's Url; Tokra does not
     # enable wry's https scheme.
     def self.tokra_protocol_url(os)
-      (os == "windows") ? URI("http://tokra.localhost") : URI("tokra://localhost")
+      Ferro::Url::Url.parse((os == "windows") ? "http://tokra.localhost" : "tokra://localhost")
     end
 
     # A manager for the webviews of the app +manager+, an AppManager, on
@@ -39,17 +40,6 @@ module Tokra
       @with_global_tauri = with_global_tauri
     end
 
-    # The characters the url crate percent-encodes as it joins a relative
-    # URL: in its path the C0 controls, space, <tt>"</tt>, <tt><</tt>,
-    # <tt>></tt>, <tt>`</tt>, <tt>{</tt>, <tt>}</tt>, DEL, and anything
-    # outside ASCII; in its query the same but <tt>`</tt>, <tt>{</tt>, and
-    # <tt>}</tt>; in its fragment the same as its path but <tt>{</tt> and
-    # <tt>}</tt>. A <tt>%</tt> stays as written everywhere (url 2.5.8
-    # src/parser.rs:20-46).
-    PATH_ENCODED = /[\x00-\x20"<>`{}\x7F]|[^\x00-\x7F]/
-    QUERY_ENCODED = /[\x00-\x20"<>\x7F]|[^\x00-\x7F]/ # :nodoc:
-    FRAGMENT_ENCODED = /[\x00-\x20"<>`\x7F]|[^\x00-\x7F]/ # :nodoc:
-
     # The address +url+, a WebviewUrl, names, as prepare_webview resolves
     # it (manager/webview.rs:414-446). An App path joins the app URL,
     # except <tt>index.html</tt>, which is the app URL itself; the others
@@ -57,55 +47,31 @@ module Tokra
     #
     # Tokra's app URL keeps its path's slash, <tt>tokra://localhost/</tt>,
     # where Tauri's is the bare <tt>tauri://localhost</tt>, so every Tokra
-    # page is still asked for as it was. The path is encoded as the url
-    # crate's join encodes it (PATH_ENCODED and its kin), so
-    # <tt>page.html#intro</tt> keeps its fragment and <tt>a%20b.html</tt>
-    # its escape.
-    #
-    # The path is cleaned first as the url crate cleans its input: tab,
-    # LF, and CR are dropped anywhere, C0 controls and space are trimmed
-    # from both ends, and against an http app URL, which is special, a
-    # <tt>\\</tt> in the path is a <tt>/</tt> (url 2.5.8
-    # src/parser.rs:225-245, 284-297, 912).
-    #
-    # *Deviations*: where the url crate keeps a character that Ruby's URI
-    # refuses, #build raises URI::InvalidURIError, and Tauri's join, whose
-    # result it unwraps, never fails there: a <tt>|</tt> or <tt>^</tt> in
-    # the path; a <tt>\\</tt> in the path off Windows, where
-    # <tt>tokra://</tt> is not special; a second <tt>#</tt>; and a
-    # <tt>%</tt> not followed by two hex digits. A <tt>`</tt> in the
-    # fragment is encoded, as the url crate encodes it. And Ruby's join encodes a query's <tt>'</tt> and
-    # <tt>`</tt>, which the url crate keeps, except an http URL's
-    # <tt>'</tt> (url 2.5.8 src/parser.rs:45-46).
+    # page is still asked for as it was. The path joins it with the url
+    # crate's own join, a Ferro::Url::Url's, as Tauri's does, so it is
+    # cleaned and percent-encoded as Tauri's is: <tt>page.html#intro</tt>
+    # keeps its fragment, <tt>a%20b.html</tt> its escape, and
+    # <tt>a b.html</tt> becomes <tt>a%20b.html</tt>. A path the join
+    # refuses, one naming another host such as <tt>//exa mple</tt>, raises
+    # Error::InvalidUrl with the url crate's reason. Tauri maps the join's
+    # error to the same Error::InvalidUrl and then unwraps it ("this will
+    # never fail"), so its app panics (manager/webview.rs:423-427;
+    # *deviation*, tier 1: a panic ends Ruby's VM).
     def webview_url(url)
       case url
       when WebviewUrl::App
-        app_url = URI.join(WebviewManager.tokra_protocol_url(@os_name).to_s, "/")
+        app_url = WebviewManager.tokra_protocol_url(@os_name).join("/")
         path = url.path.to_s
-        return app_url.to_s if path == "index.html"
+        return app_url.as_str if path == "index.html"
 
-        special = app_url.scheme == "http"
-        URI.join(app_url.to_s, WebviewManager.encode_relative(path, special:)).to_s
-      when WebviewUrl::External, WebviewUrl::CustomProtocol then url.url.to_s
+        begin
+          app_url.join(path).as_str
+        rescue Ferro::Url::ParseError => e
+          raise Error::InvalidUrl, e.message
+        end
+      when WebviewUrl::External, WebviewUrl::CustomProtocol then url.url.as_str
       else raise TypeError, "wrong argument type #{url.class} (expected a Tokra::WebviewUrl)"
       end
-    end
-
-    # +relative+ cleaned and encoded as the url crate does when it joins
-    # it to the app URL, +special+ for an http one: its path, its query
-    # from the first <tt>?</tt>, and its fragment from the first
-    # <tt>#</tt>, each with its own set.
-    def self.encode_relative(relative, special: false)
-      cleaned = relative.sub(/\A[\x00-\x20]+/, "").sub(/[\x00-\x20]+\z/, "").delete("\t\n\r")
-      rest, hash, fragment = cleaned.partition("#")
-      path, question, query = rest.partition("?")
-      path = path.tr("\\", "/") if special
-      encode(path, PATH_ENCODED) + question + encode(query, QUERY_ENCODED) + hash + encode(fragment, FRAGMENT_ENCODED)
-    end
-
-    # +text+ with each character +set+ matches percent-encoded as UTF-8.
-    def self.encode(text, set)
-      text.gsub(set) { |char| char.bytes.map { |byte| format("%%%02X", byte) }.join }
     end
 
     # Joins +webview+ to the app, as attach_webview does

@@ -63,7 +63,8 @@ module Tokra
       nil
     end
 
-    # Called when the webview navigates to a URL.
+    # Called when the webview navigates to +url+, a Ferro::Url::Url, the
+    # url crate's URL, as Tauri's hook takes a Url (plugin.rs:93-97).
     #
     # Return +true+ to allow navigation, +false+ to block it.
     # Returns +true+ by default (allows all navigation).

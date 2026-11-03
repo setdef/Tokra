@@ -146,10 +146,10 @@ class TestUtilsConfig < Minitest::Test
     end
   end
 
-  # A WebviewUrl's URL is a URI or, from a config, url's own.
-  def test_a_webview_url_names_both_url_types_it_takes
+  # A WebviewUrl's URL is url's own, from a config or from code (plan 055).
+  def test_a_webview_url_names_the_url_type_it_takes
     error = assert_raises(TypeError) { Tokra::WebviewUrl::External.new(url: "https://tauri.app") }
-    assert_equal "wrong argument type String (expected URI::Generic or Ferro::Url::Url)", error.message
+    assert_equal "wrong argument type String (expected Ferro::Url::Url)", error.message
   end
 
   # FrontendDist tries a URL before a path (config.rs:2940-2947), for any

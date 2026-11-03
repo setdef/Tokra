@@ -98,7 +98,7 @@ module ConfigFixtures
   def self.dump(value)
     case value
     when nil, true, false, Integer, Float, String then value
-    when Pathname, URI::Generic, Ferro::Url::Url then value.to_s
+    when Pathname, Ferro::Url::Url then value.to_s
     when Array then value.map { |item| dump(item) }
     when Hash then value.transform_values { |item| dump(item) }
     else dump_data(value)

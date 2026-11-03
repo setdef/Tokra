@@ -27,8 +27,8 @@ module Tokra
   # === Examples
   #
   #   Tokra::WebviewUrl::App.new("index.html")
-  #   Tokra::WebviewUrl::External.new(URI("https://tauri.app"))
-  #   Tokra::WebviewUrl::CustomProtocol.new(URI("doom://index.html"))
+  #   Tokra::WebviewUrl::External.new(Ferro::Url::Url.parse("https://tauri.app"))
+  #   Tokra::WebviewUrl::CustomProtocol.new(Ferro::Url::Url.parse("doom://index.html"))
   module WebviewUrl
     # The path portion of an app URL. To load
     # <tt>tokra://localhost/users/john</tt>, give <tt>"users/john"</tt>.
@@ -36,6 +36,11 @@ module Tokra
     #
     # +path+ is a String or a Pathname, and reads back as a Pathname, as
     # Tauri's holds a PathBuf. Anything else raises TypeError.
+    #
+    # The path joins the app URL as the url crate joins it, when
+    # WebviewWindowBuilder#build runs. A path naming another host, such as
+    # <tt>//exa mple</tt>, that the crate cannot join raises
+    # Error::InvalidUrl there, where Tauri's app panics.
     #
     # === Example
     #
@@ -53,40 +58,38 @@ module Tokra
       end
     end
 
-    # A page on the web, at +url+, a URI, or a Ferro::Url::Url as a
-    # config's URL reads. It must use the +http+ or +https+ scheme.
-    # Anything else raises TypeError.
+    # A page on the web, at +url+, a Ferro::Url::Url, the url crate's
+    # URL, as a config's URL reads. It must use the +http+ or +https+
+    # scheme. Parse the address first, as a Rust caller does; anything
+    # else, a Ruby URI included, raises TypeError.
+    #
+    # The URL reads back frozen: a frozen URL is kept, any other is
+    # copied, so a change you make to yours later does not reach the page.
     #
     # === Example
     #
-    #   Tokra::WebviewUrl::External.new(URI("https://tauri.app"))
+    #   Tokra::WebviewUrl::External.new(Ferro::Url::Url.parse("https://tauri.app"))
     class External < Data.define(:url)
-      # Takes +url+ as a URI::Generic or a Ferro::Url::Url. A Data class validating in
+      # Takes +url+ as a Ferro::Url::Url. A Data class validating in
       # initialize, as App is.
       def initialize(url:) # steep:ignore MethodParameterMismatch
-        WebviewUrl.expect_uri(url)
-        super
+        super(url: WebviewUrl.held(url)) # steep:ignore UnexpectedKeywordArgument
       end
     end
 
-    # A page a custom protocol serves, at +url+, a URI such as
+    # A page a custom protocol serves, at +url+, a Ferro::Url::Url such as
     # <tt>doom://index.html</tt>, or a <tt>data:</tt> URL, which loads as
-    # given. A Ferro::Url::Url, as a config's URL reads, works too;
-    # anything else raises TypeError.
-    #
-    # Ruby's URI refuses characters the url crate percent-encodes as it
-    # parses, such as the <tt><</tt> of a <tt>data:</tt> URL's HTML, so
-    # encode them first.
+    # given. Anything else raises TypeError, and the URL reads back frozen,
+    # as External's does.
     #
     # === Example
     #
-    #   Tokra::WebviewUrl::CustomProtocol.new(URI("doom://index.html"))
+    #   Tokra::WebviewUrl::CustomProtocol.new(Ferro::Url::Url.parse("doom://index.html"))
     class CustomProtocol < Data.define(:url)
-      # Takes +url+ as a URI::Generic or a Ferro::Url::Url. A Data class validating in
+      # Takes +url+ as a Ferro::Url::Url. A Data class validating in
       # initialize, as App is.
       def initialize(url:) # steep:ignore MethodParameterMismatch
-        WebviewUrl.expect_uri(url)
-        super
+        super(url: WebviewUrl.held(url)) # steep:ignore UnexpectedKeywordArgument
       end
     end
 
@@ -108,14 +111,14 @@ module Tokra
       ])
     end
 
-    # Raises TypeError, in Ruby's words, unless +url+ is a URI or a
-    # Ferro::Url::Url, url's own <tt>url::Url</tt>, which a config's URL is.
-    def self.expect_uri(url) # :nodoc:
-      unless url.is_a?(URI::Generic) || url.is_a?(Ferro::Url::Url)
-        raise TypeError, "wrong argument type #{url.class} (expected URI::Generic or Ferro::Url::Url)"
-      end
+    # +url+ as a variant holds it: frozen, copied first unless it already
+    # is, since Rust moves the Url into the enum and no one else can change
+    # it there. Raises TypeError, in Ruby's words, unless +url+ is a
+    # Ferro::Url::Url, the url crate's <tt>url::Url</tt> (plan 055).
+    def self.held(url) # :nodoc:
+      raise TypeError, "wrong argument type #{url.class} (expected Ferro::Url::Url)" unless url.is_a?(Ferro::Url::Url)
 
-      nil
+      url.frozen? ? url : url.dup.freeze
     end
   end
 end

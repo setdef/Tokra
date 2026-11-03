@@ -129,11 +129,13 @@ module Tokra
     # SPDX-SnippetComment: The page and cookie methods adapted from tauri/crates/tauri/src/webview/mod.rs
     #                      and the webview messages of tauri-runtime-wry/src/lib.rs
 
-    # The address of the page this webview shows, a URI.
+    # The address of the page this webview shows, a Ferro::Url::Url, the
+    # url crate's URL.
     #
     # From another thread this asks the main thread and waits for its
-    # answer. Raises Error::InvalidUrl when the address has no scheme, as
-    # before WebKitGTK's first load, or Ruby's URI cannot parse it;
+    # answer. Raises Error::InvalidUrl, in the url crate's words, when the
+    # crate cannot parse the address, as for the empty one WebKitGTK has
+    # before its first load ("relative URL without a base");
     # Error::Runtime "failed to send message to the webview" when the
     # platform cannot tell; and Error::Runtime "failed to receive message
     # from webview" once the webview is closed, or when the event loop
@@ -149,23 +151,20 @@ module Tokra
     #
     # === Example
     #
-    #   webview.url  #=> #<URI::Generic tokra://localhost/>
+    #   webview.url.as_str  #=> "tokra://localhost/"
     def url
-      address = query(&:url)
-      parsed = URI.parse(address)
-      raise Error::InvalidUrl, Error::InvalidUrl::RELATIVE_URL_WITHOUT_BASE unless parsed.absolute?
-
-      parsed
-    rescue URI::InvalidURIError => e
+      Ferro::Url::Url.parse(query(&:url))
+    rescue Ferro::Url::ParseError => e
       raise Error::InvalidUrl, e.message
     end
 
-    # Loads +url+, a URI::Generic, in this webview, and returns +nil+.
+    # Loads +url+, a Ferro::Url::Url, in this webview, and returns +nil+.
     #
     # Runs as #evaluate does: from another thread it returns without
-    # waiting for the load. Anything but a URI raises TypeError on the
-    # calling thread, and a relative one ArgumentError "relative URL
-    # without a base", as Tauri's Url is always absolute. A URL the
+    # waiting for the load. Anything else, a Ruby URI included, raises
+    # TypeError on the calling thread: parse the address first with
+    # <tt>Ferro::Url::Url.parse</tt>, which refuses a relative one, as
+    # Tauri's Url is always absolute. A URL the
     # webview fails to load is logged, never raised, as Tauri's runtime
     # logs it; a closed webview ignores it. On
     # macOS wry panics on a URL NSURL cannot parse (wkwebview/mod.rs:775),
@@ -177,9 +176,9 @@ module Tokra
     #
     # === Example
     #
-    #   webview.navigate(URI("https://tauri.app"))
+    #   webview.navigate(Ferro::Url::Url.parse("https://tauri.app"))
     def navigate(url)
-      address = absolute(url).to_s
+      address = wry_url(url)
       command("failed to navigate to url #{address}") { |native| native.navigate(address) }
     end
 
@@ -197,7 +196,7 @@ module Tokra
     end
 
     # The cookies in this webview's cookie store that go with requests
-    # to +url+, a URI::Generic, as an Array of Cookie, HTTP-only and
+    # to +url+, a Ferro::Url::Url, as an Array of Cookie, HTTP-only and
     # secure ones included.
     #
     # Only +http+ and +https+ URLs have cookies: cookies a page served over
@@ -210,8 +209,7 @@ module Tokra
     # +localhost+; ask for the +https+ URL, or read #cookies, to see it.
     #
     # Answers as #cookies does, and raises on the calling thread TypeError
-    # for anything but a URI and ArgumentError for a relative one, as
-    # #navigate does.
+    # for anything but a Ferro::Url::Url, as #navigate does.
     #
     # Mirrors Tauri's Webview::cookies_for_url (webview/mod.rs:2094-2113;
     # tauri-runtime-wry lib.rs:1704-1717, 3785-3790). For a closed webview
@@ -220,10 +218,10 @@ module Tokra
     #
     # === Example
     #
-    #   webview.cookies_for_url(URI("https://tauri.app"))
+    #   webview.cookies_for_url(Ferro::Url::Url.parse("https://tauri.app"))
     #   #=> [#<data Tokra::Cookie name="session", value="abc", ...>]
     def cookies_for_url(url)
-      address = absolute(url).to_s
+      address = wry_url(url)
       query { |native| native.cookies_for_url(address) }.map { |fields| Cookie.from_native(fields) }
     end
 
@@ -351,12 +349,14 @@ module Tokra
       end
     end
 
-    # +url+, which must be an absolute URI::Generic.
-    private def absolute(url)
-      raise TypeError, "wrong argument type #{url.class} (expected URI::Generic)" unless url.is_a?(URI::Generic)
-      raise ArgumentError, Error::InvalidUrl::RELATIVE_URL_WITHOUT_BASE unless url.absolute?
+    # The String wry takes for +url+, a Ferro::Url::Url: its
+    # <tt>as_str</tt>, as Tauri's runtime hands wry <tt>url.as_str()</tt>
+    # (tauri-runtime-wry lib.rs:3647-3651, 3785-3790). Raises TypeError,
+    # in Ruby's words, for anything else.
+    private def wry_url(url)
+      raise TypeError, "wrong argument type #{url.class} (expected Ferro::Url::Url)" unless url.is_a?(Ferro::Url::Url)
 
-      url
+      url.as_str
     end
 
     # SPDX-SnippetEnd

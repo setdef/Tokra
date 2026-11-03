@@ -824,15 +824,19 @@ module Tokra
       WebviewManager.tokra_protocol_url(os_name)
     end
 
-    # Whether +url+ belongs to the app: same scheme and host as
-    # tokra_protocol_url, the first arm of Tauri's is_local_url
-    # (webview/mod.rs:1680-1688). Tokra serves no devUrl and routes every
-    # registered protocol through tokra://, so the other arms do not apply.
+    # Whether +url+, a String, belongs to the app: read by the url crate,
+    # as Tauri reads the origin (ipc/protocol.rs:302, 491-499), with the
+    # same scheme and domain as tokra_protocol_url, the first arm of
+    # Tauri's is_local_url (webview/mod.rs:1680-1688). Tokra serves no
+    # devUrl and routes every registered protocol through tokra://, so the
+    # other arms do not apply. The domain is compared as the url crate
+    # holds it, case and all: the crate lowercases the scheme and an http
+    # host as it parses, but keeps a tokra:// host's case.
     private def local_url?(url)
-      parsed = URI.parse(url.to_s)
+      parsed = Ferro::Url::Url.parse(url)
       protocol = tokra_protocol_url
-      parsed.scheme.to_s.downcase == protocol.scheme && parsed.host.to_s.downcase == protocol.host
-    rescue URI::InvalidURIError
+      parsed.scheme == protocol.scheme && parsed.domain == protocol.domain
+    rescue Ferro::Url::ParseError
       false
     end
 
@@ -962,22 +966,22 @@ module Tokra
       parameters ? "#{essence};#{parameters}" : essence
     end
 
-    # The Origin header, which must be present and an absolute URL
-    # (ipc/protocol.rs:491-499). Tauri parses it with the url crate, which
-    # rejects a bare <tt>null</tt> origin; an absolute URI is the Ruby
-    # equivalent.
+    # The Origin header, which must be present and a URL the url crate
+    # parses, as Tauri parses it (ipc/protocol.rs:491-499); the crate
+    # refuses a bare <tt>null</tt> origin.
     private def ipc_origin(headers)
       origin = http_header(headers, "Origin")
       raise IpcProtocolError, "missing Origin header" unless origin
       raise IpcProtocolError, "Origin header value must be a string" unless visible_ascii?(origin)
-      raise IpcProtocolError, "Origin header is not a valid URL" unless absolute_url?(origin)
+      raise IpcProtocolError, "Origin header is not a valid URL" unless url?(origin)
 
       origin
     end
 
-    private def absolute_url?(value)
-      URI.parse(value).absolute?
-    rescue URI::InvalidURIError
+    private def url?(value)
+      Ferro::Url::Url.parse(value)
+      true
+    rescue Ferro::Url::ParseError
       false
     end
 
@@ -1086,13 +1090,24 @@ module Tokra
     # event says: the builder's hook hears it with the Webview, then every
     # plugin's on_page_load; a webview the manager no longer holds is
     # nothing to tell (manager/webview.rs:282-300; plugin.rs:965-972).
+    # The payload's URL is wry's String as the url crate parses it, and a
+    # load whose URL the crate refuses is dropped, as tauri-runtime-wry
+    # drops it (lib.rs:4843-4855).
     private def dispatch_page_load(event)
+      url = page_url(event.url)
       webview = @handle.webviews[event.label]
-      return unless webview
+      return unless url && webview
 
-      payload = PageLoadPayload.new(url: event.url, started: event.started?)
+      payload = PageLoadPayload.new(url:, started: event.started?)
       @builder.__send__(:on_page_load_hook)&.call(webview, payload)
       @manager.plugins.on_page_load(webview, payload)
+    end
+
+    # +text+ as the url crate parses it, frozen, or +nil+ when it cannot.
+    private def page_url(text)
+      Ferro::Url::Url.parse(text).freeze
+    rescue Ferro::Url::ParseError
+      nil
     end
 
     # SPDX-SnippetEnd

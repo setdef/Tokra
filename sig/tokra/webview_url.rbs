@@ -10,19 +10,19 @@ module Tokra
     end
 
     class External < Data
-      attr_reader url: URI::Generic | Ferro::Url::Url
-      def self.new: (URI::Generic | Ferro::Url::Url url) -> External
-                  | (url: URI::Generic | Ferro::Url::Url) -> External
+      attr_reader url: Ferro::Url::Url
+      def self.new: (Ferro::Url::Url url) -> External
+                  | (url: Ferro::Url::Url) -> External
     end
 
     class CustomProtocol < Data
-      attr_reader url: URI::Generic | Ferro::Url::Url
-      def self.new: (URI::Generic | Ferro::Url::Url url) -> CustomProtocol
-                  | (url: URI::Generic | Ferro::Url::Url) -> CustomProtocol
+      attr_reader url: Ferro::Url::Url
+      def self.new: (Ferro::Url::Url url) -> CustomProtocol
+                  | (url: Ferro::Url::Url) -> CustomProtocol
     end
 
     def self.deserialize: (json_value value) -> (App | External | CustomProtocol)
-    def self.expect_uri: (Object url) -> nil
+    def self.held: (Ferro::Url::Url url) -> Ferro::Url::Url
   end
 
   type webview_url = WebviewUrl::App | WebviewUrl::External | WebviewUrl::CustomProtocol

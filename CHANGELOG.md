@@ -62,16 +62,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `#accept_first_mouse`, `#initialization_script`,
   `#initialization_script_for_all_frames`, `#user_agent`,
   `#additional_browser_args`, `#disable_drag_drop_handler`,
-  `#enable_clipboard_access`, `#incognito`, `#proxy_url` (`http://` or
-  `socks5://`; any other scheme warns "Invalid proxy url"; ignored on macOS,
-  as in Tauri without `macos-proxy`), `#browser_extensions_enabled`,
+  `#enable_clipboard_access`, `#incognito`, `#proxy_url` (a
+  `Ferro::Url::Url`, `http://` or `socks5://`; any other scheme warns
+  "Invalid proxy url"; ignored on macOS, as in Tauri without
+  `macos-proxy`), `#browser_extensions_enabled`,
   `#extensions_path`, `#data_store_identifier`, `#background_throttling`,
   `#disable_javascript`, `#scroll_bar_style`, and on macOS
   `#allow_link_preview`, each with Tauri's default
 - `Tokra::BackgroundThrottlingPolicy` (`Disabled`, `Suspend`, `Throttle`) and
   `Tokra::ScrollBarStyle` (`Default`, and on Windows `FluentOverlay`)
 - `Webview#url`, `#navigate`, `#reload`, `#cookies`, `#cookies_for_url`,
-  `#set_cookie`, and `#delete_cookie`, the same on `WebviewWindow`, with
+  `#set_cookie`, and `#delete_cookie`, the same on `WebviewWindow`, each URL
+  a `Ferro::Url::Url`, with
   `Tokra::Cookie` (and its `SameSite` and `Expiration`) and
   `Error::InvalidUrl`; a failed navigation, reload, or cookie write is
   logged in Tauri's words, and where wry panics (some cookies on macOS
@@ -82,8 +84,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `#get_focused_window`; `Webview#cursor_position`; and
   `Ipc::Invoke#webview_window`
 - `Tokra::WebviewUrl::App`, `External`, and `CustomProtocol`, the page a new
-  webview opens; an `App` path joins `tokra://localhost/`
-  (`http://tokra.localhost/` on Windows)
+  webview opens; `External` and `CustomProtocol` hold a frozen
+  `Ferro::Url::Url`, and an `App` path joins `tokra://localhost/`
+  (`http://tokra.localhost/` on Windows) as the url crate joins it
 - Window labels follow Tauri's rule: a label with any character but a
   letter, a digit, `-`, `/`, `:`, or `_` raises `Error::Runtime`, and a
   taken one `Error::WebviewLabelAlreadyExists` or
@@ -108,7 +111,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `Native::WebviewFocusedEvent`, each carrying its webview's label; and
   `Native::WebView#set_theme` (Windows)
 - `Builder#on_page_load`'s block receives the `Webview` that loaded the
-  page, and each plugin's `Plugin#on_page_load` hears the load after it
+  page, and each plugin's `Plugin#on_page_load` hears the load after it;
+  the payload's `url` is a `Ferro::Url::Url`, and a load whose URL the url
+  crate refuses is not reported
 - Dependency: webview2-com 0.38.2 on Windows
 - `Tokra::Webview` wrapper class with per-webview `ResourceTable`
 - `Tokra::Window` wrapper class with per-window `ResourceTable`
@@ -460,8 +465,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `pattern`) and `Tokra::PackageInfo`
 - `Tokra::Utils::Config` (Tauri's config types) and its `Parse`,
   `Tokra::Codegen`, `Tokra::Pattern`, and `Tokra::Utils::Platform::Target`
-- `WebviewUrl::External` and `CustomProtocol` also take a `Ferro::Url::Url`
-- Dependency: ferro-url 0.1.0.pre.1 (url 2.5.8), for the config's URLs
+- Dependency: ferro-url 0.1.0.pre.1 (url 2.5.8), for every URL Tauri types as
+  `url::Url`
 
 ### Changed
 

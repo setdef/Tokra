@@ -244,7 +244,19 @@ class TestAppRouting < Minitest::Test
     assert_same side, log[2][1]
     assert_same log[0][2], log[1][2], "all hear one payload"
     assert_same log[0][2], log[2][2], "all hear one payload"
-    assert_equal Tokra::PageLoadPayload.new(url: "tokra://localhost/", started: false), log[0][2]
+    assert_equal Tokra::PageLoadPayload.new(url: Ferro::Url::Url.parse("tokra://localhost/"), started: false), log[0][2]
+    assert_predicate log[0][2].url, :frozen?
+  end
+
+  # tauri-runtime-wry parses wry's URL and drops a load the url crate
+  # refuses (lib.rs:4843-4855).
+  def test_a_page_load_whose_url_the_url_crate_refuses_reaches_no_hook
+    hook = Ractor.shareable_proc { |webview, payload| Thread.current[:routing] << [:hook, webview, payload] }
+    run_app(builder: -> (b) { b.on_page_load(&hook) }, plugin: true) do
+      [N::PageLoadEvent.new("side", "started", ""), N::PageLoadEvent.new("side", "finished", "http://exa mple.test/")]
+    end
+
+    assert_empty log
   end
 
   def test_a_page_load_in_an_unknown_webview_reaches_no_hook

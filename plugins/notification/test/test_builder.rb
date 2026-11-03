@@ -38,6 +38,20 @@ class TestBuilder < Minitest::Test
     assert_equal "wrong argument type String (expected Ferro::Url::Url)", error.message
   end
 
+  # Rust moves the Url into the Attachment; a Ruby value holds a frozen
+  # one, so the caller's later change does not reach it (plan 055,
+  # decision 3).
+  def test_an_attachment_holds_a_frozen_copy_of_its_url
+    given = Ferro::Url::Url.parse("file:///a.png")
+    attachment = Notification::Attachment.new(id: "a", url: given)
+    given.set_path("/changed.png")
+
+    assert_predicate attachment.url, :frozen?
+    assert_equal "file:///a.png", attachment.url.as_str
+    frozen = Ferro::Url::Url.parse("file:///b.png").freeze
+    assert_same frozen, Notification::Attachment.new(id: "b", url: frozen).url
+  end
+
   def test_a_schedule_refuses_a_date_that_is_not_parsed
     error = assert_raises(TypeError) { Notification::Schedule::At.new(date: Time.utc(2026, 10, 26, 12)) }
     assert_equal "wrong argument type Time (expected Ferro::Time::OffsetDateTime)", error.message

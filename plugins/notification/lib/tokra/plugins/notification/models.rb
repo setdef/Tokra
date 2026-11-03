@@ -33,7 +33,9 @@ module Tokra
       #   Attachment.new(id: "photo", url: Ferro::Url::Url.parse("asset://localhost/photo.png"))
       class Attachment < Data.define(:id, :url)
         # Creates an attachment. A +url+ that is not a Ferro::Url::Url
-        # raises +TypeError+, as Rust's types refuse it.
+        # raises +TypeError+, as Rust's types refuse it. The URL reads back
+        # frozen: a frozen URL is kept, any other is copied, so a change
+        # you make to yours later does not reach the attachment.
         #
         # === Example
         #
@@ -42,7 +44,7 @@ module Tokra
         def initialize(id:, url:)
           raise TypeError, "wrong argument type #{url.class} (expected #{Ferro::Url::Url})" unless url.is_a?(Ferro::Url::Url)
 
-          super
+          super(id:, url: url.frozen? ? url : url.dup.freeze)
         end
       end
 

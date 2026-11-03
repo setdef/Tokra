@@ -8,7 +8,7 @@ module Tokra
     def initialization_script: () -> String?
     def window_created: (Window window) -> void
     def webview_created: (Webview webview) -> void
-    def on_navigation: (Native::WebView webview, String url) -> bool
+    def on_navigation: (Native::WebView webview, Ferro::Url::Url url) -> bool
     def on_page_load: (Webview webview, PageLoadPayload payload) -> void
     def on_event: (AppHandle app, run_event event) -> void
     def extend_api: (Ipc::Invoke invoke) -> bool

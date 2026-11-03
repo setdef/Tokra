@@ -106,7 +106,7 @@ module WebviewWindowBuilderFixture
   # Serves "main"'s page at / and the built windows' pages elsewhere.
   # Prints the path each webview asked for, which its WebviewUrl named.
   PROTOCOL = Ractor.shareable_proc do |context, request|
-    puts "REQUEST #{context.webview_label} #{URI(request.uri).path}"
+    puts "REQUEST #{context.webview_label} #{Ferro::Url::Url.parse(request.uri).path}"
     label = context.webview_label
     page = if label == "main" then MAIN_PAGE
     elsif label.start_with?("bar-") then BAR_PAGE

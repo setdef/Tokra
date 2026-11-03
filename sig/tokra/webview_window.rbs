@@ -98,10 +98,10 @@ module Tokra
     def eval: (String script) -> nil
     def cursor_position: () -> PhysicalPosition
     def resources_table: () -> ResourceTable
-    def url: () -> URI::Generic
-    def navigate: (URI::Generic url) -> nil
+    def url: () -> Ferro::Url::Url
+    def navigate: (Ferro::Url::Url url) -> nil
     def reload: () -> nil
-    def cookies_for_url: (URI::Generic url) -> Array[Cookie]
+    def cookies_for_url: (Ferro::Url::Url url) -> Array[Cookie]
     def cookies: () -> Array[Cookie]
     def set_cookie: (Cookie cookie) -> nil
     def delete_cookie: (Cookie cookie) -> nil

@@ -13,7 +13,9 @@
 module Tokra
   # Page load payload passed to on_page_load callbacks.
   #
-  # Indicates whether the page load is starting or finished.
+  # Indicates whether the page load is starting or finished, and at which
+  # +url+, a frozen Ferro::Url::Url, the url crate's URL, as Tauri's
+  # payload holds a Url (webview/mod.rs:108-123).
   class PageLoadPayload < Data.define(:url, :started)
     ##
     # Returns true if the page load is starting.

@@ -103,25 +103,20 @@ module Tokra
 
     # Raised when a URL the webview answers is no URL.
     #
-    # Webview#url answers a URI. A webview whose page has no address yet
-    # can answer one Ruby cannot parse, or one with no scheme, such as
-    # the empty String WebKitGTK answers before its first load.
+    # Webview#url answers a Ferro::Url::Url, the url crate's URL. A
+    # webview whose page has no address yet can answer one the crate
+    # cannot parse, such as the empty String WebKitGTK answers before its
+    # first load.
     #
     # Mirrors <tt>tauri::Error::InvalidUrl</tt> (error.rs:67-70), whose
-    # message prefixes the url crate's. A URL without a scheme gives the
-    # url crate's "relative URL without a base"; one Ruby's URI refuses
-    # gives URI's own message, where the url crate would name its own
-    # reason.
+    # message prefixes the url crate's: a Ferro::Url::ParseError's, such
+    # as "relative URL without a base".
     #
     # === Example
     #
     #   webview.url
     #   # raises Tokra::Error::InvalidUrl: "invalid url: relative URL without a base"
     class InvalidUrl < Error
-      # The url crate's ParseError::RelativeUrlWithoutBase
-      # (url 2.5.8 src/parser.rs:95).
-      RELATIVE_URL_WITHOUT_BASE = "relative URL without a base"
-
       # Creates the error from the parser's +message+.
       def initialize(message)
         super("invalid url: #{message}")

@@ -4,17 +4,12 @@
 module Tokra
   class WebviewManager
     WEBVIEW_CREATED_EVENT: String
-    PATH_ENCODED: Regexp
-    QUERY_ENCODED: Regexp
-    FRAGMENT_ENCODED: Regexp
 
     @manager: AppManager
     @with_global_tauri: bool
     @os_name: String
 
-    def self.tokra_protocol_url: (String os) -> URI::Generic
-    def self.encode_relative: (String relative, ?special: bool) -> String
-    def self.encode: (String text, Regexp set) -> String
+    def self.tokra_protocol_url: (String os) -> Ferro::Url::Url
     def initialize: (AppManager manager, os_name: String, ?with_global_tauri: bool) -> void
     def webview_url: (webview_url url) -> String
     def attach_webview: (Webview webview) -> Webview

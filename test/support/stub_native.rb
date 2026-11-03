@@ -661,7 +661,7 @@ set_enabled: :is_enabled,
       raise page_error if page_error
 
       cookie_urls << url
-      cookie_store.select { |fields| fields[:domain] == URI(url).host }.map(&:dup)
+      cookie_store.select { |fields| fields[:domain] == Ferro::Url::Url.parse(url).host_str }.map(&:dup)
     end
 
     # Stores +fields+, replacing a cookie of the same name, domain, and

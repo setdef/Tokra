@@ -239,6 +239,20 @@ class TestBuilderIpcProtocol < Minitest::Test
     StubNative.clear_event
   end
 
+  # Tauri reads the Origin with the url crate (ipc/protocol.rs:491-499),
+  # which refuses a port past 65535 that Ruby's URI takes (plan 055,
+  # decision 7).
+  def test_origin_the_url_crate_refuses_is_malformed_500
+    app = build_test_app
+    run_with(app, ipc_request(app, cmd: "ping", origin: "tokra://localhost:99999"))
+
+    _id, status, _headers, body = last_response
+    assert_equal 500, status
+    assert_equal "Origin header is not a valid URL", body
+  ensure
+    StubNative.clear_event
+  end
+
   def test_invalid_json_body_is_malformed_500
     app = build_test_app
     run_with(app, ipc_request(app, cmd: "ping", body: "{not json"))

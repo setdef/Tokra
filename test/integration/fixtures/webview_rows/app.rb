@@ -105,7 +105,7 @@ module WebviewRowsFixture
 
   # Serves each window's page, and prints an image "nojs" asks for.
   PROTOCOL = Ractor.shareable_proc do |context, request|
-    path = URI(request.uri).path
+    path = Ferro::Url::Url.parse(request.uri).path
     label = context.webview_label
     case path
     when "/agent.html" then Tokra::Response.ok(WebviewRowsFixture::AGENT_PAGE)

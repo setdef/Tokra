@@ -126,25 +126,17 @@ module Tokra
     # Tauri's WebviewBuilder::proxy_url, sent as parse_proxy_url reads it
     # (webview/mod.rs:1015-1018; lib.rs:4301-4316, 4861-4865).
     def proxy_url(url)
-      expect(url, URI::Generic)
+      expect(url, Ferro::Url::Url)
       set(:proxy_url, WebviewBuilder.proxy_endpoint(url))
     end
 
     # The <tt>[scheme, host, port]</tt> tauri-runtime-wry's parse_proxy_url
-    # reads from +url+ (lib.rs:4301-4316): the scheme lowercased, the host
-    # as the url crate prints it, lowercased for http, whose host the url
-    # crate lowercases, and the port as a String, empty when +url+ names
-    # none or its scheme's default, as Url::port answers. For http the url
-    # crate also normalizes an IDNA host to ASCII and an IPv4 address in another
-    # form, such as <tt>0x7f.1</tt>, to dotted decimal; Ruby's URI does
-    # neither, so such a host reaches the proxy as written.
+    # reads from +url+, a Ferro::Url::Url (lib.rs:4301-4316): the scheme,
+    # the host as the url crate prints it, empty when there is none, and
+    # the port as a String, empty when Url::port answers none, as it does
+    # for the scheme's default.
     def self.proxy_endpoint(url)
-      scheme = url.scheme.to_s.downcase
-      host = url.host.to_s
-      host = host.downcase if scheme == "http"
-      port = url.port
-      port = nil if port == url.default_port
-      [scheme, host, port.to_s]
+      [url.scheme, url.host.to_s, url.port.to_s]
     end
 
     # Tauri's WebviewBuilder::focused (webview/mod.rs:1034-1037).

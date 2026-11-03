@@ -6,6 +6,7 @@
 #++
 
 require "test_helper"
+require "uri"
 require_relative "support/stub_native"
 require_relative "support/test_app"
 
@@ -39,6 +40,7 @@ class TestWebviewWindowBuilder < Minitest::Test
   end
 
   def page(path = "index.html") = Tokra::WebviewUrl::App.new(path)
+  def url(text) = Ferro::Url::Url.parse(text)
 
   # Runs an app whose Ready handler, on the main thread, gets the handle
   # and the log; +tasks+ TaskEvents follow, each running one queued task.
@@ -111,6 +113,18 @@ class TestWebviewWindowBuilder < Minitest::Test
     log = run_app do |handle, recorded|
       recorded.clear
       assert_raises(Tokra::Error) { Tokra::WebviewWindowBuilder.new(handle, "main", page).build }
+    end
+
+    assert_empty log
+    assert_equal ["main"], StubNative.windows.map(&:label)
+  end
+
+  # An App path the url crate's join refuses raises Error::InvalidUrl on
+  # the calling thread, before anything is built (plan 055, decision 7).
+  def test_an_app_path_the_join_refuses_raises_invalid_url_and_builds_nothing
+    log = run_app do |handle, recorded|
+      recorded.clear
+      assert_raises(Tokra::Error::InvalidUrl) { Tokra::WebviewWindowBuilder.new(handle, "side", page("//exa mple")).build }
     end
 
     assert_empty log
@@ -319,11 +333,12 @@ class TestWebviewWindowBuilder < Minitest::Test
     assert_equal "#{app_url}a%20b.html", webviews.webview_url(page("a%20b.html"))
     assert_equal "#{app_url}%22%3C%3E%60%7B%7D%C3%A9.html", webviews.webview_url(page(%("<>`{}é.html)))
     assert_equal "#{app_url}find?q=a%20b#x%20y", webviews.webview_url(page("find?q=a b#x y"))
-    # Ruby's URI refuses what the url crate passes through: the
-    # deviations webview_url's RDoc names.
-    ["a|b.html", "a^b.html", "a#b#c", "a%zz.html"].each do |path|
-      assert_raises(URI::InvalidURIError, path) { webviews.webview_url(page(path)) }
-    end
+    # The url crate's join keeps what Ruby's URI refuses, and never fails
+    # (manager/webview.rs:418-430: "this will never fail").
+    assert_equal "#{app_url}a|b.html", webviews.webview_url(page("a|b.html"))
+    assert_equal "#{app_url}a^b.html", webviews.webview_url(page("a^b.html"))
+    assert_equal "#{app_url}a#b#c", webviews.webview_url(page("a#b#c"))
+    assert_equal "#{app_url}a%zz.html", webviews.webview_url(page("a%zz.html"))
     assert_equal "#{app_url}a#%60", webviews.webview_url(page("a#`")), "a fragment's ` is encoded, not refused"
     assert_equal "#{app_url}find?q={}", webviews.webview_url(page("find?q={}")), "the url crate keeps a query's braces"
     # The url crate strips tab and newlines anywhere, and C0 controls and
@@ -332,10 +347,14 @@ class TestWebviewWindowBuilder < Minitest::Test
     assert_equal "#{app_url}ab.html", webviews.webview_url(page("a\nb\r.html"))
     assert_equal "#{app_url}a.html", webviews.webview_url(page(" a.html "))
     assert_equal "#{app_url}a.html", webviews.webview_url(page("\u0001a.html\u001F"))
-    assert_equal "https://tauri.app/", webviews.webview_url(Tokra::WebviewUrl::External.new(URI("https://tauri.app/")))
-    assert_equal "doom://index.html", webviews.webview_url(Tokra::WebviewUrl::CustomProtocol.new(URI("doom://index.html")))
-    data = "data:text/html,%3Cp%3Ehi%3C/p%3E"
-    assert_equal data, webviews.webview_url(Tokra::WebviewUrl::CustomProtocol.new(URI(data)))
+    assert_equal "https://tauri.app/", webviews.webview_url(Tokra::WebviewUrl::External.new(url("https://tauri.app/")))
+    assert_equal "doom://index.html", webviews.webview_url(Tokra::WebviewUrl::CustomProtocol.new(url("doom://index.html")))
+    data = "data:text/html,<p>hi</p>"
+    assert_equal data, webviews.webview_url(Tokra::WebviewUrl::CustomProtocol.new(url(data)))
+    # Tauri maps a failed join to Error::InvalidUrl, then unwraps it
+    # (manager/webview.rs:423-427); here it raises.
+    error = assert_raises(Tokra::Error::InvalidUrl) { webviews.webview_url(page("//exa mple")) }
+    assert_equal "invalid url: invalid domain character", error.message
   end
 
   # An http app URL is special, so the url crate reads a path's \\ as /
@@ -347,9 +366,7 @@ class TestWebviewWindowBuilder < Minitest::Test
     macos = Tokra::WebviewManager.new(manager, os_name: "macos")
 
     assert_equal "http://tokra.localhost/a/b", windows.webview_url(page("a\\b"))
-    assert_raises(URI::InvalidURIError, "tokra:// is not special, so \\ stays and Ruby refuses it") do
-      macos.webview_url(page("a\\b"))
-    end
+    assert_equal "tokra://localhost/a\\b", macos.webview_url(page("a\\b")), "tokra:// is not special, so \\ stays"
   end
 
   def test_webview_urls_refuse_the_wrong_types
@@ -357,5 +374,28 @@ class TestWebviewWindowBuilder < Minitest::Test
     assert_raises(TypeError) { Tokra::WebviewUrl::External.new("https://tauri.app") }
     assert_raises(TypeError) { Tokra::WebviewUrl::CustomProtocol.new("doom://index.html") }
     assert_equal Pathname("index.html"), page.path
+  end
+
+  # Tauri's External and CustomProtocol hold the url crate's Url
+  # (config.rs:72-125), so Ruby's URI is refused, not converted (plan 055,
+  # decision 1).
+  def test_external_and_custom_protocol_take_only_the_url_crates_url
+    error = assert_raises(TypeError) { Tokra::WebviewUrl::External.new(URI("https://tauri.app/")) }
+    assert_equal "wrong argument type URI::HTTPS (expected Ferro::Url::Url)", error.message
+    error = assert_raises(TypeError) { Tokra::WebviewUrl::CustomProtocol.new(URI("doom://index.html")) }
+    assert_equal "wrong argument type URI::Generic (expected Ferro::Url::Url)", error.message
+  end
+
+  # Rust moves the Url into the enum; a Ruby value holds a frozen one, so
+  # the caller's later change does not reach it (plan 055, decision 3).
+  def test_a_webview_url_holds_a_frozen_copy_of_its_url
+    given = url("https://tauri.app/")
+    external = Tokra::WebviewUrl::External.new(given)
+    given.set_path("/changed")
+
+    assert_predicate external.url, :frozen?
+    assert_equal "https://tauri.app/", external.url.as_str
+    frozen = url("doom://index.html").freeze
+    assert_same frozen, Tokra::WebviewUrl::CustomProtocol.new(frozen).url
   end
 end

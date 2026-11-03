@@ -127,7 +127,7 @@ class TestBuilderEventDispatch < Minitest::Test
     )
 
     refute_nil Thread.current[:received]
-    assert_equal "tokra://localhost/test", Thread.current[:received].url
+    assert_equal Ferro::Url::Url.parse("tokra://localhost/test"), Thread.current[:received].url
     assert Thread.current[:received].started?
   ensure
     StubNative.clear_event

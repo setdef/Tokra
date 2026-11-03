@@ -36,8 +36,6 @@ module Tokra
     end
 
     class InvalidUrl < Error
-      RELATIVE_URL_WITHOUT_BASE: String
-
       def initialize: (String message) -> void
     end
 

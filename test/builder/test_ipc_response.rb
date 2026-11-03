@@ -223,15 +223,51 @@ class TestBuilderIpcResponse < Minitest::Test
     StubNative.clear_event
   end
 
+  # The url crate lowercases a scheme as it parses, so an uppercase one is
+  # still the app's (webview/mod.rs:1680-1688).
   def test_page_in_app_with_path_and_uppercase_scheme_is_local
     app = build_test_app
+    origin = LocalOrigin.url(app:)
+    scheme, rest = origin.split("://", 2)
     inject_ipc(app, { "cmd" => "missing", "callback" => 1, "error" => 2 },
-      "#{LocalOrigin.url(app:).upcase.delete_suffix('/')}/deep/page?x=1")
+      "#{scheme.upcase}://#{rest.delete_suffix('/')}/deep/page?x=1")
 
     app.run
 
     assert_equal ['window.__TAURI_INTERNALS__.runCallback(2, "Command missing not found")'],
-      webview_evals(app), "scheme and host compare case-insensitively, like the url crate"
+      webview_evals(app), "the url crate lowercases the scheme"
+  ensure
+    StubNative.clear_event
+  end
+
+  # Tauri's first arm compares the domain as the url crate holds it,
+  # case and all: the crate lowercases an http host but keeps a tokra://
+  # one's (plan 055, decision 7).
+  def test_a_host_in_another_case_is_local_only_where_the_url_crate_lowercases_it
+    app = build_test_app
+    protocol = app.__send__(:tokra_protocol_url)
+    inject_ipc(app, { "cmd" => "missing", "callback" => 1, "error" => 2 },
+      "#{protocol.scheme}://#{protocol.domain.to_s.upcase}/")
+
+    app.run
+
+    expected = (protocol.scheme == "http") ? "Command missing not found" : "Command missing not allowed by ACL"
+    assert_equal ["window.__TAURI_INTERNALS__.runCallback(2, \"#{expected}\")"], webview_evals(app)
+  ensure
+    StubNative.clear_event
+  end
+
+  # The app's domain under another scheme is not the app's
+  # (webview/mod.rs:1683-1686).
+  def test_the_apps_domain_under_another_scheme_is_foreign
+    app = build_test_app
+    domain = app.__send__(:tokra_protocol_url).domain
+    inject_ipc(app, { "cmd" => "ping", "callback" => 1, "error" => 2 }, "doom://#{domain}/")
+
+    app.run
+
+    assert_equal ['window.__TAURI_INTERNALS__.runCallback(2, "Command ping not allowed by ACL")'],
+      webview_evals(app)
   ensure
     StubNative.clear_event
   end

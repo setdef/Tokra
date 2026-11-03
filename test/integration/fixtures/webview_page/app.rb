@@ -106,7 +106,7 @@ module WebviewPageFixture
     loads = (Thread.current[:webview_page_loads] ||= 0)
     Thread.current[:webview_page_loads] = loads + 1
     case loads
-    when 0 then webview.navigate(URI(FIRST))
+    when 0 then webview.navigate(Ferro::Url::Url.parse(FIRST))
     when 1 then first_load(webview)
     when 2 then reloaded(webview)
     end
@@ -116,7 +116,7 @@ module WebviewPageFixture
   # Ruby sets, and a reload, whose request carries both.
   def self.first_load(webview)
     puts "URL nav #{webview.url}"
-    puts "COOKIES for-url #{names(webview.cookies_for_url(URI(ORIGIN)))}"
+    puts "COOKIES for-url #{names(webview.cookies_for_url(Ferro::Url::Url.parse(ORIGIN)))}"
     webview.set_cookie(APP_COOKIE)
     stored = settle("all", -> { webview.cookies.select { |cookie| cookie.domain == "localhost" } }) do |cookies|
       cookies.any? { |cookie| cookie.name == "app" }
@@ -130,13 +130,13 @@ module WebviewPageFixture
   def self.reloaded(webview)
     puts "RELOADED"
     webview.delete_cookie(APP_COOKIE)
-    left = settle("after-delete", -> { webview.cookies_for_url(URI(ORIGIN)) }) do |cookies|
+    left = settle("after-delete", -> { webview.cookies_for_url(Ferro::Url::Url.parse(ORIGIN)) }) do |cookies|
       cookies.none? { |cookie| cookie.name == "app" }
     end
     puts "COOKIES after-delete #{names(left)}"
     handle = webview.app_handle
     Thread.new do
-      puts "COOKIES thread #{names(webview.cookies_for_url(URI(ORIGIN)))}"
+      puts "COOKIES thread #{names(webview.cookies_for_url(Ferro::Url::Url.parse(ORIGIN)))}"
       handle.run_on_main_thread { handle.exit(0) }
     end
   end

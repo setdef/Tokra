@@ -6,6 +6,7 @@
 #++
 
 require "test_helper"
+require "uri"
 require_relative "support/stub_native"
 require_relative "support/test_app"
 
@@ -36,13 +37,14 @@ class TestWebviewPage < Minitest::Test
   end
 
   def session_cookie = Tokra::Cookie.new(name: "session", value: "abc", domain: "localhost", path: "/")
+  def url(text) = Ferro::Url::Url.parse(text)
 
-  def test_url_answers_the_pages_url_as_a_uri
+  def test_url_answers_the_pages_url_as_the_url_crates_url
     run_app do |webview|
-      url = webview.url
+      answered = webview.url
 
-      assert_kind_of URI::Generic, url
-      assert_equal URI(app_url), url
+      assert_instance_of Ferro::Url::Url, answered
+      assert_equal url(app_url), answered
     end
   end
 
@@ -58,11 +60,19 @@ class TestWebviewPage < Minitest::Test
     end
   end
 
-  def test_url_that_ruby_cannot_parse_raises_invalid_url
+  # Error::InvalidUrl prints the url crate's ParseError (error.rs:67-70),
+  # whatever the reason, so the parse is the crate's, not Ruby's URI
+  # (plan 055, decision 2).
+  def test_url_the_url_crate_refuses_raises_invalid_url_in_its_words
     run_app do |webview|
       webview.native.current_url = "http://exa mple.test/"
+      error = assert_raises(Tokra::Error::InvalidUrl) { webview.url }
 
-      assert_raises(Tokra::Error::InvalidUrl) { webview.url }
+      assert_equal "invalid url: invalid international domain name", error.message
+      webview.native.current_url = "http://localhost:99999/"
+      error = assert_raises(Tokra::Error::InvalidUrl, "Ruby's URI takes this port") { webview.url }
+
+      assert_equal "invalid url: invalid port number", error.message
     end
   end
 
@@ -84,18 +94,23 @@ class TestWebviewPage < Minitest::Test
 
   def test_navigate_loads_the_url_and_url_reads_it_back
     run_app do |webview|
-      assert_nil webview.navigate(URI("https://tauri.app/about"))
+      assert_nil webview.navigate(url("https://tauri.app/a/../about"))
 
-      assert_equal ["https://tauri.app/about"], webview.native.navigations
-      assert_equal URI("https://tauri.app/about"), webview.url
+      assert_equal ["https://tauri.app/about"], webview.native.navigations, "wry gets the url crate's as_str"
+      assert_equal url("https://tauri.app/about"), webview.url
     end
   end
 
-  def test_navigate_takes_only_a_uri
+  # Tauri's navigate takes a Url (webview/mod.rs:1670-1673); a URI is
+  # refused, not converted (plan 055, decision 1).
+  def test_navigate_takes_only_the_url_crates_url
     run_app do |webview|
       error = assert_raises(TypeError) { webview.navigate("https://tauri.app") }
 
-      assert_equal "wrong argument type String (expected URI::Generic)", error.message
+      assert_equal "wrong argument type String (expected Ferro::Url::Url)", error.message
+      error = assert_raises(TypeError) { webview.navigate(URI("https://tauri.app")) }
+
+      assert_equal "wrong argument type URI::HTTPS (expected Ferro::Url::Url)", error.message
       assert_empty webview.native.navigations
     end
   end
@@ -107,7 +122,7 @@ class TestWebviewPage < Minitest::Test
       webview.native.page_error = RuntimeError.new("refused")
 
       assert_output(nil, "failed to navigate to url https://tauri.app/: refused\n") do
-        assert_nil webview.navigate(URI("https://tauri.app/"))
+        assert_nil webview.navigate(url("https://tauri.app/"))
       end
     end
   end
@@ -128,7 +143,7 @@ class TestWebviewPage < Minitest::Test
       webview.native.close
 
       assert_output(nil, "") do
-        webview.navigate(URI("https://tauri.app/"))
+        webview.navigate(url("https://tauri.app/"))
         webview.reload
         webview.set_cookie(session_cookie)
         webview.delete_cookie(session_cookie)
@@ -145,7 +160,7 @@ class TestWebviewPage < Minitest::Test
       assert_nil webview.set_cookie(session_cookie)
       assert_nil webview.set_cookie(other)
       assert_equal [session_cookie, other], webview.cookies
-      assert_equal [session_cookie], webview.cookies_for_url(URI("http://localhost/"))
+      assert_equal [session_cookie], webview.cookies_for_url(url("http://localhost/"))
       assert_equal ["http://localhost/"], webview.native.cookie_urls
 
       assert_nil webview.delete_cookie(session_cookie)
@@ -186,7 +201,10 @@ class TestWebviewPage < Minitest::Test
       assert_raises(TypeError) { webview.delete_cookie("a=b") }
       error = assert_raises(TypeError) { webview.cookies_for_url("http://localhost/") }
 
-      assert_equal "wrong argument type String (expected URI::Generic)", error.message
+      assert_equal "wrong argument type String (expected Ferro::Url::Url)", error.message
+      error = assert_raises(TypeError) { webview.cookies_for_url(URI("http://localhost/")) }
+
+      assert_equal "wrong argument type URI::HTTP (expected Ferro::Url::Url)", error.message
       assert_empty webview.native.cookie_store
     end
   end
@@ -198,12 +216,12 @@ class TestWebviewPage < Minitest::Test
       webview.native.page_error = RuntimeError.new("timed out waiting for cookies response")
 
       assert_equal SEND, assert_raises(Tokra::Error::Runtime) { webview.cookies }.message
-      assert_equal SEND, assert_raises(Tokra::Error::Runtime) { webview.cookies_for_url(URI("http://localhost/")) }.message
+      assert_equal SEND, assert_raises(Tokra::Error::Runtime) { webview.cookies_for_url(url("http://localhost/")) }.message
       webview.native.page_error = nil
       webview.native.close
 
       assert_equal RECEIVE, assert_raises(Tokra::Error::Runtime) { webview.cookies }.message
-      assert_equal RECEIVE, assert_raises(Tokra::Error::Runtime) { webview.cookies_for_url(URI("http://localhost/")) }.message
+      assert_equal RECEIVE, assert_raises(Tokra::Error::Runtime) { webview.cookies_for_url(url("http://localhost/")) }.message
     end
   end
 
@@ -241,29 +259,31 @@ class TestWebviewPage < Minitest::Test
   def test_a_webview_window_sends_the_page_and_cookie_methods_to_its_webview
     run_app do |webview, handle|
       window = handle.get_webview_window("main")
-      window.navigate(URI("https://tauri.app/"))
+      window.navigate(url("https://tauri.app/"))
       window.reload
       window.set_cookie(session_cookie)
 
-      assert_equal URI("https://tauri.app/"), window.url
+      assert_equal url("https://tauri.app/"), window.url
       assert_equal ["https://tauri.app/"], webview.native.navigations
       assert_equal 1, webview.native.reloads
       assert_equal [session_cookie], window.cookies
-      assert_equal [session_cookie], window.cookies_for_url(URI("http://localhost/"))
+      assert_equal [session_cookie], window.cookies_for_url(url("http://localhost/"))
       window.delete_cookie(session_cookie)
 
       assert_empty window.cookies
     end
   end
 
-  # Tauri's Url is always absolute, so a relative URI is refused on the
-  # calling thread.
-  def test_navigate_and_cookies_for_url_refuse_a_relative_uri
-    run_app do |webview|
-      error = assert_raises(ArgumentError) { webview.navigate(URI("/about")) }
+  # Tauri's Url is always absolute: the url crate refuses a relative one
+  # as it parses, in its own words, and a relative URI is refused by its
+  # type on the calling thread (plan 055, decision 2).
+  def test_a_relative_url_is_refused_before_navigate_and_cookies_for_url_see_it
+    error = assert_raises(Ferro::Url::ParseError::RelativeUrlWithoutBase) { url("/about") }
 
-      assert_equal "relative URL without a base", error.message
-      assert_raises(ArgumentError) { webview.cookies_for_url(URI("localhost/")) }
+    assert_equal "relative URL without a base", error.message
+    run_app do |webview|
+      assert_raises(TypeError) { webview.navigate(URI("/about")) }
+      assert_raises(TypeError) { webview.cookies_for_url(URI("localhost/")) }
       assert_empty webview.native.navigations
       assert_empty webview.native.cookie_urls
     end

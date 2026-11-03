@@ -53,7 +53,7 @@ module Tokra
     def disable_drag_drop_handler: () -> self
     def enable_clipboard_access: () -> self
     def incognito: (bool incognito) -> self
-    def proxy_url: (URI::Generic url) -> self
+    def proxy_url: (Ferro::Url::Url url) -> self
     def browser_extensions_enabled: (bool enabled) -> self
     def extensions_path: (String | _ToPath path) -> self
     def data_store_identifier: (Array[Integer] data_store_identifier) -> self

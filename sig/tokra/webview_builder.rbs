@@ -22,8 +22,8 @@ module Tokra
     def disable_drag_drop_handler: () -> self
     def enable_clipboard_access: () -> self
     def incognito: (bool incognito) -> self
-    def proxy_url: (URI::Generic url) -> self
-    def self.proxy_endpoint: (URI::Generic url) -> Native::WebView::proxy
+    def proxy_url: (Ferro::Url::Url url) -> self
+    def self.proxy_endpoint: (Ferro::Url::Url url) -> Native::WebView::proxy
     def focused: (bool focus) -> self
     def browser_extensions_enabled: (bool enabled) -> self
     def extensions_path: (String | _ToPath path) -> self
