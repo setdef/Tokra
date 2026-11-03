@@ -594,3 +594,15 @@ module StubWindowsMenusNative
     include StubNative::WindowMenuThemes
   end
 end
+
+# Every test starts with StubNative's recorders empty. They live on the
+# test's thread, and a test that runs an App and never clears them, such as
+# one whose Builder.default installs the default menu on NSApp, would hand
+# its calls to whichever test the run's order puts next.
+module StubNativeReset
+  def before_setup
+    StubNative.clear_event
+    super
+  end
+end
+Minitest::Test.prepend(StubNativeReset)
