@@ -140,16 +140,16 @@ namespace :test do
   # The real-window tests that need the console run in this session even
   # where the rest run hidden, holding the desktop input lock that other
   # projects' tests take before they take the keyboard (Plans 046, 057),
-  # so no one's synthetic input lands in their windows. They take neither
-  # the keyboard nor focus, so the span is a silent one. It lasts the
-  # whole run, so a console test that took the lock in its own process
-  # would wait on its parent forever. The plugins' bundles install first,
-  # so the lock is never held across a network install.
+  # so no one's synthetic input lands in their windows. A click that
+  # lands on one of their dialog sheets would end it, so the span speaks
+  # and shows its banner, once, around only these tests: compiling and
+  # the plugins' bundle installs happen before it. A console test that
+  # took the lock in its own process would wait on its parent forever.
   desc "Run the real-window tests that need the console (RealWindows::CONSOLE) in this session"
   task console: :compile do
     require_relative "../test/integration/support/keyboard_notice"
     Rake::Task["test:console:bundles"].invoke
-    KeyboardNotice.taking_the_keyboard(speak: false) do
+    KeyboardNotice.taking_the_keyboard do
       Rake::Task["test:console:core"].invoke unless RealWindows.console_tests.empty?
       Rake::Task["test:console:plugins"].invoke
     end

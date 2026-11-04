@@ -280,6 +280,13 @@ class TestRealWindows < Minitest::Test
         end
         free ? "unlocked" : "locked"
       end
+      require_relative "test/integration/support/keyboard_notice"
+      KeyboardNotice.singleton_class.prepend(Module.new do
+        define_method(:taking_the_keyboard) do |speak: true, &block|
+          puts "said notice speak=\#{speak}"
+          super(speak: speak, &block)
+        end
+      end)
       Rake::Task["compile"].clear
       Rake::Task.define_task("compile") { puts "said compile, \#{held.call}" }
       define_singleton_method(:install_plugin_bundle) { |plugin| puts "said bundle \#{plugin}, \#{held.call}" }
@@ -321,6 +328,7 @@ class TestRealWindows < Minitest::Test
     assert_equal [
       "said compile, unlocked",
       "said bundle plugins/dialog, unlocked",
+      "said notice speak=true",
       *plugin_lines(%w[test/test_dialog_window.rb]),
 ], console_runs
   end
@@ -332,6 +340,7 @@ class TestRealWindows < Minitest::Test
     assert_equal [
       "said compile, unlocked",
       "said bundle plugins/dialog, unlocked",
+      "said notice speak=true",
       "said core #{run_env.inspect} #{[core].inspect}, #{HELD}",
       *plugin_lines(%w[test/test_dialog_window.rb]),
 ],
