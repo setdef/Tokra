@@ -211,11 +211,11 @@ module Tokra
     # Registered plugins hear each one first.
     #
     # Each window the config's <tt>app.windows</tt> lists with +create+
-    # set is built through WebviewWindowBuilder, in order, before the setup
-    # hook, so the hook finds them; a config that lists none opens none.
-    # Each takes its label, URL, title, and size. A builder error, such as
-    # an invalid label or one already taken, ends this method with that
-    # error, as an error the setup hook raises does. If the platform
+    # set is built through WebviewWindowBuilder.from_config, in order,
+    # before the setup hook, so the hook finds them; a config that lists
+    # none opens none. A builder error, such as an invalid label, one
+    # already taken, or a +parent+ no window built before it has, ends
+    # this method with that error, as an error the setup hook raises does. If the platform
     # refuses a window, the failure is warned and the app runs on, as
     # Tauri's does; with no window, nothing closes, so it never asks to
     # exit on its own, and AppHandle#exit ends it. (Tauri builds its config
@@ -396,15 +396,11 @@ module Tokra
     # SPDX-SnippetComment: the config's windows adapted from tauri/crates/tauri/src/app.rs:2370-2375
 
     # Builds each window of the config's <tt>app.windows</tt> whose
-    # +create+ is set, in order, as Tauri's setup does. Each takes the
-    # label, URL, title, and size of its WindowConfig; plan 054a-4 builds
-    # it through WebviewWindowBuilder.from_config with every row.
+    # +create+ is set, in order, through WebviewWindowBuilder.from_config,
+    # as Tauri's setup does.
     private def create_config_windows
       config.app.windows.select(&:create).each do |window_config|
-        WebviewWindowBuilder.new(self, window_config.label, window_config.url)
-          .title(window_config.title)
-          .inner_size(window_config.width, window_config.height)
-          .build
+        WebviewWindowBuilder.from_config(self, window_config).build
       end
     end
 

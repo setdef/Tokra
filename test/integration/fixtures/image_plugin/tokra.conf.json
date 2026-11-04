@@ -5,7 +5,8 @@
       {
         "title": "Tokra integration: image plugin",
         "width": 480,
-        "height": 360
+        "height": 360,
+        "backgroundThrottling": "disabled"
       }
     ],
     "withGlobalTauri": true

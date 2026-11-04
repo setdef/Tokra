@@ -207,8 +207,9 @@ impl Attributes<'_> {
         Ok(builder)
     }
 
-    /// The rows only Linux reads: `transparent` and `skip_taskbar`
-    /// (`src/lib.rs:1070-1074`, `1209-1221`).
+    /// The rows only Linux reads: `transparent`, `skip_taskbar`, and
+    /// `cursor_moved_event`, which only `with_config` sets
+    /// (`src/lib.rs:1070-1074`, `1209-1221`, `871-881`).
     #[cfg(any(
         target_os = "linux",
         target_os = "dragonfly",
@@ -229,7 +230,11 @@ impl Attributes<'_> {
         if let Some(value) = get::<bool>(ruby, attributes, "skip_taskbar")? {
             builder = builder.with_skip_taskbar(value);
         }
-        Ok(builder)
+        Ok(with_cursor_moved_event(
+            builder,
+            get::<bool>(ruby, attributes, CURSOR_MOVED_EVENT)?,
+            WindowBuilderExtUnix::with_cursor_moved_event,
+        ))
     }
 
     /// The rows only macOS reads: `shadow`, `title_bar_style`,
@@ -309,6 +314,43 @@ impl Attributes<'_> {
         builder
             .build(target)
             .map_err(|e| Error::new(runtime_error(), e.to_string()))
+    }
+}
+
+/// The key `Tokra::WindowBuilder` sends for tao's Linux row for the
+/// pointer's `CursorMoved` events, which `with_config` turns off: "Mouse
+/// event is disabled on Linux since sudden event bursts could block event
+/// loop" (`src/lib.rs:871-881`; tao `src/platform/unix.rs:150-153`,
+/// `192-195`).
+#[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
+const CURSOR_MOVED_EVENT: &str = "cursor_moved_event";
+
+/// `builder` with the `cursor_moved_event` row Ruby sent handed to `set`,
+/// or as it was when the Hash lacks it, which keeps tao's default of on.
+/// `read_platform` passes tao's own `with_cursor_moved_event` as `set`, so
+/// no code of Tokra's stands between the value and tao. tao keeps the flag
+/// where no caller can read it back, so a test passes a recorder instead.
+#[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
+fn with_cursor_moved_event<B>(
+    builder: B,
+    cursor_moved: Option<bool>,
+    set: impl FnOnce(B, bool) -> B,
+) -> B {
+    match cursor_moved {
+        Some(cursor_moved) => set(builder, cursor_moved),
+        None => builder,
     }
 }
 
@@ -562,6 +604,36 @@ mod tests {
         },
         scale_factor: 2.0,
     };
+
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "dragonfly",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd"
+    ))]
+    #[test]
+    fn the_cursor_moved_event_row_reaches_the_setter_and_its_absence_keeps_taos_default() {
+        let record = |mut calls: Vec<bool>, cursor_moved: bool| {
+            calls.push(cursor_moved);
+            calls
+        };
+
+        assert_eq!(
+            with_cursor_moved_event(Vec::new(), Some(false), record),
+            [false]
+        );
+        assert_eq!(
+            with_cursor_moved_event(Vec::new(), Some(true), record),
+            [true]
+        );
+        assert_eq!(
+            with_cursor_moved_event(Vec::new(), None, record),
+            Vec::<bool>::new()
+        );
+        // The key lib/tokra/window_builder.rb sends.
+        assert_eq!(CURSOR_MOVED_EVENT, "cursor_moved_event");
+    }
 
     fn logical(width: f64, height: f64) -> Size {
         LogicalSize::new(width, height).into()

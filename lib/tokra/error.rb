@@ -29,8 +29,8 @@ module Tokra
     # SPDX-SnippetBegin
     # SPDX-License-Identifier: Apache-2.0 OR MIT
     # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
-    # SPDX-SnippetComment: Io, Runtime, the label errors, PluginInitialization, and InvalidArgs and their
-    # messages from tauri/src/error.rs and tauri-runtime/src/lib.rs
+    # SPDX-SnippetComment: Io, Runtime, the label errors, WindowNotFound, PluginInitialization, and InvalidArgs
+    # and their messages from tauri/src/error.rs and tauri-runtime/src/lib.rs
 
     # Raised when a file cannot be read.
     #
@@ -194,6 +194,28 @@ module Tokra
       def initialize(label)
         @label = label
         super("a webview with label `#{label}` already exists")
+      end
+    end
+
+    # Raised when a window that should be there is not.
+    #
+    # A config window may name another as its <tt>parent</tt>. The parent
+    # has to exist when the child is built, so it is listed before the
+    # child in <tt>app.windows</tt>, or built by your code first.
+    #
+    # Mirrors <tt>tauri::Error::WindowNotFound</tt>, "window not found"
+    # (error.rs:136-138), which WindowBuilder::from_config returns for a
+    # parent no window answers to (window/mod.rs:266-272).
+    #
+    # === Example
+    #
+    #   config = Tokra::Utils::Config::WindowConfig.new(label: "child", parent: "nowhere")
+    #   Tokra::WebviewWindowBuilder.from_config(app, config)
+    #   # raises Tokra::Error::WindowNotFound: "window not found"
+    class WindowNotFound < Error
+      # Creates the error with Tauri's message.
+      def initialize(message = "window not found")
+        super
       end
     end
 

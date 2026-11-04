@@ -10,38 +10,79 @@ require "open3"
 require "json"
 
 # Every window a real-window fixture builds keeps its page running when the
-# session is off the console (FixtureApp::Unthrottled). Runs in a child
-# process, because the fixtures' seam is a global prepend that would reach
-# every other test.
+# session is off the console (FixtureApp.webview_window): the config's
+# windows through backgroundThrottling in each fixture's tokra.conf.json,
+# and the rest through FixtureApp.webview_window. The build runs in a child
+# process, because requiring the fixtures' support changes $stdout.
 class FixtureAppTest < Minitest::Test
   ROOT = File.expand_path("../..", __dir__)
+
+  # Every fixture's config, the plugins' included.
+  CONFIGS = Dir[File.join(ROOT, "test/integration/fixtures/*/tokra.conf.json"),
+    File.join(ROOT, "plugins/*/test/integration/fixtures/*/tokra.conf.json")].sort.freeze
+
+  # Every fixture's Ruby, the plugins' included.
+  FIXTURE_SOURCES = Dir[File.join(ROOT, "test/integration/fixtures/**/*.rb"),
+    File.join(ROOT, "plugins/*/test/integration/fixtures/**/*.rb")].sort.freeze
+
+  def test_every_window_a_fixtures_config_lists_has_throttling_disabled
+    assert_operator CONFIGS.size, :>=, 26, "the fixture configs were not found"
+    CONFIGS.each do |path|
+      windows = Tokra.generate_context(path).config.app.windows
+      refute_empty windows, path
+      windows.each do |window|
+        assert_same Tokra::BackgroundThrottlingPolicy::Disabled, window.background_throttling, "#{path}: #{window.label}"
+      end
+    end
+  end
+
+  # A fixture's own window starts from FixtureApp.webview_window, and
+  # from_config takes only an entry of the fixture's tokra.conf.json, whose
+  # throttling the test above checks: a WindowConfig built in code, or one
+  # whose throttling is changed with Data#with, would bypass both.
+  BYPASSES = {
+    "WebviewWindowBuilder.new" => /WebviewWindowBuilder\.new\b/,
+    "a WindowConfig built in code" => /WindowConfig\.(?:new|deserialize)\b/,
+    "a changed backgroundThrottling" => /\bbackground_throttling:/,
+  }.freeze
+
+  def test_no_fixture_builds_a_window_but_through_fixture_app_or_its_config
+    BYPASSES.each do |what, pattern|
+      found = FIXTURE_SOURCES.select { |path| File.read(path).match?(pattern) }.map { |path| path.delete_prefix("#{ROOT}/") }
+
+      assert_empty found, "#{what}: build through FixtureApp.webview_window or an entry of tokra.conf.json"
+    end
+  end
+
+  def test_the_bypass_patterns_match_what_they_name
+    assert_match BYPASSES.fetch("WebviewWindowBuilder.new"), 'Tokra::WebviewWindowBuilder.new(app, "x", url)'
+    assert_match BYPASSES.fetch("a WindowConfig built in code"), 'Tokra::Utils::Config::WindowConfig.new(label: "x")'
+    assert_match BYPASSES.fetch("a WindowConfig built in code"), "Tokra::Utils::Config::WindowConfig.deserialize(json)"
+    assert_match BYPASSES.fetch("a changed backgroundThrottling"), "entry.with(label: \"x\", background_throttling: nil)"
+    refute_match BYPASSES.fetch("a WindowConfig built in code"), "app.config.app.windows.first.with(label: \"x\")"
+  end
 
   SCRIPT = <<~RUBY
     require "json"
     require_relative "test/integration/support/fixture_app"
     require_relative "test/support/stub_native"
-    windows = [Tokra::Utils::Config::WindowConfig.new]
-    config = Tokra::Config.new(identifier: "com.tokra.unthrottled", app: Tokra::Utils::Config::AppConfig.new(windows:))
-    data = Tokra::Codegen::ContextData.new(dev: true, config:, config_parent: Dir.pwd)
-    app = FixtureApp.builder(->(_env) { [200, {}, []] }).build(Tokra::Codegen.context_codegen(data), native: StubNative)
-    own = Tokra::WebviewWindowBuilder.new(app.handle, "own", Tokra::WebviewUrl::App.new("index.html"))
-      .background_throttling(Tokra::BackgroundThrottlingPolicy::Suspend)
-    plain = Tokra::WebviewWindowBuilder.new(app.handle, "plain", Tokra::WebviewUrl::App.new("index.html"))
+    context = Tokra.generate_context(File.expand_path("test/integration/fixtures/event/tokra.conf.json"))
+    app = FixtureApp.builder(->(_env) { [200, {}, []] }).build(context, native: StubNative)
+    own = FixtureApp.webview_window(app.handle, "own", Tokra::WebviewUrl::App.new("index.html"))
     app.run do |handle, event|
       next unless event.is_a?(Tokra::RunEvent::Ready)
 
       own.build
-      plain.build
-      puts "THROTTLING " + JSON.generate(StubNative.webviews.map { |webview| webview.attributes[:background_throttling] })
+      puts "THROTTLING " + JSON.generate(StubNative.webviews.map { |webview| [webview.label, webview.attributes[:background_throttling]] })
       handle.exit(0)
     end
   RUBY
 
-  def test_main_and_other_windows_are_built_with_throttling_disabled_unless_the_fixture_chose
+  def test_a_fixtures_config_window_and_its_own_are_built_with_throttling_disabled
     output, status = Open3.capture2e(RbConfig.ruby, "-I", File.join(ROOT, "lib"), "-I", File.join(ROOT, "test"), "-e", SCRIPT, chdir: ROOT)
 
     assert_predicate status, :success?, output
-    assert_equal ["Disabled", "Suspend", "Disabled"], JSON.parse(output[/^THROTTLING (.*)$/, 1])
+    assert_equal [["main", "Disabled"], ["own", "Disabled"]], JSON.parse(output[/^THROTTLING (.*)$/, 1])
   end
 
   # A line a fixture prints from one thread arrives whole even while

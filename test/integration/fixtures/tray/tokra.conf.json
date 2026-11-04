@@ -5,7 +5,8 @@
       {
         "title": "Tokra integration: tray",
         "width": 320,
-        "height": 240
+        "height": 240,
+        "backgroundThrottling": "disabled"
       }
     ]
   }

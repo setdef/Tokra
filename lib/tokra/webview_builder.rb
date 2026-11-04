@@ -54,6 +54,21 @@ module Tokra
       } #: Hash[Symbol, Native::WebView::attribute]
     end
 
+    # Tauri's WebviewBuilder::from_config (webview/mod.rs:390-439): the
+    # config's label and URL, and the rows WebviewAttributes::from reads
+    # from +config+, a Utils::Config::WindowConfig (tauri-runtime
+    # webview.rs:421-478).
+    #
+    # Tauri resolves <tt>dataDirectory</tt> first; Tokra's webview has no
+    # data directory yet (plan 052e-3), and neither has it rows for
+    # <tt>zoomHotkeysEnabled</tt>, <tt>useHttpsScheme</tt>, or
+    # <tt>devtools</tt>, so those keys are read and ignored until their
+    # rows land (plan 054's inventory). The effects WebviewAttributes::from
+    # copies no runtime reads, so neither does this; the window takes them.
+    def self.from_config(config)
+      new(config.label, config.url).tap { |builder| builder.__send__(:with_config, config) }
+    end
+
     # The label the webview will have.
     attr_reader :label
 
@@ -202,6 +217,38 @@ module Tokra
     # <tt>[physical, x, y]</tt>.
     def set_traffic_light_position(dimensions)
       set(:traffic_light_position, dimensions)
+    end
+
+    # WebviewAttributes::from's rows, in its order (tauri-runtime
+    # webview.rs:421-478).
+    private def with_config(config)
+      incognito(config.incognito).focused(config.focus).browser_extensions_enabled(config.browser_extensions_enabled)
+      set(:background_throttling, config.background_throttling&.name)
+      set(:scroll_bar_style, WebviewBuilder.scroll_bar_style_of(config.scroll_bar_style).name)
+      if App.os_name == "macos"
+        position = config.traffic_light_position
+        set_traffic_light_position(Dpi.position_dimensions(LogicalPosition.new(x: position.x, y: position.y))) if position
+      else
+        transparent(config.transparent)
+      end
+      accept_first_mouse(config.accept_first_mouse)
+      disable_drag_drop_handler unless config.drag_drop_enabled
+      user_agent(config.user_agent) if config.user_agent
+      additional_browser_args(config.additional_browser_args) if config.additional_browser_args
+      proxy_url(config.proxy_url) if config.proxy_url
+      background_color(config.background_color) if config.background_color
+      set(:javascript_disabled, config.javascript_disabled ? true : false)
+      set(:allow_link_preview, config.allow_link_preview ? true : false)
+      nil
+    end
+
+    # The webview's ScrollBarStyle for the config's +style+: FluentOverlay
+    # on Windows, the one platform that has it, and Default everywhere
+    # else (tauri-runtime webview.rs:431-436).
+    def self.scroll_bar_style_of(style)
+      return ScrollBarStyle::Default unless style == Utils::Config::ScrollBarStyle::FluentOverlay
+
+      (App.os_name == "windows") ? ScrollBarStyle::FluentOverlay : ScrollBarStyle::Default
     end
 
     # Adds +script+ for the main frame only, or for every frame.

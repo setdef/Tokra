@@ -20,6 +20,7 @@ module Tokra
     attr_reader window_effects: WindowEffectsConfig?
 
     def initialize: (Manager manager, String label) -> void
+    def self.from_config: (Manager manager, Utils::Config::WindowConfig config) -> WindowBuilder
     def self.warn_focus_deprecated: (Class builder_class) -> void
     def native_attributes: () -> Hash[Symbol, Native::Window::attribute]
     def window_menu: (AppHandle handle) -> Window::WindowMenu?
@@ -60,6 +61,9 @@ module Tokra
 
     private
 
+    def with_config: (Utils::Config::WindowConfig config) -> nil
+    def config_prevent_overflow: (Utils::Config::prevent_overflow_config? prevent_overflow) -> nil
+    def config_parent: (Manager manager, String label) -> nil
     def open_native: (Window window) -> Native::Window
     def set: (Symbol key, Native::Window::attribute value) -> self
     def flag: (Symbol key, boolish value) -> self

@@ -145,7 +145,7 @@ module WebviewPageFixture
     FixtureApp.background(app)
     FixtureApp.keep_in_sight(app.get_window("main"))
     # Incognito, so the cookies stay in memory and never reach the disk.
-    builder = Tokra::WebviewWindowBuilder.new(app, "nav", Tokra::WebviewUrl::App.new("index.html"))
+    builder = FixtureApp.webview_window(app, "nav", Tokra::WebviewUrl::App.new("index.html"))
       .inner_size(240, 180).incognito(true)
     FixtureApp.keep_in_sight(builder.build.window)
   end

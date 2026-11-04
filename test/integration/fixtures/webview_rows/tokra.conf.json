@@ -5,7 +5,8 @@
       {
         "title": "Tokra integration: webview rows",
         "width": 240,
-        "height": 180
+        "height": 180,
+        "backgroundThrottling": "disabled"
       }
     ],
     "withGlobalTauri": true

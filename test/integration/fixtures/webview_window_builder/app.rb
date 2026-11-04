@@ -133,13 +133,13 @@ module WebviewWindowBuilderFixture
     case invoke.command
     when "make"
       url = Tokra::WebviewUrl::App.new("cmd.html")
-      cmd = Tokra::WebviewWindowBuilder.new(invoke.webview, "cmd", url).title("built (cmd)").inner_size(240, 180)
+      cmd = FixtureApp.webview_window(invoke.webview, "cmd", url).title("built (cmd)").inner_size(240, 180)
         .build
       FixtureApp.keep_in_sight(cmd.window)
       puts "BUILT cmd #{cmd.title}"
       Thread.new do
         url = Tokra::WebviewUrl::App.new("thread.html")
-        thread = Tokra::WebviewWindowBuilder.new(handle, "thread", url).title("built (thread)").inner_size(240, 180)
+        thread = FixtureApp.webview_window(handle, "thread", url).title("built (thread)").inner_size(240, 180)
           .build
         # A query waits for the main thread, behind the creation, so it
         # finds the window built; ahead of it, it would find none and raise.
@@ -150,7 +150,7 @@ module WebviewWindowBuilderFixture
       if WebviewWindowBuilderFixture::MACOS
         bars = [["bar-visible", nil], ["bar-transparent", Tokra::TitleBarStyle::Transparent]]
         bars.each do |label, style|
-          builder = Tokra::WebviewWindowBuilder.new(invoke.webview, label, Tokra::WebviewUrl::App.new("bar.html"))
+          builder = FixtureApp.webview_window(invoke.webview, label, Tokra::WebviewUrl::App.new("bar.html"))
             .inner_size(240, 180)
           builder.title_bar_style(style) if style
           FixtureApp.keep_in_sight(builder.build.window)

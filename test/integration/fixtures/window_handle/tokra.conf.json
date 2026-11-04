@@ -5,7 +5,8 @@
       {
         "title": "Tokra integration: window handle",
         "width": 320,
-        "height": 240
+        "height": 240,
+        "backgroundThrottling": "disabled"
       }
     ]
   }

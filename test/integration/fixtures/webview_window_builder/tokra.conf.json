@@ -5,7 +5,8 @@
       {
         "title": "Tokra integration: webview window builder",
         "width": 320,
-        "height": 240
+        "height": 240,
+        "backgroundThrottling": "disabled"
       }
     ],
     "withGlobalTauri": true

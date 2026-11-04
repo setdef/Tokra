@@ -11,6 +11,7 @@ module Tokra
     @label: String
 
     def initialize: (Manager manager, String label, webview_url url) -> void
+    def self.from_config: (Manager manager, Utils::Config::WindowConfig config) -> WebviewWindowBuilder
     def menu: (Menu::Menu menu) -> self
     def on_menu_event: () { (Window, Menu::MenuEvent) -> void } -> self
     def center: () -> self
@@ -66,6 +67,7 @@ module Tokra
 
     def after_creation: (AppHandle handle, Window window) -> void
     def apply_effects: (Window window, WindowEffectsConfig effects) -> void
+    def take_builders: (Manager manager, WindowBuilder window_builder, WebviewBuilder webview_builder) -> nil
     def forward: () { (WindowBuilder rows) -> void } -> self
     def webview_row: () { (WebviewBuilder rows) -> void } -> self
     def webview_window: (Object value) -> WebviewWindow

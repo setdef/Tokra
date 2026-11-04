@@ -58,6 +58,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   raised, with Tauri's "failed to create window" or "failed to create
   webview: ...", and does not keep the app from exiting. The windows the config's `app.windows` lists are built this way before the
   setup hook, so the hook finds them
+- `Tokra::WebviewWindowBuilder.from_config(manager, config)`, and the config's
+  windows take every row of their `WindowConfig` the builder has
+- `Error::WindowNotFound`, "window not found", for a config window whose
+  `parent` names no window
 - `WebviewWindowBuilder`'s webview rows from Tauri's `WebviewBuilder`:
   `#accept_first_mouse`, `#initialization_script`,
   `#initialization_script_for_all_frames`, `#user_agent`,

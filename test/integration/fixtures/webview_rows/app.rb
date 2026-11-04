@@ -87,7 +87,7 @@ module WebviewRowsFixture
   # A webview window of +label+ opening +path+, each 240 by 180, kept in
   # sight on macOS.
   def self.build(app, label, path)
-    builder = Tokra::WebviewWindowBuilder.new(app, label, Tokra::WebviewUrl::App.new(path)).inner_size(240, 180)
+    builder = FixtureApp.webview_window(app, label, Tokra::WebviewUrl::App.new(path)).inner_size(240, 180)
     yield builder
     FixtureApp.keep_in_sight(builder.build.window)
   end

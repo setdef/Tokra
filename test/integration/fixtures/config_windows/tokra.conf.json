@@ -7,18 +7,21 @@
         "label": "first",
         "title": "Tokra integration: config windows (first)",
         "width": 320,
-        "height": 240
+        "height": 240,
+        "backgroundThrottling": "disabled"
       },
       {
         "label": "later",
         "create": false,
-        "title": "Tokra integration: config windows (later)"
+        "title": "Tokra integration: config windows (later)",
+        "backgroundThrottling": "disabled"
       },
       {
         "label": "second",
         "title": "Tokra integration: config windows (second)",
         "width": 300,
-        "height": 200
+        "height": 200,
+        "backgroundThrottling": "disabled"
       }
     ]
   }

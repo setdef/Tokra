@@ -80,7 +80,7 @@ module Tokra
     # <tt>:</tt>, and <tt>_</tt>; #build checks it. Anything but a String
     # raises TypeError here.
     #
-    # The window starts as Tauri's does: titled "Tokra", focused, and on
+    # The window starts as Tauri's does: titled "Tokra App", focused, and on
     # macOS with the Visible title bar over a content view that fills the
     # window, which keeps the devtools from pushing the page out of it.
     #
@@ -95,6 +95,60 @@ module Tokra
       @webview_builder = WebviewBuilder.new(label, url)
       @manager = manager
       @label = label
+    end
+
+    # Starts a builder for the window +config+ describes, a
+    # Utils::Config::WindowConfig from the config's <tt>app.windows</tt>,
+    # in the app +manager+ belongs to.
+    #
+    # The window and its webview take the config's label, URL, size,
+    # title, and every other key the builder has a row for, as if you had
+    # called each row. The ones only one platform reads take effect only
+    # there: <tt>titleBarStyle</tt>, <tt>hiddenTitle</tt>,
+    # <tt>tabbingIdentifier</tt>, and <tt>trafficLightPosition</tt> on
+    # macOS, and <tt>transparent</tt> everywhere but macOS. On Linux the
+    # window does not report the pointer's moves, which can come in bursts
+    # that hold up the event loop. App#run builds every config window
+    # whose <tt>create</tt> is set this way, before the setup hook. An
+    # entry whose <tt>create</tt> is false can be built later as it is.
+    # Any entry can be reused as a template with
+    # <tt>window_config.with(label: "...")</tt>, under a label of its own.
+    #
+    # A <tt>parent</tt> names a window the app already has, which becomes
+    # the parent as #parent makes it; a name no window has raises
+    # Error::WindowNotFound here, and a closed one raises Error::Runtime.
+    # Anything but a WindowConfig raises TypeError.
+    #
+    # The rows you call afterwards replace what the config set, and #build
+    # makes the window as it makes any other.
+    #
+    # A few keys wait for their rows, and are read but not acted on:
+    # <tt>zoomHotkeysEnabled</tt>, <tt>useHttpsScheme</tt>,
+    # <tt>dataDirectory</tt>, <tt>devtools</tt>, and on macOS
+    # <tt>transparent</tt> (plan 054's inventory). As in Tauri,
+    # <tt>dataStoreIdentifier</tt> is read and not applied: Tauri's
+    # from_config leaves it out (tauri-runtime webview.rs:421-478), so
+    # set it with #data_store_identifier.
+    #
+    # Mirrors Tauri's WebviewWindowBuilder::from_config
+    # (webview_window.rs:154-159), WindowBuilder::from_config
+    # (window/mod.rs:250-275), WebviewBuilder::from_config
+    # (webview/mod.rs:390-439), tauri-runtime-wry's
+    # WindowBuilderWrapper::with_config (lib.rs:837-948), and
+    # tauri-runtime's WebviewAttributes::from (webview.rs:421-478).
+    #
+    # === Example
+    #
+    #   template = app.config.app.windows.find { |window| window.label == "document" }
+    #   Tokra::WebviewWindowBuilder.from_config(app, template.with(label: "document-2")).build
+    def self.from_config(manager, config)
+      unless config.is_a?(Utils::Config::WindowConfig)
+        raise TypeError, "wrong argument type #{config.class} (expected Tokra::Utils::Config::WindowConfig)"
+      end
+
+      window_builder = WindowBuilder.from_config(manager, config)
+      webview_builder = WebviewBuilder.from_config(config)
+      allocate.tap { |builder| builder.__send__(:take_builders, manager, window_builder, webview_builder) }
     end
 
     # Gives the window +menu+, a Menu, as its own, and returns the builder.
@@ -978,6 +1032,16 @@ module Tokra
     private def apply_effects(window, effects)
       window.set_effects(effects)
     rescue
+      nil
+    end
+
+    # Holds +window_builder+ and +webview_builder+, as from_config's
+    # Self holds the two it built (webview_window.rs:154-159).
+    private def take_builders(manager, window_builder, webview_builder)
+      @window_builder = window_builder
+      @webview_builder = webview_builder
+      @manager = manager
+      @label = window_builder.label
       nil
     end
 

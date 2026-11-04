@@ -11,8 +11,8 @@ require_relative "support/test_app"
 
 # The windows a config's app.windows lists, which App#run builds where
 # Tauri's setup builds them: each one whose create is true, in order,
-# before the setup hook (app.rs:2370-2384; plan 054, decision 14). Until
-# 054a-4 each takes its label, URL, title, and size only.
+# before the setup hook (app.rs:2370-2384; plan 054, decision 14), each
+# through WebviewWindowBuilder.from_config (decision 15).
 class TestConfigWindows < Minitest::Test
   TWO_WINDOWS = {
     "app" => {
@@ -77,5 +77,35 @@ class TestConfigWindows < Minitest::Test
 
     assert_equal "runtime error: #{Tokra::Error::Runtime::INVALID_WINDOW_LABEL}", error.message
     assert_nil Thread.current[:config_windows_found], "the setup hook ran after a config window failed"
+  end
+
+  # The 054a-3 shortcut took the label, URL, title, and size only; from
+  # config takes every row its builder has.
+  def test_a_configured_window_takes_every_row_of_its_config
+    config = { "app" => { "windows" => [{ "label" => "fixed", "resizable" => false, "userAgent" => "Fixed" }] } }
+    run_test_app(config:)
+
+    assert_equal [false], StubNative.windows.map { |window| window.attributes[:resizable] }
+    assert_equal ["Fixed"], StubNative.webviews.map { |webview| webview.attributes[:user_agent] }
+  end
+
+  # A parent named in the config must be built before the window that
+  # names it, as in Tauri, whose from_config looks it up at once
+  # (window/mod.rs:267-272).
+  def test_a_configured_parent_is_found_among_the_windows_built_before_it
+    windows = [{ "label" => "owner" }, { "label" => "child", "parent" => "owner" }]
+    run_test_app(config: { "app" => { "windows" => windows } })
+
+    owner, child = StubNative.windows
+    assert_same owner, child.attributes[:parent]
+  end
+
+  def test_a_configured_parent_built_later_ends_run_with_window_not_found
+    windows = [{ "label" => "child", "parent" => "owner" }, { "label" => "owner" }]
+    app = build_test_app(config: { "app" => { "windows" => windows } })
+    error = assert_raises(Tokra::Error::WindowNotFound) { app.run }
+
+    assert_equal "window not found", error.message
+    assert_empty StubNative.windows
   end
 end

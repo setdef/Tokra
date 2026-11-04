@@ -156,30 +156,21 @@ module FixtureApp
     context
   end
 
-  # Makes every window a fixture builds, "main" included, keep its page
-  # running when the window is unseen. When the test process's login
-  # session is off the console (fast user switching, a hidden test
-  # account), macOS WebKit counts every window as unseen, sends the page
-  # PrepareToSuspend once it loads, and stops its JavaScript a few seconds
-  # later, so a fixture whose page drives the test hangs. Disabled
-  # BackgroundThrottlingPolicy prevents the suspension.
+  # A WebviewWindowBuilder for +label+ opening +url+ in +manager+'s app,
+  # whose page keeps running when its window is unseen. When the test
+  # process's login session is off the console (fast user switching, a
+  # hidden test account), macOS WebKit counts every window as unseen,
+  # sends the page PrepareToSuspend once it loads, and stops its
+  # JavaScript a few seconds later, so a fixture whose page drives the test
+  # hangs. Disabled BackgroundThrottlingPolicy prevents the suspension.
   #
-  # The config's windows are built inside App#run with no hook for webview
-  # rows, and the product default must stay Tauri's, so the fixtures
-  # prepend this to WebviewWindowBuilder#build instead. A fixture that chose its own policy
-  # keeps it. A Tauri fixture would set backgroundThrottling on its config
-  # window instead (tauri-utils config.rs:1925); once plan 054a-4 builds
-  # config windows, the fixtures should set it in tokra.conf.json and this
-  # stand-in should go.
-  module Unthrottled
-    def build
-      webview_row do |rows|
-        rows.background_throttling(Tokra::BackgroundThrottlingPolicy::Disabled) if rows.native_attributes[:background_throttling].nil?
-      end
-      super
-    end
+  # A fixture's config windows set it in their tokra.conf.json, as a Tauri
+  # app sets backgroundThrottling (tauri-utils config.rs:1925), and every
+  # window a fixture builds in code starts here, so it has the same
+  # policy (fixture_app_test.rb checks both).
+  def self.webview_window(manager, label, url)
+    Tokra::WebviewWindowBuilder.new(manager, label, url).background_throttling(Tokra::BackgroundThrottlingPolicy::Disabled)
   end
-  Tokra::WebviewWindowBuilder.prepend(Unthrottled)
 
   # Each line of the contract is read whole, but a fixture prints from
   # its event loop, its page's hooks, and its own server threads at once.

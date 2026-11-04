@@ -77,8 +77,21 @@ module Tokra
         tabbing_identifier: nil,
         theme: nil,
         background_color: nil,
+        cursor_moved_event: true,
       } #: Hash[Symbol, Native::Window::attribute]
       @constraints = [nil, nil, nil, nil] #: Array[(LogicalUnit | PhysicalUnit)?]
+    end
+
+    # Tauri's WindowBuilder::from_config (window/mod.rs:250-275): new's
+    # defaults, then the rows tauri-runtime-wry's WindowBuilderWrapper
+    # reads from +config+, a Utils::Config::WindowConfig (lib.rs:837-948),
+    # the config's effects, and the window +parent+ names, which must
+    # exist: Error::WindowNotFound otherwise.
+    def self.from_config(manager, config)
+      builder = new(manager, config.label)
+      builder.__send__(:with_config, config)
+      builder.__send__(:config_parent, manager, config.parent) if config.parent
+      builder
     end
 
     # The label the window will have.
@@ -331,6 +344,77 @@ module Tokra
     def background_color(color)
       expect(color, Color)
       set(:background_color, [color.red, color.green, color.blue, color.alpha])
+    end
+
+    # WindowBuilderWrapper::with_config's rows, in its order
+    # (tauri-runtime-wry lib.rs:837-948), and WindowBuilder::from_config's
+    # effects (window/mod.rs:255).
+    #
+    # On macOS, with_config also hands tao the traffic-light inset, which
+    # Tokra's window has no row for. tao would apply it in its view's
+    # drawRect: (tao platform_impl/macos/view.rs:343-348), but wry puts its
+    # own view in tao's place (wry wkwebview/mod.rs:636), so that inset
+    # never runs; the webview's row, which WebviewBuilder.from_config sets,
+    # is the one that moves the buttons (wkwebview/mod.rs:616-626).
+    #
+    # Where Tauri builds without macos-private-api, a debug build prints
+    # that a transparent window needs it, naming the macOSPrivateApi key
+    # (lib.rs:859-869). Tokra reads that key and does not act on it yet
+    # (plan 052, question 2), so a message telling you to set it would
+    # mislead, and it prints nothing. Until then a config window's
+    # <tt>transparent</tt> is ignored on macOS without a word.
+    private def with_config(config)
+      if App.os_name == "macos"
+        hidden_title(config.hidden_title).title_bar_style(config.title_bar_style)
+        tabbing_identifier(config.tabbing_identifier) if config.tabbing_identifier
+      else
+        transparent(config.transparent)
+      end
+      # "Mouse event is disabled on Linux since sudden event bursts could
+      # block event loop" (lib.rs:871-881). Only Linux reads the key, so it
+      # is set everywhere, as every other platform's row is sent.
+      set(:cursor_moved_event, false)
+      title(config.title).inner_size(config.width, config.height).focused(config.focus).focusable(config.focusable)
+        .visible(config.visible).resizable(config.resizable).fullscreen(config.fullscreen)
+        .decorations(config.decorations).maximized(config.maximized).always_on_bottom(config.always_on_bottom)
+        .always_on_top(config.always_on_top).visible_on_all_workspaces(config.visible_on_all_workspaces)
+        .content_protected(config.content_protected).skip_taskbar(config.skip_taskbar).theme(config.theme)
+        .closable(config.closable).maximizable(config.maximizable).minimizable(config.minimizable)
+        .shadow(config.shadow)
+      limits = [config.min_width, config.min_height, config.max_width, config.max_height]
+      background_color(config.background_color) if config.background_color
+      @constraints = limits.map { |limit| limit && LogicalUnit.new(limit) }
+      x = config.x
+      y = config.y
+      position(x, y) if x && y
+      center if config.center
+      window_classname(config.window_classname) if config.window_classname
+      config_prevent_overflow(config.prevent_overflow)
+      @window_effects = config.window_effects
+      nil
+    end
+
+    # with_config's <tt>preventOverflow</tt>: +true+ for a margin of zero,
+    # a margin for a physical one, and nothing for +false+ (lib.rs:938-946).
+    private def config_prevent_overflow(prevent_overflow)
+      case prevent_overflow
+      when Utils::Config::PreventOverflowConfig::Enable
+        self.prevent_overflow if prevent_overflow.enabled
+      when Utils::Config::PreventOverflowConfig::Margin
+        margin = prevent_overflow.margin
+        prevent_overflow_with_margin(PhysicalSize.new(width: margin.width, height: margin.height))
+      end
+      nil
+    end
+
+    # Makes the window +label+ names the parent, as from_config does, or
+    # raises Error::WindowNotFound when none has it (window/mod.rs:266-272).
+    private def config_parent(manager, label)
+      window = manager.get_window(label)
+      raise Error::WindowNotFound unless window
+
+      parent(window)
+      nil
     end
 
     # The native of +window+, which a main-thread getter finds open, as

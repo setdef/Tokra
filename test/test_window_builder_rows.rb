@@ -56,6 +56,7 @@ class TestWindowBuilderRows < Minitest::Test
     tabbing_identifier: nil,
     theme: nil,
     background_color: nil,
+    cursor_moved_event: true,
   }.freeze
 
   # What Native::WebView#open is handed with no rows, as Tauri's
@@ -115,11 +116,14 @@ class TestWindowBuilderRows < Minitest::Test
     assert_equal WEBVIEW_DEFAULTS, webview.attributes
   end
 
-  def test_main_is_built_with_tauris_defaults_and_its_builders_title_and_size
+  # main is a config window, so from_config's rows apply over the
+  # defaults: the config's size, its shadow, and Linux's cursor-moved
+  # event off (tauri-runtime-wry lib.rs:871-904).
+  def test_main_is_built_with_its_configs_defaults
     run_app
 
     main = StubNative.windows.first
-    assert_equal DEFAULTS.merge(inner_size: [800.0, 600.0]), main.attributes
+    assert_equal DEFAULTS.merge(inner_size: [800.0, 600.0], shadow: true, cursor_moved_event: false), main.attributes
   end
 
   # Each row, the key it sets, and the value the native gets.

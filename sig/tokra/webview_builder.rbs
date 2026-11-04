@@ -12,6 +12,8 @@ module Tokra
     attr_reader url: webview_url
 
     def initialize: (String label, webview_url url) -> void
+    def self.from_config: (Utils::Config::WindowConfig config) -> WebviewBuilder
+    def self.scroll_bar_style_of: (Utils::Config::ScrollBarStyle style) -> ScrollBarStyle
     def native_attributes: () -> Hash[Symbol, Native::WebView::attribute]
     def initialization_scripts: () -> Array[Native::WebView::script]
     def accept_first_mouse: (bool accept) -> self
@@ -36,6 +38,7 @@ module Tokra
 
     private
 
+    def with_config: (Utils::Config::WindowConfig config) -> nil
     def script: (String script, bool for_main_frame_only) -> self
     def set: (Symbol key, Native::WebView::attribute value) -> self
     def flag: (Symbol key, boolish value) -> self
