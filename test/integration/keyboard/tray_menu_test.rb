@@ -14,9 +14,9 @@ require_relative "../support/keyboard_notice"
 # menu while it tracks, lets another Ruby thread close it by choosing an
 # item, and reports what the app's and the tray's listeners heard. On
 # macOS the menu shows and tracks the keyboard and mouse until it closes,
-# so KeyboardNotice asks the person at the Mac to step away first. Linux's
-# tray menu belongs to the desktop's StatusNotifierItem host, which the
-# tests do not run.
+# so KeyboardNotice asks the person at the Mac to step away first, once
+# for the whole run. Linux's tray menu belongs to the desktop's
+# StatusNotifierItem host, which the tests do not run.
 class TrayMenuTest < RealApp::TestCase
   def self.page?
     false
@@ -26,7 +26,8 @@ class TrayMenuTest < RealApp::TestCase
     super
     skip "Linux's tray menu is shown by the desktop's StatusNotifierItem host" if linux?
     @run = self.class.fixture_run do
-      KeyboardNotice.taking_the_keyboard { RealApp.launch("tray_menu") }
+      KeyboardNotice.take_the_keyboard_for_the_run
+      RealApp.launch("tray_menu")
     end
     assert_finished @run
     assert_equal 0, @run.status, @run.describe
@@ -80,7 +81,8 @@ class TrayMenuTest < RealApp::TestCase
     skip "the closer thread finds the menu window itself only on Windows" unless windows?
 
     run = self.class.fixture_run(:no_main_timer) do
-      KeyboardNotice.taking_the_keyboard { RealApp.launch("tray_menu", "--no-main-timer") }
+      KeyboardNotice.take_the_keyboard_for_the_run
+      RealApp.launch("tray_menu", "--no-main-timer")
     end
     assert_finished run
     assert_equal 0, run.status, run.describe
@@ -105,7 +107,8 @@ class TrayMenuTest < RealApp::TestCase
     skip "the closer thread finds the menu window itself only on Windows" unless windows?
 
     run = self.class.fixture_run(:raise_main) do
-      KeyboardNotice.taking_the_keyboard { RealApp.launch("tray_menu", "--no-main-timer", "--raise-main") }
+      KeyboardNotice.take_the_keyboard_for_the_run
+      RealApp.launch("tray_menu", "--no-main-timer", "--raise-main")
     end
     assert_finished run
     assert_equal 0, run.status, run.describe

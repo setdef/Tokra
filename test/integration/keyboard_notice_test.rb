@@ -6,6 +6,7 @@
 #++
 
 require "test_helper"
+require "open3"
 require "tmpdir"
 require_relative "support/keyboard_notice"
 
@@ -126,6 +127,71 @@ class KeyboardNoticeTest < Minitest::Test
     taking_the_keyboard(speak: false) { :ran }
     refute_path_exists @marker
     refute_path_exists @banners
+  end
+
+  # The second test to take the keyboard rides in the first one's span:
+  # the person hears one step-away, none between the tests, and one
+  # come-back once the run has ended.
+  def test_a_run_speaks_once_and_holds_the_lock_until_its_process_ends
+    skip_unless_the_stand_in_speaks
+    lines = keyboard_run
+
+    assert_equal 4, lines.size, lines.inspect
+    assert_includes lines.first, "step away"
+    assert_equal ["took the keyboard, locked"] * 2, lines[1..2]
+    assert_includes lines.last, "come back"
+  end
+
+  def test_tokra_quiet_makes_a_silent_run_that_still_locks
+    assert_equal ["took the keyboard, locked"] * 2, keyboard_run("TOKRA_QUIET" => "1")
+    refute_path_exists @marker
+  end
+
+  def test_desktop_input_quiet_makes_a_silent_run_that_still_locks
+    assert_equal ["took the keyboard, locked"] * 2, keyboard_run("DESKTOP_INPUT_QUIET" => "1")
+    refute_path_exists @marker
+  end
+
+  # KeyboardNotice.locks? is the real one here, reading CI itself.
+  def test_a_run_on_ci_takes_no_lock
+    assert_equal ["took the keyboard, unlocked"] * 2, keyboard_run("CI" => "true")
+  end
+
+  # Runs two Minitest tests in a child process, each taking the keyboard
+  # for the run and then waiting out the stand-in's settle several times
+  # over, so that a span that ended between them would call the person
+  # back between them. Unless +env+ sets CI, the child runs as on a Mac
+  # outside CI. Its spans use this test's lock, marker, and stand-in
+  # osascript, which records each banner, in order, in the file where each
+  # test writes what it saw, and they read DESKTOP_INPUT_QUIET as the
+  # gem's own do. Returns that file's lines.
+  private def keyboard_run(env = {})
+    lock = File.join(@dir, "lock")
+    child = <<~RUBY
+      require "minitest/autorun"
+      require_relative "test/integration/support/keyboard_notice"
+      input = DesktopInputLock.new(lock: #{lock.dump}, marker: #{@marker.dump},
+        osascript: #{File.join(@dir, 'osascript').dump}, say: #{File.join(@dir, 'no-say').dump}, settle: 0.05,
+        env: ENV.to_h.slice("DESKTOP_INPUT_QUIET"), host_os: "darwin25")
+      DesktopInputLock.define_singleton_method(:acquire) { |speak: true| input.acquire(speak:) }
+      KeyboardNotice.define_singleton_method(:locks?) { true } unless ENV["CI"]
+      class KeyboardRunTest < Minitest::Test
+        2.times do |index|
+          define_method(:"test_\#{index}") do
+            KeyboardNotice.take_the_keyboard_for_the_run
+            free = File.open(#{lock.dump}, File::RDWR | File::CREAT) do |file|
+              file.flock(File::LOCK_EX | File::LOCK_NB)
+            end
+            File.write(#{@banners.dump}, "took the keyboard, \#{free ? 'unlocked' : 'locked'}\\n", mode: "a")
+            sleep 0.3
+          end
+        end
+      end
+    RUBY
+    output, status = Open3.capture2e({ "CI" => nil, "TOKRA_QUIET" => nil, "DESKTOP_INPUT_QUIET" => nil, **env }, RbConfig.ruby, "-e", child,
+      chdir: File.expand_path("../..", __dir__))
+    assert_predicate status, :success?, output
+    File.exist?(@banners) ? File.readlines(@banners, chomp: true) : []
   end
 
   # Runs KeyboardNotice.taking_the_keyboard as on a Mac, with the gem's

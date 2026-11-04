@@ -14,8 +14,8 @@ require_relative "../support/keyboard_notice"
 # through AppKit or GTK reaches the app's listener. The fixture loads no
 # page, so it runs on Windows too. On macOS the menu shows on screen and
 # tracks the keyboard and mouse until it closes, so KeyboardNotice asks
-# the person at the Mac to step away first; the app itself never comes to
-# the front.
+# the person at the Mac to step away first, once for the whole run; the
+# app itself never comes to the front.
 class ContextMenuTest < RealApp::TestCase
   # The points by which AppKit may raise a menu's window above the
   # location asked.
@@ -31,7 +31,8 @@ class ContextMenuTest < RealApp::TestCase
   def setup
     super
     @run = self.class.fixture_run do
-      KeyboardNotice.taking_the_keyboard { RealApp.launch("context_menu") }
+      KeyboardNotice.take_the_keyboard_for_the_run
+      RealApp.launch("context_menu")
     end
     assert_finished @run
     assert_equal 0, @run.status, @run.describe
@@ -109,7 +110,8 @@ class ContextMenuTest < RealApp::TestCase
     skip "the closer thread finds the menu window itself only on Windows" unless windows?
 
     run = self.class.fixture_run(:no_main_timer) do
-      KeyboardNotice.taking_the_keyboard { RealApp.launch("context_menu", "--no-main-timer") }
+      KeyboardNotice.take_the_keyboard_for_the_run
+      RealApp.launch("context_menu", "--no-main-timer")
     end
     assert_finished run
     assert_equal 0, run.status, run.describe

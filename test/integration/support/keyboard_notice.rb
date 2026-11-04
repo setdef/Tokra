@@ -18,7 +18,13 @@ require "desktop_input_lock"
 #
 # === Example
 #
-#   KeyboardNotice.taking_the_keyboard { menu.popup(window) }
+#   # A rake task that runs, in child processes that must not take the
+#   # lock themselves, tests a person's click could fail.
+#   KeyboardNotice.taking_the_keyboard { Rake::Task["test:console:core"].invoke }
+#
+#   # A Minitest test that takes the keyboard: the span lasts the run.
+#   KeyboardNotice.take_the_keyboard_for_the_run
+#   RealApp.launch("context_menu")
 module KeyboardNotice
   class << self
     # Runs the block holding the shared lock, where #locks?, and returns
@@ -28,6 +34,36 @@ module KeyboardNotice
       return yield unless locks?
 
       DesktopInputLock.hold(speak: speak && !ENV["TOKRA_QUIET"], &)
+    end
+
+    # Takes the shared lock, where #locks?, from this call until the process
+    # ends, for a test run whose tests take the keyboard. It speaks only
+    # where #speaks?, and in effect only at the first call: spans in one
+    # process nest, and a later one finds the marker naming this process,
+    # so it says nothing. The person hears one step-away and one come-back
+    # however many tests take the keyboard and however long the run takes
+    # between them. Returns +nil+.
+    #
+    # Each span ends in an at_exit registered after the gem's own, so it
+    # runs first, and the gem then finds the lock free and calls the person
+    # back. Minitest.after_run would run too late: Minitest registers it
+    # before the tests run, so the gem would find its own process still
+    # holding the lock and leave the person away. The order matters only
+    # for a speaking span: a quiet one gets no hook from the gem, and its
+    # lock goes when the process does.
+    #
+    # === Example
+    #
+    #   def setup
+    #     KeyboardNotice.take_the_keyboard_for_the_run
+    #     @run = RealApp.launch("context_menu")
+    #   end
+    def take_the_keyboard_for_the_run
+      return unless locks?
+
+      held = DesktopInputLock.acquire(speak: !ENV["TOKRA_QUIET"])
+      at_exit { held.release }
+      nil
     end
 
     # Whether tests on this machine may collide with another project's over

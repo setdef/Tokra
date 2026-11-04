@@ -13,7 +13,9 @@ require "rbconfig"
 # notifications, or uses the session's clipboard. On the maintainer's Mac
 # those run in the hidden +tokratest+ session (HiddenJob), so none opens
 # in the maintainer's own, except the few CONSOLE names, which run here
-# (test:console); on CI and off macOS they all run here, as always.
+# (test:console); on CI and off macOS they all run here, as always. In
+# every mode the CONSOLE tests run only in test:console, once, inside its
+# spoken span.
 module RealWindows
   # The tests that take the keyboard and mouse on macOS, which run first.
   KEYBOARD = "test/integration/keyboard/**/*_test.rb"
@@ -34,12 +36,13 @@ module RealWindows
     plugins/notification/test/test_macos_notifications.rb
   ].freeze
 
-  # The real-window tests that need the console. On the maintainer's Mac
-  # they run in the maintainer's session, in test:console, holding the
-  # desktop input lock, and the hidden job leaves them out; everywhere
-  # else they run with the rest. Off the console, macOS lowers WebKit's
-  # page process to background priority, and under load these tests'
-  # pages starve past their bounds (Plan 057).
+  # The real-window tests that need the console. They run only in
+  # test:console, which holds the desktop input lock around them, with
+  # its spoken notice, on a Mac outside CI; the other real-window tasks
+  # leave them out everywhere. On the maintainer's Mac that keeps them in
+  # the maintainer's session where the rest run hidden. Off the console,
+  # macOS lowers WebKit's page process to background priority, and under
+  # load these tests' pages starve past their bounds (Plan 057).
   CONSOLE = %w[
     plugins/dialog/test/test_dialog_window.rb
   ].freeze
@@ -85,23 +88,22 @@ module RealWindows
       path.start_with?(INTEGRATION) || NAMED.include?(path) || source.match?(MARKER)
     end
 
-    # Whether +env+ is the hidden job's, which leaves the CONSOLE tests to
-    # test:console in the maintainer's session.
+    # Whether +env+ is the hidden job's.
     def hidden_job?(env = ENV) = !env[HIDDEN_JOB].to_s.empty?
 
-    # The test files among +paths+ that open real windows, and the rest.
-    # In the hidden job the first leaves the CONSOLE tests out.
-    def split(paths, env = ENV)
+    # The test files among +paths+ that open real windows, except the
+    # CONSOLE tests, which test:console runs, and the rest.
+    def split(paths)
       windows, rest = paths.partition { |path| test_file?(path) }
-      [hidden_job?(env) ? windows - CONSOLE : windows, rest]
+      [windows - CONSOLE, rest]
     end
 
     # +plugin+'s test files (relative to it), those that open real windows
     # if +windows+, else the rest, as its Rakefile's pattern finds them.
-    # In the hidden job the first leaves the CONSOLE tests out.
-    def plugin_tests(plugin, windows:, env: ENV)
+    # Neither holds its CONSOLE tests, which test:console runs.
+    def plugin_tests(plugin, windows:)
       paths = Dir.glob("#{plugin}/test/**/test_*.rb", base: ROOT).sort.select { |path| test_file?(path) == windows }
-      paths -= CONSOLE if windows && hidden_job?(env)
+      paths -= CONSOLE
       paths.map { |path| path.delete_prefix("#{plugin}/") }
     end
 

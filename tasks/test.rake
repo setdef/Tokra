@@ -25,8 +25,8 @@ KEYBOARD_TESTS = RealWindows::KEYBOARD
 
 # Every test file that opens a real window, the keyboard ones included,
 # and the rest. The first run in test:gui, wherever RealWindows.where
-# says, and never in test:core (Plan 056); in the hidden job they leave
-# out the ones that need the console, which test:console runs (Plan 057).
+# says, and never in test:core (Plan 056); they leave out the ones that
+# need the console, which only test:console runs (Plan 057).
 WINDOW_TESTS, CORE_TESTS = RealWindows.split(Dir["test/**/test_*.rb", "test/**/*_test.rb"])
 
 namespace :test do
@@ -130,21 +130,20 @@ namespace :test do
   desc "Run every real-window test: hidden in tokratest on a Mac except test:console's, here on CI or with " \
     "TOKRA_REAL_WINDOWS=local"
   task :gui do
-    if RealWindows.where == :local
-      %w[test:keyboard test:real_windows test:real_windows:plugins].each { |name| Rake::Task[name].invoke }
-    else
-      %w[test:hidden test:console].each { |name| Rake::Task[name].invoke }
-    end
+    rest = (RealWindows.where == :local) ? %w[test:keyboard test:real_windows test:real_windows:plugins] : %w[test:hidden]
+    [*rest, "test:console"].each { |name| Rake::Task[name].invoke }
   end
 
-  # The real-window tests that need the console run in this session even
-  # where the rest run hidden, holding the desktop input lock that other
-  # projects' tests take before they take the keyboard (Plans 046, 057),
-  # so no one's synthetic input lands in their windows. A click that
-  # lands on one of their dialog sheets would end it, so the span speaks
-  # and shows its banner, once, around only these tests: compiling and
-  # the plugins' bundle installs happen before it. A console test that
-  # took the lock in its own process would wait on its parent forever.
+  # The real-window tests that need the console run only here, in every
+  # mode, and in this session even where the rest run hidden. On a Mac
+  # outside CI they hold the desktop input lock that other projects'
+  # tests take before they take the keyboard (Plans 046, 057), so no
+  # one's synthetic input lands in their windows; on CI and off macOS
+  # the span takes no lock. A click that lands on one of their dialog
+  # sheets would end it, so the span speaks and shows its banner, once,
+  # around only these tests: compiling and the plugins' bundle installs
+  # happen before it. A console test that took the lock in its own
+  # process would wait on its parent forever.
   desc "Run the real-window tests that need the console (RealWindows::CONSOLE) in this session"
   task console: :compile do
     require_relative "../test/integration/support/keyboard_notice"
