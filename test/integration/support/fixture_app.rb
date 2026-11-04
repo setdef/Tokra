@@ -141,6 +141,31 @@ module FixtureApp
     end
   end
 
+  # Makes every window a fixture builds, "main" included, keep its page
+  # running when the window is unseen. When the test process's login
+  # session is off the console (fast user switching, a hidden test
+  # account), macOS WebKit counts every window as unseen, sends the page
+  # PrepareToSuspend once it loads, and stops its JavaScript a few seconds
+  # later, so a fixture whose page drives the test hangs. Disabled
+  # BackgroundThrottlingPolicy prevents the suspension.
+  #
+  # "main" is built inside App#run with no hook for webview rows, and the
+  # product default must stay Tauri's, so the fixtures prepend this to
+  # WebviewWindowBuilder#build instead. A fixture that chose its own policy
+  # keeps it. A Tauri fixture would set backgroundThrottling on its config
+  # window instead (tauri-utils config.rs:1925); once plan 054a-4 builds
+  # config windows, the fixtures should set it in tokra.conf.json and this
+  # stand-in should go.
+  module Unthrottled
+    def build
+      webview_row do |rows|
+        rows.background_throttling(Tokra::BackgroundThrottlingPolicy::Disabled) if rows.native_attributes[:background_throttling].nil?
+      end
+      super
+    end
+  end
+  Tokra::WebviewWindowBuilder.prepend(Unthrottled)
+
   # A Builder serving +site+ with the fixture plugin registered, and one
   # instance of each class in +plugins+ beside it. On macOS the app runs
   # in the background, so it never takes the keyboard from the person at
