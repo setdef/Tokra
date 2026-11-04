@@ -6,8 +6,7 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 # Tokra
 
-[![Certified Shovelware](https://justin.searls.co/img/shovelware.svg)](https://justin.searls.co/shovelware/)
-[![CI](https://github.com/setdef/Tokra/actions/workflows/ci.yml/badge.svg?branch=trunk)](https://github.com/setdef/Tokra/actions/workflows/ci.yml)
+[![CI](https://github.com/setdef/Tokra/actions/workflows/ci.yml/badge.svg?branch=trunk)](https://github.com/setdef/Tokra/actions/workflows/ci.yml) [![Gem Version](https://img.shields.io/gem/v/tokra)](https://rubygems.org/gems/tokra) [![License](https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsetdef%2FTokra%2Ftrunk%2Ftokra.gemspec&search=spec%5C.license%20%3D%20%22(.*)%22&replace=%241&label=License&color=a2c93e)](https://spdx.org/licenses/AGPL-3.0-or-later.html) [![Ruby](https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsetdef%2FTokra%2Ftrunk%2Ftokra.gemspec&search=spec%5C.required_ruby_version%20%3D%20%22(.*)%22&replace=%241&label=Ruby&logo=ruby&color=a2c93e)](#compatibility) [![tao](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsetdef%2FTokra%2Ftrunk%2Fext%2Ftokra%2FCargo.toml&query=%24.dependencies.tao&prefix=v&label=tao&color=a2c93e)](https://crates.io/crates/tao) [![wry](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsetdef%2FTokra%2Ftrunk%2Fext%2Ftokra%2FCargo.toml&query=%24.dependencies.wry.version&prefix=v&label=wry&color=a2c93e)](https://crates.io/crates/wry) [![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux-a2c93e)](#compatibility) [![Forum: Discussion](https://img.shields.io/badge/forum-discussion-5865F2.svg?logo=discourse)](https://forum.setdef.com/tags/c/tokra/discussion) [![Forum: Bug Reports](https://img.shields.io/badge/forum-bug_reports-4954d5.svg?logo=discourse)](https://forum.setdef.com/tags/c/tokra/bug) [![Forum: Announcements](https://img.shields.io/badge/forum-announcements-3b44ac.svg?logo=discourse)](https://forum.setdef.com/tags/c/tokra/announcement) [![Certified Shovelware](https://justin.searls.co/img/shovelware.svg)](https://justin.searls.co/shovelware/)
 
 Tokra builds desktop apps with a Ruby backend and a web frontend. It is a
 port of [Tauri](https://tauri.app) to Ruby: your Ruby code runs in the
@@ -334,10 +333,13 @@ Today you run a Tokra app with `bundle exec ruby`.
 
 ## Reporting problems
 
-Open an issue at
-[github.com/setdef/Tokra/issues](https://github.com/setdef/Tokra/issues).
-Include your operating system and its version, the output of `ruby -v`
-and `rustc -V`, the command you ran, and its full output.
+Report a bug under
+[Bug Reports](https://forum.setdef.com/tags/c/tokra/bug) on the setdef
+forum or as a [GitHub issue](https://github.com/setdef/Tokra/issues), and
+ask questions under
+[Discussion](https://forum.setdef.com/tags/c/tokra/discussion). Include
+your operating system and its version, the output of `ruby -v` and
+`rustc -V`, the command you ran, and its full output.
 
 ## Contributing
 
