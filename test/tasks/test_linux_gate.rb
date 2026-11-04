@@ -56,6 +56,13 @@ class TestLinuxGate < Minitest::Test
 
   private def gate(checkout = ROOT) = LinuxGate.new(checkout:, docker: @docker, out: @out)
 
+  # rake test:linux runs from a Mac or a Linux computer. Windows cannot run
+  # the shell-script docker above, and its git keeps neither a symlink nor
+  # an executable bit, so the tests that need either skip there.
+  private def posix_only!
+    skip "needs a POSIX shell and file modes, as the computers rake test:linux runs from have" if Gem.win_platform?
+  end
+
   private def calls
     path = File.join(@dir, "log")
     File.exist?(path) ? File.readlines(path, chomp: true).map { |line| line.split("\t") } : []
@@ -296,6 +303,7 @@ class TestLinuxGate < Minitest::Test
   end
 
   def test_the_snapshot_is_a_repository_listing_what_the_checkout_tracks
+    posix_only!
     checkout = checkout_with_submodule
     copy = File.join(@dir, "copy")
     LinuxGate.snapshot(JSON.parse(JSON.generate(gate(checkout).manifest)), from: checkout, to: copy)
@@ -358,6 +366,7 @@ class TestLinuxGate < Minitest::Test
   end
 
   def test_a_run_builds_creates_the_volumes_and_runs_with_the_manifest_on_its_input
+    posix_only!
     checkout = with_real_pins(checkout_with_submodule)
     gate(checkout).run(%w[test:gui])
 
@@ -373,6 +382,7 @@ class TestLinuxGate < Minitest::Test
   end
 
   def test_a_clean_run_empties_the_build_volumes_before_it_creates_them
+    posix_only!
     checkout = with_real_pins(checkout_with_submodule)
     gate(checkout).run([], clean: true)
     name = gate(checkout).name
@@ -384,12 +394,14 @@ class TestLinuxGate < Minitest::Test
   end
 
   def test_a_run_that_is_not_clean_keeps_the_build_volumes
+    posix_only!
     gate(with_real_pins(checkout_with_submodule)).run
 
     assert_empty(calls.select { |call| call[1, 2] == %w[volume rm] })
   end
 
   def test_a_run_refuses_while_the_checkouts_container_exists
+    posix_only!
     arrange("containers", "4f2c\n")
     error = assert_raises(LinuxGate::Failure) { gate.run }
 
@@ -398,6 +410,7 @@ class TestLinuxGate < Minitest::Test
   end
 
   def test_a_failing_step_fails_the_run_by_name
+    posix_only!
     arrange("build-status", "3")
 
     assert_equal "build #{gate.image} failed (exit 3)", assert_raises(LinuxGate::Failure) { gate.run }.message
@@ -409,6 +422,7 @@ class TestLinuxGate < Minitest::Test
   end
 
   def test_prune_removes_only_the_volumes_and_images_of_checkouts_that_are_gone
+    posix_only!
     gone = File.join(@dir, "gone")
     kept = LinuxGate.new(checkout: @dir)
     lost = LinuxGate.new(checkout: gone)
@@ -423,6 +437,7 @@ class TestLinuxGate < Minitest::Test
   end
 
   def test_prune_goes_on_past_a_volume_it_cannot_remove_and_then_fails_naming_it
+    posix_only!
     lost = LinuxGate.new(checkout: File.join(@dir, "gone"))
     arrange("volumes", lost.volumes.keys.map { |volume| "#{volume}\t#{File.join(@dir, 'gone')}" }.join("\n"))
     stuck = lost.volumes.keys[1]
