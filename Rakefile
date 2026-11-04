@@ -40,14 +40,27 @@ PLUGINS = Dir["plugins/*"].select { |f| File.directory?(f) }
 # Without an unbundled environment, the inherited BUNDLE_GEMFILE would
 # run the plugin under the root bundle. In a hidden job the gems are
 # shared and read-only, so Bundler installs there only what is missing.
-def run_plugin_tests(plugin, files, windows:)
+# With <tt>install: false</tt> the caller installed the bundle already
+# (install_plugin_bundle).
+def run_plugin_tests(plugin, files, windows:, install: true)
   return if files.empty?
 
-  install = ENV["TOKRA_HIDDEN_JOB"] ? "(bundle check > #{File::NULL} || bundle install --quiet)" : "bundle install --quiet"
+  steps = [*(plugin_bundle_install if install), "bundle exec rake test"]
   Bundler.with_unbundled_env do
-    sh({ "TOKRA_TESTS" => files.join(",") }.merge(RealWindows.run_env(windows)),
-      "cd #{plugin} && #{install} && bundle exec rake test")
+    sh({ "TOKRA_TESTS" => files.join(",") }.merge(RealWindows.run_env(windows)), "cd #{plugin} && #{steps.join(' && ')}")
   end
+end
+
+# Installs +plugin+'s own bundle, as run_plugin_tests does before its
+# tests.
+def install_plugin_bundle(plugin)
+  Bundler.with_unbundled_env { sh "cd #{plugin} && #{plugin_bundle_install}" }
+end
+
+# The command that installs a plugin's bundle: in a hidden job, whose gems
+# are shared and read-only, only when something is missing.
+def plugin_bundle_install
+  RealWindows.hidden_job? ? "(bundle check > #{File::NULL} || bundle install --quiet)" : "bundle install --quiet"
 end
 
 # Plugin tasks that delegate to each plugin's Rakefile

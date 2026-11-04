@@ -25,7 +25,8 @@ KEYBOARD_TESTS = RealWindows::KEYBOARD
 
 # Every test file that opens a real window, the keyboard ones included,
 # and the rest. The first run in test:gui, wherever RealWindows.where
-# says, and never in test:core (Plan 056).
+# says, and never in test:core (Plan 056); in the hidden job they leave
+# out the ones that need the console, which test:console runs (Plan 057).
 WINDOW_TESTS, CORE_TESTS = RealWindows.split(Dir["test/**/test_*.rb", "test/**/*_test.rb"])
 
 namespace :test do
@@ -49,6 +50,10 @@ namespace :test do
   real_windows = Minitest::TestTask.create(:real_windows) do |t|
     t.test_globs = WINDOW_TESTS - Dir[KEYBOARD_TESTS]
   end
+
+  console = Minitest::TestTask.create(:"console:core") do |t|
+    t.test_globs = RealWindows.console_tests
+  end
   # A test process that a native crash ends has no exit status Rake can
   # print ("Command failed with status ()"). On Windows Ruby keeps the
   # exit code shifted left by eight bits, and maps an access violation,
@@ -59,8 +64,8 @@ namespace :test do
   #
   # Only the real-window batches may open real windows: the tripwire in
   # test/support/real_windows_run.rb fails any test elsewhere that tries.
-  { core: false, keyboard: true, real_windows: true }.each do |name, windows|
-    test_task = { core:, keyboard:, real_windows: }.fetch(name)
+  { core: false, keyboard: true, real_windows: true, "console:core": true }.each do |name, windows|
+    test_task = { core:, keyboard:, real_windows:, "console:core": console }.fetch(name)
     Rake::Task["test:#{name}"].clear_actions
     Rake::Task["test:#{name}"].enhance do
       sh RealWindows.run_env(windows), "#{FileUtils::RUBY} #{test_task.make_test_cmd}",
@@ -122,16 +127,43 @@ namespace :test do
   desc "Run all Ruby tests (real-window, core, plugins)"
   task ruby: ["test:gui", "test:core", "plugins:test"]
 
-  desc "Run every real-window test: hidden in tokratest on a Mac, here on CI or with TOKRA_REAL_WINDOWS=local"
+  desc "Run every real-window test: hidden in tokratest on a Mac except test:console's, here on CI or with " \
+    "TOKRA_REAL_WINDOWS=local"
   task :gui do
     if RealWindows.where == :local
       %w[test:keyboard test:real_windows test:real_windows:plugins].each { |name| Rake::Task[name].invoke }
     else
-      Rake::Task["test:hidden"].invoke
+      %w[test:hidden test:console].each { |name| Rake::Task[name].invoke }
     end
   end
 
-  desc "Run every real-window test in tokratest's hidden session, through hidden-run (Plan 056)"
+  # The real-window tests that need the console run in this session even
+  # where the rest run hidden, holding the desktop input lock that other
+  # projects' tests take before they take the keyboard (Plans 046, 057),
+  # so no one's synthetic input lands in their windows. They take neither
+  # the keyboard nor focus, so the span is a silent one. It lasts the
+  # whole run, so a console test that took the lock in its own process
+  # would wait on its parent forever. The plugins' bundles install first,
+  # so the lock is never held across a network install.
+  desc "Run the real-window tests that need the console (RealWindows::CONSOLE) in this session"
+  task console: :compile do
+    require_relative "../test/integration/support/keyboard_notice"
+    Rake::Task["test:console:bundles"].invoke
+    KeyboardNotice.taking_the_keyboard(speak: false) do
+      Rake::Task["test:console:core"].invoke unless RealWindows.console_tests.empty?
+      Rake::Task["test:console:plugins"].invoke
+    end
+  end
+
+  task "console:bundles" do
+    PLUGINS.each { |plugin| install_plugin_bundle(plugin) unless RealWindows.console_tests(plugin).empty? }
+  end
+
+  task "console:plugins" => "console:bundles" do
+    PLUGINS.each { |plugin| run_plugin_tests(plugin, RealWindows.console_tests(plugin), windows: true, install: false) }
+  end
+
+  desc "Run the real-window tests except test:console's in tokratest's hidden session, through hidden-run (Plan 056)"
   task :hidden do
     HiddenJob.new(checkout: Dir.pwd).run
   rescue HiddenJob::Failure => e
@@ -155,6 +187,8 @@ namespace :test do
   end
   Rake::Task["test:keyboard"].comment = "Run the keyboard-taking real-window tests in this session"
   Rake::Task["test:real_windows"].comment = "Run the other core real-window tests in this session"
+  # test:console runs the console tests; only it shows in rake -T.
+  Rake::Task.tasks.select { |task| task.name.start_with?("test:console:core") }.each(&:clear_comments)
   task keyboard: %w[here compile]
   task real_windows: %w[here compile]
 

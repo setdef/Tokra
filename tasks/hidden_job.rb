@@ -10,9 +10,11 @@ require "English"
 require "fileutils"
 require "open3"
 require "tmpdir"
+require_relative "real_windows"
 
-# Runs the real-window tests in the hidden +tokratest+ session, from the
-# maintainer's own, and streams what they print (Plan 056).
+# Runs the real-window tests, except RealWindows::CONSOLE, in the hidden
+# +tokratest+ session, from the maintainer's own, and streams what they
+# print (Plans 056 and 057).
 #
 # It follows the hidden session's RECIPE.txt. Here, in the maintainer's
 # session: ask the runner whether it answers, publish the checkout with
@@ -162,7 +164,7 @@ class HiddenJob
     tasks = @plugins ? [*TASKS, PLUGIN_TASK] : TASKS
     hidden_run("--timeout", RUN_TIMEOUT.to_s, "--min-free-gb", MIN_FREE_GB.to_s, "--cwd", mirrored,
       *environment, "--env", "CARGO_HOME=#{CARGO_HOME}", "--env", "TOKRA_QUIET=1",
-      "--env", "TOKRA_REAL_WINDOWS=local", "--env", "TOKRA_HIDDEN_JOB=1", "--", "bundle", "exec", "rake", *tasks)
+      "--env", "TOKRA_REAL_WINDOWS=local", "--env", "#{RealWindows::HIDDEN_JOB}=1", "--", "bundle", "exec", "rake", *tasks)
   end
 
   # Removes the published copy and the mirror of every checkout whose

@@ -62,6 +62,7 @@ Automated mutation testing is deferred (Plan 017). Do it by hand instead:
    routed tasks, `bundle exec rake test:gui` (hidden on the maintainer's
    Mac), or with `TOKRA_REAL_WINDOWS=local` `rake test:keyboard`,
    `test:real_windows`, or `test:real_windows:plugins` and `N=/test_name/`.
+   The few `RealWindows::CONSOLE` names run in `test:console` (Plan 057).
    Outside those tasks a real-window test fails on purpose.
 3. Report each spot-check: the line, the mutation, the test, and whether it
    failed.

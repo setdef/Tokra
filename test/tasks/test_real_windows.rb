@@ -130,6 +130,79 @@ class TestRealWindows < Minitest::Test
     assert_includes RealWindows.plugin_tests("plugins/dialog", windows: true), "test/test_macos_dialogs.rb"
   end
 
+  def test_each_named_plugin_test_checks_the_tripwire_before_it_touches_the_system
+    RealWindows::NAMED.each { |path| assert_includes File.read(path), "RealWindowsRun.require!(", path }
+  end
+
+  # Every clipboard test writes the system clipboard, so a new file there
+  # must be named, or it would run in plugins:test, on the maintainer's.
+  def test_every_clipboard_test_runs_with_the_real_window_ones_so_never_on_the_maintainers_clipboard
+    files = Dir["plugins/clipboard/test/**/test_*.rb"]
+
+    refute_empty files
+    files.each { |path| assert_includes RealWindows::NAMED, path }
+    assert_equal %w[test/test_clipboard.rb], RealWindows.plugin_tests("plugins/clipboard", windows: true)
+    assert_empty RealWindows.plugin_tests("plugins/clipboard", windows: false)
+  end
+
+  HIDDEN_JOB = { "TOKRA_HIDDEN_JOB" => "1" }.freeze
+
+  def test_only_a_set_variable_makes_the_hidden_job
+    assert RealWindows.hidden_job?(HIDDEN_JOB)
+    refute RealWindows.hidden_job?({})
+    refute RealWindows.hidden_job?({ "TOKRA_HIDDEN_JOB" => "" })
+    assert_equal "TOKRA_HIDDEN_JOB", RealWindows::HIDDEN_JOB
+  end
+
+  def test_the_console_tests_are_real_window_tests_that_exist
+    refute_empty RealWindows::CONSOLE
+    RealWindows::CONSOLE.each do |path|
+      assert_path_exists path
+      assert RealWindows.test_file?(path), "#{path} is no real-window test"
+    end
+  end
+
+  # test:console holds the lock across its child processes; one of them
+  # taking it too would wait on its own parent forever. This reads only
+  # each console file's own text, not what that file requires.
+  def test_no_console_test_takes_the_desktop_input_lock_itself
+    RealWindows::CONSOLE.each do |path|
+      refute File.fnmatch?(RealWindows::KEYBOARD, path, File::FNM_PATHNAME), path
+      refute_match(/taking_the_keyboard|DesktopInputLock/, File.read(path), path)
+    end
+  end
+
+  def test_the_console_tests_divide_between_core_and_each_plugin
+    plugins = Dir["plugins/*"].flat_map { |plugin| RealWindows.console_tests(plugin).map { |path| "#{plugin}/#{path}" } }
+
+    assert_equal RealWindows::CONSOLE.sort, (RealWindows.console_tests + plugins).sort
+    assert(RealWindows.console_tests.none? { |path| path.start_with?("plugins/") })
+  end
+
+  def test_the_hidden_job_leaves_the_console_tests_out_and_every_other_run_keeps_them
+    console = RealWindows::CONSOLE
+    paths = ["test/native/test_menu.rb", *console, "test/test_window.rb"]
+
+    assert_equal [["test/native/test_menu.rb", *console], ["test/test_window.rb"]], RealWindows.split(paths, {})
+    assert_equal [["test/native/test_menu.rb"], ["test/test_window.rb"]], RealWindows.split(paths, HIDDEN_JOB)
+  end
+
+  def test_the_hidden_job_leaves_each_plugins_console_tests_out
+    plugins = Dir["plugins/*"].reject { |plugin| RealWindows.console_tests(plugin).empty? }
+
+    refute_empty plugins
+    plugins.each do |plugin|
+      console = RealWindows.console_tests(plugin)
+      everywhere = RealWindows.plugin_tests(plugin, windows: true, env: {})
+      hidden = RealWindows.plugin_tests(plugin, windows: true, env: HIDDEN_JOB)
+
+      assert_empty console - everywhere, plugin
+      assert_equal everywhere - console, hidden, plugin
+      assert_equal RealWindows.plugin_tests(plugin, windows: false, env: {}),
+        RealWindows.plugin_tests(plugin, windows: false, env: HIDDEN_JOB), plugin
+    end
+  end
+
   def test_a_plugins_tests_split_between_the_two_runs
     windows = RealWindows.plugin_tests("plugins/dialog", windows: true)
     rest = RealWindows.plugin_tests("plugins/dialog", windows: false)
@@ -166,7 +239,7 @@ class TestRealWindows < Minitest::Test
       require "rake"
       Rake.application.init("rake", [])
       Rake.application.load_rakefile
-      %w[test:keyboard test:real_windows test:real_windows:plugins test:hidden].each do |name|
+      %w[test:keyboard test:real_windows test:real_windows:plugins test:hidden test:console].each do |name|
         Rake::Task[name].clear
         Rake::Task.define_task(name) { puts "ran \#{name}" }
       end
@@ -183,8 +256,86 @@ class TestRealWindows < Minitest::Test
     assert_equal ["ran test:keyboard", "ran test:real_windows", "ran test:real_windows:plugins"], gui_runs("local")
   end
 
-  def test_hidden_the_gui_task_runs_them_all_through_the_hidden_job
-    assert_equal ["ran test:hidden"], gui_runs("hidden")
+  def test_hidden_the_gui_task_runs_the_hidden_job_then_the_console_tests_here
+    assert_equal ["ran test:hidden", "ran test:console"], gui_runs("hidden")
+  end
+
+  # What test:console does where the rest run hidden, with RealWindows::CONSOLE
+  # replaced by +console+ if given, before the Rakefile loads. The compile,
+  # each plugin's install and tests, and the core batch's command only say
+  # what they were given, and whether the desktop input lock was held.
+  private def console_runs(console = nil)
+    stub = <<~RUBY
+      require "rake"
+      require_relative "tasks/real_windows"
+      if (console = #{console.inspect})
+        RealWindows.send(:remove_const, :CONSOLE)
+        RealWindows.const_set(:CONSOLE, console.freeze)
+      end
+      Rake.application.init("rake", [])
+      Rake.application.load_rakefile
+      held = lambda do
+        free = File.open(ENV.fetch("DESKTOP_INPUT_LOCK"), File::RDWR | File::CREAT) do |file|
+          file.flock(File::LOCK_EX | File::LOCK_NB)
+        end
+        free ? "unlocked" : "locked"
+      end
+      Rake::Task["compile"].clear
+      Rake::Task.define_task("compile") { puts "said compile, \#{held.call}" }
+      define_singleton_method(:install_plugin_bundle) { |plugin| puts "said bundle \#{plugin}, \#{held.call}" }
+      define_singleton_method(:run_plugin_tests) do |plugin, files, windows:, install: true|
+        puts "said tests \#{plugin} \#{files.inspect} windows=\#{windows} install=\#{install}, \#{held.call}"
+      end
+      define_singleton_method(:sh) do |env, command, **|
+        puts "said core \#{env.inspect} \#{RealWindows::CONSOLE.select { |path| command.include?(path) }.inspect}, \#{held.call}"
+      end
+      Rake::Task["test:console"].invoke
+    RUBY
+    output = nil
+    Dir.mktmpdir("console_lock") do |dir|
+      env = {
+"TOKRA_REAL_WINDOWS" => "hidden",
+"DESKTOP_INPUT_LOCK" => File.join(dir, "desktop-input.lock"),
+"TOKRA_QUIET" => "1",
+"CI" => nil,
+}
+      output, status = Open3.capture2e(env, RbConfig.ruby, "-e", stub, chdir: File.expand_path("../..", __dir__))
+
+      assert_predicate status, :success?, output
+    end
+    output.lines(chomp: true).grep(/\Asaid /)
+  end
+
+  HELD = RbConfig::CONFIG["host_os"].include?("darwin") ? "locked" : "unlocked"
+
+  # Each plugin's line from test:console: only the dialog plugin's names a
+  # file, the console one, and every plugin's may open real windows.
+  private def plugin_lines(dialog_files)
+    Dir["plugins/*"].map do |plugin|
+      files = (plugin == "plugins/dialog") ? dialog_files : []
+      "said tests #{plugin} #{files.inspect} windows=true install=false, #{HELD}"
+    end
+  end
+
+  def test_the_console_tests_run_here_where_the_rest_run_hidden_holding_the_lock_on_a_mac
+    assert_equal [
+      "said compile, unlocked",
+      "said bundle plugins/dialog, unlocked",
+      *plugin_lines(%w[test/test_dialog_window.rb]),
+], console_runs
+  end
+
+  def test_the_core_console_tests_run_in_one_batch_that_may_open_windows_holding_the_lock
+    core = "test/integration/event_test.rb"
+    run_env = RealWindows.run_env(true)
+
+    assert_equal [
+      "said compile, unlocked",
+      "said bundle plugins/dialog, unlocked",
+      "said core #{run_env.inspect} #{[core].inspect}, #{HELD}",
+      *plugin_lines(%w[test/test_dialog_window.rb]),
+],
+      console_runs([core, "plugins/dialog/test/test_dialog_window.rb"])
   end
 
   def test_the_gate_fails_rather_than_open_windows_here_when_the_hidden_session_cannot_run_them

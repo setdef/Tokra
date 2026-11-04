@@ -7,12 +7,13 @@
 
 require "rbconfig"
 
-# Which tests open real windows, and where they run (Plan 056).
+# Which tests open real windows, and where they run (Plans 056 and 057).
 #
 # A real-window test opens tao windows, menus, trays, file panels, or
-# notifications. On the maintainer's Mac those run in the hidden
-# +tokratest+ session (HiddenJob), so none opens in the maintainer's own;
-# on CI and off macOS they run here, as always.
+# notifications, or uses the session's clipboard. On the maintainer's Mac
+# those run in the hidden +tokratest+ session (HiddenJob), so none opens
+# in the maintainer's own, except the few CONSOLE names, which run here
+# (test:console); on CI and off macOS they all run here, as always.
 module RealWindows
   # The tests that take the keyboard and mouse on macOS, which run first.
   KEYBOARD = "test/integration/keyboard/**/*_test.rb"
@@ -24,11 +25,23 @@ module RealWindows
   # tests, plugins' included, launch through RealApp.
   MARKER = /\b(?:RealApp|NativeEventLoop)(?:\.|::)/
 
-  # Plugin tests that open real system UI without either: AppKit's file
-  # panels, and the notification center's banners.
+  # Plugin tests that open real system UI, or use the session's own, without
+  # either: AppKit's file panels, the notification center's banners, and
+  # the system clipboard.
   NAMED = %w[
+    plugins/clipboard/test/test_clipboard.rb
     plugins/dialog/test/test_macos_dialogs.rb
     plugins/notification/test/test_macos_notifications.rb
+  ].freeze
+
+  # The real-window tests that need the console. On the maintainer's Mac
+  # they run in the maintainer's session, in test:console, holding the
+  # desktop input lock, and the hidden job leaves them out; everywhere
+  # else they run with the rest. Off the console, macOS lowers WebKit's
+  # page process to background priority, and under load these tests'
+  # pages starve past their bounds (Plan 057).
+  CONSOLE = %w[
+    plugins/dialog/test/test_dialog_window.rb
   ].freeze
 
   # The repository, which the paths here are relative to.
@@ -37,6 +50,9 @@ module RealWindows
   # What the real-window tasks set for their test processes, which the
   # tests' tripwire reads.
   RUN = "TOKRA_REAL_WINDOWS_RUN"
+
+  # What HiddenJob sets for the tasks it runs in tokratest.
+  HIDDEN_JOB = "TOKRA_HIDDEN_JOB"
 
   # The values TOKRA_REAL_WINDOWS takes.
   PLACES = { "local" => :local, "hidden" => :hidden }.freeze
@@ -69,17 +85,32 @@ module RealWindows
       path.start_with?(INTEGRATION) || NAMED.include?(path) || source.match?(MARKER)
     end
 
+    # Whether +env+ is the hidden job's, which leaves the CONSOLE tests to
+    # test:console in the maintainer's session.
+    def hidden_job?(env = ENV) = !env[HIDDEN_JOB].to_s.empty?
+
     # The test files among +paths+ that open real windows, and the rest.
-    def split(paths)
-      paths.partition { |path| test_file?(path) }
+    # In the hidden job the first leaves the CONSOLE tests out.
+    def split(paths, env = ENV)
+      windows, rest = paths.partition { |path| test_file?(path) }
+      [hidden_job?(env) ? windows - CONSOLE : windows, rest]
     end
 
     # +plugin+'s test files (relative to it), those that open real windows
     # if +windows+, else the rest, as its Rakefile's pattern finds them.
-    def plugin_tests(plugin, windows:)
-      Dir.glob("#{plugin}/test/**/test_*.rb", base: ROOT).sort
-        .select { |path| test_file?(path) == windows }
-        .map { |path| path.delete_prefix("#{plugin}/") }
+    # In the hidden job the first leaves the CONSOLE tests out.
+    def plugin_tests(plugin, windows:, env: ENV)
+      paths = Dir.glob("#{plugin}/test/**/test_*.rb", base: ROOT).sort.select { |path| test_file?(path) == windows }
+      paths -= CONSOLE if windows && hidden_job?(env)
+      paths.map { |path| path.delete_prefix("#{plugin}/") }
+    end
+
+    # The CONSOLE tests of +plugin+, relative to it, or with none given,
+    # the core ones, relative to the repository.
+    def console_tests(plugin = nil)
+      return CONSOLE.reject { |path| path.start_with?("plugins/") } unless plugin
+
+      CONSOLE.select { |path| path.start_with?("#{plugin}/") }.map { |path| path.delete_prefix("#{plugin}/") }
     end
   end
 end
