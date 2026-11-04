@@ -40,4 +40,30 @@ class FixtureAppTest < Minitest::Test
     assert_predicate status, :success?, output
     assert_equal ["Disabled", "Suspend", "Disabled"], JSON.parse(output[/^THROTTLING (.*)$/, 1])
   end
+
+  # A line a fixture prints from one thread arrives whole even while
+  # another thread prints, because each puts is one write
+  # (FixtureApp::WholeLines), where Ruby's own puts writes a line and its
+  # newline separately.
+  LINES = <<~RUBY
+    require "json"
+    require_relative "test/integration/support/fixture_app"
+    writes = []
+    out = Object.new
+    out.define_singleton_method(:write) { |*strings| writes << strings; strings.sum(&:bytesize) }
+    out.extend(FixtureApp::WholeLines)
+    out.puts("EVENT exit")
+    out.puts("a\\n", ["b", nil])
+    out.puts
+    $stderr.puts "WRITES " + JSON.generate(writes)
+    $stderr.puts "STDOUT " + JSON.generate($stdout.singleton_class.include?(FixtureApp::WholeLines))
+  RUBY
+
+  def test_each_line_a_fixture_prints_is_one_write_to_its_stdout
+    output, status = Open3.capture2e(RbConfig.ruby, "-I", File.join(ROOT, "lib"), "-e", LINES, chdir: ROOT)
+
+    assert_predicate status, :success?, output
+    assert_equal [["EVENT exit\n"], ["a\nb\n\n"], ["\n"]], JSON.parse(output[/^WRITES (.*)$/, 1])
+    assert JSON.parse(output[/^STDOUT (.*)$/, 1]), output
+  end
 end

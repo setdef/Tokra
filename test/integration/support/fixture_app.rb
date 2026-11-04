@@ -166,6 +166,25 @@ module FixtureApp
   end
   Tokra::WebviewWindowBuilder.prepend(Unthrottled)
 
+  # Each line of the contract is read whole, but a fixture prints from
+  # its event loop, its page's hooks, and its own server threads at once.
+  # Where Ruby has no writev, as on Windows, or $stdout is neither synced
+  # nor a terminal, IO#puts writes a line and its newline as two pieces,
+  # with a thread switch between them (io.c, io_writev and io_binwrite),
+  # so another thread's line can land in the gap, as "REQUEST
+  # /favicon.ico cookie=pageEVENT exit" once did. Extending the fixture's
+  # $stdout with this makes each puts a single write, which Ruby keeps
+  # whole across threads. It matches IO#puts for what fixtures print:
+  # strings, nil, and flat or nested arrays of them.
+  module WholeLines
+    def puts(*objects)
+      lines = objects.empty? ? [""] : objects.flatten
+      write(lines.map { |object| (line = object.to_s).end_with?("\n") ? line : "#{line}\n" }.join)
+      nil
+    end
+  end
+  $stdout.extend(WholeLines)
+
   # A Builder serving +site+ with the fixture plugin registered, and one
   # instance of each class in +plugins+ beside it. On macOS the app runs
   # in the background, so it never takes the keyboard from the person at
