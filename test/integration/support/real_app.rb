@@ -9,6 +9,7 @@ require "test_helper"
 require "json"
 require "rbconfig"
 require_relative "frontmost"
+require_relative "hang_probe"
 require_relative "../../support/real_windows_run"
 
 # Runs a fixture app (test/integration/fixtures/*/app.rb) in a real window.
@@ -40,8 +41,10 @@ module RealApp
   # that ended it, if one did. +exit_after_signal+ is how long the app lived
   # after the +on_line+ hook last signalled it. +activated+ is whether the
   # app was ever the frontmost app, or +nil+ where Frontmost cannot tell.
+  # +probe+ is what HangProbe found about an app that hung, before the
+  # kill, or +nil+.
   Run = Data.define(:status, :termsig, :stdout, :stderr, :timed_out, :seconds, :exit_after_signal,
-    :activated) do
+    :activated, :probe) do
     def lines
       stdout.lines(chomp: true)
     end
@@ -63,7 +66,7 @@ module RealApp
     def describe
       "status=#{status.inspect} termsig=#{termsig.inspect} timed_out=#{timed_out} seconds=#{seconds.round(2)} " \
         "exit_after_signal=#{exit_after_signal&.round(2).inspect} activated=#{activated.inspect}\n" \
-        "--- stdout\n#{stdout}\n--- stderr\n#{stderr}"
+        "--- stdout\n#{stdout}\n--- stderr\n#{stderr}#{"\n--- probe\n#{probe}" if probe}"
     end
   end
 
@@ -122,6 +125,7 @@ module RealApp
     timed_out = waiter.join(TIMEOUT).nil?
     ended = now
     if timed_out
+      probe = HangProbe.call(pid)
       kill_group(pid)
       waiter.join(DRAIN)
     end
@@ -134,7 +138,8 @@ module RealApp
       timed_out:,
       seconds: ended - started,
       exit_after_signal: signalled_at && (ended - signalled_at),
-      activated: watcher&.value
+      activated: watcher&.value,
+      probe:
     )
   ensure
     # Whatever happened above, leave no window behind.

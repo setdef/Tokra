@@ -45,7 +45,9 @@ gem "rake-compiler"
 
 gem "minitest", "~> 6.0"
 # The window-handle fixture follows a real window's handles through the
-# window system (test/integration/fixtures/window_handle).
+# window system (test/integration/fixtures/window_handle). Every RealApp
+# run loads it too, for HangProbe, which reads a hung fixture's windows
+# on Windows (test/integration/support/hang_probe.rb).
 gem "fiddle"
 gem "minitest-mock"
 
