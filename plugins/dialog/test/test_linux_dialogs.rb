@@ -109,7 +109,8 @@ class TestLinuxDialogs < Minitest::Test
   end
 
   # The command answers with the custom label even where rfd answers Ok
-  # (desktop.rs:227-253).
+  # (desktop.rs:227-253). A message with no title of its own is titled
+  # with the app's package name, as Tauri's is.
   def test_message_with_custom_buttons_resolves_a_label
     answer, args = run_command("message", { "message" => "Keep?", "buttons" => { "OkCancelCustom" => %w[Keep Drop] } },
       status: 1)
@@ -119,7 +120,7 @@ class TestLinuxDialogs < Minitest::Test
       "--no-markup",
       "--question",
       "--title",
-      "",
+      TestApp::PRODUCT_NAME,
       "--text",
       "Keep?",
       "--ok-label",
@@ -139,7 +140,7 @@ class TestLinuxDialogs < Minitest::Test
       "--no-markup",
       "--question",
       "--title",
-      "",
+      TestApp::PRODUCT_NAME,
       "--text",
       "Go?",
       "--ok-label",
