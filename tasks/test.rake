@@ -11,6 +11,7 @@ require "shellwords"
 require_relative "test_order"
 require_relative "real_windows"
 require_relative "hidden_job"
+require_relative "linux_gate"
 
 # Clear the default test task created by Minitest::TestTask if it exists
 Rake::Task["test"].clear if Rake::Task.task_defined?("test")
@@ -174,6 +175,24 @@ namespace :test do
     HiddenJob.new(checkout: Dir.pwd).prune
   rescue HiddenJob::Failure => e
     abort "test:hidden:prune failed: #{e.message}"
+  end
+
+  # CI's Linux job, in Docker, to run before a push; not in the gate, since
+  # even a warm run is long (Plan 058). Arguments name tasks to run there
+  # instead of the whole gate: rake "test:linux[test:gui,plugins:test]".
+  # CLEAN=1 empties the target/ and tmp/ volumes first, for a clean build.
+  desc "Run CI's Linux job (the gate under Xvfb and D-Bus, or the tasks given) in a Docker container (Plan 058)"
+  task :linux do |_, args|
+    LinuxGate.new(checkout: Dir.pwd).run(args.extras, clean: ENV["CLEAN"] == "1")
+  rescue LinuxGate::Failure => e
+    abort "test:linux failed: #{e.message}"
+  end
+
+  desc "Remove the Docker volumes and images of test:linux checkouts that are gone (Plan 058)"
+  task "linux:prune" do
+    LinuxGate.new(checkout: Dir.pwd).prune
+  rescue LinuxGate::Failure => e
+    abort "test:linux:prune failed: #{e.message}"
   end
 
   # The tasks that open real windows in this session refuse to where the
