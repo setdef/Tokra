@@ -1,29 +1,74 @@
-== Build Desktop Apps with Ruby and Web Technologies
+= Tokra
 
 {rdoc-image:https://justin.searls.co/img/shovelware.svg}[https://justin.searls.co/shovelware/]
 {rdoc-image:https://github.com/setdef/Tokra/actions/workflows/ci.yml/badge.svg?branch=trunk}[https://github.com/setdef/Tokra/actions/workflows/ci.yml]
 
-Tokra is a port of Tauri to Ruby, enabling you to build desktop applications
-with web technologies backed by Ruby.
+Desktop apps with a Ruby backend and a web frontend.
+
+Tokra is a port of {Tauri}[https://tauri.app] to Ruby. Your Ruby code runs
+in the app's process, and your HTML, CSS, and JavaScript run in the
+operating system's web view. Your Rack app, whether Rails, Roda, or a
+lambda, answers the window's requests for <tt>tokra://</tt> URLs inside
+the process, so no web server runs and no port opens. The page calls Ruby
+through Tauri's JavaScript API. Tokra mirrors Tauri 2.9.5: its names, its
+config file, its error messages, and its IPC wire format.
+
+The {README on GitHub}[https://github.com/setdef/Tokra#readme] walks
+through a first app, the config file, Rails, plugins, and what Tokra does
+not do yet.
+
+== Usage
+
+Put a <tt>tokra.conf.json</tt> beside your script. Its keys are Tauri's,
+so {Tauri's configuration reference}[https://v2.tauri.app/reference/config/]
+documents them:
+
+  {
+    "identifier": "com.example.hello",
+    "app": { "windows": [{ "title": "Hello", "width": 480, "height": 320 }] }
+  }
+
+Then serve your Rack app in the windows it lists:
+
+  require "tokra"
+
+  Rack::Handler::Tokra.run(->(_env) { [200, { "content-type" => "text/html" }, ["<h1>Hello</h1>"]] })
+
+For a setup hook, menus, tray icons, or plugins, build the app with
+Tokra::Builder and Tokra.generate_context instead.
+
+== Installation
+
+tokra reads URLs with ferro-url, a Ruby binding of the Rust +url+ crate
+that Tauri uses. ferro-url is not on RubyGems.org yet, so name its release
+tag in your Gemfile beside tokra:
+
+  gem "ferro-url", git: "https://github.com/setdef/Ferro",
+    tag: "ferro-url/v0.1.0.pre.1", glob: "gems/url/*.gemspec"
 
 === Building the Native Extension
 
-Installing tokra compiles a Rust extension, so the machine that installs the
-gem needs Rust and Cargo:
+Installing tokra compiles a Rust extension, so the machine that installs
+the gem needs Rust and Cargo:
 
+* Ruby 4.0.1 or newer.
 * Rust 1.88 or newer, the highest +rust-version+ among the locked
   dependencies. The gem ships a version 4 Cargo.lock, which Cargo reads from
   1.78 on. On macOS 27, use Rust 1.99 or newer: earlier toolchains strip the
   extension in a way the new loader rejects.
+* On Windows, RubyInstaller's Ruby, with Rust's GNU toolchain
+  (<tt>x86_64-pc-windows-gnu</tt>): RubyInstaller's Ruby is a MinGW build,
+  and rb-sys refuses to compile it with the MSVC toolchain.
 * The build runs <tt>cargo --locked</tt>, so it compiles exactly the
   dependency versions this repository tested and fails rather than resolving
   newer ones. To build against newer versions anyway, set
   +RB_SYS_EXTRA_CARGO_ARGS+ (for example to an empty string); it replaces
   <tt>--locked</tt>.
 * On Linux, the GTK 3 and WebKitGTK 4.1 development libraries, with
-  WebKitGTK 2.40 or newer: Tokra enables wry's +linux-body+ feature, as
+  WebKitGTK 2.40 or newer: Tokra turns on wry's +linux-body+ feature, as
   Tauri does, so request bodies reach Ruby. On Debian and Ubuntu, install
-  +libwebkit2gtk-4.1-dev+ and +libgtk-3-dev+.
+  +libwebkit2gtk-4.1-dev+, +libgtk-3-dev+, +libclang-dev+, and
+  +pkg-config+.
 * On Linux, libxdo, which menus use for their Copy, Cut, Paste, and Select
   All items, as Tauri's +linux-libxdo+ feature does: +libxdo-dev+ to build
   on Debian and Ubuntu, and +libxdo3+ at run time (+xdotool+ on Arch).
@@ -33,3 +78,14 @@ gem needs Rust and Cargo:
   +libappindicator3-1+. Without one, building a tray raises
   Tokra::Error::Tray. The icon shows where the desktop runs a
   StatusNotifierItem host.
+
+== Plugins
+
+Tauri's official plugins that Tokra ports are separate gems:
+tokra-clipboard, tokra-dialog, tokra-global-shortcut, tokra-log, and
+tokra-notification. Each README names the Ferro gems it builds on.
+
+== License
+
+AGPL-3.0-or-later. Code adapted from Tauri keeps Tauri's Apache-2.0 OR MIT,
+and every file names its license.
