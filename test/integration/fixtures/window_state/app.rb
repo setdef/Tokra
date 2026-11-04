@@ -126,7 +126,7 @@ module WindowStateFixture
   end
 end
 
-app = Tokra::Builder.default.title("Tokra integration: window state").size(320, 240).build
+app = Tokra::Builder.default.build(Tokra.generate_context)
 FixtureApp.background(app)
 WINDOWS = RbConfig::CONFIG["host_os"].match?(/mswin|mingw|cygwin/)
 

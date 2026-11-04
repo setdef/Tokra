@@ -211,7 +211,6 @@ module DialogFixture
 end
 
 options = FixtureApp.options(ARGV)
-FixtureApp.builder(FixtureApp::Site.new(__dir__, options, DialogFixture::ROUTES), "dialog",
+FixtureApp.builder(FixtureApp::Site.new(__dir__, options, DialogFixture::ROUTES),
   plugins: [Tokra::Plugins::Dialog::Plugin, DialogFixture::Plugin])
-  .with_global_tauri
-  .run
+  .run(Tokra.generate_context)

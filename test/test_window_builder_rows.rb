@@ -24,7 +24,7 @@ class TestWindowBuilderRows < Minitest::Test
   # The Hash a builder with no rows hands Native::Window#open: Tauri's
   # WindowBuilder::new over tao's defaults.
   DEFAULTS = {
-    title: "Tokra",
+    title: "Tokra App",
     inner_size: nil,
     position: nil,
     inner_size_constraints: [nil, nil, nil, nil],

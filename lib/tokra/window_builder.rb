@@ -23,8 +23,10 @@ module Tokra
   # one, and this class is internal.
   class WindowBuilder # :nodoc:
     # The title a window has when you set none: Tauri's default,
-    # "Tauri App", named for Tokra (tauri-runtime-wry lib.rs:813-835).
-    DEFAULT_TITLE = "Tokra"
+    # "Tauri App", named for Tokra (tauri-runtime-wry lib.rs:813-835), the
+    # same string a config window's title defaults to (config.rs:2061-2063;
+    # plan 054, decision 7).
+    DEFAULT_TITLE = "Tokra App"
 
     # The Windows window class a window has when you set none: Tauri's
     # "Tauri Window", named for Tokra as the title is (lib.rs:829-832).

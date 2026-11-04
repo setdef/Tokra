@@ -7,7 +7,8 @@
 
 # The app half of the real-window integration tests. Each fixture app under
 # test/integration/fixtures/ requires this file, builds on FixtureApp.builder,
-# and runs. RealApp (real_app.rb) launches it in a child process.
+# and runs with the context its tokra.conf.json describes, as an app does.
+# RealApp (real_app.rb) launches it in a child process.
 #
 # The contract between the two halves is a few stdout lines:
 #
@@ -126,19 +127,33 @@ module FixtureApp
 
   # A Builder that registers one instance of each of its plugin classes on
   # the app it builds, before App#run, so each plugin's initialization
-  # script reaches "main", which the app makes before its setup hook (plan
-  # 052, decision b1).
+  # script reaches the config's windows, which the app makes before its
+  # setup hook (plan 052, decision b1).
   class Builder < Tokra::Builder
     def initialize(plugin_classes)
       super()
       @plugin_classes = plugin_classes
     end
 
-    def build(native: Tokra::Native)
+    def build(context, native: Tokra::Native)
       app = super
       @plugin_classes.each { |plugin| app.handle.plugin(plugin.new(app.handle)) }
       app
     end
+  end
+
+  # The fixture's context: the tokra.conf.json beside the fixture, read as
+  # an app's is (Tokra.generate_context). +title+, when given, replaces the
+  # first window's, for a fixture whose title has to be one no other
+  # window on the display has.
+  def self.context(title: nil)
+    context = Tokra.generate_context
+    return context unless title
+
+    app = context.config.app
+    first, *rest = app.windows
+    context.config = context.config.with(app: app.with(windows: [first.with(title:), *rest]))
+    context
   end
 
   # Makes every window a fixture builds, "main" included, keep its page
@@ -149,9 +164,9 @@ module FixtureApp
   # later, so a fixture whose page drives the test hangs. Disabled
   # BackgroundThrottlingPolicy prevents the suspension.
   #
-  # "main" is built inside App#run with no hook for webview rows, and the
-  # product default must stay Tauri's, so the fixtures prepend this to
-  # WebviewWindowBuilder#build instead. A fixture that chose its own policy
+  # The config's windows are built inside App#run with no hook for webview
+  # rows, and the product default must stay Tauri's, so the fixtures
+  # prepend this to WebviewWindowBuilder#build instead. A fixture that chose its own policy
   # keeps it. A Tauri fixture would set backgroundThrottling on its config
   # window instead (tauri-utils config.rs:1925); once plan 054a-4 builds
   # config windows, the fixtures should set it in tokra.conf.json and this
@@ -186,13 +201,12 @@ module FixtureApp
   $stdout.extend(WholeLines)
 
   # A Builder serving +site+ with the fixture plugin registered, and one
-  # instance of each class in +plugins+ beside it. On macOS the app runs
-  # in the background, so it never takes the keyboard from the person at
-  # the machine (FixtureApp.background).
-  def self.builder(site, title, plugins: [])
+  # instance of each class in +plugins+ beside it. Its window's title and
+  # size are the fixture's tokra.conf.json's. On macOS the app runs in the
+  # background, so it never takes the keyboard from the person at the
+  # machine (FixtureApp.background).
+  def self.builder(site, plugins: [])
     Builder.new([FixtureApp::Plugin, *plugins])
-      .title("Tokra integration: #{title}")
-      .size(480, 360)
       .app(site)
       .setup(&Ractor.shareable_proc { |app| FixtureApp.background(app) })
   end

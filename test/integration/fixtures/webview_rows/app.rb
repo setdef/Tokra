@@ -141,13 +141,10 @@ module WebviewRowsFixture
 end
 
 app = Tokra::Builder.default
-  .title("Tokra integration: webview rows")
-  .size(240, 180)
-  .with_global_tauri
   .register_uri_scheme_protocol("tokra", &WebviewRowsFixture::PROTOCOL)
   .invoke_handler(&WebviewRowsFixture::COMMANDS)
   .setup(&WebviewRowsFixture::SETUP)
-  .build
+  .build(Tokra.generate_context)
 app.run do |_handle, event|
   case event
   when Tokra::RunEvent::ExitRequested then puts "EVENT exit-requested #{event.code.inspect}"

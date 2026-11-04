@@ -259,7 +259,7 @@ module Tokra
       #
       #   Tokra::Builder.new
       #     .setup { |app| app.handle.plugin(Tokra::Plugins::Clipboard::Plugin.new(app.handle)) }
-      #     .run
+      #     .run(Tokra.generate_context)
       #
       class Plugin < Tokra::Plugin
         # Returns the unique plugin identifier.

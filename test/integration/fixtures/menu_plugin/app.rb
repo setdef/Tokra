@@ -38,6 +38,5 @@ class MenuActivator < Tokra::Plugin
 end
 
 options = FixtureApp.options(ARGV)
-FixtureApp.builder(FixtureApp::Site.new(__dir__, options), "menu plugin", plugins: [MenuActivator])
-  .with_global_tauri
-  .run
+FixtureApp.builder(FixtureApp::Site.new(__dir__, options), plugins: [MenuActivator])
+  .run(Tokra.generate_context)

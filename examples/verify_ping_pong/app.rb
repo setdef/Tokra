@@ -123,13 +123,10 @@ LOGGER.debug { "Freezing Roda app" }
 rack_app = PingPongApp.freeze.app
 LOGGER.info { "Starting Rack::Handler::Tokra.run" }
 
+# The window's title and size, and window.__TAURI__ for the page
+# (app.withGlobalTauri), come from tokra.conf.json beside this file.
 Rack::Handler::Tokra.run(
   rack_app,
-  title: "Tokra Ping-Pong",
-  width: 500,
-  height: 600,
-  # Expose @tauri-apps/api to the page as window.__TAURI__
-  with_global_tauri: true,
   # This acts like Tauri's invoke_handler, receiving IPC messages
   invoke_handler: Ractor.shareable_proc { |invoke|
     LOGGER.info("Sent via IPC: #{invoke.payload['message']}")

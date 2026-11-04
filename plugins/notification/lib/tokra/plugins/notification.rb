@@ -78,12 +78,12 @@ module Tokra
       #
       # == Ruby API
       #
-      # Register the plugin on the app handle before App#run, so the
-      # +main+ window's page runs its script, which the app puts in each
-      # webview it makes from then on. It manages a Notification, which
+      # Register the plugin on the app handle before App#run, so the pages
+      # of the windows your config lists run its script, which the app puts
+      # in each webview it makes from then on. It manages a Notification, which
       # every manager reaches as +notification+:
       #
-      #   app = Tokra::Builder.new.build
+      #   app = Tokra::Builder.new.build(Tokra.generate_context)
       #   app.handle.plugin(Tokra::Plugins::Notification::Plugin.new(app.handle))
       #   app.run
       #
@@ -116,8 +116,6 @@ module Tokra
       #
       # * Windows toasts come from PowerShell, and Windows 7, which Rust no
       #   longer builds for, gets none.
-      # * Without a configured identifier, macOS notifications come from
-      #   Terminal.
       # * A notification's options are checked as Tauri checks them, except
       #   that an attachment URL's domain meets Unicode 18.0's international
       #   domain name tables, where Tauri's are Unicode 15.1's: a domain

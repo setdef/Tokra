@@ -7,7 +7,6 @@ module Tokra
     include Listener
     include Emitter
 
-    DEFAULT_CONFIG: Hash[Symbol, String | Integer | Float]
     IPC_CORS_HEADERS: Array[[String, String]]
     MAX_CALLBACK_ID: Integer
     MEDIA_TYPE: Regexp
@@ -21,7 +20,6 @@ module Tokra
     class IpcProtocolError < Error
     end
 
-    @window_config: Hash[Symbol, String | Integer | Float]
     @manager: AppManager
     @handle: AppHandle
     @runtime_context: RuntimeContext
@@ -36,7 +34,7 @@ module Tokra
     def cleanup_before_exit: () -> nil
     def app_handle: () -> AppHandle
     def resources_table: () -> ResourceTable
-    def initialize: (Builder builder, ?native: Module) -> void
+    def initialize: (Builder builder, Context context, ?native: Module) -> void
     def self.os_name: () -> String
     def run: () { (AppHandle, run_event) -> void } -> void
          | () -> void
@@ -62,6 +60,7 @@ module Tokra
 
     private
 
+    def create_config_windows: () -> void
     def install_app_menu: () -> void
     def dispatch_menu_event: (Native::MenuEvent native_event, (^(AppHandle, run_event) -> void)? callback) -> void
     def dispatch_tray_icon_event: (Native::TrayIconEvent native_event, (^(AppHandle, run_event) -> void)? callback) -> void

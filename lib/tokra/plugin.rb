@@ -93,20 +93,21 @@ module Tokra
     # it in every page after Tauri's own init scripts, wrapped in an IIFE
     # so its top-level names stay private (PluginStore#initialization_script).
     # A webview takes the scripts of the plugins registered when it is
-    # made, as Tauri's does. The app makes +main+ before its setup hook, so
-    # register the plugin before App#run for +main+ to run it.
+    # made, as Tauri's does. The app makes the windows its config lists
+    # before its setup hook, so register the plugin before App#run for
+    # their pages to run it.
     # Returns +nil+ by default (no script injection).
     public def initialization_script
       nil
     end
 
-    # Called with each Tokra::Window the app makes, +main+ included.
+    # Called with each Tokra::Window the app makes, its config's included.
     #
     # Override this to perform window-specific setup. It runs on the main
     # thread, once the window has joined the app, so +get_window+ finds
     # it. A window made on another thread is built first, and then this
-    # runs. Register the plugin before App#run to hear +main+, which the
-    # app makes before its setup hook. Named without an +on_+ prefix to
+    # runs. Register the plugin before App#run to hear the config's
+    # windows, which the app makes before its setup hook. Named without an +on_+ prefix to
     # mirror the Plugin trait's +window_created+ (plugin.rs:85-87,
     # manager/window.rs:112-121).
     # Returns +nil+ by default (no-op).

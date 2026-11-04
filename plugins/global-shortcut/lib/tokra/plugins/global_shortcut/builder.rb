@@ -38,7 +38,7 @@ module Tokra
       #         .build(app.handle)
       #       app.handle.plugin(plugin)
       #     })
-      #     .run
+      #     .run(Tokra.generate_context)
       #
       #   Tokra::Plugins::GlobalShortcut::Builder.new.with_shortcut("Ctrl+D").build(handle)
       class Builder

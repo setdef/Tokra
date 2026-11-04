@@ -5,13 +5,16 @@ module Tokra
   # Internal manager for application state
   class AppManager < Data
     attr_reader config: Config
+    attr_reader package_info: PackageInfo
+    attr_reader pattern: pattern
+    attr_reader dev: bool
     attr_reader webviews: Hash[String, Webview]
     attr_reader windows: Hash[String, Window]
     attr_reader plugins: PluginStore
     attr_reader invoke_key: String
     attr_reader listeners: Event::Listeners
 
-    def self.new: (config: Config, webviews: Hash[String, Webview], windows: Hash[String, Window], ?plugins: PluginStore, ?invoke_key: String, ?listeners: Event::Listeners) -> AppManager
+    def self.new: (config: Config, package_info: PackageInfo, pattern: pattern, dev: bool, webviews: Hash[String, Webview], windows: Hash[String, Window], ?plugins: PluginStore, ?invoke_key: String, ?listeners: Event::Listeners) -> AppManager
 
     def listen: (String event, event_target target) { (Event) -> void } -> Integer
     def once: (String event, event_target target) { (Event) -> void } -> Integer

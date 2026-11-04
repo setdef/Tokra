@@ -42,7 +42,6 @@ module NotificationFixture
 end
 
 options = FixtureApp.options(ARGV)
-FixtureApp.builder(FixtureApp::Site.new(__dir__, options, NotificationFixture::ROUTES), "notification",
+FixtureApp.builder(FixtureApp::Site.new(__dir__, options, NotificationFixture::ROUTES),
   plugins: [Tokra::Plugins::Notification::Plugin])
-  .with_global_tauri
-  .run
+  .run(Tokra.generate_context)

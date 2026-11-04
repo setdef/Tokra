@@ -1,0 +1,12 @@
+{
+  "identifier": "com.tokra.integration.window-handle",
+  "app": {
+    "windows": [
+      {
+        "title": "Tokra integration: window handle",
+        "width": 320,
+        "height": 240
+      }
+    ]
+  }
+}

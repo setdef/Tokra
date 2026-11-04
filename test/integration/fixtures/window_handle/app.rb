@@ -170,7 +170,7 @@ module WindowHandleFixture
   end
 end
 
-app = Tokra::Builder.default.title(WindowHandleFixture::TITLE).size(320, 240).build
+app = Tokra::Builder.default.build(FixtureApp.context(title: WindowHandleFixture::TITLE))
 FixtureApp.background(app)
 window = nil
 

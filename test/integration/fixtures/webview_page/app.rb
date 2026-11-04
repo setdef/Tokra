@@ -163,12 +163,10 @@ puts "SERVER #{WebviewPageFixture::PORT}"
 WebviewPageFixture.serve
 
 app = Tokra::Builder.default
-  .title("Tokra integration: webview page")
-  .size(240, 180)
   .register_uri_scheme_protocol("tokra", &WebviewPageFixture::PROTOCOL)
   .on_page_load(&WebviewPageFixture::PAGE_LOAD)
   .setup(&WebviewPageFixture::SETUP)
-  .build
+  .build(Tokra.generate_context)
 app.run do |_handle, event|
   case event
   when Tokra::RunEvent::ExitRequested then puts "EVENT exit-requested #{event.code.inspect}"

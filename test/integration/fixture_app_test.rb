@@ -20,7 +20,10 @@ class FixtureAppTest < Minitest::Test
     require "json"
     require_relative "test/integration/support/fixture_app"
     require_relative "test/support/stub_native"
-    app = FixtureApp.builder(->(_env) { [200, {}, []] }, "unthrottled").build(native: StubNative)
+    windows = [Tokra::Utils::Config::WindowConfig.new]
+    config = Tokra::Config.new(identifier: "com.tokra.unthrottled", app: Tokra::Utils::Config::AppConfig.new(windows:))
+    data = Tokra::Codegen::ContextData.new(dev: true, config:, config_parent: Dir.pwd)
+    app = FixtureApp.builder(->(_env) { [200, {}, []] }).build(Tokra::Codegen.context_codegen(data), native: StubNative)
     own = Tokra::WebviewWindowBuilder.new(app.handle, "own", Tokra::WebviewUrl::App.new("index.html"))
       .background_throttling(Tokra::BackgroundThrottlingPolicy::Suspend)
     plain = Tokra::WebviewWindowBuilder.new(app.handle, "plain", Tokra::WebviewUrl::App.new("index.html"))

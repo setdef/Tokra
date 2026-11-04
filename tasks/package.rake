@@ -19,9 +19,13 @@ PACKAGES = [
     extension: "lib/tokra/tokra",
     smoke: <<~RUBY),
       require "tokra"
-      # Assemble every script App#run injects; each comes from a packaged
-      # template (Native.load_js_template).
-      app = Tokra::Builder.default.with_global_tauri.build
+      require "tmpdir"
+      # An app built from a config file, as an app is, whose
+      # withGlobalTauri adds the API bundle; then every script App#run
+      # injects, each from a packaged template (Native.load_js_template).
+      config = File.join(Dir.mktmpdir, "tokra.conf.json")
+      File.write(config, '{ "identifier": "com.tokra.smoke", "app": { "withGlobalTauri": true } }')
+      app = Tokra::Builder.default.build(Tokra.generate_context(config))
       scripts = app.handle.webview_manager.initialization_scripts("main", "main")
       # The event scripts a listen and an emit render (plan 047).
       Tokra::Event.listen_js_script("o", '{"kind":"Any"}', "tokra://smoke", 0, 1)
@@ -63,7 +67,9 @@ PACKAGES = [
       # init script is a packaged file the plugin reads at load.
       script = Tokra::Plugins::Dialog::Plugin::INIT_SCRIPT
       abort "the init script lost alert" unless script.include?("plugin:dialog|message")
-      handle = Tokra::Builder.default.build.handle
+      config = Tokra::Config.new(identifier: "com.tokra.smoke")
+      context = Tokra::Codegen.context_codegen(Tokra::Codegen::ContextData.new(dev: true, config:, config_parent: Dir.pwd))
+      handle = Tokra::Builder.default.build(context).handle
       builder = Tokra::Plugins::Dialog::Dialog.new(handle).file.set_title("smoke")
       abort "ferro-rfd lost the title" unless builder.to_async_file_dialog.inspect.include?(%(title: Some("smoke")))
       puts "tokra-dialog \#{Tokra::Plugins::Dialog::VERSION} builds an rfd dialog through ferro-rfd"
@@ -84,7 +90,9 @@ PACKAGES = [
       script = Tokra::Plugins::Notification::Plugin::INIT_SCRIPT
       abort "the init script lost notify" unless script.include?("plugin:notification|notify")
       abort "the init script kept its template" if script.include?("__TEMPLATE_windows__")
-      handle = Tokra::Builder.default.build.handle
+      config = Tokra::Config.new(identifier: "com.tokra.smoke")
+      context = Tokra::Codegen.context_codegen(Tokra::Codegen::ContextData.new(dev: true, config:, config_parent: Dir.pwd))
+      handle = Tokra::Builder.default.build(context).handle
       builder = Tokra::Plugins::Notification::Notification.new(handle).builder.title("smoke")
       notification = builder.__send__(:desktop_notification).to_notify_rust
       abort "ferro-notify-rust lost the summary" unless notification.summary == "smoke"

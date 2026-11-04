@@ -290,7 +290,7 @@ module Tokra
         # set (desktop.rs:26-44).
         private def desktop_notification
           config = @app.config
-          notification = Imp::Notification.new(config.identifier || "")
+          notification = Imp::Notification.new(config.identifier)
           title = @data.title || config.product_name
           notification = notification.title(title) if title
           notification = notification.body(@data.body) if @data.body

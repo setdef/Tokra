@@ -42,11 +42,11 @@ module TrayFixture
 end
 
 icon_dir = Dir.mktmpdir("tokra-tray-fixture")
-app = Tokra::Builder.default.title("Tokra integration: tray #{Process.pid}").size(320, 240)
+app = Tokra::Builder.default
   .on_tray_icon_event(&Ractor.shareable_proc { |_handle, event|
     TrayFixture::HEARD << "app:#{event.class.name.split('::').last}:#{event.id}"
   })
-  .build
+  .build(FixtureApp.context(title: "Tokra integration: tray #{Process.pid}"))
 FixtureApp.background(app)
 
 app.run do |handle, event|

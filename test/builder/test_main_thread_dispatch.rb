@@ -48,7 +48,7 @@ class TestMainThreadDispatch < Minitest::Test
       title_before_task = native_window.title
     end
 
-    assert_equal "Tokra", title_before_task, "the native window changed off the main thread"
+    assert_equal "Tokra App", title_before_task, "the native window changed off the main thread"
     assert_equal "from a thread", native_window.title
   end
 
@@ -93,14 +93,14 @@ class TestMainThreadDispatch < Minitest::Test
       Thread.pass until reader.status == "sleep" || !reader.alive?
     end
 
-    assert_equal "Tokra", reader.value
+    assert_equal "Tokra App", reader.value
   end
 
   def test_title_on_the_main_thread_answers_at_once
     title = nil
     run_app(tasks: 0) { |handle| title = Timeout.timeout(5) { handle.get_window("main").title } }
 
-    assert_equal "Tokra", title
+    assert_equal "Tokra App", title
   end
 
   def test_a_failed_evaluation_is_logged_not_raised

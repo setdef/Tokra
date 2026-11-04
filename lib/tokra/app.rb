@@ -156,33 +156,25 @@ module Tokra
       @handle.set_theme(theme)
     end
 
-    # Default window configuration when not specified.
-    DEFAULT_CONFIG = {
-      title: "Tokra",
-      width: 800.0,
-      height: 600.0,
-    }.freeze
-
-    # Creates a new App from a configured Builder.
+    # Creates a new App from a configured Builder and +context+, the
+    # Tokra::Context the app is built from.
     #
     # This is called by Builder#build and should not be called directly.
     # <tt>native:</tt> can be injected for testing with mock native components.
-    def initialize(builder, native: Native) # :nodoc:
-      @window_config = DEFAULT_CONFIG.merge(builder.__send__(:window_config))
-      config = Config.new(
-        identifier: @window_config[:identifier]&.to_s,
-        product_name: @window_config[:product_name]&.to_s,
-        version: @window_config[:version]&.to_s
-      )
-      @manager = AppManager.new(config:, webviews: {}, windows: {})
+    # Mirrors Tauri's Builder::build, which builds its AppManager from the
+    # context (app.rs:2094-2127; manager/mod.rs:249-322).
+    def initialize(builder, context, native: Native) # :nodoc:
+      raise TypeError, "wrong argument type #{context.class} (expected Tokra::Context)" unless context.is_a?(Context)
+
+      @manager = AppManager.new(config: context.config, package_info: context.package_info, pattern: context.pattern,
+        dev: context.dev, webviews: {}, windows: {})
       # The thread that builds the app is its main thread until App#run
       # attaches the event loop, which makes the running thread the main one.
       @runtime_context = RuntimeContext.new(native:)
       @handle = AppHandle.new(@manager, state_manager: builder.__send__(:state_manager),
         runtime_context: @runtime_context, menu_event_listeners: builder.__send__(:menu_event_listeners),
         tray_icon_event_listeners: builder.__send__(:tray_icon_event_listeners),
-        window_event_listeners: builder.__send__(:window_event_listeners),
-        with_global_tauri: builder.__send__(:with_global_tauri?), os_name:)
+        window_event_listeners: builder.__send__(:window_event_listeners), os_name:)
       @builder = builder
       # Set by App#set_activation_policy, on macOS (activation_policy.rb).
       @activation_policy = nil
@@ -218,13 +210,18 @@ module Tokra
     # called AppHandle#exit, and RunEvent::Exit as the loop ends.
     # Registered plugins hear each one first.
     #
-    # The window +main+ is built through WebviewWindowBuilder before the
-    # setup hook. If the platform refuses it, the failure is warned and the
-    # app runs on with no window, as Tauri's does, and since no window
-    # closes, it never asks to exit on its own; AppHandle#exit ends it.
-    # (Tauri builds its config windows in setup, on the runtime's Ready,
-    # and logs a failure: app.rs:1298, 2370-2375; tauri-runtime-wry
-    # lib.rs:234-254, 3934-3943.)
+    # Each window the config's <tt>app.windows</tt> lists with +create+
+    # set is built through WebviewWindowBuilder, in order, before the setup
+    # hook, so the hook finds them; a config that lists none opens none.
+    # Each takes its label, URL, title, and size. A builder error, such as
+    # an invalid label or one already taken, ends this method with that
+    # error, as an error the setup hook raises does. If the platform
+    # refuses a window, the failure is warned and the app runs on, as
+    # Tauri's does; with no window, nothing closes, so it never asks to
+    # exit on its own, and AppHandle#exit ends it. (Tauri builds its config
+    # windows in setup, on the runtime's Ready, and panics on its error or
+    # logs a platform failure: app.rs:1297-1300, 2370-2384;
+    # tauri-runtime-wry lib.rs:234-254, 3934-3943.)
     #
     # Closing the last window ends the app unless a handler calls
     # <tt>api.prevent_exit</tt> on the RunEvent::ExitRequested; then it
@@ -271,13 +268,10 @@ module Tokra
       rack_app = @builder.__send__(:rack_app)
       @rack_handler = ::Rack::Handler::Tokra.new(rack_app, proxy) if rack_app
 
-      # The config's window, then the setup hook, as Tauri's setup builds
-      # the config's windows before it calls the hook (app.rs:2370-2384),
-      # so the hook finds "main".
-      WebviewWindowBuilder.new(self, "main", WebviewUrl::App.new("index.html"))
-        .title(@window_config[:title].to_s)
-        .inner_size(@window_config[:width].to_f, @window_config[:height].to_f)
-        .build
+      # The config's windows, then the setup hook, as Tauri's setup builds
+      # them before it calls the hook (app.rs:2370-2384), so the hook finds
+      # them.
+      create_config_windows
       @builder.__send__(:setup_hook)&.call(self)
 
       # Before the loop runs, Tauri's App hands the policy to the runtime,
@@ -395,6 +389,26 @@ module Tokra
     def show_menu
       @handle.show_menu
     end
+
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: the config's windows adapted from tauri/crates/tauri/src/app.rs:2370-2375
+
+    # Builds each window of the config's <tt>app.windows</tt> whose
+    # +create+ is set, in order, as Tauri's setup does. Each takes the
+    # label, URL, title, and size of its WindowConfig; plan 054a-4 builds
+    # it through WebviewWindowBuilder.from_config with every row.
+    private def create_config_windows
+      config.app.windows.select(&:create).each do |window_config|
+        WebviewWindowBuilder.new(self, window_config.label, window_config.url)
+          .title(window_config.title)
+          .inner_size(window_config.width, window_config.height)
+          .build
+      end
+    end
+
+    # SPDX-SnippetEnd
 
     # Builds the builder's menu, or Menu.default on macOS when it sets
     # none, and makes it the app's; on macOS also puts the app's menu on

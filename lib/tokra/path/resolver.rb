@@ -20,9 +20,9 @@ module Tokra
     # Combines raw directory functions from the Rust +dirs+ crate with
     # platform-specific path logic in Ruby per ADR 005.
     class Resolver
-      # Creates a new Resolver with the given configuration.
-      #
-      # +config+ must have an +identifier+ method (the bundle identifier).
+      # Creates a new Resolver for the app +config+, a Tokra::Config, whose
+      # +identifier+ names the app's directories, as Tauri's resolver reads
+      # <tt>config().identifier</tt> (path/desktop.rs:231-287).
       # <tt>platform:</tt> can be injected for testing (defaults to RUBY_PLATFORM).
       # <tt>native:</tt> can be injected for testing (defaults to Tokra::Native).
       def initialize(config, platform: RUBY_PLATFORM, native: Native)

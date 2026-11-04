@@ -31,7 +31,6 @@ require_relative "tokra/event"
 require_relative "tokra/event/listeners"
 require_relative "tokra/listener"
 require_relative "tokra/emitter"
-require_relative "tokra/config"
 require_relative "tokra/app_manager"
 require_relative "tokra/runtime_context"
 require_relative "tokra/app_handle"
@@ -147,6 +146,10 @@ module Tokra
   # Your app's package information, Tokra::Utils::PackageInfo, at the
   # root where Tauri re-exports it (lib.rs:217-237).
   PackageInfo = Utils::PackageInfo
+
+  # Your app's config, Tokra::Utils::Config::Config, at the root where
+  # Tauri re-exports it (lib.rs:217-237).
+  Config = Utils::Config::Config
 
   #--
   # SPDX-SnippetBegin

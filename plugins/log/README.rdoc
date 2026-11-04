@@ -25,7 +25,7 @@ app handle from the setup hook, before the window opens:
         .build
       app.handle.plugin(log)
     })
-    .run
+    .run(Tokra.generate_context)
 
 == Configuration
 

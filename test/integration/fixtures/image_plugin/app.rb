@@ -13,6 +13,5 @@
 require_relative "../../support/fixture_app"
 
 options = FixtureApp.options(ARGV)
-FixtureApp.builder(FixtureApp::Site.new(__dir__, options), "image plugin")
-  .with_global_tauri
-  .run
+FixtureApp.builder(FixtureApp::Site.new(__dir__, options))
+  .run(Tokra.generate_context)

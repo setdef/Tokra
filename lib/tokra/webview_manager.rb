@@ -32,12 +32,10 @@ module Tokra
     end
 
     # A manager for the webviews of the app +manager+, an AppManager, on
-    # the platform +os_name+ names, as App#os_name gives it, injecting the
-    # @tauri-apps/api bundle when +with_global_tauri+.
-    def initialize(manager, os_name:, with_global_tauri: false)
+    # the platform +os_name+ names, as App#os_name gives it.
+    def initialize(manager, os_name:)
       @manager = manager
       @os_name = os_name
-      @with_global_tauri = with_global_tauri
     end
 
     # The address +url+, a WebviewUrl, names, as prepare_webview resolves
@@ -100,12 +98,14 @@ module Tokra
     # initialization_script follows, wrapped in an IIFE
     # (manager/webview.rs:124-128, 194; plugin.rs:918-933).
     #
-    # When with_global_tauri is set, the vendored @tauri-apps/api bundle is
-    # appended last, exposing the whole API as window.__TAURI__
-    # (manager/webview.rs:210-215). This is Tauri's own mechanism for
-    # running its API in a webview with no frontend bundler. Tauri's list
-    # also carries plugin global API scripts, which its build scripts
-    # collect at compile time; no Tokra plugin ships one yet (Plan 016).
+    # When the config's <tt>app.withGlobalTauri</tt> is set, the vendored
+    # @tauri-apps/api bundle is appended last, exposing the whole API as
+    # window.__TAURI__ (manager/webview.rs:210-215). This is Tauri's own
+    # mechanism for running its API in a webview with no frontend bundler;
+    # codegen puts the bundle in the context only when the config sets it
+    # (tauri-codegen context.rs:430-440). Tauri's list also carries plugin
+    # global API scripts, which its build scripts collect at compile time;
+    # no Tokra plugin ships one yet (Plan 016; plan 054, decision 20).
     def initialization_scripts(window_label, webview_label)
       scripts = [
         bootstrap_script,
@@ -114,7 +114,7 @@ module Tokra
         init_script,
       ]
       scripts.concat(@manager.plugins.initialization_script)
-      scripts << global_api_script if @with_global_tauri
+      scripts << global_api_script if @manager.config.app.with_global_tauri
       scripts
     end
 
@@ -175,7 +175,7 @@ module Tokra
       render_js_template("init.js.erb",
         freeze_prototype: "",
         pattern_script: render_js_template("pattern.js.erb",
-          pattern: JSON.generate({ pattern: "brownfield" })),
+          pattern: JSON.generate(pattern_object(@manager.pattern))),
         ipc_script: render_js_template("ipc.js.erb",
           isolation_origin: JSON.generate("")),
         core_script: render_js_template("core.js.erb",
@@ -184,6 +184,17 @@ module Tokra
         event_initialization_script: Event.event_initialization_script(
           @manager.listeners.function_name, @manager.listeners.listeners_object_name
         ))
+    end
+
+    # The pattern script's object for +pattern+, the context's, as
+    # PatternObject serializes: tagged <tt>pattern</tt>, its variant in
+    # lowercase (pattern.rs:39-63). Raises TypeError for anything that is
+    # not a Tokra pattern.
+    private def pattern_object(pattern)
+      case pattern
+      when Pattern::Brownfield then { "pattern" => "brownfield" }
+      else raise TypeError, "wrong argument type #{pattern.class} (expected Tokra::Pattern)"
+      end
     end
 
     # Renders a vendored Tauri script template. Values arrive as JS

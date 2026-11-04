@@ -56,8 +56,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   time from any thread: at once on the main thread, and from another thread
   queued ahead of every later call on it; a native failure is warned, not
   raised, with Tauri's "failed to create window" or "failed to create
-  webview: ...", and does not keep the app from exiting. The app's `main` window is built this way before the setup hook,
-  so the hook finds it
+  webview: ...", and does not keep the app from exiting. The windows the config's `app.windows` lists are built this way before the
+  setup hook, so the hook finds them
 - `WebviewWindowBuilder`'s webview rows from Tauri's `WebviewBuilder`:
   `#accept_first_mouse`, `#initialization_script`,
   `#initialization_script_for_all_frames`, `#user_agent`,
@@ -135,8 +135,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `AppHandle#resources_table` returns app-level fallback table
 - `Manager#resources_table` abstract method for unified interface
 - `App`, `Window`, and `Webview` are full `Manager`s, as in Tauri: `manage`,
-  `state`, `try_state`, `config`, and the window and webview lookups reach the
-  app from whichever handle you hold; `Window#webviews` answers that window's
+  `state`, `try_state`, `config` (Tauri's whole config), `package_info`, and
+  the window and webview lookups reach the app from whichever handle you hold; `Window#webviews` answers that window's
   own webviews as an Array, as Tauri's does
 - `Tokra::PluginStore` routes `plugin:NAME|command` invokes to the named plugin
 - `AppHandle#plugin(plugin)` registers a plugin for IPC dispatch
@@ -179,7 +179,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   via `rake sync:tauri`), guarded by a per-app invoke key
 - `Tokra.generate_invoke_key` returns a Z85-encoded random invoke key
 - `Builder#app(rack_app)` serves a Rack application over the `tokra://` protocol
-- `Builder#title` and `Builder#size` configure the window
 - `ipc://` IPC transport (Tauri's desktop-default invoke channel), served as a
   second custom protocol; `postMessage` is retained as the automatic fallback
 - Both IPC transports read invoke bodies as Tauri's serde_json does: a body it
@@ -205,14 +204,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Tokra::Ipc::InvokeBody.raw?` tells raw bytes from JSON
 - A `postMessage` whose `options.headers` the http crate refuses is
   reported with `console.error("JSON error: ...")` and not dispatched
-- `Builder#with_global_tauri` injects the vendored `@tauri-apps/api` bundle as
-  `window.__TAURI__`, so a page with no frontend bundler calls
-  `window.__TAURI__.core.invoke(...)` directly (mirrors Tauri's
-  `app.withGlobalTauri`); also available as
-  `Rack::Handler::Tokra.run(app, with_global_tauri: true)`
+- The config's `app.withGlobalTauri` injects the vendored `@tauri-apps/api`
+  bundle as `window.__TAURI__`, so a page with no frontend bundler calls
+  `window.__TAURI__.core.invoke(...)` directly, as in Tauri
 - `Plugin#initialization_script` is injected into every page after Tauri's
   init scripts, wrapped in an IIFE, in each webview made after the plugin
-  is registered, so register a plugin before `App#run` for `main`;
+  is registered, so register a plugin before `App#run` for the config's
+  windows;
   `PluginStore#initialization_script` collects them
 - `AppHandle#manage(state)` stores managed state and returns whether it did
 - `Native::Proxy#drop_response(request_id)` closes a pending protocol request
@@ -463,6 +461,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   it, and returns a `Tokra::Context`; the schema is Tauri's
 - `Tokra::Context` (`config`, `config=`, `package_info`, `package_info=`,
   `pattern`) and `Tokra::PackageInfo`
+- `Builder#build(context)` and `Builder#run(context)` build the app from a
+  `Tokra::Context`, and `App#package_info` and `AppHandle#package_info`
+  answer its `Tokra::PackageInfo`
+- `Tokra::Config` is Tauri's whole config, `Tokra::Utils::Config::Config`
 - `Tokra::Utils::Config` (Tauri's config types) and its `Parse`,
   `Tokra::Codegen`, `Tokra::Pattern`, and `Tokra::Utils::Platform::Target`
 - Dependency: ferro-url 0.1.0.pre.1 (url 2.5.8), for every URL Tauri types as
@@ -470,6 +472,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- `Rack::Handler::Tokra.run` takes `context:` (or anchors at rackup's
+  `config.ru`) and opens the config's windows; `title:`, `width:`,
+  `height:`, and `DEFAULT_OPTIONS` are gone (breaking)
+- An app opens the windows its config's `app.windows` lists, and none if it
+  lists none, instead of always opening `main` (breaking)
+- An app needs a config file with an `identifier` (breaking)
+- A window's default title is "Tokra App", as Tauri's is "Tauri App"
+- The default menu's About item, the Linux desktop file, and a dialog
+  plugin message's title name the app by `package_info.name`, and the About
+  item takes its version from `package_info.version` and
+  `bundle.copyright` and `bundle.publisher` from the config
 - As the app exits, the app's, each window's, and each webview's resources
   tables are cleared without calling `close`, and on Windows each window is
   hidden
@@ -525,6 +538,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- `rackup -s tokra` no longer raises on the options rackup passes
 - Binary `tokra://` responses (images, fonts) no longer fail with an
   `EncodingError` and leave the request hanging; bodies are sent byte-exact
 - Binary request bodies reach Rack intact instead of being UTF-8 mangled

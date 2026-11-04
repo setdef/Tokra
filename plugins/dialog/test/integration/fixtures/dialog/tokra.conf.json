@@ -1,0 +1,13 @@
+{
+  "identifier": "com.tokra.integration.dialog",
+  "app": {
+    "windows": [
+      {
+        "title": "Tokra integration: dialog",
+        "width": 480,
+        "height": 360
+      }
+    ],
+    "withGlobalTauri": true
+  }
+}

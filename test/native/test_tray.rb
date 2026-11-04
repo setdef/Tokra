@@ -10,6 +10,7 @@ require "open3"
 require "rbconfig"
 require "tmpdir"
 require_relative "../support/native_event_loop"
+require_relative "../support/test_app"
 
 # The native tray class against the real extension and tray-icon 0.21.0
 # (plan 043, decision 1). A tray needs the event loop, which on Linux
@@ -204,7 +205,7 @@ class TestNativeTray < Minitest::Test
   def test_on_linux_ruby_raises_error_menu_for_a_menu_gtk_cannot_build
     skip "only GTK builds a context menu for the tray" unless linux?
 
-    handle = Tokra::Builder.default.build.handle
+    handle = Tokra::Builder.default.build(build_test_context).handle
     menu = Tokra::Menu::MenuBuilder.new(handle)
       .item(Tokra::Menu::MenuItemBuilder.new("Add").accelerator("NumpadAdd").build(handle)).build
 

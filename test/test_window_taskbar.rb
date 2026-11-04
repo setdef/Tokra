@@ -36,11 +36,10 @@ class TestWindowTaskbar < Minitest::Test
     StubNative.clear_event
   end
 
-  # Tauri names the desktop file after the package (window/mod.rs:2132-2168);
-  # Tokra's is the product name or the program's file name (plan 045,
-  # decision 4).
+  # Tauri names the desktop file after the package (window/mod.rs:2136,
+  # 2165), whose name is the config's productName.
   def desktop_filename
-    "#{File.basename($PROGRAM_NAME, '.*')}.desktop"
+    "#{TestApp::PRODUCT_NAME}.desktop"
   end
 
   def test_progress_bar_status_and_state_are_tauris
@@ -73,12 +72,10 @@ class TestWindowTaskbar < Minitest::Test
     assert_raises(TypeError) { window.set_progress_bar(40) }
   end
 
-  # The Builder has no product name setter yet, so the test sets the
-  # window config the App reads it from.
-  def test_the_desktop_file_is_named_after_the_product
-    builder = Tokra::Builder.default
-    builder.__send__(:window_config)[:product_name] = "Ledger"
-    handle = build_test_app(builder).handle
+  def test_the_desktop_file_is_named_after_the_package
+    context = build_test_context
+    context.package_info = context.package_info.with(name: "Ledger")
+    handle = Tokra::Builder.default.build(context, native: StubNative).handle
     window = Tokra::Window.new(label: "win", native:, app_handle: handle)
 
     window.set_badge_count(2)

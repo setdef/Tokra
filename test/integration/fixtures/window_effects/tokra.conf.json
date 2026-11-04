@@ -1,0 +1,12 @@
+{
+  "identifier": "com.tokra.integration.window-effects",
+  "app": {
+    "windows": [
+      {
+        "title": "Tokra integration: window effects",
+        "width": 320,
+        "height": 240
+      }
+    ]
+  }
+}

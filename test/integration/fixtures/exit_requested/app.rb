@@ -68,5 +68,5 @@ end
 
 ExitRequestedFixture::OPTIONS.merge!(options).freeze
 
-FixtureApp.builder(FixtureApp::Site.new(__dir__, options), "exit requested", plugins: [ExitRequestedFixture::Plugin])
-  .run
+FixtureApp.builder(FixtureApp::Site.new(__dir__, options), plugins: [ExitRequestedFixture::Plugin])
+  .run(Tokra.generate_context)

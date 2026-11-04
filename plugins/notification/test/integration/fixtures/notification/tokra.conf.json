@@ -1,0 +1,13 @@
+{
+  "identifier": "com.tokra.integration.notification",
+  "app": {
+    "windows": [
+      {
+        "title": "Tokra integration: notification",
+        "width": 480,
+        "height": 360
+      }
+    ],
+    "withGlobalTauri": true
+  }
+}

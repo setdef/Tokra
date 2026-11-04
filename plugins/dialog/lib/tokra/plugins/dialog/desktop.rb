@@ -45,17 +45,13 @@ module Tokra
         end
 
         # A builder for a message dialog showing +message+, titled with the
-        # app's product name (lib.rs:170-176).
-        #
-        # *Deviation*: Tauri titles it with the package name, which falls
-        # back to the crate's name. Tokra has no package name yet, so an app
-        # without a product name gets an empty title.
+        # app's package name, Tokra::PackageInfo#name (lib.rs:170-176).
         #
         # === Example
         #
         #   handle.dialog.message("Are you sure?").buttons(MessageDialogButtons::YesNo).show { |yes| p yes }
         def message(message)
-          MessageDialogBuilder.new(self, @app_handle.config.product_name || "", message)
+          MessageDialogBuilder.new(self, @app_handle.package_info.name, message)
         end
 
         # A builder for a dialog that picks files or folders, or a place to

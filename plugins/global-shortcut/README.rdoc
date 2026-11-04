@@ -37,7 +37,7 @@ reachable from any manager as +global_shortcut+:
 
   Tokra::Builder.default
     .setup(&Ractor.shareable_proc { |app| app.handle.plugin(Tokra::Plugins::GlobalShortcut::Plugin.new(app.handle)) })
-    .run
+    .run(Tokra.generate_context)
 
 In the frontend:
 

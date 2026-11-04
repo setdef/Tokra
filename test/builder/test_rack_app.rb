@@ -41,7 +41,7 @@ class TestBuilderRackApp < Minitest::Test
     build_test_app(Tokra::Builder.new).run
     window = StubNative.windows.first
 
-    assert_equal "Tokra", window.title
+    assert_equal "Tokra App", window.title
     assert_in_delta 800.0, window.size.first
   end
 

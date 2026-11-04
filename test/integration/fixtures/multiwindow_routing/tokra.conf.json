@@ -1,0 +1,12 @@
+{
+  "identifier": "com.tokra.integration.multiwindow-routing",
+  "app": {
+    "windows": [
+      {
+        "title": "Tokra integration: multiwindow routing",
+        "width": 320,
+        "height": 240
+      }
+    ]
+  }
+}

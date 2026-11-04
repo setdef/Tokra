@@ -105,7 +105,7 @@ namespace :sync do
     end
 
     # Vendor plain scripts verbatim (no template markers). bundle.global.js
-    # is the prebuilt @tauri-apps/api IIFE that with_global_tauri injects as
+    # is the prebuilt @tauri-apps/api IIFE that app.withGlobalTauri injects as
     # window.__TAURI__ (Plan 015 D6); the API package's own rollup build
     # produces it, so we consume it and never hand-bundle Tauri's JavaScript.
     %w[process-ipc-message-fn.js bundle.global.js].each do |name|

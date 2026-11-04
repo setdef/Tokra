@@ -35,4 +35,6 @@ module Tokra
       end
     end
   end
+
+  class Config = Utils::Config::Config
 end

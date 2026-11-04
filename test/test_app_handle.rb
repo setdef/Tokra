@@ -6,13 +6,12 @@
 #++
 
 require "test_helper"
+require_relative "support/test_app"
 
 # Tests for Tokra::AppHandle manager methods.
 class TestAppHandle < Minitest::Test
   private def create_handle
-    config = Tokra::Config.new(identifier: "test", product_name: "Test", version: "1.0")
-    manager = Tokra::AppManager.new(config:, webviews: {}, windows: {})
-    Tokra::AppHandle.new(manager)
+    Tokra::AppHandle.new(build_test_manager)
   end
 
   # Named plugin recording extend_api calls.
@@ -65,19 +64,17 @@ class TestAppHandle < Minitest::Test
   end
 
   def test_windows_returns_windows_hash
-    config = Tokra::Config.new(identifier: "test", product_name: "Test", version: "1.0")
     windows = { "main" => Object.new }
-    manager = Tokra::AppManager.new(config:, webviews: {}, windows:)
+    manager = build_test_manager(windows:)
     handle = Tokra::AppHandle.new(manager)
 
     assert_equal windows, handle.windows
   end
 
   def test_get_window_returns_window_by_label
-    config = Tokra::Config.new(identifier: "test", product_name: "Test", version: "1.0")
     window = Object.new
     windows = { "main" => window }
-    manager = Tokra::AppManager.new(config:, webviews: {}, windows:)
+    manager = build_test_manager(windows:)
     handle = Tokra::AppHandle.new(manager)
 
     assert_same window, handle.get_window("main")

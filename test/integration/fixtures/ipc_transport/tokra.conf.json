@@ -1,0 +1,13 @@
+{
+  "identifier": "com.tokra.integration.ipc-transport",
+  "app": {
+    "windows": [
+      {
+        "title": "Tokra integration: ipc transport",
+        "width": 480,
+        "height": 360
+      }
+    ],
+    "withGlobalTauri": true
+  }
+}

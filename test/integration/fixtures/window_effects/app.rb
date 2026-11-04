@@ -220,7 +220,7 @@ module WindowEffectsFixture
   end
 end
 
-app = Tokra::Builder.default.title("Tokra integration: window effects").size(320, 240).build
+app = Tokra::Builder.default.build(Tokra.generate_context)
 FixtureApp.background(app)
 
 app.run do |handle, event|

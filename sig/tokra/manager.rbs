@@ -5,6 +5,7 @@ module Tokra
   module Manager
     def app_handle: -> AppHandle
     def config: -> Config
+    def package_info: -> PackageInfo
     def manage: (Object state) -> bool
     def state: (Class klass) -> managed_state
     def try_state: (Class klass) -> managed_state?

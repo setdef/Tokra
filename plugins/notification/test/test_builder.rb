@@ -104,10 +104,10 @@ class TestBuilder < Minitest::Test
     assert_equal expected, desktop(builder_for(configured_handle).title("t")).to_notify_rust.icon
   end
 
-  # Tauri names its app by identifier (desktop.rs:115-121); Tokra has no
-  # config file to set one yet, so it is empty.
-  def test_the_identifier_is_empty_without_one
-    assert_equal "", desktop(builder_for(configured_handle)).identifier
+  # Tauri names its app by the config's identifier, which every config has
+  # (desktop.rs:26-27, 115-121).
+  def test_the_identifier_is_the_configs
+    assert_equal TestApp::IDENTIFIER, desktop(builder_for(configured_handle)).identifier
   end
 
   private def builder_for(handle)

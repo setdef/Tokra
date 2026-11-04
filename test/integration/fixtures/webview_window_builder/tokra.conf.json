@@ -1,0 +1,13 @@
+{
+  "identifier": "com.tokra.integration.webview-window-builder",
+  "app": {
+    "windows": [
+      {
+        "title": "Tokra integration: webview window builder",
+        "width": 320,
+        "height": 240
+      }
+    ],
+    "withGlobalTauri": true
+  }
+}

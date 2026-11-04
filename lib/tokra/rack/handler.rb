@@ -18,48 +18,53 @@ module Rack # :nodoc:
     #
     # == Usage
     #
-    # The simplest way to run a Rack app in a desktop window:
+    # The simplest way to run a Rack app in a desktop window, with a
+    # <tt>tokra.conf.json</tt> beside the entry script describing the app
+    # and its windows:
     #
     #   Rack::Handler::Tokra.run(MyRodaApp)
     #
-    # With options:
+    # With a context of your own:
     #
-    #   Rack::Handler::Tokra.run(MyRodaApp, title: "My App", width: 800, height: 600)
+    #   Rack::Handler::Tokra.run(MyRodaApp, context: Tokra.generate_context("config/tokra.conf.json"))
     #
-    # This follows the standard Rack handler interface, so it works with +rackup+:
+    # This follows the standard Rack handler interface, so it works with
+    # +rackup+, which reads the <tt>tokra.conf.json</tt> beside
+    # <tt>config.ru</tt>:
     #
     #   rackup -s tokra config.ru
     #
     class Tokra
       MAX_REDIRECTS = 10 # :nodoc:
 
-      # Default window configuration
-      DEFAULT_OPTIONS = {
-        title: "Tokra",
-        width: 800.0,
-        height: 600.0,
-      }.freeze
-
       class << self
-        # Run a Rack application in a Tokra desktop window.
+        # Runs a Rack application in a Tokra desktop app built from its
+        # config.
         #
         # This is the primary entry point, handling all wiring automatically:
-        # - Creates the event loop, proxy, window, and webview
-        # - Registers the tokra:// protocol handler
+        # - Builds a Tokra::Builder with +app+ as the <tt>tokra://</tt>
+        #   content server
+        # - Opens the windows the config's <tt>app.windows</tt> lists
         # - Dispatches HTTP requests to the Rack app
-        # - Runs the event loop until the window closes
+        # - Runs the event loop until the last window closes
         #
-        # +app+ is any Rack application (responds to #call).
-        # +options+ may include:
-        # - <tt>:title</tt> - Window title (default: "Tokra")
-        # - <tt>:width</tt> - Window width in pixels (default: 800)
-        # - <tt>:height</tt> - Window height in pixels (default: 600)
-        # - <tt>:with_global_tauri</tt> - Inject <tt>@tauri-apps/api</tt> as
-        #   <tt>window.__TAURI__</tt> (default: false)
-        # - <tt>:invoke_handler</tt> - A Ractor-shareable proc receiving each
-        #   Tokra::Ipc::Invoke the frontend sends (default: none)
-        # - <tt>:native</tt> - The native layer, replaceable with a test
-        #   double exactly as in Tokra::Builder#run (default: Tokra::Native)
+        # +app+ is any Rack application (responds to #call). Each window's
+        # title and size, and whether the page gets
+        # <tt>window.__TAURI__</tt> (<tt>app.withGlobalTauri</tt>), are
+        # the config's.
+        #
+        # [context] the Tokra::Context to build the app from. Without one,
+        #           the handler reads the <tt>tokra.conf.json</tt> in
+        #           <tt>config.ru</tt>'s directory when rackup passes its
+        #           <tt>:config</tt> option, and the one beside the entry
+        #           script otherwise, as Tokra.generate_context does.
+        # [invoke_handler] a Ractor-shareable proc receiving each
+        #                  Tokra::Ipc::Invoke the frontend sends.
+        # [native] the native layer, replaceable with a test double
+        #          exactly as in Tokra::Builder#run.
+        #
+        # Every other option rackup passes, such as <tt>:Host</tt> and
+        # <tt>:Port</tt>, is ignored: a desktop app listens on nothing.
         #
         # == Example
         #
@@ -69,17 +74,29 @@ module Rack # :nodoc:
         #
         #   Rack::Handler::Tokra.run(MyApp.freeze.app)
         #
-        def run(app, title: "Tokra", width: 800.0, height: 600.0, invoke_handler: nil,
-          with_global_tauri: false, native: ::Tokra::Native
-        )
+        def run(app, context: nil, invoke_handler: nil, native: ::Tokra::Native, **options)
+          context ||= default_context(options[:config])
           # Porcelain over plumbing (ADR 004): build a Tokra::Builder with
           # this Rack app as the tokra:// content server and let App own the
           # event loop, webview, script injection, and IPC dispatch. This
           # keeps one unified path rather than a second bespoke loop.
-          builder = ::Tokra::Builder.new.app(app).title(title).size(width, height)
-          builder.with_global_tauri if with_global_tauri
+          builder = ::Tokra::Builder.new.app(app)
           builder.invoke_handler(&invoke_handler) if invoke_handler
-          builder.run(native:)
+          builder.run(context, native:)
+        end
+
+        # The context read from the directory of +rackup_config+, the path
+        # of <tt>config.ru</tt> rackup passes (rackup 2.3.1
+        # lib/rackup/server.rb:341), or from beside the entry script
+        # without one (ADR 014 §5). The <tt>rackup</tt> command expands the
+        # path (server.rb:404), but <tt>bin/rails server</tt> passes
+        # <tt>"config.ru"</tt> as written (railties 8.1.2
+        # server_command.rb:110, 161), so a relative path is expanded
+        # against the working directory, as rackup would.
+        private def default_context(rackup_config)
+          return ::Tokra.generate_context unless rackup_config
+
+          ::Tokra.generate_context(File.join(File.dirname(File.expand_path(rackup_config.to_s)), "tokra.conf.json"))
         end
       end
 

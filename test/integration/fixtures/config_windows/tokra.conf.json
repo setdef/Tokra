@@ -1,0 +1,25 @@
+{
+  "identifier": "com.tokra.integration.config-windows",
+  "productName": "Tokra integration config windows",
+  "app": {
+    "windows": [
+      {
+        "label": "first",
+        "title": "Tokra integration: config windows (first)",
+        "width": 320,
+        "height": 240
+      },
+      {
+        "label": "later",
+        "create": false,
+        "title": "Tokra integration: config windows (later)"
+      },
+      {
+        "label": "second",
+        "title": "Tokra integration: config windows (second)",
+        "width": 300,
+        "height": 200
+      }
+    ]
+  }
+}

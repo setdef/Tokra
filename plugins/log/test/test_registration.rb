@@ -50,7 +50,9 @@ class TestLogRegistration < Minitest::Test
     Dir.mktmpdir do |dir|
       Dir.chdir(dir) do
         events = []
-        # The README example, with .run given a native stand-in.
+        # The README example, with the config written here and .run given
+        # a native stand-in.
+        File.write("tokra.conf.json", JSON.generate({ "identifier" => "com.tokra.log-readme" }))
         built = Tokra::Builder.default
           .setup(&Ractor.shareable_proc { |app|
             log = Tokra::Plugins::Log::Builder.new
@@ -59,7 +61,7 @@ class TestLogRegistration < Minitest::Test
               .build
             app.handle.plugin(log)
           })
-          .build(native: NoWindow)
+          .build(Tokra.generate_context(File.join(dir, "tokra.conf.json")), native: NoWindow)
         built.run { |_handle, event| events << event.class }
 
         assert_equal [Tokra::RunEvent::Ready, Tokra::RunEvent::Exit], events

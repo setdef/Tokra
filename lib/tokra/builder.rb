@@ -34,37 +34,6 @@ module Tokra
       @enable_macos_default_menu = true
       @state_manager = StateManager.new
       @rack_app = nil
-      @window_config = {}
-      @with_global_tauri = false
-    end
-
-    # Sets the window title.
-    #
-    # Mirrors the <tt>.title(...)</tt> step in ADR 004's Builder API.
-    #
-    # === Example
-    #
-    #   Tokra::Builder.new.title("My App").run
-    def title(title)
-      @window_config[:title] = title
-      self
-    end
-
-    # Sets the window size in logical pixels.
-    #
-    # On macOS the size includes the title bar, which lies over the top of
-    # the page, as in Tauri's default Visible title bar style
-    # (WebviewWindowBuilder#inner_size).
-    #
-    # Mirrors the <tt>.size(width, height)</tt> step in ADR 004's Builder API.
-    #
-    # === Example
-    #
-    #   Tokra::Builder.new.size(1024, 768).run
-    def size(width, height)
-      @window_config[:width] = width.to_f
-      @window_config[:height] = height.to_f
-      self
     end
 
     # Sets the Rack application served over the <tt>tokra://</tt> protocol.
@@ -82,8 +51,7 @@ module Tokra
     #
     #   Tokra::Builder.new
     #     .app(MyRodaApp.freeze.app)
-    #     .title("My App")
-    #     .run
+    #     .run(Tokra.generate_context)
     def app(rack_app)
       # Defensive runtime check: the type contract says Rack app, but Ruby
       # callers can pass anything, so we validate for a clear error.
@@ -92,25 +60,6 @@ module Tokra
       end
 
       @rack_app = rack_app
-      self
-    end
-
-    # Injects the @tauri-apps/api bundle as <tt>window.__TAURI__</tt>.
-    #
-    # A page with no frontend bundler cannot +import+ from
-    # <tt>@tauri-apps/api</tt>. Tauri solves this with <tt>withGlobalTauri</tt>,
-    # which injects the API's prebuilt IIFE as an initialization script, so the
-    # page calls <tt>window.__TAURI__.core.invoke(...)</tt> directly.
-    #
-    # Set this to expose the whole vendored API the same way. It mirrors
-    # <tt>app.withGlobalTauri</tt> in Tauri's configuration; Tokra gates it at
-    # runtime rather than through build-time codegen.
-    #
-    # === Example
-    #
-    #   Tokra::Builder.new.with_global_tauri.app(MyRodaApp.freeze.app).run
-    def with_global_tauri(enabled = true)
-      @with_global_tauri = enabled
       self
     end
 
@@ -285,25 +234,51 @@ module Tokra
       self
     end
 
-    # Builds the configured application.
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: build and run adapted from tauri/crates/tauri/src/app.rs:2094-2302
+
+    # Builds the app from +context+, the Tokra::Context
+    # Tokra.generate_context reads from your <tt>tokra.conf.json</tt>, and
+    # answers an App ready to run. The app's config, package information,
+    # and pattern are the context's, and App#run opens the windows the
+    # config's <tt>app.windows</tt> lists.
     #
-    # Returns an App instance ready to run.
+    # Raises TypeError unless +context+ is a Tokra::Context.
+    #
     # <tt>native:</tt> can be injected for testing with mock native components.
     # A stand-in for Tokra::Native also defines its menu classes (+Menu+,
     # +Submenu+, +MenuItem+, +CheckMenuItem+, +PredefinedMenuItem+,
     # +IconMenuItem+, +MenuIcon+); the real ones need no window, so a
     # stand-in can name them.
-    def build(native: Native)
-      App.new(self, native:)
+    #
+    # Mirrors Tauri's <tt>Builder::build</tt> (app.rs:2094).
+    #
+    # === Example
+    #
+    #   app = Tokra::Builder.default.build(Tokra.generate_context)
+    #   app.run
+    def build(context, native: Native)
+      App.new(self, context, native:)
     end
 
-    # Builds and runs the application.
+    # Builds the app from +context+, as #build does, and runs it.
     #
-    # This is a convenience for Builder#build followed by App#run.
-    # Accepts an optional block for runtime events.
+    # Accepts an optional block for runtime events, which App#run hands
+    # each RunEvent. Tauri's <tt>Builder::run</tt> takes none; this block
+    # predates the config and stays (plan 054, decision 12).
     # <tt>native:</tt> can be injected for testing with mock native components.
-    def run(native: Native, &callback)
-      app = build(native:)
+    #
+    # Mirrors Tauri's <tt>Builder::run</tt> (app.rs:2298-2302).
+    #
+    # === Example
+    #
+    #   Tokra::Builder.default
+    #     .setup(&Ractor.shareable_proc { |app| puts app.config.identifier })
+    #     .run(Tokra.generate_context)
+    def run(context, native: Native, &callback)
+      app = build(context, native:)
       if callback
         app.run(&callback)
       else
@@ -311,23 +286,19 @@ module Tokra
       end
     end
 
+    # SPDX-SnippetEnd
+
     # Consider these "friendly": private, so app code does not call them, and
     # read by App through __send__.
     private attr_reader :state_manager, :invoke_handler_hook, :uri_scheme_protocols, # :nodoc:
       :async_uri_scheme_protocols, :setup_hook, :on_page_load_hook,
-      :window_event_listeners, :webview_event_listeners, :rack_app, :window_config,
-      :menu_hook, :menu_event_listeners, :tray_icon_event_listeners
+      :window_event_listeners, :webview_event_listeners, :rack_app, :menu_hook,
+      :menu_event_listeners, :tray_icon_event_listeners
 
     # Whether an app with no menu gets the default one on macOS (friendly
     # reader; a predicate so it does not collide with the setter).
     private def macos_default_menu? # :nodoc:
       @enable_macos_default_menu
-    end
-
-    # Whether the @tauri-apps/api bundle should be injected (friendly reader;
-    # a predicate so it does not collide with the with_global_tauri setter).
-    private def with_global_tauri? # :nodoc:
-      @with_global_tauri
     end
 
     private def require_shareable!(block, method_name)

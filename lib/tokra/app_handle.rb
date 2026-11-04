@@ -24,11 +24,11 @@ module Tokra
     #
     # This is called internally by App and should not be called directly.
     def initialize(manager, state_manager: nil, runtime_context: RuntimeContext.new, menu_event_listeners: [], # :nodoc:
-      tray_icon_event_listeners: [], window_event_listeners: [], with_global_tauri: false, os_name: App.os_name
+      tray_icon_event_listeners: [], window_event_listeners: [], os_name: App.os_name
     )
       @manager = manager
       @window_event_listeners = window_event_listeners
-      @webview_manager = WebviewManager.new(manager, os_name:, with_global_tauri:)
+      @webview_manager = WebviewManager.new(manager, os_name:)
       @state_manager = state_manager
       @runtime_context = runtime_context
       @restart_on_exit = false
@@ -132,9 +132,27 @@ module Tokra
       @state_manager&.try_get(klass)
     end
 
-    # Returns the application configuration.
+    # The app's config, the Tokra::Config its Context was built from.
+    #
+    # Mirrors Tauri's AppHandle::config (app.rs:776-779).
+    #
+    # === Example
+    #
+    #   handle.config.identifier  #=> "com.example.notes"
     def config
       @manager.config
+    end
+
+    # The app's name, version, and authors, the Tokra::PackageInfo its
+    # Context was built from.
+    #
+    # Mirrors Tauri's AppHandle::package_info (app.rs:781-784).
+    #
+    # === Example
+    #
+    #   handle.package_info.version  #=> "1.2.0"
+    def package_info
+      @manager.package_info
     end
 
     # Returns all managed webviews.
@@ -191,9 +209,9 @@ module Tokra
     # the event loop; Tokra's event loop is inside its run loop then, and
     # Tokra's native objects answer only the main thread (ADR 012), so the
     # app's first window answers, on the main thread. Before App#run has
-    # built +main+ there is no window to ask, so a call then gets
-    # Unavailable; the setup hook runs after +main+ is built, and gets the
-    # display.
+    # built the config's windows there is no window to ask, so a call then
+    # gets Unavailable, as it does in an app with no window; the setup hook
+    # runs after they are built, and gets the display.
     #
     # === Example
     #

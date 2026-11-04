@@ -6,12 +6,13 @@
 #++
 
 require "test_helper"
+require_relative "support/test_app"
 
 # Tests for Tokra::App wrapper registration.
 class TestAppWrapperRegistration < Minitest::Test
   def test_run_registers_window_in_app_handle
     builder = Tokra::Builder.default
-    app = Tokra::App.new(builder, native: StubNative)
+    app = Tokra::App.new(builder, build_test_context, native: StubNative)
 
     # Run and capture handle via the run callback (which receives handle)
     captured_handle = nil
@@ -23,7 +24,7 @@ class TestAppWrapperRegistration < Minitest::Test
 
   def test_run_registers_webview_in_app_handle
     builder = Tokra::Builder.default
-    app = Tokra::App.new(builder, native: StubNative)
+    app = Tokra::App.new(builder, build_test_context, native: StubNative)
 
     captured_handle = nil
     app.run { |handle, _event| captured_handle ||= handle }

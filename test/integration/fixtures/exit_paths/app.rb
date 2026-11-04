@@ -35,7 +35,7 @@ at_exit do
   puts "VISIBLE #{app.get_window('main').native.is_visible}" if options[:report_visibility] && app
 end
 
-builder = FixtureApp.builder(FixtureApp::Site.new(__dir__, options), "exit paths")
+builder = FixtureApp.builder(FixtureApp::Site.new(__dir__, options))
   .invoke_handler(&Ractor.shareable_proc { |invoke|
     next false unless invoke.command == "ping"
 
@@ -49,7 +49,7 @@ if options[:raise_on_page_load]
   })
 end
 
-app = builder.build
+app = builder.build(Tokra.generate_context)
 if options[:run_callback]
   app.run { |_app, event| puts "RUN exit" if event.is_a?(Tokra::RunEvent::Exit) }
 else

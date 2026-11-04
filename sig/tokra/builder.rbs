@@ -12,8 +12,6 @@ module Tokra
     @webview_event_listeners: Array[^(Native::WebView?, webview_event) -> void]
     @state_manager: StateManager
     @rack_app: ::Rack::_App?
-    @window_config: Hash[Symbol, String | Float]
-    @with_global_tauri: bool
 
     @menu_event_listeners: Array[MenuManager::app_listener]
     @tray_icon_event_listeners: Array[TrayManager::app_listener]
@@ -27,9 +25,6 @@ module Tokra
     def enable_macos_default_menu: (bool enable) -> self
     def self.default: () -> Builder
     def app: (::Rack::_App rack_app) -> self
-    def title: (String title) -> self
-    def size: (Integer | Float width, Integer | Float height) -> self
-    def with_global_tauri: (?bool enabled) -> self
     def manage: (managed_state state) -> self
     def invoke_handler: () { (Ipc::Invoke) -> bool } -> self
     def register_uri_scheme_protocol: (String uri_scheme) { (UriSchemeContext, Native::HttpRequestEvent) -> Response } -> self
@@ -38,8 +33,8 @@ module Tokra
     def on_page_load: () { (Webview, PageLoadPayload) -> void } -> self
     def on_window_event: () { (Window, window_event) -> void } -> self
     def on_webview_event: () { (Native::WebView?, webview_event) -> void } -> self
-    def build: (?native: Module) -> App
-    def run: (?native: Module) ?{ (AppHandle, run_event) -> void } -> void
+    def build: (Context context, ?native: Module) -> App
+    def run: (Context context, ?native: Module) ?{ (AppHandle, run_event) -> void } -> void
 
     private
 
@@ -56,8 +51,6 @@ module Tokra
     attr_reader webview_event_listeners: Array[^(Native::WebView?, webview_event) -> void]
     attr_reader state_manager: StateManager
     attr_reader rack_app: ::Rack::_App?
-    attr_reader window_config: Hash[Symbol, String | Float]
-    def with_global_tauri?: () -> bool
 
     private def require_shareable!: (Proc block, String method_name) -> void
   end

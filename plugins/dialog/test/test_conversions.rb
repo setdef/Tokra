@@ -118,13 +118,18 @@ class TestConversions < Minitest::Test
     assert_includes debug, "parent: None"
   end
 
-  # Tauri titles a message dialog with the package name (lib.rs:170-176);
-  # Tokra's Config has a product name, unset unless configured.
-  def test_a_message_dialog_is_titled_with_the_product_name_or_nothing
+  # Tauri titles a message dialog with the package name (lib.rs:170-176),
+  # the config's productName, or the entry script's name without one.
+  def test_a_message_dialog_is_titled_with_the_package_name
     builder = dialog.message("Hi")
-    assert_equal "", builder.to_async_message_dialog.inspect[/title: "([^"]*)"/, 1]
+    assert_equal TestApp::PRODUCT_NAME, builder.to_async_message_dialog.inspect[/title: "([^"]*)"/, 1]
     assert_same Kind::Info, builder.instance_variable_get(:@kind)
     assert_same Buttons::Ok, builder.instance_variable_get(:@buttons)
+
+    unnamed = build_test_app(config: { "productName" => nil })
+    build_plugin(unnamed)
+    assert_equal Tokra.script_name,
+      unnamed.handle.dialog.message("Hi").to_async_message_dialog.inspect[/title: "([^"]*)"/, 1]
   end
 
   def test_a_file_dialog_carries_every_option_to_rfd

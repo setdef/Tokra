@@ -63,10 +63,9 @@ class HiddenJob
   CARGO_HOME = "#{HOME}/.cargo".freeze
 
   # Files git tracks whose names only look like credentials, which stage
-  # otherwise refuses to publish: a Rails example's encrypted credentials,
-  # a Tauri source file about tokens, and Tauri's updater test keys.
+  # otherwise refuses to publish: a Tauri source file about tokens, and
+  # Tauri's updater test keys.
   STAGE_ALLOW = %w[
-    examples/verify_rails_sqlite/config/credentials.yml.enc
     vendor/tauri/crates/tauri-utils/src/tokens.rs
     vendor/tauri/crates/tauri/test/updater/fixture/*
   ].freeze

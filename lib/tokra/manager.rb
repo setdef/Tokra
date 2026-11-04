@@ -58,13 +58,28 @@ module Tokra
       raise NotImplementedError, "#{self.class} must implement #app_handle"
     end
 
-    # The Config the app was created with.
+    # The Tokra::Config the app was built from: everything its
+    # <tt>tokra.conf.json</tt> holds, with Tauri's schema.
+    #
+    # Mirrors Tauri's Manager::config (lib.rs:536-539).
     #
     # === Example
     #
-    #   webview.config.identifier
+    #   webview.config.identifier  #=> "com.example.notes"
     def config
       app_handle.config
+    end
+
+    # The Tokra::PackageInfo the app was built from: its name, version,
+    # authors, and description.
+    #
+    # Mirrors Tauri's Manager::package_info (lib.rs:541-545).
+    #
+    # === Example
+    #
+    #   window.package_info.name  #=> "Notes"
+    def package_info
+      app_handle.package_info
     end
 
     # Adds +state+ to the state the application manages.

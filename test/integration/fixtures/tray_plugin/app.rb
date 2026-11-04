@@ -39,6 +39,5 @@ class TrayReader < Tokra::Plugin
 end
 
 options = FixtureApp.options(ARGV)
-FixtureApp.builder(FixtureApp::Site.new(__dir__, options), "tray plugin", plugins: [TrayReader])
-  .with_global_tauri
-  .run
+FixtureApp.builder(FixtureApp::Site.new(__dir__, options), plugins: [TrayReader])
+  .run(Tokra.generate_context)

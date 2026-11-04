@@ -6,11 +6,10 @@ module Tokra
     WEBVIEW_CREATED_EVENT: String
 
     @manager: AppManager
-    @with_global_tauri: bool
     @os_name: String
 
     def self.tokra_protocol_url: (String os) -> Ferro::Url::Url
-    def initialize: (AppManager manager, os_name: String, ?with_global_tauri: bool) -> void
+    def initialize: (AppManager manager, os_name: String) -> void
     def webview_url: (webview_url url) -> String
     def attach_webview: (Webview webview) -> Webview
     def initialization_scripts: (String window_label, String webview_label) -> Array[String]
@@ -22,6 +21,7 @@ module Tokra
     def bootstrap_script: () -> String
     def invoke_initialization_script: () -> String
     def init_script: () -> String
+    def pattern_object: (Object pattern) -> Hash[String, String]
     def render_js_template: (String name, Hash[Symbol, String] values) -> String
   end
 end

@@ -1,0 +1,13 @@
+{
+  "identifier": "com.tokra.integration.image-plugin",
+  "app": {
+    "windows": [
+      {
+        "title": "Tokra integration: image plugin",
+        "width": 480,
+        "height": 360
+      }
+    ],
+    "withGlobalTauri": true
+  }
+}

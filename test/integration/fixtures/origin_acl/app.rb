@@ -31,13 +31,13 @@ foreign_page = lambda do |env|
   [200, { "content-type" => "text/html; charset=utf-8" }, [html]]
 end
 
-app = FixtureApp.builder(FixtureApp::Site.new(__dir__, options, { "/foreign.html" => foreign_page }), "origin ACL")
+app = FixtureApp.builder(FixtureApp::Site.new(__dir__, options, { "/foreign.html" => foreign_page }))
   .invoke_handler(&Ractor.shareable_proc { |invoke|
     next false unless invoke.command == "ping"
 
     invoke.resolve("PONG")
     true
   })
-  .build
+  .build(Tokra.generate_context)
 invoke_key = app.invoke_key
 app.run

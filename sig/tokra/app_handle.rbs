@@ -25,7 +25,7 @@ module Tokra
                      ?menu_event_listeners: Array[MenuManager::app_listener],
                      ?tray_icon_event_listeners: Array[TrayManager::app_listener],
                      ?window_event_listeners: Array[^(Window, window_event) -> void],
-                     ?with_global_tauri: bool, ?os_name: String) -> void
+                     ?os_name: String) -> void
     attr_reader window_event_listeners: Array[^(Window, window_event) -> void]
     attr_reader webview_manager: WebviewManager
     attr_reader menu_manager: MenuManager
@@ -48,6 +48,7 @@ module Tokra
     def run_on_main_thread: () { () -> void } -> nil
     def app_handle: -> AppHandle
     def config: -> Config
+    def package_info: -> PackageInfo
     def webviews: -> Hash[String, Webview]
     def windows: -> Hash[String, Window]
     def state: (Class klass) -> managed_state

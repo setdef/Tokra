@@ -27,4 +27,4 @@ routes = {
   "/array.png" => -> (_env) { [200, { "content-type" => "image/png" }, [File.binread(PNG)]] },
   "/file.png" => -> (_env) { [200, { "content-type" => "image/png" }, FileBody.new(PNG)] },
 }
-FixtureApp.builder(FixtureApp::Site.new(__dir__, options, routes), "rack assets").run
+FixtureApp.builder(FixtureApp::Site.new(__dir__, options, routes)).run(Tokra.generate_context)

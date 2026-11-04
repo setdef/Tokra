@@ -1,0 +1,13 @@
+{
+  "identifier": "com.tokra.integration.webview-rows",
+  "app": {
+    "windows": [
+      {
+        "title": "Tokra integration: webview rows",
+        "width": 240,
+        "height": 180
+      }
+    ],
+    "withGlobalTauri": true
+  }
+}

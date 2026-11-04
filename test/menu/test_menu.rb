@@ -129,6 +129,39 @@ class TestMenu < Minitest::Test
     assert_equal 8, layouts[:macos][0].last.size
   end
 
+  # Menu::default names the app by its package and takes the copyright and
+  # the one author from the bundle config (menu/menu.rs:150-158).
+  def test_the_default_menus_about_box_reads_the_package_info_and_the_bundle
+    bundle = { "copyright" => "Copyright 2026 Example", "publisher" => "Example Inc." }
+    handle = build_test_app(config: { "productName" => "Ledger", "version" => "2.1.0", "bundle" => bundle }).handle
+    abouts = []
+    about = Tokra::Menu::PredefinedMenuItem.method(:about)
+    menus = Tokra::Menu::PredefinedMenuItem.stub(:about, -> (manager, text, metadata) {
+      abouts << metadata
+      about.call(manager, text, metadata)
+    }) do
+      %i[macos windows].map { |os| Tokra::Menu::Menu.__send__(:default_for, handle, os) }
+    end
+
+    assert_equal "Ledger", menus.first.items.first.text, "macOS's app submenu is named for the package"
+    assert_equal [["Ledger", "2.1.0", "Copyright 2026 Example", ["Example Inc."]]] * 2,
+      abouts.map { |metadata| [metadata.name, metadata.version, metadata.copyright, metadata.authors] }
+  end
+
+  def test_without_a_publisher_the_default_about_box_names_no_author
+    abouts = []
+    about = Tokra::Menu::PredefinedMenuItem.method(:about)
+    Tokra::Menu::PredefinedMenuItem.stub(:about, -> (manager, text, metadata) {
+      abouts << metadata
+      about.call(manager, text, metadata)
+    }) do
+      Tokra::Menu::Menu.__send__(:default_for, build_test_app.handle, :windows)
+    end
+
+    assert_equal [[TestApp::PRODUCT_NAME, "0.0.0", nil, nil]],
+      abouts.map { |metadata| [metadata.name, metadata.version, metadata.copyright, metadata.authors] }
+  end
+
   def test_set_menu_takes_windows_that_show_the_apps_menu_or_none_and_returns_the_last_menu
     app = run_app(StubWindowMenusNative)
     handle = app.handle

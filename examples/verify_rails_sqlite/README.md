@@ -17,7 +17,30 @@ web server and no open port.
 
 ## What Changes
 
-One new file, [`tokra.rb`](tokra.rb), starts the app in place of
+Two new files sit beside `config.ru`. The first,
+[`tokra.conf.json`](tokra.conf.json), describes the desktop app: its
+identifier, its name, and the window it opens. It plays the part your
+deploy config plays for a server, and its keys are Tauri's, so
+[Tauri's configuration reference](https://v2.tauri.app/reference/config/)
+documents every one:
+
+<!-- SPDX-SnippetBegin -->
+<!--
+  SPDX-FileCopyrightText: 2026 Kerrick Long
+  SPDX-License-Identifier: MIT-0
+-->
+```json
+{
+  "identifier": "com.tokra.examples.rails-tasks",
+  "productName": "Tokra Tasks",
+  "app": {
+    "windows": [{ "title": "Tokra Tasks", "width": 900, "height": 700 }]
+  }
+}
+```
+<!-- SPDX-SnippetEnd -->
+
+The second, [`tokra.rb`](tokra.rb), starts the app in place of
 `bin/rails server`. Trimmed to its core:
 
 <!-- SPDX-SnippetBegin -->
@@ -27,17 +50,39 @@ One new file, [`tokra.rb`](tokra.rb), starts the app in place of
 -->
 ```ruby
 require "tokra"
+require "securerandom"
+
+# Rails's secret_key_base, made on the first run and kept.
+secret = File.join(__dir__, "storage", "secret_key_base")
+unless File.exist?(secret)
+  draft = "#{secret}.#{Process.pid}"
+  File.write(draft, SecureRandom.hex(64), perm: 0o600)
+  begin
+    File.link(draft, secret)
+  rescue Errno::EEXIST
+  end
+  File.unlink(draft)
+end
+ENV["SECRET_KEY_BASE"] ||= File.read(secret)
 
 ENV["RAILS_ENV"] = "production"
 require_relative "config/environment"
 
-Rack::Handler::Tokra.run(Rails.application, title: "Tokra Tasks", width: 900.0, height: 700.0)
+Rack::Handler::Tokra.run(Rails.application)
 ```
 <!-- SPDX-SnippetEnd -->
 
-`Rack::Handler::Tokra` takes Puma's place. The window asks for
+`Rack::Handler::Tokra` takes Puma's place. It reads `tokra.conf.json`
+beside the script and opens the window it lists. The window asks for
 `tokra://localhost/...`, and the handler passes each request to your
 Rack app and the response back to the window.
+
+A server gets its `secret_key_base` from credentials or the environment
+when you deploy it. A desktop app has no deploy step, so `tokra.rb`
+makes a secret the first time it runs and keeps it in
+`storage/secret_key_base`, which git ignores, readable only by you. It
+writes the secret to a file of its own and links that into place, so
+two windows opened at once never leave an empty secret behind.
 
 Three settings change:
 
@@ -85,11 +130,14 @@ example keeps its database in `storage/production.sqlite3`.
 ```bash
 cd examples/verify_rails_sqlite
 bundle install
-export SECRET_KEY_BASE=$(bin/rails secret)
-RAILS_ENV=production bin/rails db:prepare
+SECRET_KEY_BASE_DUMMY=1 RAILS_ENV=production bin/rails db:prepare
 bundle exec ruby tokra.rb
 ```
 <!-- SPDX-SnippetEnd -->
+
+`db:prepare` boots Rails, which asks for a secret in production.
+`SECRET_KEY_BASE_DUMMY=1` hands it a throwaway one, since preparing the
+database signs nothing.
 
 - Click **Add task**, type a title, and save it.
 - Tick a task's checkbox to finish it, or click **Edit** to change it.

@@ -9,6 +9,7 @@
 require "test_helper"
 require_relative "support/local_origin"
 require "stringio"
+require "tmpdir"
 
 # Tests for Rack::Handler::Tokra
 #
@@ -447,22 +448,6 @@ class TestRackHandler < Minitest::Test
     assert closed, "Body#close should be called"
   end
 
-  # ==========================================================================
-  # DEFAULT_OPTIONS
-  # ==========================================================================
-
-  def test_default_options_are_frozen
-    assert Rack::Handler::Tokra::DEFAULT_OPTIONS.frozen?
-  end
-
-  def test_default_options_contain_expected_keys
-    opts = Rack::Handler::Tokra::DEFAULT_OPTIONS
-
-    assert_equal "Tokra", opts[:title]
-    assert_equal 800.0, opts[:width]
-    assert_equal 600.0, opts[:height]
-  end
-
   def test_max_redirects_is_10
     assert_equal 10, Rack::Handler::Tokra::MAX_REDIRECTS
   end
@@ -690,38 +675,104 @@ class TestRackHandler < Minitest::Test
   end
 
   # ==========================================================================
-  # Rack::Handler::Tokra.run (porcelain over Tokra::Builder)
+  # Rack::Handler::Tokra.run (porcelain over Tokra::Builder), built from the
+  # app's config (plan 054, decision 12)
   # ==========================================================================
 
-  def test_run_forwards_title_size_global_tauri_and_invoke_handler
+  OK_APP = -> (_env) { [200, {}, ["ok"]] }
+
+  # A tokra.conf.json in a new directory under +root+, whose one window
+  # has +title+. Answers the directory.
+  private def config_dir(root, title, app: {})
+    dir = Dir.mktmpdir("config", root)
+    config = { "identifier" => "com.tokra.rack", "app" => { "windows" => [{ "title" => title }], **app } }
+    File.write(File.join(dir, "tokra.conf.json"), JSON.generate(config))
+    dir
+  end
+
+  private def with_stub_native
     require_relative "support/stub_native"
-    Thread.current[:invoked] = nil
-    handler = Ractor.shareable_proc { |invoke|
-      Thread.current[:invoked] = invoke.command
-      invoke.resolve("pong")
-      true
-    }
-    StubNative.inject_event(Tokra::Native::IpcEvent.new(
-      "main",
-      JSON.generate("cmd" => "ping", "callback" => 1, "error" => 2, "__TAURI_INVOKE_KEY__" => "known-key"),
-      LocalOrigin.url
-    ))
-
-    Tokra.stub(:generate_invoke_key, "known-key") do
-      Rack::Handler::Tokra.run(-> (_env) { [200, {}, ["ok"]] },
-        title: "Forwarded", width: 640, height: 480, with_global_tauri: true,
-        invoke_handler: handler, native: StubNative)
-    end
-
-    window = StubNative.windows.last
-    assert_equal "Forwarded", window.title
-    assert_equal [640.0, 480.0], window.size
-    assert_equal "ping", Thread.current[:invoked], "the invoke handler receives frontend invokes"
-    webview = StubNative::WebView.instances.last
-    assert_includes webview.initialization_scripts.last, "__TAURI_IIFE__",
-      "with_global_tauri reaches the builder"
-    assert_equal [%q{window.__TAURI_INTERNALS__.runCallback(1, "pong")}], webview.evals
+    Dir.mktmpdir("rack-handler") { |root| yield File.realpath(root) }
   ensure
     StubNative.clear_event
+  end
+
+  def test_run_takes_a_context_and_forwards_the_invoke_handler
+    with_stub_native do |root|
+      Thread.current[:invoked] = nil
+      handler = Ractor.shareable_proc { |invoke|
+        Thread.current[:invoked] = invoke.command
+        invoke.resolve("pong")
+        true
+      }
+      StubNative.inject_event(Tokra::Native::IpcEvent.new(
+        "main",
+        JSON.generate("cmd" => "ping", "callback" => 1, "error" => 2, "__TAURI_INVOKE_KEY__" => "known-key"),
+        LocalOrigin.url
+      ))
+      context = Tokra.generate_context(File.join(config_dir(root, "Given", app: { "withGlobalTauri" => true }),
+        "tokra.conf.json"))
+
+      Tokra.stub(:generate_invoke_key, "known-key") do
+        Rack::Handler::Tokra.run(OK_APP, context:, invoke_handler: handler, native: StubNative)
+      end
+
+      assert_equal ["Given"], StubNative.windows.map(&:title)
+      assert_equal "ping", Thread.current[:invoked], "the invoke handler receives frontend invokes"
+      webview = StubNative::WebView.instances.last
+      assert_includes webview.initialization_scripts.last, "__TAURI_IIFE__", "the config's withGlobalTauri reaches the app"
+      assert_equal [%q{window.__TAURI_INTERNALS__.runCallback(1, "pong")}], webview.evals
+    end
+  end
+
+  # rackup passes :config, config.ru's path, absolute from its own command
+  # line (rackup 2.3.1 lib/rackup/server.rb:341, 404), with :Host and
+  # :Port, which a desktop app has no use for.
+  def test_run_reads_the_config_beside_rackups_config_ru_and_ignores_host_and_port
+    with_stub_native do |root|
+      dir = config_dir(root, "Beside config.ru")
+      Rack::Handler::Tokra.run(OK_APP, config: File.join(dir, "config.ru"), Host: "localhost", Port: 9292,
+        environment: "development", native: StubNative)
+
+      assert_equal ["Beside config.ru"], StubNative.windows.map(&:title)
+    end
+  end
+
+  # bin/rails server passes "config.ru" as written (railties 8.1.2
+  # server_command.rb:110, 161); only rackup's own command line expands it
+  # (rackup 2.3.1 lib/rackup/server.rb:404).
+  def test_run_expands_a_relative_rackup_config_against_the_working_directory
+    with_stub_native do |root|
+      dir = config_dir(root, "Beside a relative config.ru")
+      Dir.chdir(dir) { Rack::Handler::Tokra.run(OK_APP, config: "config.ru", native: StubNative) }
+
+      assert_equal ["Beside a relative config.ru"], StubNative.windows.map(&:title)
+    end
+  end
+
+  def test_run_without_a_context_or_rackup_reads_the_config_beside_the_entry_script
+    program = $PROGRAM_NAME
+    with_stub_native do |root|
+      dir = config_dir(root, "Beside the script")
+      $PROGRAM_NAME = File.join(dir, "app.rb")
+      File.write($PROGRAM_NAME, "")
+      Tokra.record_anchor
+      Rack::Handler::Tokra.run(OK_APP, native: StubNative)
+
+      assert_equal ["Beside the script"], StubNative.windows.map(&:title)
+    end
+  ensure
+    $PROGRAM_NAME = program
+    Tokra.record_anchor
+  end
+
+  def test_run_has_no_window_options_any_more
+    with_stub_native do |root|
+      context = Tokra.generate_context(File.join(config_dir(root, "Configured"), "tokra.conf.json"))
+      Rack::Handler::Tokra.run(OK_APP, context:, title: "Ignored", width: 1, height: 1, native: StubNative)
+
+      assert_equal ["Configured"], StubNative.windows.map(&:title)
+      assert_equal [[800.0, 600.0]], StubNative.windows.map(&:size)
+    end
   end
 end

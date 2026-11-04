@@ -65,11 +65,10 @@ module NotificationTest
     build_test_app
   end
 
-  # A real app handle whose configuration names +identifier+ and
-  # +product_name+, which Tokra has no builder setting for yet.
-  private def configured_handle(identifier: nil, product_name: nil)
-    config = Tokra::Config.new(identifier:, product_name:, version: nil)
-    Tokra::AppHandle.new(Tokra::AppManager.new(config:, webviews: {}, windows: {}))
+  # A real app handle whose config names +identifier+ and, when given,
+  # +product_name+.
+  private def configured_handle(identifier: TestApp::IDENTIFIER, product_name: nil)
+    build_test_app(config: { "identifier" => identifier, "productName" => product_name }).handle
   end
 
   # A registered plugin on a real handle.

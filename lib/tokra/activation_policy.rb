@@ -41,7 +41,7 @@ module Tokra
   #   setup = Ractor.shareable_proc do |app|
   #     app.set_activation_policy(Tokra::ActivationPolicy::Accessory)
   #   end
-  #   Tokra::Builder.default.setup(&setup).run
+  #   Tokra::Builder.default.setup(&setup).run(Tokra.generate_context)
   #
   #   Tokra::ActivationPolicy::Prohibited.name  #=> "Prohibited"
   class ActivationPolicy < Data.define(:name)
@@ -82,9 +82,9 @@ module Tokra
     #   setup = Ractor.shareable_proc do |app|
     #     app.set_activation_policy(Tokra::ActivationPolicy::Accessory)
     #   end
-    #   Tokra::Builder.default.setup(&setup).run
+    #   Tokra::Builder.default.setup(&setup).run(Tokra.generate_context)
     #
-    #   app = Tokra::Builder.default.build
+    #   app = Tokra::Builder.default.build(Tokra.generate_context)
     #   app.set_activation_policy(Tokra::ActivationPolicy::Prohibited)
     #   app.run
     def set_activation_policy(activation_policy)

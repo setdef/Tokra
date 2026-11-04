@@ -1,0 +1,12 @@
+{
+  "identifier": "com.tokra.integration.menu",
+  "app": {
+    "windows": [
+      {
+        "title": "Tokra integration: menu",
+        "width": 320,
+        "height": 240
+      }
+    ]
+  }
+}

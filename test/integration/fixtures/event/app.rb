@@ -54,12 +54,11 @@ class EventFixture < Tokra::Plugin
 end
 
 options = FixtureApp.options(ARGV)
-FixtureApp.builder(FixtureApp::Site.new(__dir__, options), "events", plugins: [EventFixture])
-  .with_global_tauri
+FixtureApp.builder(FixtureApp::Site.new(__dir__, options), plugins: [EventFixture])
   # Focus only: FixtureApp::Plugin prints the close and its end, and when a
   # platform reports focus depends on its window manager, so no other
   # fixture's output changes.
   .on_window_event(&Ractor.shareable_proc { |window, event|
     puts "EVENT window #{window.label} #{event.class.name} #{event.focused}" if event.is_a?(Tokra::WindowEvent::Focused)
   })
-  .run
+  .run(Tokra.generate_context)

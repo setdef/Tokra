@@ -134,5 +134,5 @@ at_exit do
   puts "AT_EXIT"
 end
 
-FixtureApp.builder(FixtureApp::Site.new(__dir__, options), "main thread", plugins: [MainThreadFixture::Plugin])
-  .run
+FixtureApp.builder(FixtureApp::Site.new(__dir__, options), plugins: [MainThreadFixture::Plugin])
+  .run(Tokra.generate_context)

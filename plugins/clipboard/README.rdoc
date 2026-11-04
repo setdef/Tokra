@@ -31,7 +31,7 @@ from any manager as +clipboard+:
 
   Tokra::Builder.new
     .setup { |app| app.handle.plugin(Tokra::Plugins::Clipboard::Plugin.new(app.handle)) }
-    .run
+    .run(Tokra.generate_context)
 
   # Later, with the handle:
   handle.clipboard.write_text("Hello, World!")

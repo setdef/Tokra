@@ -42,7 +42,7 @@ module MenuFixture
   end
 end
 
-app = Tokra::Builder.default.title(MenuFixture::TITLE).size(320, 240)
+app = Tokra::Builder.default
   .menu(&Ractor.shareable_proc { |handle|
     Tokra::Menu::MenuBuilder.with_id(handle, "fixture-bar")
       .item(Tokra::Menu::SubmenuBuilder.with_id(handle, "fixture-app", "Fixture")
@@ -60,7 +60,7 @@ app = Tokra::Builder.default.title(MenuFixture::TITLE).size(320, 240)
       .build
   })
   .on_menu_event(&Ractor.shareable_proc { |_handle, event| MenuFixture::HEARD << "app:#{event.id}" })
-  .build
+  .build(FixtureApp.context(title: MenuFixture::TITLE))
 FixtureApp.background(app)
 
 app.run do |handle, event|

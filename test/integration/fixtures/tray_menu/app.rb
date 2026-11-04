@@ -151,14 +151,14 @@ module TrayMenuFixture
   end
 end
 
-app = Tokra::Builder.default.title("Tokra integration: tray menu #{Process.pid}").size(320, 240)
+app = Tokra::Builder.default
   .on_menu_event(&Ractor.shareable_proc { |_handle, event| TrayMenuFixture::LOG << "app:#{event.id}" })
   .on_tray_icon_event(&Ractor.shareable_proc { |_handle, event|
     name = event.class.name.split("::").last
     detail = event.respond_to?(:button_state) ? ":#{event.button.name}:#{event.button_state.name}" : ""
     TrayMenuFixture::LOG << "event:#{name}#{detail}"
   })
-  .build
+  .build(FixtureApp.context(title: "Tokra integration: tray menu #{Process.pid}"))
 FixtureApp.background(app)
 
 begin

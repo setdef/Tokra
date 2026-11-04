@@ -15,10 +15,10 @@
 module Tokra
   # Makes a new window holding one webview: a WebviewWindow.
   #
-  # Your app opens with one window, +main+. A settings pane, a document,
-  # or a log viewer each wants a window of its own, opened when the person
-  # asks for it, sometimes from a command and sometimes from a thread
-  # that has finished some work.
+  # Your app opens the windows its config lists. A settings pane, a
+  # document, or a log viewer each wants a window of its own, opened when
+  # the person asks for it, sometimes from a command and sometimes from a
+  # thread that has finished some work.
   #
   # Name the window with a label, say what page it opens with a
   # WebviewUrl, set what you like, and call #build. The label names the

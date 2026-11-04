@@ -46,7 +46,6 @@ module GlobalShortcutFixture
 end
 
 options = FixtureApp.options(ARGV)
-FixtureApp.builder(FixtureApp::Site.new(__dir__, options, GlobalShortcutFixture::ROUTES), "global-shortcut",
+FixtureApp.builder(FixtureApp::Site.new(__dir__, options, GlobalShortcutFixture::ROUTES),
   plugins: [Tokra::Plugins::GlobalShortcut::Plugin])
-  .with_global_tauri
-  .run
+  .run(Tokra.generate_context)

@@ -1,0 +1,12 @@
+{
+  "identifier": "com.tokra.integration.window-state",
+  "app": {
+    "windows": [
+      {
+        "title": "Tokra integration: window state",
+        "width": 320,
+        "height": 240
+      }
+    ]
+  }
+}

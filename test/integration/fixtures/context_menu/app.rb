@@ -220,9 +220,9 @@ module ContextMenuFixture
   end
 end
 
-app = Tokra::Builder.default.title(ContextMenuFixture::TITLE).size(320, 240)
+app = Tokra::Builder.default
   .on_menu_event(&Ractor.shareable_proc { |_handle, event| ContextMenuFixture::LOG << "heard #{event.id}" })
-  .build
+  .build(FixtureApp.context(title: ContextMenuFixture::TITLE))
 FixtureApp.background(app)
 
 app.run do |handle, event|

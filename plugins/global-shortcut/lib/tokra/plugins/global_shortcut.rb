@@ -94,7 +94,7 @@ module Tokra
       #
       #   Tokra::Builder.default
       #     .setup(&Ractor.shareable_proc { |app| app.handle.plugin(Tokra::Plugins::GlobalShortcut::Plugin.new(app.handle)) })
-      #     .run
+      #     .run(Tokra.generate_context)
       #
       #   handle.global_shortcut.on_shortcut("Alt+Space") { |app, shortcut, event| app.emit("summon", nil) }
       #

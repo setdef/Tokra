@@ -174,14 +174,11 @@ module WebviewWindowBuilderFixture
 end
 
 app = Tokra::Builder.default
-  .title("Tokra integration: webview window builder")
-  .size(320, 240)
-  .with_global_tauri
   .register_uri_scheme_protocol("tokra", &WebviewWindowBuilderFixture::PROTOCOL)
   .on_page_load(&WebviewWindowBuilderFixture::PAGE_LOAD)
   .invoke_handler(&WebviewWindowBuilderFixture::COMMANDS)
   .setup(&WebviewWindowBuilderFixture::SETUP)
-  .build
+  .build(Tokra.generate_context)
 # Before App#run, so the plugin hears "main" too.
 app.handle.plugin(WebviewWindowBuilderFixture::CreatedPlugin.new(app.handle))
 app.run do |_handle, event|

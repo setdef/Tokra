@@ -1,0 +1,13 @@
+{
+  "identifier": "com.tokra.examples.rails-tasks",
+  "productName": "Tokra Tasks",
+  "app": {
+    "windows": [
+      {
+        "title": "Tokra Tasks",
+        "width": 900,
+        "height": 700
+      }
+    ]
+  }
+}

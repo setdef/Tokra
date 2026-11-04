@@ -5,33 +5,22 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
-require_relative "test_helper"
+require "test_helper"
 
-# Tests for Tokra::Config (Tauri parity).
-#
-# Tauri's Config contains: identifier, product_name, version, app, build, bundle, plugins.
-# Tokra's MVP subset: identifier, product_name, version.
+# Tokra::Config is Tauri's whole config, at the root where Tauri re-exports
+# it (lib.rs:217-237; plan 054, decision 2). Its schema's tests are in
+# test/utils/config/.
 class TestConfig < Minitest::Test
-  def test_config_is_data_define_with_required_fields
-    config = Tokra::Config.new(
-      identifier: "com.example.test",
-      product_name: "Test App",
-      version: "1.0.0"
-    )
-
-    assert_equal "com.example.test", config.identifier
-    assert_equal "Test App", config.product_name
-    assert_equal "1.0.0", config.version
+  def test_config_is_the_utils_config_itself
+    assert_same Tokra::Utils::Config::Config, Tokra::Config
   end
 
-  def test_config_is_frozen_and_ractor_shareable
-    config = Tokra::Config.new(
-      identifier: "com.example.test",
-      product_name: "Test App",
-      version: "1.0.0"
-    )
+  def test_config_takes_tauris_defaults_for_what_it_is_not_given
+    config = Tokra::Config.new(identifier: "com.example.test")
 
-    assert config.frozen?
-    assert Ractor.shareable?(config)
+    assert_equal "com.example.test", config.identifier
+    assert_nil config.product_name
+    assert_nil config.version
+    assert_empty config.app.windows
   end
 end

@@ -23,11 +23,9 @@ class TestHiddenJob < Minitest::Test
     RUSTUP_TOOLCHAIN=1.99.1
   ].freeze
 
-  # The three tracked files stage would refuse, which the maintainer
+  # The two tracked files stage would refuse, which the maintainer
   # approved.
   ALLOWS = %w[
-    --allow
-    examples/verify_rails_sqlite/config/credentials.yml.enc
     --allow
     vendor/tauri/crates/tauri-utils/src/tokens.rs
     --allow

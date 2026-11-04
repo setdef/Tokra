@@ -64,7 +64,7 @@ class TestBuilderInitializationScripts < Minitest::Test
   end
 
   def test_no_template_markers_survive_rendering
-    plugin_app = build_test_app(Tokra::Builder.default.with_global_tauri)
+    plugin_app = build_test_app(config: { "app" => { "withGlobalTauri" => true } })
     scripts_for(plugin_app).each_with_index do |script, index|
       refute_match(/__(TEMPLATE|RAW)_\w+__/, script, "script #{index} has a Tauri marker left")
       # The invoke key is Z85 text (lib.rs:1252-1256), whose alphabet holds
@@ -75,7 +75,7 @@ class TestBuilderInitializationScripts < Minitest::Test
   end
 
   def test_plugin_scripts_follow_init_js_wrapped_in_iifes_before_the_api_bundle
-    app = build_test_app(Tokra::Builder.default.with_global_tauri)
+    app = build_test_app(config: { "app" => { "withGlobalTauri" => true } })
     app.handle.plugin(ScriptPlugin.new(app.handle, "first", "window.first = 1"))
     app.handle.plugin(ScriptPlugin.new(app.handle, "silent", nil))
     app.handle.plugin(ScriptPlugin.new(app.handle, "second", "window.second = 2"))

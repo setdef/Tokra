@@ -14,8 +14,7 @@
 require_relative "../../support/fixture_app"
 
 options = FixtureApp.options(ARGV)
-FixtureApp.builder(FixtureApp::Site.new(__dir__, options), "ipc transport")
-  .with_global_tauri
+FixtureApp.builder(FixtureApp::Site.new(__dir__, options))
   .invoke_handler(&Ractor.shareable_proc { |invoke|
     case invoke.command
     when "ping"
@@ -55,4 +54,4 @@ FixtureApp.builder(FixtureApp::Site.new(__dir__, options), "ipc transport")
     end
     true
   })
-  .run
+  .run(Tokra.generate_context)

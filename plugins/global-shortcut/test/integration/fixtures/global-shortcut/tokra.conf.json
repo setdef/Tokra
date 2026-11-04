@@ -1,0 +1,13 @@
+{
+  "identifier": "com.tokra.integration.global-shortcut",
+  "app": {
+    "windows": [
+      {
+        "title": "Tokra integration: global-shortcut",
+        "width": 480,
+        "height": 360
+      }
+    ],
+    "withGlobalTauri": true
+  }
+}

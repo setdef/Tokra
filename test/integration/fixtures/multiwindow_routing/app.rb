@@ -110,13 +110,11 @@ module MultiwindowRoutingFixture
 end
 
 Tokra::Builder.default
-  .title("Tokra integration: multiwindow routing")
-  .size(320, 240)
   .register_uri_scheme_protocol("tokra", &MultiwindowRoutingFixture::PROTOCOL)
   .on_page_load(&MultiwindowRoutingFixture::PAGE_LOAD)
   .invoke_handler(&MultiwindowRoutingFixture::WHOAMI)
   .setup(&MultiwindowRoutingFixture::SECOND)
-  .run do |handle, event|
+  .run(Tokra.generate_context) do |handle, event|
     case event
     when Tokra::RunEvent::Ready then FixtureApp.keep_in_sight(handle.get_window("main"))
     when Tokra::RunEvent::WindowEvent

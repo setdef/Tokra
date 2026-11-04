@@ -77,9 +77,10 @@ module Tokra
         # without File. The Window and Help submenus have the ids
         # WINDOW_SUBMENU_ID and HELP_SUBMENU_ID.
         #
-        # The About item names the app by its config's product name, or
-        # the program's file name without one, and gives the config's
-        # version (plan 042, decision 6).
+        # The About item names the app by its package's name and version
+        # (Tokra::PackageInfo), with the config's
+        # <tt>bundle.copyright</tt>, and its <tt>bundle.publisher</tt> as
+        # the one author.
         #
         # Mirrors Tauri's Menu::default (menu/menu.rs:150-249).
         #
@@ -99,9 +100,13 @@ module Tokra
 
         # Menu.default for the platform +os+: :macos, :windows, or :linux.
         private def default_for(app_handle, os)
-          config = app_handle.config
-          name = config.product_name || File.basename($PROGRAM_NAME, ".*")
-          about = AboutMetadata.new(name:, version: config.version)
+          # Named for the package, with the bundle's copyright and its
+          # publisher as the one author (menu/menu.rs:150-158).
+          package_info = app_handle.package_info
+          bundle = app_handle.config.bundle
+          name = package_info.name
+          about = AboutMetadata.new(name:, version: package_info.version, copyright: bundle.copyright,
+            authors: bundle.publisher&.then { |publisher| [publisher] })
           window_menu = Submenu.with_id_and_items(app_handle, WINDOW_SUBMENU_ID, "Window", true, [
             PredefinedMenuItem.minimize(app_handle, nil),
             PredefinedMenuItem.maximize(app_handle, nil),

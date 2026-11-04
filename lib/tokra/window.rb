@@ -1386,8 +1386,9 @@ module Tokra
     # On Windows the bar is this window's. On macOS and Linux it is the
     # app's, whichever window sets it, and Linux shows it only in desktops
     # with libunity, such as GNOME, which find the app by its
-    # <tt>.desktop</tt> file: the config's product name, or the program's
-    # file name, followed by <tt>.desktop</tt>.
+    # <tt>.desktop</tt> file: the package's name (Tokra::PackageInfo#name,
+    # the config's <tt>productName</tt> or the entry script's name),
+    # followed by <tt>.desktop</tt>.
     #
     # Mirrors Tauri's Window::set_progress_bar (window/mod.rs:2151-2168),
     # which names the desktop file after the package (plan 045, decision
@@ -1482,11 +1483,11 @@ module Tokra
       webviews.all? { |webview| webview.label == @label }
     end
 
-    # The desktop file a Unity launcher knows the app by, as Tauri names
-    # it from the package (plan 045, decision 4; plan 042, decision 6).
+    # The desktop file a Unity launcher knows the app by, named for the
+    # package, as Tauri names it (window/mod.rs:2136, 2165; plan 045,
+    # decision 4).
     private def desktop_filename
-      name = @app_handle.config.product_name || File.basename($PROGRAM_NAME, ".*")
-      "#{name}.desktop"
+      "#{@app_handle.package_info.name}.desktop"
     end
 
     # SPDX-SnippetEnd

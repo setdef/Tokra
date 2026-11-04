@@ -33,7 +33,7 @@ module Tokra
       #     .setup(&Ractor.shareable_proc { |app|
       #       app.handle.plugin(Tokra::Plugins::Log::Builder.new.level(:info).build)
       #     })
-      #     .run
+      #     .run(Tokra.generate_context)
       #
       class Plugin < Tokra::Plugin
         # Returns the unique plugin identifier.

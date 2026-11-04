@@ -1,0 +1,14 @@
+{
+  "identifier": "com.tokra.examples.ping-pong",
+  "productName": "Tokra Ping-Pong",
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Tokra Ping-Pong",
+        "width": 500,
+        "height": 600
+      }
+    ]
+  }
+}

@@ -23,12 +23,12 @@ module Rack
   module Handler
     class Tokra
       MAX_REDIRECTS: Integer
-      DEFAULT_OPTIONS: { title: String, width: Float, height: Float }
 
       @app: Rack::_App
       @proxy: ::Tokra::Native::Proxy
 
-      def self.run: (Rack::_App app, ?title: String, ?width: Float, ?height: Float, ?invoke_handler: (^(::Tokra::Ipc::Invoke) -> bool)?, ?with_global_tauri: bool, ?native: Module) -> void
+      def self.run: (Rack::_App app, ?context: ::Tokra::Context?, ?invoke_handler: (^(::Tokra::Ipc::Invoke) -> bool)?, ?native: Module, **Object options) -> void
+      private def self.default_context: (Object? rackup_config) -> ::Tokra::Context
 
       def initialize: (Rack::_App app, ::Tokra::Native::Proxy proxy) -> void
       def call: (::Tokra::Native::HttpRequestEvent event) -> void

@@ -152,7 +152,7 @@ class TestWebviewWindowBuilder < Minitest::Test
     run_app
 
     main = StubNative.windows.first
-    assert_equal ["main", "Tokra", [800.0, 600.0]], [main.label, main.title, main.size]
+    assert_equal ["main", "Tokra App", [800.0, 600.0]], [main.label, main.title, main.size]
     assert_equal app_url, native_webview("main").url
   end
 
@@ -319,8 +319,7 @@ class TestWebviewWindowBuilder < Minitest::Test
   end
 
   def test_app_urls_join_the_app_url_and_others_load_as_given
-    manager = Tokra::AppManager.new(config: Tokra::Config.new(identifier: nil, product_name: nil, version: nil),
-      webviews: {}, windows: {})
+    manager = build_test_manager
     webviews = Tokra::WebviewManager.new(manager, os_name: Tokra::App.os_name)
 
     assert_equal app_url, webviews.webview_url(page("index.html"))
@@ -368,8 +367,7 @@ class TestWebviewWindowBuilder < Minitest::Test
   # An http app URL is special, so the url crate reads a path's \\ as /
   # (url 2.5.8 src/parser.rs:912); Tokra's is http on Windows.
   def test_on_windows_a_backslash_in_an_app_path_is_a_slash
-    manager = Tokra::AppManager.new(config: Tokra::Config.new(identifier: nil, product_name: nil, version: nil),
-      webviews: {}, windows: {})
+    manager = build_test_manager
     windows = Tokra::WebviewManager.new(manager, os_name: "windows")
     macos = Tokra::WebviewManager.new(manager, os_name: "macos")
 

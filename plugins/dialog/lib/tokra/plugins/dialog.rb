@@ -68,12 +68,12 @@ module Tokra
       #
       # == Ruby API
       #
-      # Register the plugin on the app handle before App#run, so the
-      # +main+ window's page runs its script, which the app puts in each
-      # webview it makes from then on. It manages a Dialog, which every
+      # Register the plugin on the app handle before App#run, so the pages
+      # of the windows your config lists run its script, which the app puts
+      # in each webview it makes from then on. It manages a Dialog, which every
       # manager reaches as +dialog+:
       #
-      #   app = Tokra::Builder.new.build
+      #   app = Tokra::Builder.new.build(Tokra.generate_context)
       #   app.handle.plugin(Tokra::Plugins::Dialog::Plugin.new(app.handle))
       #   app.run
       #
@@ -93,8 +93,6 @@ module Tokra
       #   zenity for message dialogs, not GTK. On Windows, custom button
       #   labels show the standard ones; the commands still answer with
       #   your labels.
-      # * A message dialog's default title is the app's product name, or
-      #   empty.
       #
       # Mirrors Tauri's dialog plugin (lib.rs:184-212).
       class Plugin < Tokra::Plugin
