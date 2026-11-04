@@ -43,11 +43,11 @@ GIT
 
 GIT
   remote: https://github.com/setdef/Ferro
-  revision: 1ddea26291a34c1f6fcd64b5d0411f64dcb2710c
-  tag: ferro-time/v0.1.0.pre.3
+  revision: f2a85ebe080ceb75835d38cd1ce1c2792310853d
+  tag: ferro-time/v0.1.0.pre.4
   glob: gems/time/*.gemspec
   specs:
-    ferro-time (0.1.0.pre.3)
+    ferro-time (0.1.0.pre.4)
       rb_sys (~> 0.9.129)
 
 GIT
@@ -394,7 +394,7 @@ CHECKSUMS
   ferro-global-hotkey (0.1.0.pre.1)
   ferro-notify-rust (0.1.0.pre.4)
   ferro-rfd (0.1.0.pre.3)
-  ferro-time (0.1.0.pre.3)
+  ferro-time (0.1.0.pre.4)
   ferro-url (0.1.0.pre.1)
   ffi (1.17.3) sha256=0e9f39f7bb3934f77ad6feab49662be77e87eedcdeb2a3f5c0234c2938563d4c
   ffi (1.17.3-aarch64-linux-gnu) sha256=28ad573df26560f0aedd8a90c3371279a0b2bd0b4e834b16a2baa10bd7a97068

@@ -27,7 +27,7 @@ Ferro gems, such as ferro-arboard, from that source instead of their own:
   gem "ferro-url", git: "https://github.com/setdef/Ferro",
     tag: "ferro-url/v0.1.0.pre.1", glob: "gems/url/*.gemspec"
   gem "ferro-time", git: "https://github.com/setdef/Ferro",
-    tag: "ferro-time/v0.1.0.pre.3", glob: "gems/time/*.gemspec"
+    tag: "ferro-time/v0.1.0.pre.4", glob: "gems/time/*.gemspec"
   gem "tokra-notification"
 
 On Linux and the BSDs, notifications travel over D-Bus to the desktop's

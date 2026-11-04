@@ -38,7 +38,7 @@ Gem::Specification.new do |spec|
   # An exact pin: a prerelease promises no API between prereleases, and
   # RubyGems considers prereleases only for a requirement that names one.
   spec.add_dependency "ferro-notify-rust", "= 0.1.0.pre.4"
-  spec.add_dependency "ferro-time", "= 0.1.0.pre.3"
+  spec.add_dependency "ferro-time", "= 0.1.0.pre.4"
   spec.add_dependency "ferro-url", "= 0.1.0.pre.1"
   spec.add_dependency "tokra", "~> 0.0"
 end
