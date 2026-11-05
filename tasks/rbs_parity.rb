@@ -453,6 +453,8 @@ if $PROGRAM_NAME == __FILE__
     parser.on("--exclude-sig FILE") { |file| options[:exclude] << file }
   end.parse!
 
+  # lib/rackup/handler/tokra.rb registers with rackup only when it is loaded.
+  require "rackup"
   options[:lib].each { |dir| $LOAD_PATH.unshift(File.expand_path(dir)) }
   options[:lib].each do |dir|
     Dir.glob("**/*.rb", base: dir).sort.each { |file| require File.expand_path(file, dir) }

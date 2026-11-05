@@ -60,6 +60,7 @@ gem "steep"
 
 # examples/
 gem "rack", ">= 3.0"
+gem "rackup", "~> 2.3"
 gem "rdoc", "~> 7.0"
 gem "roda", ">= 3.0"
 gem "tilt", ">= 2.0"

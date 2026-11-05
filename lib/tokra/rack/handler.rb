@@ -34,6 +34,9 @@ module Rack # :nodoc:
     #
     #   rackup -s tokra config.ru
     #
+    # Tokra does not depend on rackup, so the app adds <tt>rackup</tt> to
+    # its Gemfile.
+    #
     class Tokra
       MAX_REDIRECTS = 10 # :nodoc:
 

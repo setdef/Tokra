@@ -542,7 +542,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- `rackup -s tokra` no longer raises on the options rackup passes
+- `rackup -s tokra` finds the handler (ships `rackup/handler/tokra`) and no
+  longer raises on the options rackup passes
 - Binary `tokra://` responses (images, fonts) no longer fail with an
   `EncodingError` and leave the request hanging; bodies are sent byte-exact
 - Binary request bodies reach Rack intact instead of being UTF-8 mangled
