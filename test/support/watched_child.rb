@@ -8,7 +8,8 @@
 require "rbconfig"
 
 # Runs a child process in its own process group, collects what it prints,
-# and kills the group once it stops making progress (Plan 060).
+# and kills the group, or on Windows the process tree, once it stops
+# making progress (Plan 060).
 #
 # A fixed limit from the launch turns a slow run into a hang: at a load
 # near 400, RealApp's 60 seconds killed a fixture whose page was two
@@ -85,7 +86,10 @@ module WatchedChild
   end
 
   # What one run left behind. +termsig+ is the signal that ended it, if
-  # one did. +exit_after_signal+ is how long it lived after +on_line+
+  # one did. Windows has no signals, so there +termsig+ stays +nil+ and a
+  # killed child reports an exit code as its +status+: 0 for Ruby's own
+  # Process.kill(:KILL), whatever taskkill chose for a tripped bound's
+  # kill (kill_group). +exit_after_signal+ is how long it lived after +on_line+
   # last signalled it. +probe+ is what +on_hang+ answered before the
   # kill, or +nil+.
   Outcome = Data.define(:status, :termsig, :stdout, :stderr, :bound, :seconds, :quiet_for, :last_line,
@@ -148,7 +152,8 @@ module WatchedChild
 
   # Runs +command+ (an argv array) with +env+ added to the environment,
   # in a process group of its own, and waits until it ends or a bound
-  # trips. +patience+ goes to the child in PATIENCE_VARIABLE, over any
+  # trips, which kills it and what it started (kill_group). +patience+
+  # goes to the child in PATIENCE_VARIABLE, over any
   # value +env+ gives, and +stall+ must be longer. +clock+ answers the
   # seconds every bound and duration is measured on. +on_line+, when
   # given, sees each stdout line with the child's pid as it arrives and
@@ -235,7 +240,11 @@ module WatchedChild
     nil
   end
 
-  # Sends +signal+ to +pid+, ignoring a process that already ended.
+  # Sends +signal+ to +pid+, ignoring a process that already ended. On
+  # Windows Ruby sends only +:KILL+, which is TerminateProcess with exit
+  # code 0, +:INT+, which is a CTRL_BREAK_EVENT to the process's group,
+  # and 0; any other signal, or a negative pid, raises Errno::EINVAL
+  # (kill in Ruby 4.0.9's win32/win32.c).
   def self.signal(pid, signal)
     ::Process.kill(signal, pid)
     true
@@ -243,10 +252,19 @@ module WatchedChild
     false
   end
 
-  # Kills the child's process group, and so whatever the child started;
-  # on Windows, which has no process groups to signal, the child itself.
+  # Kills the child's process group, and so whatever the child started.
+  # Windows has no process groups to signal, and killing a process there
+  # leaves its children running, as WebView2's browser processes would
+  # be. So there taskkill ends the child's tree: /T takes every process
+  # the child started, and theirs, and /F terminates rather than asks.
+  # Should taskkill fail, the child itself is still killed. Until Ruby
+  # reaps the child it holds the child's process handle, which keeps the
+  # pid from naming another process, so only a child that ended and was
+  # reaped just before the kill leaves a window for that, as on POSIX.
   def self.kill_group(pid)
-    signal(windows? ? pid : -pid, :KILL)
+    return signal(-pid, :KILL) unless windows?
+
+    signal(pid, :KILL) unless system("taskkill", "/T", "/F", "/PID", pid.to_s, out: File::NULL, err: File::NULL)
   end
 
   def self.windows?

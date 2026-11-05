@@ -19,8 +19,8 @@ require_relative "../../support/watched_child"
 # window with a real wry webview. tao's loop needs the main thread and ends
 # the process, so the app runs in a child process, in its own process group,
 # under WatchedChild's bounds: a fixture that stops printing, or never
-# ends, has its group killed and fails the test instead of blocking the
-# suite, and a slow one still passes. Without a window server the tests
+# ends, has its group killed, or on Windows its process tree, and fails
+# the test instead of blocking the suite, and a slow one still passes. Without a window server the tests
 # skip and say why.
 #
 # On macOS every fixture runs in the background (FixtureApp.background), so
@@ -150,7 +150,8 @@ module RealApp
     end
   end
 
-  # Sends +signal+ to +pid+, ignoring a process that already ended.
+  # Sends +signal+ to +pid+, ignoring a process that already ended; on
+  # Windows only +:KILL+, +:INT+, and 0 (WatchedChild.signal).
   def self.signal(pid, signal)
     WatchedChild.signal(pid, signal)
   end

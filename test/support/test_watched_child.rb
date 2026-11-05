@@ -6,7 +6,9 @@
 #++
 
 require "test_helper"
+require "fileutils"
 require "rbconfig"
+require "tmpdir"
 require_relative "watched_child"
 
 # The bounds a real-window fixture runs under (Plan 060), tried against
@@ -66,16 +68,44 @@ class TestWatchedChild < Minitest::Test
     WatchedChild.run(ENV_FOR_CHILD, ruby(script), **, &)
   end
 
-  # Whether +pid+ is gone or only a zombie, which a SIGKILL leaves until
-  # its parent reaps it; waits up to SLACK seconds for that.
+  # Whether +pid+ is gone, or on POSIX only a zombie, which a SIGKILL
+  # leaves until its parent reaps it; waits up to SLACK seconds for that.
   def ended?(pid)
     deadline = WatchedChild.now + SLACK
     loop do
-      state = IO.popen(["ps", "-o", "stat=", "-p", pid.to_s], err: File::NULL, &:read).strip
-      return true if state.empty? || state.start_with?("Z")
+      return true unless running?(pid)
       return false if WatchedChild.now > deadline
 
       sleep 0.05
+    end
+  end
+
+  # Whether +pid+ is a running process. On Windows, tasklist lists only
+  # running processes, and with /FO CSV quotes each pid.
+  def running?(pid)
+    if WatchedChild.windows?
+      listed = IO.popen(["tasklist", "/FI", "PID eq #{pid}", "/NH", "/FO", "CSV"], err: File::NULL, &:read)
+      listed.include?("\"#{pid}\"")
+    else
+      state = IO.popen(["ps", "-o", "stat=", "-p", pid.to_s], err: File::NULL, &:read).strip
+      !state.empty? && !state.start_with?("Z")
+    end
+  end
+
+  # Asserts that a child with +termsig+ and +exitstatus+ was killed, as
+  # this platform reports a kill. On POSIX that is SIGKILL's termsig.
+  # Windows has no signals: Ruby's waitpid reports a process's exit code
+  # as its status, and a signal only for an NTSTATUS failure code
+  # (poll_child_status in Ruby 4.0.9's win32/win32.c), and WatchedChild
+  # kills through taskkill, which chooses the exit code itself. So there
+  # the child must have ended with an exit code and no signal; each test
+  # runs a child that would not end on its own.
+  def assert_killed(termsig, exitstatus, message = nil)
+    if WatchedChild.windows?
+      assert_nil termsig, message
+      refute_nil exitstatus, "the child did not end\n#{message}"
+    else
+      assert_equal Signal.list.fetch("KILL"), termsig, message
     end
   end
 
@@ -116,7 +146,7 @@ class TestWatchedChild < Minitest::Test
     assert_equal "only line", outcome.last_line
     assert_operator outcome.quiet_for, :>, BOUNDS[:stall], outcome.inspect
     assert_operator outcome.quiet_for, :<=, BOUNDS[:stall] + 0.25, outcome.inspect
-    assert_equal Signal.list.fetch("KILL"), outcome.termsig, outcome.inspect
+    assert_killed outcome.termsig, outcome.status, outcome.inspect
     assert_equal "probed", outcome.probe
     assert_equal 1, pids.size
     assert_match(/\Ano progress: no new line for \d+\.\d s, and its last line was "only line"\z/, outcome.verdict)
@@ -124,18 +154,22 @@ class TestWatchedChild < Minitest::Test
 
   # The outcome describes the run as the bound saw it: a line the child
   # prints while on_hang probes, and the time the probe takes, change
-  # neither its last line nor how long it was quiet.
+  # neither its last line nor how long it was quiet. The probe asks for
+  # the line by creating a file the child waits for, not by a signal,
+  # which Windows could not send.
   def test_a_tripped_bound_is_described_as_it_was_when_it_tripped
     clock = Clock.new(step: 0.25)
     late = Thread::Queue.new
-    outcome = run_child("trap('USR1') { puts 'late line' }; puts 'only line'; loop { sleep 600 }", **BOUNDS, clock:,
+    cue = File.join(Dir.mktmpdir("watched-child"), "cue")
+    outcome = run_child("puts 'only line'; sleep 0.01 until File.exist?(#{cue.inspect}); puts 'late line'; sleep 600",
+      **BOUNDS, clock:,
       on_line: lambda { |line, _pid|
         clock.moving = true
         late << line if line == "late line\n"
         false
       },
-      on_hang: lambda { |pid|
-        WatchedChild.signal(pid, :USR1)
+      on_hang: lambda { |_pid|
+        File.write(cue, "")
         heard = late.pop(timeout: SLACK)
         clock.advance(100)
         heard
@@ -146,6 +180,8 @@ class TestWatchedChild < Minitest::Test
     assert_equal "only line", outcome.last_line, outcome.inspect
     assert_operator outcome.quiet_for, :<=, BOUNDS[:stall] + 0.25, outcome.inspect
     assert_includes outcome.stdout, "late line"
+  ensure
+    FileUtils.rm_rf(File.dirname(cue)) if cue
   end
 
   # Stderr is not progress: a library can log there while the app is
@@ -184,7 +220,7 @@ class TestWatchedChild < Minitest::Test
     assert_equal :ceiling, outcome.bound, outcome.inspect
     assert_operator outcome.seconds, :>, 4, outcome.inspect
     assert_operator outcome.quiet_for, :<=, BOUNDS[:stall], "the child was still printing\n#{outcome.inspect}"
-    assert_equal Signal.list.fetch("KILL"), outcome.termsig, outcome.inspect
+    assert_killed outcome.termsig, outcome.status, outcome.inspect
     assert_match(/\Apast the ceiling: still running after \d+\.\d s, and its last line was "tick \d+"\z/,
       outcome.verdict)
   end
@@ -211,17 +247,18 @@ class TestWatchedChild < Minitest::Test
     assert_equal 0, outcome.status, outcome.inspect
   end
 
-  # The kill is the group's, so what the child started goes with it.
+  # The kill is the group's, or on Windows the process tree's, so what
+  # the child started goes with it.
   def test_a_tripped_bound_kills_what_the_child_started
-    skip "Windows has no process groups to signal" if WatchedChild.windows?
-
     clock = Clock.new(step: 0.25)
     grandchild = nil
-    outcome = run_child("puts Process.spawn('sleep', '600'); sleep 600", **BOUNDS, clock:, on_line: lambda { |line, _pid|
-      grandchild = Integer(line)
-      clock.moving = true
-      false
-    })
+    sleeper = [RbConfig.ruby, "--disable-gems", "-e", "sleep 600"]
+    outcome = run_child("puts Process.spawn(*#{sleeper.inspect}); sleep 600", **BOUNDS, clock:,
+      on_line: lambda { |line, _pid|
+        grandchild = Integer(line)
+        clock.moving = true
+        false
+      })
 
     assert_equal :stall, outcome.bound, outcome.inspect
     refute_nil grandchild, outcome.inspect
@@ -243,7 +280,7 @@ class TestWatchedChild < Minitest::Test
 
     assert_equal "the probe broke", error.message
     refute watched.alive?, "the child outlived the error"
-    assert_equal Signal.list.fetch("KILL"), watched.value.termsig
+    assert_killed watched.value.termsig, watched.value.exitstatus
   end
 
   def test_a_raising_block_still_kills_and_reaps_the_child
@@ -257,7 +294,7 @@ class TestWatchedChild < Minitest::Test
 
     assert_equal "the watcher broke", error.message
     refute watched.alive?, "the child outlived the error"
-    assert_equal Signal.list.fetch("KILL"), watched.value.termsig
+    assert_killed watched.value.termsig, watched.value.exitstatus
   end
 
   # The child is told its patience, whatever +env+ says.
@@ -288,14 +325,23 @@ class TestWatchedChild < Minitest::Test
   end
 
   # +on_line+ sees each line with the pid, and the outcome says how long
-  # the child lived after the hook last signalled it.
+  # the child lived after the hook last signalled it. Windows sends only
+  # KILL, INT, and 0; Ruby's KILL there is TerminateProcess(hProc, 0),
+  # so the child reports exit code 0 and no signal (kill and
+  # poll_child_status in Ruby 4.0.9's win32/win32.c).
   def test_on_line_can_signal_the_child_and_the_outcome_times_its_end
+    signal = WatchedChild.windows? ? :KILL : :TERM
     outcome = run_child("puts 'READY'; sleep 600", on_line: lambda { |line, pid|
-      line == "READY\n" && WatchedChild.signal(pid, :TERM)
+      line == "READY\n" && WatchedChild.signal(pid, signal)
     })
 
     assert_nil outcome.bound, outcome.inspect
-    assert_equal Signal.list.fetch("TERM"), outcome.termsig, outcome.inspect
+    if WatchedChild.windows?
+      assert_nil outcome.termsig, outcome.inspect
+      assert_equal 0, outcome.status, outcome.inspect
+    else
+      assert_equal Signal.list.fetch("TERM"), outcome.termsig, outcome.inspect
+    end
     refute_nil outcome.exit_after_signal
     assert_operator outcome.exit_after_signal, :>=, 0, outcome.inspect
   end
