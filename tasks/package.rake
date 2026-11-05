@@ -61,11 +61,17 @@ PACKAGES = [
     smoke: <<~RUBY),
       require "tokra-clipboard"
       require "tokra/plugins/clipboard/version"
-      # ferro-arboard comes from its own installed gem, extension and all.
+      # ferro-arboard comes from its own installed gem, extension and all:
+      # the plugin opens arboard's clipboard through it. Nothing is read or
+      # written: this runs in whatever session runs the gate, and its
+      # clipboard is the person's, which may hold what no text restores.
       clipboard = Tokra::Plugins::Clipboard::Clipboard.new
-      clipboard.write_text("tokra-clipboard smoke")
-      abort "the clipboard lost its text" unless clipboard.read_text == "tokra-clipboard smoke"
-      puts "tokra-clipboard \#{Tokra::Plugins::Clipboard::VERSION} round-trips text through ferro-arboard"
+      error = clipboard.instance_variable_get(:@error)
+      abort "arboard could not open the clipboard: \#{error}" if error
+      native = clipboard.instance_variable_get(:@clipboard)
+      abort "the plugin did not open ferro-arboard's clipboard" unless native.instance_of?(Ferro::Arboard::Clipboard)
+      abort "ferro-arboard lost its native calls" unless Ferro::Arboard::Clipboard.private_method_defined?(:native_set_text)
+      puts "tokra-clipboard \#{Tokra::Plugins::Clipboard::VERSION} opens the clipboard through ferro-arboard"
     RUBY
   PackageCheck::Target.new(
     name: "tokra-dialog",

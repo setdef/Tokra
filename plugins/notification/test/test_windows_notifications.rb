@@ -6,15 +6,18 @@
 #++
 
 require_relative "support/notification_test"
+require "support/real_windows_run"
 
 # Windows toasts. Whether a CI runner's session shows toasts is unknown,
 # so the send's result is not checked; Tauri drops it too
-# (desktop.rs:216-218).
+# (desktop.rs:216-218). A toast shows in the session that sends it, so
+# these run only with the real-window tests (tasks/real_windows.rb).
 class TestWindowsNotifications < Minitest::Test
   include NotificationTest
 
   def setup
     skip_unless_platform(:windows)
+    RealWindowsRun.require!("a Windows toast")
   end
 
   # Tauri names the app only when it runs installed (desktop.rs:195-206);

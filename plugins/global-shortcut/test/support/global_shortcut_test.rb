@@ -16,6 +16,7 @@ require "tokra-global-shortcut"
 $LOAD_PATH.unshift File.expand_path("../../../../test", __dir__)
 require "support/stub_native"
 require "support/test_app"
+require "support/real_windows_run"
 
 # Helpers every global-shortcut test shares.
 #
@@ -23,6 +24,11 @@ require "support/test_app"
 # registered, and an event needs a key press, so these tests take care with
 # both:
 #
+# - The files that register, or set up a plugin of their own, run only
+#   with the real-window tests (tasks/real_windows.rb), which on the
+#   maintainer's Mac run in the hidden tokratest session, so a hotkey is
+#   never taken from the maintainer's desktop. Each checks the tripwire
+#   (RealWindowsRun) before it touches the system.
 # - They register only combinations nobody uses, Control, Alt (Option),
 #   Shift, and Meta (Command, Windows) with F17 to F19 or F24, and always
 #   unregister them.

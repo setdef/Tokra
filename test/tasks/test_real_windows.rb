@@ -145,6 +145,29 @@ class TestRealWindows < Minitest::Test
     assert_empty RealWindows.plugin_tests("plugins/clipboard", windows: false)
   end
 
+  # A global-shortcut test that uses the shared plugin or a child of its
+  # own registers hotkeys that on macOS and Windows belong to the whole
+  # desktop, so it must be named, or it would run in plugins:test, in the
+  # maintainer's session. Only a Linux-only file, which registers on the
+  # suite's private Xvfb, may stay.
+  def test_every_global_shortcut_test_that_registers_runs_with_the_real_window_ones
+    files = Dir["plugins/global-shortcut/test/test_*.rb"]
+
+    refute_empty files
+    files.each do |path|
+      source = File.read(path)
+      next if RealWindows.test_file?(path, source) || source.match?(/def setup\n\s+skip_unless_platform\(:linux\)/)
+
+      refute source.match?(/\b(?:shared|in_child|in_display_child)\b/), "#{path} registers hotkeys outside RealWindows::NAMED"
+    end
+  end
+
+  # A Windows send shows the session a toast, so the file that sends one
+  # runs with the real-window tests.
+  def test_the_windows_notification_sends_run_with_the_real_window_ones
+    assert_includes RealWindows.plugin_tests("plugins/notification", windows: true), "test/test_windows_notifications.rb"
+  end
+
   HIDDEN_JOB = { "TOKRA_HIDDEN_JOB" => "1" }.freeze
 
   def test_only_a_set_variable_makes_the_hidden_job

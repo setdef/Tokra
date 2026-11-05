@@ -13,6 +13,7 @@ class TestGlobalShortcut < Minitest::Test
   include GlobalShortcutTest
 
   def setup
+    RealWindowsRun.require!("a hotkey registered for the whole desktop")
     @shortcuts = shared.global_shortcut
   end
 

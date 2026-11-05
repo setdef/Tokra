@@ -14,11 +14,12 @@ class TestCommands < Minitest::Test
   include GlobalShortcutTest
 
   def setup
+    RealWindowsRun.require!("a hotkey registered for the whole desktop")
     @webview = recording_webview(shared.handle)
   end
 
   def teardown
-    shared.global_shortcut.unregister_all
+    shared.global_shortcut.unregister_all if @webview
   end
 
   private def call(command, payload = {})

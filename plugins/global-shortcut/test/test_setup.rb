@@ -13,6 +13,10 @@ require_relative "support/global_shortcut_test"
 class TestSetup < Minitest::Test
   include GlobalShortcutTest
 
+  def setup
+    RealWindowsRun.require!("a hotkey registered for the whole desktop")
+  end
+
   # The child's app handle, as an app builds one.
   PRELUDE = <<~RUBY
     HANDLE = TestApp.build_test_app.handle

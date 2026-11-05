@@ -41,8 +41,8 @@ module NotificationTest
 
   # On macOS, naming the app changes this process's bundle identifier for
   # good, and a send may show the maintainer a notification, so the test
-  # process refuses both; the macOS tests do them in a child, which does
-  # not load this file.
+  # process refuses both, in the plugin and in ferro-notify-rust beneath
+  # it; the macOS tests do them in a child, which does not load this file.
   module RefuseMacosSends
     # Raises: the test process never names the app.
     def name_application
@@ -54,7 +54,39 @@ module NotificationTest
       raise "a macOS test sent a notification from the test process; use in_child"
     end
   end
-  Notification::Imp::Notification.prepend(RefuseMacosSends) if PLATFORM == :macos
+
+  # ferro-notify-rust's own sends: notify-rust's show, and on macOS its
+  # schedules, which post to the notification center too.
+  module RefuseFerroSends
+    # Raises: the test process never sends.
+    def show
+      raise "a macOS test sent a notification from the test process; use in_child"
+    end
+
+    # Raises: the test process never schedules.
+    def schedule(_time)
+      raise "a macOS test scheduled a notification from the test process; use in_child"
+    end
+
+    # Raises: the test process never schedules.
+    def schedule_raw(_timestamp)
+      raise "a macOS test scheduled a notification from the test process; use in_child"
+    end
+  end
+
+  # ferro-notify-rust's set_application, which names the app.
+  module RefuseFerroNaming
+    # Raises: the test process never names the app.
+    def set_application(_bundle_ident)
+      raise "a macOS test named the app in the test process; use in_child"
+    end
+  end
+
+  if PLATFORM == :macos
+    Notification::Imp::Notification.prepend(RefuseMacosSends)
+    Ferro::NotifyRust::Notification.prepend(RefuseFerroSends)
+    Ferro::NotifyRust.singleton_class.prepend(RefuseFerroNaming)
+  end
 
   private def skip_unless_platform(platform)
     skip "#{platform} only; ferro-notify-rust was built for #{PLATFORM}" unless PLATFORM == platform

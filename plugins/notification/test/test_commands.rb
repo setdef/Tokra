@@ -109,13 +109,32 @@ class TestCommands < Minitest::Test
   end
 
   # notify resolves null as soon as the notification is on its way
-  # (commands.rs:30-39), whether or not a server takes it.
-  # On macOS a send changes this process's bundle identifier and may show
-  # the notification, so the macOS tests send from a child instead
-  # (test_macos_notifications.rb).
+  # (commands.rs:30-39), here to the suite's own notification server, so
+  # nothing reaches the desktop's. The other platforms send in the
+  # session itself, so they send only with the real-window tests: the
+  # macOS tests from a child (test_macos_notifications.rb), the Windows
+  # ones as toasts (test_windows_notifications.rb).
   def test_notify_resolves_null
-    skip "macOS sends only from a child process" if PLATFORM == :macos
-    assert_equal [true, nil], answer("notify", { "options" => { "title" => TITLE, "body" => "resolves" } })
+    skip_unless_platform(:linux)
+    require_server
+    assert_equal [true, nil], answer("notify", { "options" => { "title" => "#{TITLE}: resolves", "body" => "resolves" } })
+
+    refute_nil Server.call_with_summary("#{TITLE}: resolves"), "the send went to a bus other than the suite's own"
+  end
+
+  # The test process refuses every macOS send and naming, in the plugin
+  # and in ferro-notify-rust, without calling either, so a missing guard
+  # fails here instead of posting to the person's notification center.
+  def test_the_test_process_refuses_every_macos_send
+    skip_unless_platform(:macos)
+    ferro = Ferro::NotifyRust::Notification
+    assert_equal RefuseMacosSends, Notification::Imp::Notification.instance_method(:show).owner
+    assert_equal RefuseMacosSends, Notification::Imp::Notification.instance_method(:name_application).owner
+    %i[show schedule schedule_raw].each { |name| assert_equal RefuseFerroSends, ferro.instance_method(name).owner, name }
+    assert_equal RefuseFerroNaming, Ferro::NotifyRust.method(:set_application).owner
+
+    error = assert_raises(RuntimeError) { RefuseFerroSends.instance_method(:show).bind_call(Object.new) }
+    assert_match(/sent a notification from the test process/, error.message)
   end
 
   def test_a_bad_option_rejects_with_serdes_message

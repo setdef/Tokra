@@ -28,12 +28,17 @@ module RealWindows
   MARKER = /\b(?:RealApp|NativeEventLoop)(?:\.|::)/
 
   # Plugin tests that open real system UI, or use the session's own, without
-  # either: AppKit's file panels, the notification center's banners, and
-  # the system clipboard.
+  # either: AppKit's file panels, the notification center's banners,
+  # Windows' toasts, the system clipboard, and hotkeys registered for the
+  # whole desktop (on Linux, the suite's private Xvfb's).
   NAMED = %w[
     plugins/clipboard/test/test_clipboard.rb
     plugins/dialog/test/test_macos_dialogs.rb
+    plugins/global-shortcut/test/test_commands.rb
+    plugins/global-shortcut/test/test_global_shortcut.rb
+    plugins/global-shortcut/test/test_setup.rb
     plugins/notification/test/test_macos_notifications.rb
+    plugins/notification/test/test_windows_notifications.rb
   ].freeze
 
   # The real-window tests that need the console. They run only in
