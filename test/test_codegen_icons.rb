@@ -137,7 +137,10 @@ class TestCodegenIcons < Minitest::Test
     error = assert_raises(RuntimeError) { Tokra.generate_context(File.join(@dir, "tokra.conf.json")) }
     expected = "#{Tokra::Utils::Config::Parse.display(@dir)}#{File::ALT_SEPARATOR || '/'}icons/icon.png"
     std = assert_raises(RuntimeError) { Tokra::Native.fs_read(expected) }.message
-    assert_match(/\(os error 2\)\z/, std)
+    # The icons folder itself is missing: POSIX says ENOENT (2) either way,
+    # while Windows says ERROR_PATH_NOT_FOUND (3) when a folder on the way
+    # is missing, rather than ERROR_FILE_NOT_FOUND (2).
+    assert_match(/\(os error #{Gem.win_platform? ? 3 : 2}\)\z/, std)
     assert_equal "failed to open icon #{expected}: #{std}", error.message
   end
 
