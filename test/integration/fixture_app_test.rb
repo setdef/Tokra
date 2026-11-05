@@ -8,6 +8,7 @@
 require "test_helper"
 require "open3"
 require "json"
+require_relative "../support/watched_child"
 
 # Every window a real-window fixture builds keeps its page running when the
 # session is off the console (FixtureApp.webview_window): the config's
@@ -86,6 +87,86 @@ class FixtureAppTest < Minitest::Test
 
     assert_predicate status, :success?, output
     assert_equal [["main", "Disabled"], ["own", "Disabled"]], JSON.parse(output[/^THROTTLING (.*)$/, 1])
+  end
+
+  # On macOS, keep_in_sight goes on to turn off WebKit's occlusion
+  # detection (FixtureApp.keep_page_awake). A StubNative window has no
+  # handle, so the fixture says the call was unavailable, and why.
+  def test_on_macos_keep_in_sight_reaches_the_occlusion_call
+    skip "WebKit's occlusion detection is macOS's" unless RUBY_PLATFORM.include?("darwin")
+    output, status = Open3.capture2e(RbConfig.ruby, "-I", File.join(ROOT, "lib"), "-I", File.join(ROOT, "test"), "-e", SCRIPT, chdir: ROOT)
+
+    assert_predicate status, :success?, output
+    assert_match(/^PROGRESS occlusion-detection unavailable, Tokra::RawWindowHandle::HandleError::Unavailable \d/, output)
+  end
+
+  # What a fixture's page sees and makes it print (Plan 060): the
+  # patience RealApp gave it, in milliseconds, and a PROGRESS line for
+  # each check it starts and ends. A fixture's first line says it loaded,
+  # and its stdout is synced, so each line reaches RealApp as it is
+  # printed.
+  SITE = <<~'RUBY'
+    require "json"
+    require "stringio"
+    ENV["TOKRA_FIXTURE_PATIENCE"] = "2.5"
+    require_relative "test/integration/support/fixture_app"
+    site = FixtureApp::Site.new("test/integration/fixtures/event", { exit_code: 0, wait: false })
+    get = ->(path) { site.call("REQUEST_METHOD" => "GET", "PATH_INFO" => path) }
+    post = ->(path, body) { site.call("REQUEST_METHOD" => "POST", "PATH_INFO" => path, "rack.input" => StringIO.new(body)) }
+    puts "OPTIONS " + get.("/options.json")[2].join
+    puts "STARTED #{post.("/progress", JSON.generate(stage: "start", name: "a check")).first}"
+    puts "ENDED #{post.("/progress", JSON.generate(stage: "end", name: "a check")).first}"
+    puts "OTHER #{post.("/progress", JSON.generate(stage: "beat", name: "a check")).first}"
+    puts "SYNC #{$stdout.sync}"
+  RUBY
+
+  def test_a_fixture_serves_its_patience_and_prints_each_checks_progress
+    output, status = Open3.capture2(RbConfig.ruby, "-I", File.join(ROOT, "lib"), "-e", SITE, chdir: ROOT)
+    lines = output.lines(chomp: true).map { |line| line.sub(/\A(PROGRESS .*) \d+\.\d{3}\z/, '\1') }
+
+    assert_predicate status, :success?, output
+    assert_equal [
+      "PROGRESS loaded",
+      %(OPTIONS {"exitCode":0,"wait":false,"patience":2500}),
+      "PROGRESS check-start a check",
+      "STARTED 204",
+      "PROGRESS check-end a check",
+      "ENDED 204",
+      "OTHER 400",
+      "SYNC true",
+    ], lines
+  end
+
+  # Run by hand, without RealApp's variable, a fixture takes the same
+  # patience RealApp would have given it.
+  def test_a_fixture_run_by_hand_takes_watched_childs_patience
+    script = 'require_relative "test/integration/support/fixture_app"; puts "PATIENCE #{FixtureApp::PATIENCE}"'
+    output, status = Open3.capture2({ "TOKRA_FIXTURE_PATIENCE" => nil }, RbConfig.ruby, "-I", File.join(ROOT, "lib"),
+      "-e", script, chdir: ROOT)
+
+    assert_predicate status, :success?, output
+    assert_equal "PATIENCE #{Float(WatchedChild::PATIENCE)}", output.lines(chomp: true).last
+  end
+
+  # FixtureApp.take waits for what a test reads up to the fixture's
+  # patience: when two of three items come and the third never does, the
+  # wait ends with what came, in order; it takes no more than it was
+  # asked for; and with no patience left it takes nothing.
+  TAKE = <<~'RUBY'
+    ENV["TOKRA_FIXTURE_PATIENCE"] = "0.5"
+    require_relative "test/integration/support/fixture_app"
+    queue = Thread::Queue.new
+    queue << "first" << "second"
+    puts "TAKEN #{FixtureApp.take(queue, 3).inspect}"
+    puts "SOME #{FixtureApp.take(Thread::Queue.new.tap { |q| q << "a" << "b" << "c" }, 2).inspect}"
+    puts "NONE #{FixtureApp.take(Thread::Queue.new, 2, patience: 0).inspect}"
+  RUBY
+
+  def test_take_waits_up_to_the_patience_for_the_items_a_test_reads
+    output, status = Open3.capture2(RbConfig.ruby, "-I", File.join(ROOT, "lib"), "-e", TAKE, chdir: ROOT)
+
+    assert_predicate status, :success?, output
+    assert_equal ['TAKEN ["first", "second"]', 'SOME ["a", "b"]', "NONE []"], output.lines(chomp: true).grep(/\A(TAKEN|SOME|NONE) /)
   end
 
   # A line a fixture prints from one thread arrives whole even while

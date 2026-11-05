@@ -16,7 +16,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     const { Menu, Submenu, MenuItem, CheckMenuItem, PredefinedMenuItem, IconMenuItem, NativeIcon } = window.__TAURI__.menu;
     const { Image } = window.__TAURI__.image;
     const { invoke } = window.__TAURI__.core;
-    const { check, finish, withTimeout } = window.fixture;
+    const { check, finish } = window.fixture;
 
     (async () => {
       await check('a menu the page builds', async () => {
@@ -37,9 +37,9 @@ SPDX-License-Identifier: AGPL-3.0-or-later
         const kinds = (await submenu.items()).map((i) => [i.id, i.kind]);
         await item.setText('JS Item');
         const activated = await invoke('plugin:menu-fixture|activate', { submenu: 'JS', title: 'JS Item' });
-        const clicked = await withTimeout(itemClicked, 5000, 'the item action');
+        const clicked = await itemClicked;
         await invoke('plugin:menu-fixture|activate', { submenu: 'JS', title: 'JS Nested' });
-        const nested = await withTimeout(nestedClicked, 5000, 'the nested action');
+        const nested = await nestedClicked;
         const found = await menu.get('js-submenu');
         return {
           pass: activated && clicked === 'js-item' && nested === 'js-nested',
@@ -80,7 +80,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
         }
         const kinds = (await submenu.items()).map((i) => [i.id, i.kind]);
         const activated = await invoke('plugin:menu-fixture|activate', { submenu: 'JS Icons', title: 'JS Icon' });
-        const action = await withTimeout(clicked, 5000, 'the icon item action');
+        const action = await clicked;
         return {
           pass: activated && action === 'js-icon' && before[0] === true && before[1] === true && after[2] === true,
           detail: { before, after, rejected, kinds, action, text: await locked.text() },

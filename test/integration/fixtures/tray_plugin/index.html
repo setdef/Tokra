@@ -18,7 +18,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     const { Image } = window.__TAURI__.image;
     const { PhysicalPosition, PhysicalSize } = window.__TAURI__.dpi;
     const { invoke } = window.__TAURI__.core;
-    const { check, finish, withTimeout } = window.fixture;
+    const { check, finish } = window.fixture;
     const read = () => invoke('plugin:tray-fixture|read');
 
     (async () => {
@@ -52,7 +52,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
         await tray.setShowMenuOnLeftClick(false);
         const sent = await invoke('plugin:tray-fixture|dispatch',
           { kinds: ['enter', 'move', 'leave', 'click_down', 'click_up', 'double_click'] });
-        await withTimeout(allHeard, 5000, 'the tray events');
+        await allHeard;
         const shapes = events.map((e) => [e.type, e.id, e.position instanceof PhysicalPosition,
           e.rect.position instanceof PhysicalPosition, e.rect.size instanceof PhysicalSize, e.button ?? null,
           e.buttonState ?? null]);

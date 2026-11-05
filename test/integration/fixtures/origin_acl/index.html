@@ -39,7 +39,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     (async () => {
       await check('local origin accepted', async () => ({ pass: true, detail: { reply: await internals.invoke('ping') } }));
 
-      const foreign = withTimeout(foreignAttempts(), 20000, 'foreign frame');
+      const foreign = withTimeout(foreignAttempts(), 'foreign frame');
       await check('foreign origin over ipc://', async () => {
         const { ipc, frameOrigin } = await foreign;
         return { pass: true, detail: { frameOrigin, ...ipc } };

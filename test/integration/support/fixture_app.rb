@@ -22,16 +22,53 @@
 # produces a report. Then, unless --wait was given, it asks Ruby to exit
 # through plugin:fixture|exit with --exit-code (default 0) when every check
 # passed, and 1 when one failed.
+#
+# RealApp kills a fixture that prints no line for its stall bound (Plan
+# 060), so every line is progress, and the PROGRESS lines are the ones
+# printed only for that: "loaded" once this file has loaded, and
+# "check-start <name>" and "check-end <name>" around each page check,
+# which the page posts to /progress. A check line comes only once the
+# page's script ran and the tokra:// protocol carried its request through
+# the event loop to this Rack app, so it proves the whole chain a hang
+# would stop. Nothing prints on a timer: a heartbeat would keep a hung
+# app alive.
 
 require_relative "../../../lib/tokra"
+require_relative "../../support/watched_child"
+require_relative "webkit_occlusion"
 require "json"
 require "optparse"
+
+# Each line goes out as it is printed, so a fixture RealApp kills for
+# hanging still shows how far it got, and each line reaches RealApp as
+# progress when it happens.
+$stdout.sync = true
 
 module FixtureApp
   HARNESS = File.expand_path("../fixtures/harness.js", __dir__)
 
   # When this file loaded, on the monotonic clock.
   STARTED = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+  # Seconds one of the fixture's own waits may last: each check of its
+  # page (harness.js), each wait for an event inside one, and each wait
+  # in a fixture's Ruby for something the test needs (FixtureApp.take).
+  # RealApp passes it in TOKRA_FIXTURE_PATIENCE; a fixture run by hand
+  # takes WatchedChild::PATIENCE, the same default.
+  #
+  # RealApp's stall bound is WatchedChild::MARGIN longer, so a wait that
+  # gives up says what it waited for before RealApp would kill the
+  # fixture for its silence. Patience bounds each wait however much the
+  # fixture prints meanwhile, so a check whose handlers keep printing
+  # still fails once its patience runs out, where RealApp alone would
+  # let it run to the ceiling. That cannot fail a healthy run: a check
+  # takes about a second idle and about nine at a load near 400, well
+  # inside the patience.
+  PATIENCE = Float(ENV.fetch(WatchedChild::PATIENCE_VARIABLE, WatchedChild::PATIENCE.to_s))
+
+  # The stages the page may post to /progress: a check starting and
+  # ending.
+  CHECK_STAGES = %w[start end].freeze
 
   # Prints that the fixture reached +stage+, with the seconds since it
   # loaded, and flushes, so the harness's message for a hung fixture shows
@@ -40,6 +77,23 @@ module FixtureApp
     seconds = Process.clock_gettime(Process::CLOCK_MONOTONIC) - STARTED
     $stdout.write("PROGRESS #{stage} #{format('%.3f', seconds)}\n")
     $stdout.flush
+  end
+
+  # Up to +count+ items from +queue+, in order, waiting at most +patience+
+  # seconds for them all: fewer when that runs out first. A fixture
+  # waits for the events a test reads this way, so a slow machine cannot
+  # fail it while one that never comes still ends the wait.
+  def self.take(queue, count, patience: PATIENCE)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + patience
+    taken = []
+    while taken.size < count
+      left = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      item = left.positive? ? queue.pop(timeout: left) : nil
+      break if item.nil?
+
+      taken << item
+    end
+    taken
   end
 
   # Options every fixture accepts, plus +flags+ the fixture names.
@@ -54,7 +108,8 @@ module FixtureApp
   end
 
   # The Rack app a fixture serves over tokra://: its index.html, the shared
-  # harness, its options, the report endpoint, and any +routes+ it adds as
+  # harness, its options (with +patience+, PATIENCE in milliseconds), the
+  # progress and report endpoints, and any +routes+ it adds as
   # <tt>{ "/path" => ->(env) { [status, headers, body] } }</tt>.
   class Site
     def initialize(dir, options, routes = {})
@@ -70,7 +125,9 @@ module FixtureApp
       case [env["REQUEST_METHOD"], path]
       in ["GET", "/"] then file(File.join(@dir, "index.html"), "text/html; charset=utf-8")
       in ["GET", "/harness.js"] then file(HARNESS, "text/javascript")
-      in ["GET", "/options.json"] then json(exitCode: @options[:exit_code], wait: @options[:wait])
+      in ["GET", "/options.json"]
+        json(exitCode: @options[:exit_code], wait: @options[:wait], patience: (PATIENCE * 1000).round)
+      in ["POST", "/progress"] then progress(env["rack.input"].read)
       in ["POST", "/report"] then report(env["rack.input"].read)
       else [404, { "content-type" => "text/plain" }, ["not found"]]
       end
@@ -82,6 +139,16 @@ module FixtureApp
 
     private def json(value)
       [200, { "content-type" => "application/json" }, [JSON.generate(value)]]
+    end
+
+    # Prints PROGRESS check-<stage> <name> for a check the page reached
+    # (harness.js); a stage it does not know is a 400.
+    private def progress(body)
+      stage, name = JSON.parse(body).values_at("stage", "name")
+      return [400, { "content-type" => "text/plain" }, ["unknown stage #{stage.inspect}"]] unless CHECK_STAGES.include?(stage)
+
+      FixtureApp.progress("check-#{stage} #{name}")
+      [204, {}, []]
     end
 
     private def report(body)
@@ -224,10 +291,34 @@ module FixtureApp
   # keyboard, and clicks meant for the app beneath pass through it.
   # Elsewhere the window came to the front on its own, so this does
   # nothing.
+  #
+  # On a desktop no one sees, such as a hidden test account's, every
+  # window is covered however high it sits, so this also has WebKit stop
+  # asking (FixtureApp.keep_page_awake).
   def self.keep_in_sight(window)
     return unless Tokra.const_defined?(:ActivationPolicy)
 
     window.set_always_on_top(true)
     window.set_ignore_cursor_events(true)
+    keep_page_awake(window)
+  end
+
+  # Has each webview in +window+ ignore whether the window is covered, on
+  # macOS (WebKitOcclusion, which says why), and prints PROGRESS
+  # occlusion-detection off <count>, the webviews that now ignore it, or
+  # PROGRESS occlusion-detection unavailable, <why>, so a macOS without
+  # the call fails loudly rather than slowly. Elsewhere it does nothing.
+  # It runs on the main thread, which owns the views: at once from there,
+  # else queued.
+  def self.keep_page_awake(window)
+    return unless RUBY_PLATFORM.include?("darwin")
+
+    window.app_handle.run_on_main_thread do
+      progress(WebKitOcclusion.stage(WebKitOcclusion.ignore(window.window_handle.ns_view)))
+    rescue Tokra::RawWindowHandle::HandleError => e
+      progress("occlusion-detection unavailable, #{e.class.name}")
+    end
   end
 end
+
+FixtureApp.progress("loaded")

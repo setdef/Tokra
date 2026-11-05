@@ -21,8 +21,10 @@ require "tmpdir"
 #
 #   bundle exec ruby test/integration/fixtures/restart/app.rb --log=/tmp/restart.log
 class RestartTest < RealApp::TestCase
-  # Seconds the restarted processes get to finish after the first ends.
-  PATIENCE = 60
+  # Seconds the restarted processes may go without adding to the log, once
+  # the first has ended: RealApp's stall bound, so a slow machine, which
+  # slows each run, cannot fail them, while a hung run still does.
+  PATIENCE = RealApp::STALL
 
   # An argument the fixture leaves in ARGV after OptionParser takes --log.
   ARGUMENT = "two words"
@@ -117,15 +119,21 @@ class RestartTest < RealApp::TestCase
   end
 
   # Waits until every process the restarts started has run its at_exit,
-  # and answers every log entry. On time out, kills whatever runs are left.
+  # and answers every log entry. Holds the runs to RealApp's bounds, as
+  # WatchedChild holds a fixture: once the first has ended, the log may
+  # go PATIENCE seconds without a new entry, and the wait may last
+  # RealApp::CEILING in all, so runs that keep restarting one another
+  # still end. Either way, kills whatever runs are left.
   private def wait_for_every_run(log, first)
-    deadline = RealApp.now + PATIENCE
+    bounds = WatchedChild::Bounds.new(stall: PATIENCE, ceiling: RealApp::CEILING)
     entries = []
     loop do
+      seen = entries.size
       entries = File.exist?(log) ? File.readlines(log).map { |line| JSON.parse(line) } : []
+      bounds.progress if entries.size > seen
       count = -> (event) { entries.count { |entry| entry["event"] == event } }
       break if count.("at_exit") == count.("spawn") + 1
-      break if RealApp.now > deadline || first.timed_out
+      break if bounds.check.bound || first.timed_out
 
       sleep 0.1
     end

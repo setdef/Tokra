@@ -24,8 +24,9 @@
 #                    a TERM trap prints TRAPPED TERM and exits with N.
 #   --gc-drop        three bare windows and three heartbeating webviews (in
 #                    windows the app keeps) become unreachable; a background
-#                    thread collects them. Prints STILL_BEATING <count of
-#                    webviews still beating>.
+#                    thread collects them, while a fourth webview the app
+#                    keeps beats on as the run's clock. Prints
+#                    STILL_BEATING <count of webviews still beating>.
 #   --responses      answers requests from background threads, drops one
 #                    from a background thread (DROPPED <what answering it
 #                    afterwards said>), and keeps one unanswered; at_exit
@@ -39,6 +40,7 @@
 #   bundle exec ruby test/integration/fixtures/native_loop/app.rb --cpu=3
 
 require_relative "../../../../lib/tokra"
+require_relative "../../support/webkit_occlusion"
 require "optparse"
 
 options = { cpu: 0 }
@@ -60,6 +62,18 @@ def now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
 def page(script)
   "<!doctype html><meta charset=utf-8><body><script>#{script}</script>"
+end
+
+# On macOS, has the webviews in +window+ ignore whether it is covered, as
+# FixtureApp.keep_page_awake does for the other fixtures, and prints
+# PROGRESS occlusion-detection, so a page that drives a test keeps its
+# priority in a session off the console (Plan 060). Call it on the main
+# thread, once the window's webview is built.
+def keep_page_awake(window)
+  return unless RUBY_PLATFORM.include?("darwin")
+
+  _kind, ns_view, = window.raw_window_handle
+  puts "PROGRESS #{WebKitOcclusion.stage(WebKitOcclusion.ignore(ns_view))}"
 end
 
 event_loop = Tokra::Native::EventLoop.new(nil)
@@ -89,14 +103,23 @@ def ticker(proxy) = Thread.new { loop { sleep 0.1; proxy.wake_up(now.to_s) } }
 # empties: were they unreachable from the start, a collection Ruby runs on
 # its own before their pages load would drop them all, and no beat would
 # ever come. Their windows stay: a closed window would throttle its page's
-# timers and hide whether the webview itself went. Three bare windows go
-# at once. Each window and webview has its own label, as the natives
-# require of live ones (plan 052, decision 2).
+# timers and hide whether the webview itself went. A fourth, CONTROL,
+# stays in KEPT_WEBVIEWS and beats throughout, so the run measures how
+# long a collected webview has been silent in the control's beats rather
+# than in seconds, which a loaded machine stretches for every page alike.
+# Three bare windows go at once. Each window and webview has its own
+# label, as the natives require of live ones (plan 052, decision 2).
 KEPT_WINDOWS = []
 HELD_WEBVIEWS = []
+KEPT_WEBVIEWS = []
+CONTROL = 3
+
+# Control beats a collected webview's silence must last, after the
+# collection, before it counts as stopped: about a second, idle.
+SILENCE = 10
 
 def heartbeats(event_loop, proxy)
-  3.times do |id|
+  (0..CONTROL).each do |id|
     window = Tokra::Native::Window.new(event_loop, "beat-#{id}")
     window.set_size(160.0, 120.0)
     if BACKGROUND
@@ -104,7 +127,9 @@ def heartbeats(event_loop, proxy)
       window.set_ignore_cursor_events(true)
     end
     KEPT_WINDOWS << window
-    HELD_WEBVIEWS << Tokra::Native::WebView.new_with_protocol(window, proxy, "beat-#{id}", ["window.BEAT_ID = #{id};"])
+    webview = Tokra::Native::WebView.new_with_protocol(window, proxy, "beat-#{id}", ["window.BEAT_ID = #{id};"])
+    ((id == CONTROL) ? KEPT_WEBVIEWS : HELD_WEBVIEWS) << webview
+    keep_page_awake(window)
   end
   3.times { |id| Tokra::Native::Window.new(event_loop, "bare-#{id}") }
   nil
@@ -150,36 +175,41 @@ elsif options[:idle]
   end
 elsif options[:gc_drop]
   heartbeats(event_loop, proxy)
+  # For each webview, the control's beat count at its last beat.
   beats = {}
+  control = 0
+  collecting = false
   collected_at = nil
   lambda do |event|
     case event
     when Tokra::Native::HttpRequestEvent
       if event.uri.include?("/beat")
         id = Integer(event.uri[/id=(\d+)/, 1])
-        first = beats.empty?
-        beats[id] = now
+        control += 1 if id == CONTROL
+        beats[id] = control
         proxy.respond(event.request_id, 204, [], "")
-        if first
+        # Collect once every page beats, so none is dropped unloaded.
+        if !collecting && beats.size == CONTROL + 1
+          collecting = true
           Thread.new do
-            sleep 1
             HELD_WEBVIEWS.clear
             3.times { GC.start }
             proxy.wake_up("collected")
           end
+        end
+        # Decide once the control has beaten twice the silence since the
+        # collection: a webview that beat after the first half still beats.
+        if collected_at && control >= collected_at + (2 * SILENCE)
+          still = beats.count { |beat, at| beat != CONTROL && at > collected_at + SILENCE }
+          puts "STILL_BEATING #{still}"
+          exit 0
         end
       else
         html = page("setInterval(() => fetch('/beat?id=' + window.BEAT_ID), 100);")
         proxy.respond(event.request_id, 200, [["Content-Type", "text/html"]], html)
       end
     when Tokra::Native::WakeUpEvent
-      if event.payload == "collected"
-        collected_at = now
-        Thread.new { sleep 2; proxy.wake_up("check") }
-      else
-        puts "STILL_BEATING #{beats.count { |_id, at| at > collected_at + 1 }}"
-        exit 0
-      end
+      collected_at = control if event.payload == "collected"
     end
   end
 elsif options[:responses]
@@ -204,6 +234,7 @@ elsif options[:responses]
     end
   end
   Tokra::Native::WebView.new_with_protocol(main_window, proxy, "main", [])
+  keep_page_awake(main_window)
   script = <<~JS
     (async () => {
       const answered = await (await fetch('/answer')).text();

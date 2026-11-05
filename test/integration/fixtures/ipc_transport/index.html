@@ -110,8 +110,9 @@ SPDX-License-Identifier: AGPL-3.0-or-later
       // invoke rejects with serde_json's message; over postMessage Tauri
       // reads the message before it checks the key, so the page gets the
       // JSON error through console.error and the key mismatch is never
-      // logged.
-      await check('a body serde_json rejects never reaches a command', async () => {
+      // logged. The page waits for that error however long it takes; the
+      // check's own timeout (harness.js) is the backstop.
+      await check('a body serde_json rejects never reaches a command', async (signal) => {
         let rejected = null;
         try {
           await invoke('ping', { message: '\udc00' });
@@ -120,8 +121,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
         }
         window.ipc.postMessage('{"cmd":"ping","callback":1,"error":2,'
           + '"payload":{"message":"\\udc00"},"__TAURI_INVOKE_KEY__":"post-message-probe"}');
-        const deadline = Date.now() + 5000;
-        while (window.observed.errors.length === 0 && Date.now() < deadline) {
+        while (window.observed.errors.length === 0) {
+          signal.throwIfAborted();
           await new Promise((resolve) => setTimeout(resolve, 50));
         }
         const consoleErrors = window.observed.errors.slice();
@@ -155,7 +156,9 @@ SPDX-License-Identifier: AGPL-3.0-or-later
       // A command sends large JSON, small JSON, a few bytes, and a megabyte
       // of bytes through the page's Channel, then drops it. The large two
       // ride plugin:__TAURI_CHANNEL__|fetch over ipc:// and may land after
-      // the end message; the Channel orders them by index (Plan 037).
+      // the end message; the Channel orders them by index (Plan 037). The
+      // page waits for all four however long they take; the check's own
+      // timeout (harness.js) is the backstop.
       const streamChannel = async (size) => {
         const received = [];
         let done;
@@ -165,7 +168,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
           if (received.length === 4) done();
         });
         await invoke('stream_channel', { onMessage: channel, size });
-        await Promise.race([all, new Promise((resolve) => setTimeout(resolve, 5000))]);
+        await all;
         const bytesOf = (value) => (value instanceof ArrayBuffer ? Array.from(new Uint8Array(value)) : value);
         const big = bytesOf(received[3]);
         let mismatches = Array.isArray(big) && big.length === size ? 0 : -1;

@@ -27,8 +27,9 @@ options = FixtureApp.options(ARGV)
 
 # What the app hands its at_exit hook.
 module MainThreadFixture
-  # Seconds at_exit waits for a thread before saying it is still waiting.
-  PATIENCE = 10
+  # Seconds at_exit waits for a thread before saying it is still waiting:
+  # the fixture's patience, so a slow machine cannot end the wait early.
+  PATIENCE = FixtureApp::PATIENCE
 
   class << self
     attr_accessor :window, :waiter

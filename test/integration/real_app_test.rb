@@ -89,6 +89,27 @@ class RealAppTest < Minitest::Test
     refute_includes run.describe, "--- probe"
   end
 
+  # The message for a killed fixture leads with the bound that tripped
+  # and the last line it printed (Plan 060), which WatchedChild's own
+  # tests drive with real children.
+  def test_describe_leads_with_the_bound_that_tripped_and_the_last_line
+    assert run_with(probe: nil).describe.start_with?(
+      "no progress: no new line for 90.4 s, and its last line was \"PROGRESS ready 0.000\"\nstatus=nil"
+    ), run_with(probe: nil).describe
+    assert run_with(probe: nil, bound: :ceiling).describe.start_with?("past the ceiling: still running after 120.0 s")
+    assert run_with(probe: nil, bound: nil).describe.start_with?("status=nil")
+  end
+
+  # PROGRESS lines say how far a fixture got, so the lines a test reads
+  # leave them out, and #progress has them.
+  def test_lines_leave_out_the_progress_lines_which_progress_has
+    run = run_with(probe: nil).with(stdout: "PROGRESS loaded 0.1\nEVENT ready\nPROGRESS check-start a 0.2\nREPORT {}\n")
+
+    assert_equal ["EVENT ready", "REPORT {}"], run.lines
+    assert_equal ["EVENT ready", "REPORT"], run.kinds
+    assert_equal ["PROGRESS loaded 0.1", "PROGRESS check-start a 0.2"], run.progress
+  end
+
   def test_off_windows_the_probe_finds_nothing
     skip "the probe looks only on Windows" if RealApp.windows?
 
@@ -261,8 +282,9 @@ class RealAppTest < Minitest::Test
     end
   end
 
-  private def run_with(probe:)
-    RealApp::Run.new(status: nil, termsig: nil, stdout: "PROGRESS ready 0.000\n", stderr: "warned\n", timed_out: true,
-      seconds: 60.0, exit_after_signal: nil, activated: nil, probe:)
+  private def run_with(probe:, bound: :stall)
+    RealApp::Run.new(status: nil, termsig: 9, stdout: "PROGRESS ready 0.000\n", stderr: "warned\n", bound:,
+      seconds: 120.0, quiet_for: 90.4, last_line: "PROGRESS ready 0.000", exit_after_signal: nil, activated: nil,
+      probe:)
   end
 end

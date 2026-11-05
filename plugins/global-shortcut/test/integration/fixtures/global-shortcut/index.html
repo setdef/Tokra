@@ -16,7 +16,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   <script>
     const { register, isRegistered, unregister, unregisterAll } = window.__TAURI__.globalShortcut;
     const { invoke } = window.__TAURI__.core;
-    const { check, finish, withTimeout } = window.fixture;
+    const { check, finish } = window.fixture;
     const rejection = async (promise) => {
       try { return { resolved: await promise }; } catch (error) { return { rejected: String(error) }; }
     };
@@ -54,7 +54,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
       if (presses) {
         await check('each press reaches the handler through its channel', async () => {
           await fetch('/registered', { method: 'POST' });
-          const received = await withTimeout(twoEvents, 15000, 'the key presses');
+          const received = await twoEvents;
           return { pass: received.length === 2, detail: { events: received } };
         });
       }

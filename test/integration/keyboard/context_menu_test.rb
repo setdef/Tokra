@@ -93,8 +93,8 @@ class ContextMenuTest < RealApp::TestCase
   # The fixture prints each stage it reaches (plan 051), so a hang names
   # its stage. These stages follow one another by cause, not by timing.
   def test_each_menu_reports_its_progress_in_order
-    stages = @run.lines.grep(/\APROGRESS /).map { |line| line.split[1] }
-    assert_equal %w[ready menus-built], stages.first(2), @run.describe
+    stages = @run.progress.map { |line| line.split[1] }
+    assert_equal %w[loaded ready menus-built], stages.first(3), @run.describe
     %w[menu submenu].each do |name|
       mine = stages.filter_map { |stage| stage.delete_prefix("#{name}:") if stage.start_with?("#{name}:") }
       assert_equal CAUSAL_STAGES, mine.select { |stage| CAUSAL_STAGES.include?(stage) }, @run.describe
@@ -117,7 +117,7 @@ class ContextMenuTest < RealApp::TestCase
     assert_equal 0, run.status, run.describe
     report = run.report
     refute_nil report, "the fixture printed no report\n#{run.describe}"
-    stages = run.lines.grep(/\APROGRESS /).map { |line| line.split[1] }
+    stages = run.progress.map { |line| line.split[1] }
     assert_equal ["Copy Link", "Open"], report.dig("menu", "labels"), run.describe
     assert_equal ["Rename"], report.dig("submenu", "labels"), run.describe
     assert_equal [], report["timer_errors"], run.describe

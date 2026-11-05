@@ -28,11 +28,6 @@ require "tokra-dialog"
 require "tmpdir"
 require "fileutils"
 
-# Each line goes out as it is printed, so a run the test kills for hanging
-# still shows how far it got. Only here: exit_paths relies on the buffered
-# output that Ruby's own exit flushes (Plan 018, decision 4).
-$stdout.sync = true
-
 module DialogFixture
   # A folder to save into, with its real path, as the dialogs report it.
   DIR = File.realpath(Dir.mktmpdir("tokra-dialog-fixture")).freeze

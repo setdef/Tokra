@@ -12,7 +12,9 @@
 # Tokra::Window, as an app's code on another thread would, and reads back
 # what the platform reports through the getters. tao applies many macOS
 # changes asynchronously, so each read waits until the expected answer
-# shows or two seconds pass, and records what it last saw. It never asks
+# shows or the fixture's patience runs out, and records what it last saw;
+# a read whose answer this platform cannot give, which the test skips,
+# does not wait. It never asks
 # for focus, fullscreen, or a minimized window, and maximizes only on
 # Windows: on macOS each would move or cover the screen of the person
 # running the suite, and on Linux the tests run under Xvfb with no window
@@ -23,20 +25,31 @@
 require_relative "../../support/fixture_app"
 require "fiddle"
 
-$stdout.sync = true
-
 module WindowStateFixture
-  # Seconds to wait for a change to show.
-  SETTLE = 2
+  # Seconds to wait for a change to show: the fixture's patience, since
+  # each wait ends as soon as the change shows, and only a change that
+  # never comes waits it out.
+  SETTLE = FixtureApp::PATIENCE
+
+  # Whether tao gives no window position or size here: Wayland's, as
+  # window_state_test.rb decides it.
+  def self.wayland?
+    RbConfig::CONFIG["host_os"].include?("linux") && ENV["WAYLAND_DISPLAY"].to_s != "" &&
+      ENV["GDK_BACKEND"] != "x11"
+  end
 
   # Reads the block until it answers +expected+ (or anything, without
   # one), or SETTLE seconds pass, and answers what it read last as JSON.
+  # Each read that ends the wait prints PROGRESS settled, so RealApp sees
+  # the fixture move between reads.
   def self.settle(expected = nil)
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + SETTLE
     loop do
       value = yield
-      return json(value) if expected.nil? || value == expected
-      return json(value) if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+      if expected.nil? || value == expected || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+        FixtureApp.progress("settled")
+        return json(value)
+      end
 
       sleep 0.05
     end
@@ -163,7 +176,7 @@ app.run do |handle, event|
 
     window.set_position(Tokra::LogicalPosition.new(x: 120, y: 140))
     expected = Tokra::PhysicalPosition.new(x: (120 * scale).round, y: (140 * scale).round)
-    report["logical_position"] = fixture.settle(expected) { window.outer_position }
+    report["logical_position"] = fixture.settle(fixture.wayland? ? nil : expected) { window.outer_position }
     report["logical_position_expected"] = fixture.json(expected)
     report["inner_position"] = fixture.json(window.inner_position)
 
@@ -183,11 +196,16 @@ app.run do |handle, event|
       "always_on_top" => %i[set_always_on_top is_always_on_top],
     }
     # Each flag starts true, except always on top; the setter flips it and
-    # flips it back.
+    # flips it back. On Linux tao reports maximizable and minimizable
+    # always true, and always on top only from a window manager, which CI's
+    # Xvfb lacks, so the change is read once, not waited for
+    # (window_state_test.rb).
+    linux = RbConfig::CONFIG["host_os"].include?("linux")
     report["flags"] = flags.to_h do |name, (setter, getter)|
       changed_to = name == "always_on_top"
       window.public_send(setter, changed_to)
-      changed = fixture.settle(changed_to) { window.public_send(getter) }
+      shows = !(linux && %w[maximizable minimizable always_on_top].include?(name))
+      changed = fixture.settle(shows ? changed_to : nil) { window.public_send(getter) }
       on_main = fixture.on_main(handle) { window.public_send(getter) }
       window.public_send(setter, !changed_to)
       restored = fixture.settle(!changed_to) { window.public_send(getter) }
@@ -254,7 +272,7 @@ app.run do |handle, event|
     window.set_size(Tokra::LogicalSize.new(width: 100, height: 220))
     held = RbConfig::CONFIG["host_os"].include?("linux")
     expected = ((held ? 260 : 100) * scale).round
-    report["constrained_width"] = fixture.settle(expected) { window.inner_size.width }
+    report["constrained_width"] = fixture.settle(fixture.wayland? ? nil : expected) { window.inner_size.width }
     report["constrained_expected_width"] = expected
     window.set_size_constraints(Tokra::WindowSizeConstraints.new)
 

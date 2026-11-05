@@ -51,8 +51,10 @@ module PlatformPopup
     end
 
     # How many times it ticked from now until its next tick, waiting at
-    # most +timeout+ seconds: at least 1, or 0 if no tick came.
-    def ticks_until_next(timeout: 3)
+    # most +timeout+ seconds, the fixture's patience unless given: at
+    # least 1, or 0 if no tick came. Only a ticker that never runs waits
+    # it out, so a loaded machine cannot make it answer 0.
+    def ticks_until_next(timeout: FixtureApp::PATIENCE)
       start = @ticks
       waiter = Thread::Queue.new
       @wanted = waiter
@@ -435,11 +437,11 @@ module PlatformPopup
     end
 
     # Waits for +thread+'s menu window showing +hmenu+, looking every
-    # 10 ms, and answers it, or +nil+ after +timeout+ seconds. Call it on
-    # another thread. If no menu has shown after +probe_after+ seconds, it
-    # asks once whether +owner+'s thread takes sent messages and yields
-    # the answer.
-    def self.await_menu(thread, owner, hmenu, timeout: 20, probe_after: 2)
+    # 10 ms, and answers it, or +nil+ after +timeout+ seconds, the
+    # fixture's patience unless given. Call it on another thread. If no
+    # menu has shown after +probe_after+ seconds, it asks once whether
+    # +owner+'s thread takes sent messages and yields the answer.
+    def self.await_menu(thread, owner, hmenu, timeout: FixtureApp::PATIENCE, probe_after: 2)
       started = now
       probed = false
       loop do
@@ -466,8 +468,9 @@ module PlatformPopup
     end
 
     # Waits until +thread+ shows no menu window showing +hmenu+, looking
-    # every 10 ms, or +timeout+ seconds pass; answers whether it went.
-    def self.await_gone(thread, hmenu, timeout: 20)
+    # every 10 ms, or +timeout+ seconds pass, the fixture's patience
+    # unless given; answers whether it went.
+    def self.await_gone(thread, hmenu, timeout: FixtureApp::PATIENCE)
       started = now
       sleep 0.01 while find(thread, hmenu) && now - started <= timeout
       find(thread, hmenu).nil?
@@ -482,14 +485,15 @@ module PlatformPopup
     # Ends the menu +owner+ owns from another thread: DefWindowProc
     # cancels menu processing on WM_CANCELMODE, and the menu loop handles
     # a sent message in any PeekMessage or GetMessage, whether or not a
-    # timer fires. Answers whether the main thread took it.
+    # timer fires. Answers whether the main thread took it within the
+    # fixture's patience, so a loaded machine cannot make it unanswered.
     def self.cancel_mode(owner)
-      !send_timeout(owner, WM_CANCELMODE).nil?
+      !send_timeout(owner, WM_CANCELMODE, (FixtureApp::PATIENCE * 1000).round).nil?
     end
 
     # Sends +message+ to +hwnd+ and answers its result, or +nil+ if the
-    # window's thread did not take it within SEND_TIMEOUT.
-    def self.send_timeout(hwnd, message)
+    # window's thread did not take it within +timeout+ milliseconds.
+    def self.send_timeout(hwnd, message, timeout = SEND_TIMEOUT)
       result = Fiddle::Pointer.malloc(Fiddle::SIZEOF_UINTPTR_T, Fiddle::RUBY_FREE)
       sent = fn("SendMessageTimeoutW", [
         Fiddle::TYPE_INTPTR_T,
@@ -499,7 +503,7 @@ module PlatformPopup
         Fiddle::TYPE_UINT,
         Fiddle::TYPE_UINT,
         Fiddle::TYPE_VOIDP,
-], Fiddle::TYPE_INTPTR_T).call(hwnd, message, 0, 0, SMTO_ABORTIFHUNG, SEND_TIMEOUT, result)
+], Fiddle::TYPE_INTPTR_T).call(hwnd, message, 0, 0, SMTO_ABORTIFHUNG, timeout, result)
       sent.zero? ? nil : result[0, Fiddle::SIZEOF_UINTPTR_T].unpack1("J")
     end
 

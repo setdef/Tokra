@@ -31,8 +31,6 @@
 
 require_relative "../../support/fixture_app"
 
-$stdout.sync = true
-
 module MultiwindowRoutingFixture
   # "main"'s page; it loads nothing else.
   PAGE = "<!doctype html><meta charset=utf-8><title>routing</title><p>routing</p>"

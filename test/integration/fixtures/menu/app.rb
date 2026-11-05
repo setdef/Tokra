@@ -25,8 +25,6 @@
 require_relative "../../support/fixture_app"
 require_relative "../../support/platform_menu"
 
-$stdout.sync = true
-
 module MenuFixture
   # A title no other window on the display has, so the GTK reader finds
   # this window.
@@ -35,10 +33,10 @@ module MenuFixture
   # What the listeners heard, in order.
   HEARD = Thread::Queue.new
 
-  # The next +count+ things the listeners heard, waiting up to five
-  # seconds for each.
+  # The next +count+ things heard, waiting up to the fixture's patience
+  # for them all (FixtureApp.take).
   def self.heard(count)
-    Array.new(count) { HEARD.pop(timeout: 5) }.compact
+    FixtureApp.take(HEARD, count)
   end
 end
 

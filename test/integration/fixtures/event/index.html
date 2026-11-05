@@ -16,14 +16,15 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     const { listen, once, emit, emitTo } = window.__TAURI__.event;
     const { getCurrentWindow } = window.__TAURI__.window;
     const { invoke } = window.__TAURI__.core;
-    const { check, finish, withTimeout } = window.fixture;
+    const { check, finish } = window.fixture;
 
-    // Resolves with the first event the predicate accepts.
+    // Resolves with the first event the predicate accepts. The check's own
+    // timeout (harness.js) bounds the wait.
     function next(name, accept = () => true, options) {
       let resolve;
       const heard = new Promise((r) => { resolve = r; });
       const unlisten = listen(name, (event) => { if (accept(event)) resolve(event); }, options);
-      return { heard: withTimeout(heard, 10000, name), unlisten };
+      return { heard, unlisten };
     }
 
     (async () => {
@@ -76,7 +77,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
           });
         });
         await invoke('plugin:event-fixture|resize', size);
-        const event = await withTimeout(resized, 10000, 'tauri://resize');
+        const event = await resized;
         return {
           pass: true,
           detail: { event: event.event, payload: event.payload, inner: await invoke('plugin:event-fixture|inner_size') },
@@ -91,7 +92,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
           });
         });
         await invoke('plugin:event-fixture|move', at);
-        const event = await withTimeout(moved, 10000, 'tauri://move');
+        const event = await moved;
         return {
           pass: true,
           detail: { event: event.event, payload: event.payload, outer: await invoke('plugin:event-fixture|outer_position') },

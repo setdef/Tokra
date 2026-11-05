@@ -17,8 +17,6 @@
 
 require_relative "../../support/fixture_app"
 
-$stdout.sync = true
-
 # Whether the session bus has an owner for +name+, as dbus-send prints
 # the answer to org.freedesktop.DBus.NameHasOwner, or +nil+ off Linux.
 def name_has_owner(name)

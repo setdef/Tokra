@@ -34,8 +34,6 @@
 
 require_relative "../../support/fixture_app"
 
-$stdout.sync = true
-
 module WebviewWindowBuilderFixture
   # "main"'s page: both listeners, then make. Each label's two events are
   # reported in one invoke, in the order the page heard them.

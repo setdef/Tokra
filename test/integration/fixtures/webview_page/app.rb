@@ -33,8 +33,6 @@ require "fileutils"
 require "socket"
 require "tmpdir"
 
-$stdout.sync = true
-
 module WebviewPageFixture
   # The HTTP server on localhost, every address it resolves to, on one
   # port, so the webview reaches it whichever it tries.

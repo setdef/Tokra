@@ -65,8 +65,8 @@ class TrayMenuTest < RealApp::TestCase
   # The fixture prints each stage it reaches (plan 051), so a hang names
   # its stage. These stages follow one another by cause, not by timing.
   def test_the_menu_reports_its_progress_in_order
-    stages = @run.lines.grep(/\APROGRESS /).map { |line| line.split[1] }
-    assert_equal %w[ready menus-built], stages.first(2), @run.describe
+    stages = @run.progress.map { |line| line.split[1] }
+    assert_equal %w[loaded ready menus-built], stages.first(3), @run.describe
     mine = stages.filter_map { |stage| stage.delete_prefix("tray:") if stage.start_with?("tray:") }
     assert_equal CAUSAL_STAGES, mine.select { |stage| CAUSAL_STAGES.include?(stage) }, @run.describe
     assert_includes mine, "cancel-posted", @run.describe
@@ -88,7 +88,7 @@ class TrayMenuTest < RealApp::TestCase
     assert_equal 0, run.status, run.describe
     report = run.report
     refute_nil report, "the fixture printed no report\n#{run.describe}"
-    stages = run.lines.grep(/\APROGRESS /).map { |line| line.split[1] }
+    stages = run.progress.map { |line| line.split[1] }
     assert_equal %w[Show Hide], report["labels"], run.describe
     assert_equal [], report["timer_errors"], run.describe
     assert_equal "thread", report["dismissed_by"], run.describe
@@ -114,7 +114,7 @@ class TrayMenuTest < RealApp::TestCase
     assert_equal 0, run.status, run.describe
     report = run.report
     refute_nil report, "the fixture printed no report\n#{run.describe}"
-    stages = run.lines.grep(/\APROGRESS /).map { |line| line.split[1] }
+    stages = run.progress.map { |line| line.split[1] }
     assert_includes stages, "tray:main-raised", run.describe
     assert_equal "raised while the menu tracks", report["raised"], run.describe
     refute report["fell_back"], run.describe

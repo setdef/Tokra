@@ -23,8 +23,6 @@ require_relative "../../support/fixture_app"
 require "fiddle"
 require "open3"
 
-$stdout.sync = true
-
 module WindowHandleFixture
   # A title no other window on the display has, so xdotool's answer is
   # this window's.
@@ -140,10 +138,10 @@ module WindowHandleFixture
   # both with dispatch_async to the main queue (util/async.rs:104-109,
   # 252-257), and nothing orders that queue against the user event that
   # brings a run_on_main_thread block, so this reads again until both
-  # show, or two seconds pass; a setter that never reached the window
-  # still reads false.
+  # show, or the fixture's patience runs out; a setter that never reached
+  # the window still reads false.
   def self.settled(handle, window)
-    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + FixtureApp::PATIENCE
     loop do
       answers = Thread::Queue.new
       handle.run_on_main_thread do

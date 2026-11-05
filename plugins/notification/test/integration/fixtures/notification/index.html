@@ -22,11 +22,14 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     const rejection = async (promise) => {
       try { return { resolved: await promise }; } catch (error) { return { rejected: String(error) }; }
     };
-    // The summaries of those sent that have not reached the test's server
-    // after reading its log for up to 15 seconds; none once all have.
-    const unreceived = async (summaries) => {
+    // The summaries of those sent that have not reached the test's server:
+    // none, once all have. It reads the server's log until they have; the
+    // check's own timeout (harness.js) is the backstop, and once the check
+    // is reported, +signal+ aborts and the reading stops by throwing.
+    const unreceived = async (signal, summaries) => {
       let missing = summaries;
-      for (let i = 0; i < 150 && missing.length > 0; i++) {
+      for (let i = 0; missing.length > 0; i++) {
+        signal.throwIfAborted();
         if (i > 0) await new Promise((resolve) => setTimeout(resolve, 100));
         const log = await (await fetch('/server.log')).text();
         missing = summaries.filter((summary) => !log.includes(`string "${summary}"`));
@@ -37,8 +40,11 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     (async () => {
       const { sends } = await (await fetch('/notification.json')).json();
 
-      await check('window.Notification reports the permission granted', async () => {
-        for (let i = 0; i < 50 && window.Notification.permission === 'default'; i++) {
+      // The plugin's init script settles the permission over IPC; the page
+      // waits for it however long that takes, bounded by the check.
+      await check('window.Notification reports the permission granted', async (signal) => {
+        while (window.Notification.permission === 'default') {
+          signal.throwIfAborted();
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
         return { pass: window.Notification.permission === 'granted', detail: { permission: window.Notification.permission } };
@@ -67,13 +73,13 @@ SPDX-License-Identifier: AGPL-3.0-or-later
       });
 
       if (sends) {
-        await check('notify, sendNotification, and new Notification send', async () => {
+        await check('notify, sendNotification, and new Notification send', async (signal) => {
           const notified = await invoke('plugin:notification|notify', {
             options: { title: `${TITLE}: notify`, body: 'from invoke', icon: 'dialog-information', sound: 'message-new-instant' },
           });
           sendNotification({ title: `${TITLE}: send`, body: 'from sendNotification' });
           new window.Notification(`${TITLE}: web`, { body: 'from window.Notification' });
-          const missing = await unreceived([`${TITLE}: notify`, `${TITLE}: send`, `${TITLE}: web`]);
+          const missing = await unreceived(signal, [`${TITLE}: notify`, `${TITLE}: send`, `${TITLE}: web`]);
           return { pass: notified === null && missing.length === 0, detail: { notified, missing } };
         });
       }

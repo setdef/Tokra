@@ -11,14 +11,17 @@ require "rbconfig"
 require_relative "frontmost"
 require_relative "hang_probe"
 require_relative "../../support/real_windows_run"
+require_relative "../../support/watched_child"
 
 # Runs a fixture app (test/integration/fixtures/*/app.rb) in a real window.
 #
 # Every other test drives App through StubNative. These tests open a real tao
 # window with a real wry webview. tao's loop needs the main thread and ends
 # the process, so the app runs in a child process, in its own process group,
-# under a timeout: a hang kills the group and fails the test instead of
-# blocking the suite. Without a window server the tests skip and say why.
+# under WatchedChild's bounds: a fixture that stops printing, or never
+# ends, has its group killed and fails the test instead of blocking the
+# suite, and a slow one still passes. Without a window server the tests
+# skip and say why.
 #
 # On macOS every fixture runs in the background (FixtureApp.background), so
 # the suite never takes the keyboard from the person at the machine, and
@@ -26,30 +29,47 @@ require_relative "../../support/real_windows_run"
 module RealApp
   FIXTURES = File.expand_path("../fixtures", __dir__)
 
-  # Seconds before a hung app is killed. A healthy launch takes one to two;
-  # the margin is for a loaded machine, where creating the window alone can
-  # take several.
-  TIMEOUT = 60
+  # Seconds one of a fixture's own waits may last: each check of its page
+  # (harness.js) and each wait for an event in its Ruby. The fixture
+  # reads it as FixtureApp::PATIENCE.
+  PATIENCE = WatchedChild::PATIENCE
+
+  # Seconds a fixture may go without printing a line before it counts as
+  # hung (WatchedChild): its patience and WatchedChild::MARGIN, so a wait
+  # that gave up reports before the kill. Each line says the app moved:
+  # the fixture's loaded line, the start and end of each page check, and
+  # its own contract lines.
+  STALL = WatchedChild::STALL
+
+  # Seconds a fixture may run at all, for one that keeps printing but
+  # never ends.
+  CEILING = WatchedChild::CEILING
 
   # Seconds the reader threads get to drain the pipes once the child is gone.
-  DRAIN = 5
+  DRAIN = WatchedChild::DRAIN
 
   # Seconds between looks at the frontmost app.
   WATCH = 0.05
 
-  # What one run of a fixture app left behind. +termsig+ is the signal
-  # that ended it, if one did. +exit_after_signal+ is how long the app lived
-  # after the +on_line+ hook last signalled it. +activated+ is whether the
-  # app was ever the frontmost app, or +nil+ where Frontmost cannot tell.
-  # +probe+ is what HangProbe found about an app that hung, before the
-  # kill, or +nil+.
-  Run = Data.define(:status, :termsig, :stdout, :stderr, :timed_out, :seconds, :exit_after_signal,
-    :activated, :probe) do
+  # What one run of a fixture app left behind: WatchedChild::Outcome's
+  # fields, and +activated+, whether the app was ever the frontmost app,
+  # or +nil+ where Frontmost cannot tell. +probe+ is what HangProbe found
+  # about an app that hung, before the kill, or +nil+.
+  Run = Data.define(*WatchedChild::Outcome.members, :activated) do
+    include WatchedChild::Verdict
+
+    # Each stdout line but the PROGRESS lines, which say how far the
+    # fixture got, not what it found.
     def lines
-      stdout.lines(chomp: true)
+      stdout.lines(chomp: true).grep_v(/\APROGRESS /)
     end
 
-    # Each stdout line, with the report reduced to the word REPORT.
+    # The PROGRESS lines, in order.
+    def progress
+      stdout.lines(chomp: true).grep(/\APROGRESS /)
+    end
+
+    # Each line, with the report reduced to the word REPORT.
     def kinds
       lines.map { |line| line.start_with?("REPORT ") ? "REPORT" : line }
     end
@@ -64,7 +84,8 @@ module RealApp
     end
 
     def describe
-      "status=#{status.inspect} termsig=#{termsig.inspect} timed_out=#{timed_out} seconds=#{seconds.round(2)} " \
+      "#{"#{verdict}\n" if verdict}" \
+        "status=#{status.inspect} termsig=#{termsig.inspect} timed_out=#{timed_out} seconds=#{seconds.round(2)} " \
         "exit_after_signal=#{exit_after_signal&.round(2).inspect} activated=#{activated.inspect}\n" \
         "--- stdout\n#{stdout}\n--- stderr\n#{stderr}#{"\n--- probe\n#{probe}" if probe}"
     end
@@ -90,61 +111,25 @@ module RealApp
     end
   end
 
-  # Launches fixture +name+ with +args+ and waits for it to end. +on_line+,
-  # when given, sees each stdout line with the child's pid as it arrives and
-  # returns +true+ when it signalled the child. A plugin passes +fixtures+,
-  # its own fixture directory, and +env+, variables to add to the child's
-  # environment. +drain+ is how many seconds the readers get to finish
-  # once the child is gone.
-  def self.launch(name, *, on_line: nil, fixtures: FIXTURES, env: {}, drain: DRAIN)
+  # Launches fixture +name+ with +args+ and waits for it to end, or to go
+  # the stall bound without a line, or to run +ceiling+ seconds, which
+  # kill it (WatchedChild). +patience+ is the fixture's, and the stall
+  # bound is WatchedChild::MARGIN longer. +on_line+, when given, sees each stdout line
+  # with the child's pid as it arrives and returns +true+ when it
+  # signalled the child. A plugin passes +fixtures+, its own fixture
+  # directory, and +env+, variables to add to the child's environment.
+  # +drain+ is how many seconds the readers get to finish once the child
+  # is gone.
+  def self.launch(name, *, on_line: nil, fixtures: FIXTURES, env: {}, drain: DRAIN, patience: PATIENCE,
+    ceiling: CEILING
+  )
     RealWindowsRun.require!("RealApp.launch(#{name.inspect})")
-    started = now
-    signalled_at = nil
-    out_reader, out_writer = IO.pipe
-    err_reader, err_writer = IO.pipe
     # The child inherits Bundler's environment, so it loads this checkout.
-    group = windows? ? { new_pgroup: true } : { pgroup: true }
-    pid = Process.spawn(env, RbConfig.ruby, File.join(fixtures, name, "app.rb"), *,
-      out: out_writer, err: err_writer, **group)
-    [out_writer, err_writer].each(&:close)
-    # The readers fill buffers this thread owns, so a stream still open
-    # after the kill still shows what arrived, such as a fixture's last
-    # PROGRESS line.
-    stdout = +""
-    stderr = +""
-    out_thread = Thread.new do
-      out_reader.each_line do |line|
-        stdout << line
-        signalled_at = now if on_line&.call(line, pid)
-      end
-    end
-    err_thread = Thread.new { err_reader.each_line { |line| stderr << line } }
-
-    waiter = Process.detach(pid)
-    watcher = watch_front(pid, waiter)
-    timed_out = waiter.join(TIMEOUT).nil?
-    ended = now
-    if timed_out
-      probe = HangProbe.call(pid)
-      kill_group(pid)
-      waiter.join(DRAIN)
-    end
-
-    Run.new(
-      status: waiter.alive? ? nil : waiter.value&.exitstatus,
-      termsig: waiter.alive? ? nil : waiter.value&.termsig,
-      stdout: self.drain(out_thread, stdout, drain),
-      stderr: self.drain(err_thread, stderr, drain),
-      timed_out:,
-      seconds: ended - started,
-      exit_after_signal: signalled_at && (ended - signalled_at),
-      activated: watcher&.value,
-      probe:
-    )
-  ensure
-    # Whatever happened above, leave no window behind.
-    kill_group(pid) if pid && waiter&.alive?
-    waiter&.join(DRAIN)
+    command = [RbConfig.ruby, File.join(fixtures, name, "app.rb"), *]
+    watcher = nil
+    outcome = WatchedChild.run(env, command, patience:, ceiling:, drain:, on_line:,
+      on_hang: HangProbe.method(:call)) { |pid, waiter| watcher = watch_front(pid, waiter) }
+    Run.new(**outcome.to_h, activated: watcher&.value)
   end
 
   # A thread that answers whether +pid+ was ever the frontmost app while
@@ -167,30 +152,21 @@ module RealApp
 
   # Sends +signal+ to +pid+, ignoring a process that already ended.
   def self.signal(pid, signal)
-    Process.kill(signal, pid)
-    true
-  rescue Errno::ESRCH
-    false
-  end
-
-  # Kills the child's process group; on Windows, which has no process
-  # groups to signal, the child itself.
-  def self.kill_group(pid)
-    signal(windows? ? pid : -pid, :KILL)
+    WatchedChild.signal(pid, signal)
   end
 
   def self.windows?
-    RbConfig::CONFIG["host_os"].match?(/mswin|mingw|cygwin/)
+    WatchedChild.windows?
   end
 
   # What +thread+ read into +buffer+, once it has read the whole stream
   # or +wait+ seconds pass; then with a note that the stream is still open.
   def self.drain(thread, buffer, wait = DRAIN)
-    thread.join(wait) ? buffer.dup : "#{buffer}(stream still open after #{wait} s)"
+    WatchedChild.drain(thread, buffer, wait)
   end
 
   def self.now
-    Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    WatchedChild.now
   end
 
   # A Minitest base class: skips without a display, and runs each fixture
@@ -217,7 +193,7 @@ module RealApp
     # typing. Where Frontmost is not available that check passes silently
     # (see watch_front).
     def assert_finished(run)
-      refute run.timed_out, "the app hung and was killed\n#{run.describe}"
+      refute run.timed_out, "the app was killed, #{run.verdict}\n#{run.describe}"
       refute run.activated, "the app came to the front instead of running in the background\n#{run.describe}"
     end
 

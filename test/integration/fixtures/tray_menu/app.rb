@@ -42,8 +42,6 @@
 require_relative "../../support/fixture_app"
 require_relative "../../support/platform_popup"
 require_relative "../../support/platform_tray"
-
-$stdout.sync = true
 options = FixtureApp.options(ARGV, :no_main_timer, :raise_main)
 
 module TrayMenuFixture
@@ -84,10 +82,11 @@ module TrayMenuFixture
     Tokra::Native::EventLoop.gvl_handoff_counts.map { |name, count| "#{name}=#{count}" }.join(",")
   end
 
-  # The log until it holds every entry of +wanted+, or five seconds pass.
+  # The log until it holds every entry of +wanted+, or the fixture's
+  # patience runs out.
   def self.until_logged(wanted)
     seen = []
-    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + FixtureApp::PATIENCE
     until (wanted - seen).empty?
       left = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
       break if left <= 0
@@ -236,7 +235,9 @@ begin
             false
           end
         end
-        PlatformPopup.every(window, 8000) do
+        # The fallback waits the fixture's patience, so on a loaded machine
+        # the closer thread still gets there first.
+        PlatformPopup.every(window, (FixtureApp::PATIENCE * 1000).round) do
           unless done
             fell_back = true
             TrayMenuFixture.fell_back = true
@@ -273,7 +274,7 @@ begin
 
       ticker = PlatformPopup::Ticker.new
       closer = Thread.new do
-        found = macos ? shown.pop(timeout: 20) : TrayMenuFixture.find_win32(main_thread, owner, hmenu, report)
+        found = macos ? shown.pop(timeout: FixtureApp::PATIENCE) : TrayMenuFixture.find_win32(main_thread, owner, hmenu, report)
         unless found
           # On Windows nothing else will see the menu go, so say so now
           # rather than wait.
@@ -311,8 +312,8 @@ begin
         end
       end
 
-      returned.pop(timeout: 30)
-      closer.join(5)
+      returned.pop(timeout: FixtureApp::PATIENCE)
+      closer.join(FixtureApp::PATIENCE)
       ticker.stop
       sleeper&.kill
       report["timer_errors"] = macos ? nil : PlatformPopup::Win32.timer_errors

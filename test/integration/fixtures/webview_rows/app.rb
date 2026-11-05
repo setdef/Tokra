@@ -26,8 +26,6 @@
 
 require_relative "../../support/fixture_app"
 
-$stdout.sync = true
-
 module WebviewRowsFixture
   # The user agent "agent" sends.
   AGENT = "TokraProbe/1.0 (webview rows)"

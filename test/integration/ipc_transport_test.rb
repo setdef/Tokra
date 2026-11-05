@@ -22,6 +22,28 @@ class IpcTransportTest < RealApp::TestCase
     assert_equal 0, @run.status, @run.describe
   end
 
+  # The progress RealApp's stall bound watches (Plan 060): the fixture's
+  # loaded line, then each check's start and end, which the page sent
+  # through tokra:// and the fixture's Rack app.
+  def test_each_check_reports_its_start_and_end_in_order
+    stages = @run.progress.map { |line| line.delete_prefix("PROGRESS ").sub(/ \d+\.\d+\z/, "") }
+    checks = stages.grep(/\Acheck-/)
+    names = @run.report.fetch("checks").map { |check| check["name"] }
+
+    assert_equal "loaded", stages.first, @run.describe
+    assert_equal names.flat_map { |name| ["check-start #{name}", "check-end #{name}"] }, checks, @run.describe
+  end
+
+  # On macOS the fixture's webview ignores whether its window is covered,
+  # so WebKit keeps its page at foreground priority on a desktop no one
+  # sees (FixtureApp.keep_page_awake).
+  def test_on_macos_the_webview_ignores_occlusion
+    skip "WebKit's occlusion detection is macOS's" unless RUBY_PLATFORM.include?("darwin")
+
+    assert_includes @run.progress.map { |line| line.sub(/ \d+\.\d+\z/, "") }, "PROGRESS occlusion-detection off 1",
+      @run.describe
+  end
+
   def test_invoke_resolves_with_the_handler_value_over_ipc_protocol
     detail = check_detail(@run, "invoke resolves")
     assert_equal "PINGPONG", detail["reply"]

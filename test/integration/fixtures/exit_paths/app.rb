@@ -28,6 +28,13 @@
 
 require_relative "../../support/fixture_app"
 
+# The one fixture whose stdout stays buffered, against FixtureApp's sync:
+# the lines it prints after its report reach the test only if Ruby's own
+# exit flushes them, so they show that the loop ended with SystemExit and
+# not process::exit (Plan 018, decision 4). Its PROGRESS lines and its
+# report flush as they are printed, so RealApp still sees it progress.
+$stdout.sync = false
+
 options = FixtureApp.options(ARGV, :raise_on_page_load, :run_callback, :report_visibility)
 app = nil
 at_exit do

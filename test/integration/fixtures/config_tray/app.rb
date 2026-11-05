@@ -21,8 +21,6 @@ require_relative "../../support/fixture_app"
 require_relative "../../support/platform_tray"
 require "tmpdir"
 
-$stdout.sync = true
-
 # On Linux tray-icon writes the config tray's icon, which has no temp
 # directory of its own, under $XDG_RUNTIME_DIR/tray-icon (tray-icon 0.21.0
 # platform_impl/gtk/mod.rs:118-137), so the fixture gives it a directory
@@ -38,9 +36,10 @@ module ConfigTrayFixture
   # What the app's listener and the run callback heard, in order.
   HEARD = Thread::Queue.new
 
-  # The next +count+ things heard, waiting up to five seconds for each.
+  # The next +count+ things heard, waiting up to the fixture's patience
+  # for them all (FixtureApp.take).
   def self.heard(count)
-    Array.new(count) { HEARD.pop(timeout: 5) }.compact
+    FixtureApp.take(HEARD, count)
   end
 
   # The kind of a Tray::TrayIconEvent, such as "Enter".

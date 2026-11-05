@@ -35,8 +35,6 @@
 
 require_relative "../../support/fixture_app"
 require_relative "../../support/platform_popup"
-
-$stdout.sync = true
 options = FixtureApp.options(ARGV, :no_main_timer)
 
 module ContextMenuFixture
@@ -95,7 +93,9 @@ module ContextMenuFixture
           false
         end
       end
-      PlatformPopup.every(window, 8000) do
+      # The fallback waits the fixture's patience, so on a loaded machine
+      # the closer thread still gets there first.
+      PlatformPopup.every(window, (FixtureApp::PATIENCE * 1000).round) do
         unless done
           fell_back = true
           FixtureApp.progress("#{name}:fallback-fired")
@@ -108,7 +108,7 @@ module ContextMenuFixture
 
     ticker = PlatformPopup::Ticker.new
     closer = Thread.new do
-      menu = windows ? find_win32(main_thread, owner, name, seen, hmenu) : shown.pop(timeout: 20)
+      menu = windows ? find_win32(main_thread, owner, name, seen, hmenu) : shown.pop(timeout: FixtureApp::PATIENCE)
       next unless menu
 
       handle.run_on_main_thread { LOG << "task sent while tracking" }
@@ -129,7 +129,7 @@ module ContextMenuFixture
     show.call
     done = true
     FixtureApp.progress("#{name}:returned")
-    closer.join(5)
+    closer.join(FixtureApp::PATIENCE)
     ticker.stop
     # A popup returns only once something closes it: the fallback, if it
     # fired first, or else the closer thread.
@@ -215,8 +215,20 @@ module ContextMenuFixture
     result.first
   end
 
-  def self.drain
-    Array.new(LOG.size) { LOG.pop }
+  # The log until it holds every entry of +wanted+, or the fixture's
+  # patience runs out, and then whatever else it already holds, in the
+  # order it arrived.
+  def self.until_logged(wanted)
+    seen = []
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + FixtureApp::PATIENCE
+    until (wanted - seen).empty?
+      left = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      break if left <= 0
+
+      entry = LOG.pop(timeout: left)
+      seen << entry if entry
+    end
+    seen + Array.new(LOG.size) { LOG.pop }
   end
 end
 
@@ -246,8 +258,12 @@ app.run do |handle, event|
       report["menu_answer"] = menu.popup_at(window, Tokra::LogicalPosition.new(x: 30, y: 40))
       ContextMenuFixture::LOG << "menu returned"
     end
-    sleep 0.3
-    report["menu_log"] = ContextMenuFixture.drain
+    # The chosen item's event and the task sent while the menu tracked
+    # arrive once it has closed; on Windows the menu closes by cancelling,
+    # so no item is chosen.
+    report["menu_log"] = ContextMenuFixture.until_logged(
+      ["menu returned", "task sent while tracking", *("heard ctx-copy" unless windows)]
+    )
 
     report["submenu"] = ContextMenuFixture.track(handle, window, name: "submenu", labels: ["Rename"],
       hmenu: windows ? submenu.hpopupmenu : nil, main_timer: !options[:no_main_timer]) do
@@ -256,8 +272,7 @@ app.run do |handle, event|
         ContextMenuFixture::LOG << "submenu returned"
       end
     end
-    sleep 0.3
-    report["submenu_log"] = ContextMenuFixture.drain
+    report["submenu_log"] = ContextMenuFixture.until_logged(["submenu returned", "task sent while tracking"])
     report["scale_factor"] = window.scale_factor
     report["timer_errors"] = windows ? PlatformPopup::Win32.timer_errors : nil
     puts "REPORT #{JSON.generate(report)}"

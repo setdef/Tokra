@@ -30,8 +30,6 @@ require "fileutils"
 require "securerandom"
 require "tmpdir"
 
-$stdout.sync = true
-
 module WebContextFixture
   # The directories, made fresh for this run and removed after it.
   ROOT = Dir.mktmpdir("tokra-web-context").freeze

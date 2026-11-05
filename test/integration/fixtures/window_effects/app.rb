@@ -21,11 +21,11 @@
 require_relative "../../support/fixture_app"
 require "fiddle"
 
-$stdout.sync = true
-
 module WindowEffectsFixture
-  # Seconds to wait for a change to show.
-  SETTLE = 2
+  # Seconds to wait for a change to show: the fixture's patience, since
+  # each wait ends as soon as the change shows, and only a change that
+  # never comes waits it out.
+  SETTLE = FixtureApp::PATIENCE
 
   # window-vibrancy's tag for the view it adds (0.6.0
   # src/macos/internal.rs:13).
@@ -40,12 +40,16 @@ module WindowEffectsFixture
   MICA_EFFECT = 1029
 
   # Reads the block until it answers +expected+, or SETTLE seconds pass,
-  # and answers what it read last.
+  # and answers what it read last. Each read that ends the wait prints
+  # PROGRESS settled, so RealApp sees the fixture move between reads.
   def self.settle(expected)
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + SETTLE
     loop do
       value = yield
-      return value if value == expected || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+      if value == expected || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+        FixtureApp.progress("settled")
+        return value
+      end
 
       sleep 0.05
     end
