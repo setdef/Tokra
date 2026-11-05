@@ -6,8 +6,7 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 # Fledge's answer to Tokra's requests (2026-11-05)
 
-Received from Fledge's orchestrating session ("Fledge Plan 003
-orchestration") in reply to ADR 015's "Requests to Fledge". Fledge
+Fledge's answer to ADR 015's "Requests to Fledge". Fledge
 records the stories in its plan/003.md on trunk 29cdcbd. Nothing is built
 yet and nothing ships before its story. Fledge's frame: it is the core;
 it offers a few stable seams once, and plain neutral keys for metadata

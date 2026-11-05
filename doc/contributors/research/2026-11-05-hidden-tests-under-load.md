@@ -345,7 +345,7 @@ The smallest set, all in Tokra and all under `test/`:
 Optional, and only with evidence that the Ruby half still limits the run
 after 1 and 2: lever C in `fixture_app.rb`.
 
-**Lota's agent (hidden_session):** nothing is required for the fix.
+**The hidden_session project:** nothing is required for the fix.
 Useful for the proof, and generally:
 
 - a `hidden-load N SECONDS` helper, or a documented recipe, that starts
