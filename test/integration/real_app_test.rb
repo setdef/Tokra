@@ -12,9 +12,10 @@ require_relative "support/real_app"
 # describe adds below that output for a fixture that hung.
 class RealAppTest < Minitest::Test
   # A child that makes a hidden top-level window holding one child
-  # window, prints READY, and then either sleeps, so its thread takes no
-  # message, as a main thread blocked in a call takes none, or, given
-  # "pump", pumps messages with GetMessageW, as an idle event loop does.
+  # window, prints READY and the top-level window's handle, and then
+  # either sleeps, so its thread takes no message, as a main thread
+  # blocked in a call takes none, or, given "pump", pumps messages with
+  # GetMessageW, as an idle event loop does.
   CHILD = <<~RUBY
     require "fiddle"
     user32 = Fiddle.dlopen("user32")
@@ -25,7 +26,7 @@ class RealAppTest < Minitest::Test
     top = create.call(0, wide.("STATIC"), wide.("hang-probe"), 0, 0, 0, 100, 100, 0, 0, 0, nil)
     # WS_CHILD | WS_VISIBLE
     create.call(0, wide.("STATIC"), wide.("hang-probe-child"), 0x50000000, 0, 0, 50, 50, top, 0, 0, nil)
-    $stdout.puts "READY"
+    $stdout.puts "READY \#{top}"
     $stdout.flush
     if ARGV.first == "pump"
       get = Fiddle::Function.new(user32["GetMessageW"],
@@ -38,8 +39,42 @@ class RealAppTest < Minitest::Test
     end
   RUBY
 
+  # A second child, given the handle of a window of CHILD's: given
+  # "send", it prints READY and sends that window a WM_NULL with
+  # SendMessageW, which waits until the window's thread takes it, as
+  # DestroyWindow waits on a window of another thread; given "adopt", it
+  # makes a window of its own inside that one, as WebView2's browser
+  # does inside a webview's, prints READY, and sleeps until with_child
+  # kills it.
+  HELPER = <<~RUBY
+    require "fiddle"
+    user32 = Fiddle.dlopen("user32")
+    mode, window = ARGV.first, Integer(ARGV.fetch(1))
+    if mode == "send"
+      $stdout.puts "READY"
+      $stdout.flush
+      send = Fiddle::Function.new(user32["SendMessageW"],
+        [Fiddle::TYPE_INTPTR_T, Fiddle::TYPE_UINT, Fiddle::TYPE_UINTPTR_T, Fiddle::TYPE_INTPTR_T], Fiddle::TYPE_INTPTR_T)
+      send.call(window, 0, 0, 0)
+    else
+      wide = ->(text) { (text + "\\0").encode(Encoding::UTF_16LE) }
+      create = Fiddle::Function.new(user32["CreateWindowExW"], [Fiddle::TYPE_UINT, Fiddle::TYPE_VOIDP,
+        Fiddle::TYPE_VOIDP, Fiddle::TYPE_UINT, Fiddle::TYPE_INT, Fiddle::TYPE_INT, Fiddle::TYPE_INT, Fiddle::TYPE_INT,
+        Fiddle::TYPE_INTPTR_T, Fiddle::TYPE_INTPTR_T, Fiddle::TYPE_INTPTR_T, Fiddle::TYPE_VOIDP], Fiddle::TYPE_INTPTR_T)
+      # WS_EX_NOPARENTNOTIFY, so the parent's thread is sent nothing, and
+      # WS_CHILD, hidden.
+      adopted = create.call(0x4, wide.("STATIC"), wide.("hang-probe-adopted"), 0x40000000, 0, 0, 10, 10, window, 0, 0, nil)
+      abort "CreateWindowExW failed" if adopted.zero?
+      $stdout.puts "READY \#{adopted}"
+      $stdout.flush
+      sleep
+    end
+  RUBY
+
   # Seconds the child gets to make its windows.
   READY = 30
+  # Seconds the probe gets to see the helper blocked in SendMessageW.
+  BLOCKED = 30
 
   def test_describe_ends_with_the_probe_of_an_app_that_hung
     run = run_with(probe: "windows: none")
@@ -73,8 +108,64 @@ class RealAppTest < Minitest::Test
         probe)
       assert_match(/^  0x\h+ class="Static" title="hang-probe-child" thread=\d+ pid=#{pid} visible=false hung=\w+ answers_wm_null=false$/,
         probe)
+      assert_match(/^wait chains:\nthread \d+ nodes=\d+ cycle=(?:true|false)/, probe)
       assert_match(/^threads:\nthread \d+ /, probe)
       assert_match(/^stacks:/, probe)
+      assert_match(/^owner stacks: no other process owns a window in the tree$/, probe)
+    end
+  end
+
+  # A thread blocked in SendMessageW to a window of a thread that takes
+  # no message: WCT names the blocked thread first, then the SendMessage,
+  # then the thread it waits on, in the other process. Every field the
+  # probe reads is known here, at the first three offsets of the node
+  # array, so a wrong WAITCHAIN_NODE_INFO size or offset fails this.
+  #
+  # WaitTime and ContextSwitches, though, are matched only as numbers,
+  # so reading them swapped would pass. WAITCHAIN_NODE_INFO's
+  # reference gives WaitTime only as "The wait time", with no unit or
+  # starting point, so no property of it that tells it from a count of
+  # context switches, such as growing while the thread waits, has a
+  # source to check it against; their order rests on wct.h and
+  # windows-sys alone.
+  def test_on_windows_the_probe_follows_a_send_message_to_the_thread_it_waits_on
+    skip "the probe looks only on Windows" unless RealApp.windows?
+
+    with_child("sleep") do |pid, window|
+      receiver = HangProbe::Win32.owner(window).first
+      with_child("send", window, script: HELPER) do |sender|
+        expected = /^  Thread status=Blocked pid=#{sender} thread=\d+ wait_time=\d+ context_switches=\d+\n  SendMessage status=\w+ name="[^"\n]*"\n  Thread status=\w+ pid=#{pid} thread=#{receiver} /
+        chains = until_matched(expected) { HangProbe::Win32.wait_chains(sender) }
+
+        assert_match(expected, chains)
+        assert_match(/\Await chains:\n/, chains)
+      end
+    end
+  end
+
+  # A window another process made inside the fixture's: the probe lists
+  # it under the fixture's window and reads that process's stacks too,
+  # starting with the thread that owns it.
+  def test_on_windows_the_probe_reads_the_stacks_of_each_other_process_with_a_window_in_the_tree
+    skip "the probe looks only on Windows" unless RealApp.windows?
+
+    with_child("pump") do |pid, window|
+      with_child("adopt", window, script: HELPER) do |helper, adopted|
+        owner = HangProbe::Win32.owner(adopted).first
+        probe = HangProbe.call(pid)
+
+        assert_match(/^  0x#{adopted.to_s(16)} class="Static" title="hang-probe-adopted" thread=#{owner} pid=#{helper} /,
+          probe)
+        assert_match(/^owner stacks:\nstacks of pid #{helper} \(window threads #{owner}\):\n/, probe)
+        next unless File.exist?(HangProbe::Win32::CDB)
+
+        # ~*kn heads each thread's stack with its "Id: pid.tid" line,
+        # which "~ (Thread Status)" shows as "id: 4dc.470", and ~~[tid]kn
+        # does not, so a stack before the first such line is the owner
+        # thread's, printed first.
+        assert_match(/^stacks of pid #{helper} \(window threads #{owner}\):\n(?:(?![Ii]d: \h+\.\h+ ).)*Child-SP/m,
+          probe)
+      end
     end
   end
 
@@ -137,24 +228,37 @@ class RealAppTest < Minitest::Test
     reader&.close
   end
 
-  # Runs CHILD with +mode+, yields its pid once its windows exist, and
-  # kills and reaps it after.
-  private def with_child(mode)
+  # Runs +script+ with +mode+ and +args+, yields its pid and any window
+  # handle its READY line names once it is ready, and kills and reaps it
+  # after.
+  private def with_child(mode, *args, script: CHILD)
     reader, writer = IO.pipe
     begin
-      pid = Process.spawn(RbConfig.ruby, "-e", CHILD, mode, out: writer)
+      pid = Process.spawn(RbConfig.ruby, "-e", script, mode, *args.map(&:to_s), out: writer)
     ensure
       writer.close
     end
     line = Thread.new { reader.gets }.join(READY)&.value
-    assert_equal "READY\n", line, "the child never made its windows within #{READY} s"
-    yield pid
+    assert_match(/\AREADY(?: \d+)?\n\z/, line.to_s, "the child (#{mode}) was not ready within #{READY} s")
+    yield pid, line.split[1]&.to_i
   ensure
     if pid
       RealApp.signal(pid, :KILL)
       Process.wait(pid)
     end
     reader&.close
+  end
+
+  # What the block answers once it matches +pattern+, or when BLOCKED
+  # seconds pass, its last answer.
+  private def until_matched(pattern)
+    deadline = RealApp.now + BLOCKED
+    loop do
+      answer = yield
+      return answer if answer.match?(pattern) || RealApp.now > deadline
+
+      sleep 0.5
+    end
   end
 
   private def run_with(probe:)

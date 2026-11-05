@@ -173,6 +173,22 @@ jobs:
           bundle config set --local frozen true
           bundle install --jobs 4
 
+      # A hung fixture's stacks (test/integration/support/hang_probe.rb)
+      # name only offsets into tokra.so on Windows: the GNU build's debug
+      # information is DWARF, which cdb cannot read. With line tables, the
+      # tokra.so a failed job uploads below resolves them offline with
+      # llvm-symbolizer. Cargo takes a profile setting from the environment
+      # over Cargo.toml's, so only this job's builds grow. It is set after
+      # the bundle install, so the gems that compiles are unchanged. It
+      # holds for every release build in the steps after this one, where
+      # it could only make a build larger; today the extension's is the
+      # only one, since no plugin has native code, the packaging check's
+      # default mode loads the extension already compiled, and Clippy
+      # builds with the dev profile.
+      - name: Keep line tables in the Windows extension
+        if: runner.os == 'Windows'
+        run: echo "CARGO_PROFILE_RELEASE_DEBUG=line-tables-only" >> "$GITHUB_ENV"
+
       # RealApp runs a real window only in an Aqua session (launchctl
       # managername); this records which session the runner has.
       - name: Report the GUI session
@@ -223,3 +239,13 @@ jobs:
         run: |
           Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Id = 1000, 1001; StartTime = (Get-Date).AddHours(-3) } -ErrorAction SilentlyContinue |
             Format-List TimeCreated, Id, ProviderName, Message
+
+      # The extension a failed Windows job built, with its line tables, to
+      # name the offsets in its stacks offline.
+      - name: Keep the Windows extension
+        if: failure() && runner.os == 'Windows'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tokra-windows-ruby-${{ matrix.ruby }}
+          path: lib/tokra/tokra.so
+          retention-days: 14
