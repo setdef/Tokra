@@ -79,13 +79,13 @@ class TestConfigTray < Minitest::Test
   def test_a_tray_icon_neither_png_nor_ico_is_an_invalid_image_extension
     icon("tray.jpg", "icon.jpg")
     error = assert_raises(Codegen::EmbeddedAssetsError::InvalidImageExtension) { codegen("iconPath" => "tray.jpg") }
-    assert_equal "invalid extension `jpg` used for image #{File.join(@dir, 'tray.jpg')}, must be `ico` or `png`",
+    assert_equal "invalid extension `jpg` used for image #{rust_join('tray.jpg')}, must be `ico` or `png`",
       error.message
   end
 
   def test_a_missing_tray_icon_fails_with_the_joined_path
     error = assert_raises(RuntimeError) { codegen("iconPath" => "icons/missing.png") }
-    assert error.message.start_with?("failed to open icon #{File.join(@dir, 'icons', 'missing.png')}: "), error.message
+    assert error.message.start_with?("failed to open icon #{rust_join('icons/missing.png')}: "), error.message
   end
 
   # --- the build: App#run ---
@@ -244,6 +244,12 @@ class TestConfigTray < Minitest::Test
 
   private def tray_config(fields = {})
     { "app" => { "trayIcon" => TRAY.merge(fields) } }
+  end
+
+  # +relative+ joined to @dir as Rust's Path::join displays it: on Windows
+  # the parent's backslashes and one more, with +relative+ left as written.
+  private def rust_join(relative)
+    "#{Tokra::Utils::Config::Parse.display(@dir)}#{File::ALT_SEPARATOR || '/'}#{relative}"
   end
 
   private def icon(relative, fixture)
