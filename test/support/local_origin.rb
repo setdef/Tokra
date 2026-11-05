@@ -13,14 +13,15 @@ require_relative "test_app"
 # Linux, http://tokra.localhost on Windows, where WebView2 serves custom
 # protocols over http, as Tauri's tauri_protocol_url says
 # (manager/mod.rs:331-338). App decides what is local with that rule
-# (App#tokra_protocol_url), so tests ask App rather than repeat it, without
-# the slash the url crate gives an http URL's empty path. Request
+# (WebviewManager.tokra_protocol_url), so tests ask it rather than repeat
+# it, without the slash the url crate gives an http URL's empty path. Request
 # URIs are another matter: wry hands every platform's tokra:// request to
 # the handler as tokra://localhost/..., so those stay literal.
 module LocalOrigin
   # The URL of +path+ on the app's own origin, as +app+ (or a fresh app)
-  # computes it on this platform.
+  # computes it on the platform it reports, which a test may stub.
   def self.url(path = "/", app: TestApp.build_test_app)
-    "#{app.__send__(:tokra_protocol_url).as_str.delete_suffix('/')}#{path}"
+    os_name = app.__send__(:os_name)
+    "#{Tokra::WebviewManager.tokra_protocol_url(os_name).as_str.delete_suffix('/')}#{path}"
   end
 end

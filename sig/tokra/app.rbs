@@ -80,7 +80,6 @@ module Tokra
     def post_message_headers: (json_value options) -> Hash[String, String]
     def route_invoke: (Webview webview, String cmd, invoke_body body, Hash[String, String] headers, ipc_responder? responder, String origin) -> void
     def plugin_command: (String cmd) -> [String, String]?
-    def tokra_protocol_url: () -> Ferro::Url::Url
     def local_url?: (String url) -> bool
     def dispatch_ipc_protocol: (Native::HttpRequestEvent event, Native::Proxy proxy) -> void
     def dispatch_ipc_protocol_post: (Native::HttpRequestEvent event, Native::Proxy proxy) -> void

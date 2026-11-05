@@ -81,6 +81,8 @@ class TestWindowBuilderRows < Minitest::Test
     javascript_disabled: false,
     scroll_bar_style: "Default",
     allow_link_preview: true,
+    data_directory: TestApp.default_data_directory,
+    use_https_scheme: false,
   }.freeze
 
   def page = Tokra::WebviewUrl::App.new("index.html")

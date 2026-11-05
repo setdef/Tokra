@@ -75,6 +75,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `#allow_link_preview`, each with Tauri's default
 - `Tokra::BackgroundThrottlingPolicy` (`Disabled`, `Suspend`, `Throttle`) and
   `Tokra::ScrollBarStyle` (`Default`, and on Windows `FluentOverlay`)
+- `WebviewWindowBuilder#data_directory(path)`: webviews that name one
+  directory share one web context and its storage (ignored on macOS, as in
+  Tauri); the directory is made if missing, and `#build` raises
+  `Error::Io` when it cannot be
+- `WebviewWindowBuilder#use_https_scheme(enabled)` and the config's
+  `useHttpsScheme`: on Windows the page comes from
+  `https://tokra.localhost/`, which the app takes as its own origin
 - `Webview#url`, `#navigate`, `#reload`, `#cookies`, `#cookies_for_url`,
   `#set_cookie`, and `#delete_cookie`, the same on `WebviewWindow`, each URL
   a `Ferro::Url::Url`, with
@@ -520,6 +527,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   lists none, instead of always opening `main` (breaking)
 - An app needs a config file with an `identifier` (breaking)
 - `Native::EventLoop.new` takes the GTK application id, or `nil` (breaking)
+- On Linux and Windows a webview with no data directory keeps its data in
+  `<local data>/<identifier>`, as Tauri's does, rather than where wry puts
+  it by default; on Linux an incognito webview sharing a data directory
+  with an earlier webview, the default one included, gets none of the
+  app's protocols, as in Tauri (breaking)
 - An app needs an RGBA PNG at `icons/icon.png` beside its config, or one
   `bundle.icon` names; without it `Tokra.generate_context` raises "failed to
   open icon {path}: {e}", as a Tauri app fails to compile (breaking)

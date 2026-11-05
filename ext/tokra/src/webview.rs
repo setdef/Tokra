@@ -7,6 +7,7 @@
 //! which wraps `wry::WebView` and implements the tokra:// custom protocol.
 
 use std::cell::{Cell, RefCell};
+use std::path::PathBuf;
 
 use magnus::{function, method, prelude::*, Error, Ruby};
 use tao::event_loop::EventLoopProxy;
@@ -17,6 +18,7 @@ use crate::responders::{get_responders, next_request_id};
 use crate::runtime_error;
 use crate::thread_bound::{wrong_thread, ThreadBound};
 use crate::user_event::{Released, UserEvent};
+use crate::web_context::{Lease, Lent};
 use crate::window::RbWindow;
 
 /// The Ruby class name, for the wrong-thread error.
@@ -204,6 +206,10 @@ struct Attributes {
     proxy_config: Option<wry::ProxyConfig>,
     background_throttling: Option<wry::BackgroundThrottlingPolicy>,
     javascript_disabled: Option<bool>,
+    /// The web context's key: its data directory, `None` for the default.
+    data_directory: Option<PathBuf>,
+    #[cfg(windows)]
+    use_https_scheme: Option<bool>,
     #[cfg(windows)]
     additional_browser_args: Option<String>,
     #[cfg(windows)]
@@ -240,6 +246,7 @@ impl Attributes {
         let key = |name: &str| ruby.to_symbol(name);
         let proxy_url: Option<(String, String, String)> = attributes.lookup(key("proxy_url"))?;
         let policy: Option<String> = attributes.lookup(key("background_throttling"))?;
+        let data_directory: Option<String> = attributes.lookup(key("data_directory"))?;
         #[cfg(windows)]
         let style: Option<String> = attributes.lookup(key("scroll_bar_style"))?;
         Ok(Self {
@@ -260,6 +267,9 @@ impl Attributes {
                 .transpose()
                 .map_err(|message| Error::new(ruby.exception_arg_error(), message))?,
             javascript_disabled: attributes.lookup(key("javascript_disabled"))?,
+            data_directory: data_directory.map(PathBuf::from),
+            #[cfg(windows)]
+            use_https_scheme: attributes.lookup(key("use_https_scheme"))?,
             #[cfg(windows)]
             additional_browser_args: attributes.lookup(key("additional_browser_args"))?,
             #[cfg(windows)]
@@ -340,12 +350,15 @@ impl Attributes {
         self.apply_platform(builder)
     }
 
-    /// The Windows rows (`src/lib.rs:4866-4895`), and the extensions path
-    /// (`:4897-4909`).
+    /// The Windows rows: the https scheme (`src/lib.rs:4642-4645`), the
+    /// rows at `:4866-4895`, and the extensions path (`:4897-4909`).
     #[cfg(windows)]
     fn apply_platform<'a>(&self, mut builder: WebViewBuilder<'a>) -> WebViewBuilder<'a> {
         use wry::WebViewBuilderExtWindows;
 
+        if let Some(enabled) = self.use_https_scheme {
+            builder = builder.with_https_scheme(enabled);
+        }
         if let Some(args) = &self.additional_browser_args {
             builder = builder.with_additional_browser_args(args);
         }
@@ -510,11 +523,22 @@ fn drag_drop_handler(
 /// (Windows) focus handlers, each naming `label` (see `new_with_protocol`),
 /// and the webview rows in `attributes`.
 ///
+/// The webview is built with the web context of its data directory, as
+/// Tauri's `create_webview` builds every webview
+/// (tauri-runtime-wry `src/lib.rs:4589-4625`): the context the store holds
+/// for that directory, or a new one, lent for the length of the build
+/// (`web_context.rs`). On Linux the context keeps the protocols its first
+/// webview registered, and a later webview of the same context registers
+/// none, as Tauri's runtime skips them (`:4964-4981`); their handlers
+/// read each request's webview from the id wry hands them, so each
+/// request still names its own webview.
+///
 /// # Errors
 ///
 /// Returns `ThreadError` off the window's thread, or `RuntimeError` when
-/// the window is closed or empty, when wry fails, or on Windows when
-/// `WebView2` refuses a focus handler.
+/// the window is closed or empty, when another build holds the web
+/// context, when wry fails, or on Windows when `WebView2` refuses a focus
+/// handler.
 fn build(
     window: &RbWindow,
     proxy: &RbProxy,
@@ -522,7 +546,7 @@ fn build(
     url: String,
     initialization_scripts: Vec<(String, bool)>,
     attributes: &Attributes,
-) -> Result<WebView, Error> {
+) -> Result<Built, Error> {
     let proxy_clone = proxy.inner().clone();
     let label_for_ipc_message = label.to_string();
     let proxy_for_protocol = proxy.inner().clone();
@@ -530,7 +554,12 @@ fn build(
     let proxy_for_page_load = proxy.inner().clone();
     let label_for_page_load = label.to_string();
 
-    let mut builder = attributes.apply(WebViewBuilder::new().with_id(label));
+    let mut lent = Lent::take(attributes.data_directory.clone(), label)
+        .map_err(|message| Error::new(runtime_error(), message))?;
+    let registers_tokra = lent.registers("tokra");
+    let registers_ipc = lent.registers("ipc");
+    let mut builder =
+        attributes.apply(WebViewBuilder::new_with_web_context(lent.context()).with_id(label));
     // Each script for the main frame only or every frame, in order, as
     // Tauri's `create_webview` adds them (tauri-runtime-wry
     // `src/lib.rs:4958-4961`).
@@ -541,17 +570,27 @@ fn build(
         builder = builder.with_drag_drop_handler(handler);
     }
 
-    let builder = builder
-        .with_url(url)
+    builder = builder.with_url(url);
+    if registers_tokra {
         // The tokra:// content protocol: Ruby serves HTML, assets, and Rack.
-        .with_asynchronous_custom_protocol("tokra".into(), move |id, request, responder| {
-            forward_request_to_ruby(&proxy_for_protocol, id, &request, responder);
-        })
+        builder = builder.with_asynchronous_custom_protocol(
+            "tokra".into(),
+            move |id, request, responder| {
+                forward_request_to_ruby(&proxy_for_protocol, id, &request, responder);
+            },
+        );
+    }
+    if registers_ipc {
         // The ipc:// transport: Tauri's desktop-default invoke channel. Same
         // request shape, different scheme; Ruby dispatches on the URI scheme.
-        .with_asynchronous_custom_protocol("ipc".into(), move |id, request, responder| {
-            forward_request_to_ruby(&proxy_for_ipc, id, &request, responder);
-        })
+        builder = builder.with_asynchronous_custom_protocol(
+            "ipc".into(),
+            move |id, request, responder| {
+                forward_request_to_ruby(&proxy_for_ipc, id, &request, responder);
+            },
+        );
+    }
+    let builder = builder
         .with_on_page_load_handler(move |event, url| {
             let event_name = match event {
                 PageLoadEvent::Started => "started",
@@ -578,7 +617,29 @@ fn build(
     crate::webview_focus::attach(&webview, proxy.inner(), label)
         .map_err(|e| Error::new(runtime_error(), e.to_string()))?;
     drop(tao_window);
-    Ok(webview)
+    Ok(Built {
+        webview,
+        _context: lent.built(),
+    })
+}
+
+/// A built webview and its place in its web context.
+///
+/// The webview drops first, then the lease, which forgets the webview in
+/// the store and drops the context with its last webview (`web_context.rs`),
+/// so wry's context outlives every webview built with it, as it must
+/// (wry `src/web_context.rs:17-21`).
+pub struct Built {
+    webview: WebView,
+    _context: Lease,
+}
+
+impl std::ops::Deref for Built {
+    type Target = WebView;
+
+    fn deref(&self) -> &WebView {
+        &self.webview
+    }
 }
 
 // SPDX-SnippetBegin
@@ -627,7 +688,7 @@ const fn with_window_theme<'a>(
 #[magnus::wrap(class = "Tokra::Native::WebView", free_immediately, size)]
 pub struct RbWebView {
     /// Empty once `close` has dropped the webview.
-    inner: RefCell<ThreadBound<WebView>>,
+    inner: RefCell<ThreadBound<Built>>,
     /// Whether a wry webview was ever put in `inner`, so `open` never
     /// refills a webview that `close` emptied.
     opened: Cell<bool>,
@@ -1108,7 +1169,7 @@ impl RbWebView {
         if !inner.owner().is_current() {
             return Err(wrong_thread(CLASS));
         }
-        Ok(std::cell::Ref::filter_map(inner, ThreadBound::get).ok())
+        Ok(std::cell::Ref::filter_map(inner, |inner| inner.get().map(|built| &built.webview)).ok())
     }
 }
 

@@ -23,7 +23,7 @@ use crate::thread_bound::ThreadBound;
 /// window about 240 bytes, and every `UserEvent` in the loop's channel would
 /// otherwise be that large (`clippy::large_enum_variant`).
 pub enum Released {
-    WebView(Box<ThreadBound<wry::WebView>>),
+    WebView(Box<ThreadBound<crate::webview::Built>>),
     Window(Box<ThreadBound<tao::window::Window>>),
     /// A muda menu or item, in its `ThreadBound` (`menu.rs`).
     Menu(Box<dyn Send>),

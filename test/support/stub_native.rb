@@ -7,10 +7,24 @@
 #++
 
 require "test_helper"
+require "fileutils"
+require "tmpdir"
 
 # Stubs for the Native (Rust FFI) boundary.
 # EventLoop is configured per-test via thread-local to inject events.
 module StubNative
+  # The local data directory the stub answers: one temporary directory for
+  # the process, removed when the process that made it ends, so a webview
+  # a test builds with no data directory keeps its data there and not in
+  # the user's own (plan 052, 052e-3).
+  DATA_LOCAL_DIR = Dir.mktmpdir("tokra-data-local").tap do |dir|
+    owner = ::Process.pid
+    at_exit { FileUtils.remove_entry(dir, true) if ::Process.pid == owner }
+  end
+
+  # Native.data_local_dir, the dirs crate's data_local_dir: DATA_LOCAL_DIR.
+  def self.data_local_dir = DATA_LOCAL_DIR
+
   # Thread-local event queue for test injection
   def self.inject_event(event)
     Thread.current[:stub_native_event] = event
@@ -792,6 +806,8 @@ end
 # Windows and Linux, wherever the tests run: no NSApp functions, and
 # windows with Native::Window's menu methods.
 module StubWindowMenusNative
+  def self.data_local_dir = StubNative.data_local_dir
+
   EventLoop = StubNative::EventLoop
   WebView = StubNative::WebView
   Proxy = StubNative::Proxy
@@ -813,6 +829,8 @@ end
 # takes a theme (plan 042, phase 3).
 module StubWindowsMenusNative
   StubWindowMenusNative.constants.each { |name| const_set(name, StubWindowMenusNative.const_get(name)) unless name == :Window }
+
+  def self.data_local_dir = StubNative.data_local_dir
 
   class Window < StubWindowMenusNative::Window
     include StubNative::WindowMenuThemes

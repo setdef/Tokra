@@ -7,12 +7,15 @@ module Tokra
 
     @manager: AppManager
     @os_name: String
+    @data_local_dir: ^() -> String?
 
-    def self.tokra_protocol_url: (String os) -> Ferro::Url::Url
-    def initialize: (AppManager manager, os_name: String) -> void
-    def webview_url: (webview_url url) -> String
+    def self.tokra_protocol_url: (String os, ?https: bool) -> Ferro::Url::Url
+    def self.push: (String base, String path) -> String
+    def initialize: (AppManager manager, os_name: String, ?data_local_dir: ^() -> String?) -> void
+    def webview_url: (webview_url url, ?https: bool) -> String
+    def data_directory: (String? data_directory) -> String?
     def attach_webview: (Webview webview) -> Webview
-    def initialization_scripts: (String window_label, String webview_label) -> Array[String]
+    def initialization_scripts: (String window_label, String webview_label, ?https: bool) -> Array[String]
     def metadata_script: (String window_label, String webview_label) -> String
 
     private
@@ -20,7 +23,8 @@ module Tokra
     def global_api_script: () -> String
     def bootstrap_script: () -> String
     def invoke_initialization_script: () -> String
-    def init_script: () -> String
+    def create_dir_all: (String directory) -> nil
+    def init_script: (bool https) -> String
     def pattern_object: (Object pattern) -> Hash[String, String]
     def render_js_template: (String name, Hash[Symbol, String] values) -> String
   end

@@ -14,6 +14,10 @@ require "tmpdir"
 class TestLogRegistration < Minitest::Test
   # Stands in for tao and wry: the loop delivers nothing but its end.
   module NoWindow
+    # The user's local data directory: the temporary directory the test
+    # runs the app in, so the window's webview keeps its data there.
+    def self.data_local_dir = Dir.pwd
+
     class Proxy
       def respond(*) = nil
     end

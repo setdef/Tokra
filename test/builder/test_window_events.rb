@@ -182,6 +182,8 @@ class TestBuilderWindowEvents < Minitest::Test
   module ThemedNative
     StubNative.constants.each { |name| const_set(name, StubNative.const_get(name)) unless name == :WebView }
 
+    def self.data_local_dir = StubNative.data_local_dir
+
     class WebView < StubNative::WebView
       def set_theme(name)
         raise Thread.current[:set_theme_error] if Thread.current[:set_theme_error]

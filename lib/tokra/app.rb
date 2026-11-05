@@ -940,26 +940,21 @@ module Tokra
       [tokens[0] || "", tokens[1] || ""]
     end
 
-    # The URL Tokra serves its own pages from: tokra://localhost on macOS
-    # and Linux, http://tokra.localhost on Windows, where WebView2 serves
-    # custom protocols over http (wry webview2 custom_protocol_workaround).
-    # Mirrors tauri_protocol_url (manager/mod.rs:331-338); Tokra does not
-    # enable wry's https scheme.
-    private def tokra_protocol_url
-      WebviewManager.tokra_protocol_url(os_name)
-    end
-
     # Whether +url+, a String, belongs to the app: read by the url crate,
     # as Tauri reads the origin (ipc/protocol.rs:302, 491-499), with the
-    # same scheme and domain as tokra_protocol_url, the first arm of
-    # Tauri's is_local_url (webview/mod.rs:1680-1688). Tokra serves no
-    # devUrl and routes every registered protocol through tokra://, so the
-    # other arms do not apply. The domain is compared as the url crate
-    # holds it, case and all: the crate lowercases the scheme and an http
-    # host as it parses, but keeps a tokra:// host's case.
+    # same scheme and domain as the URL Tokra serves its own pages from,
+    # the first arm of Tauri's is_local_url (webview/mod.rs:1680-1688). As
+    # there, that URL takes https when +url+ does, so on Windows the pages
+    # of a webview built with use_https_scheme, from
+    # https://tokra.localhost, are the app's, as http://tokra.localhost's
+    # are. Tokra serves no devUrl and routes every registered protocol
+    # through tokra://, so the other arms do not apply. The domain is
+    # compared as the url crate holds it, case and all: the crate
+    # lowercases the scheme and an http host as it parses, but keeps a
+    # tokra:// host's case.
     private def local_url?(url)
       parsed = Ferro::Url::Url.parse(url)
-      protocol = tokra_protocol_url
+      protocol = WebviewManager.tokra_protocol_url(os_name, https: parsed.scheme == "https")
       parsed.scheme == protocol.scheme && parsed.domain == protocol.domain
     rescue Ferro::Url::ParseError
       false

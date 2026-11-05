@@ -417,6 +417,8 @@ class TestMenu < Minitest::Test
   module AcceleratorNative
     StubWindowMenusNative.constants.each { |name| const_set(name, StubWindowMenusNative.const_get(name)) }
 
+    def self.data_local_dir = StubNative.data_local_dir
+
     def self.lists
       @lists ||= []
     end

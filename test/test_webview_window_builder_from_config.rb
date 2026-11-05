@@ -81,6 +81,8 @@ class TestWebviewWindowBuilderFromConfig < Minitest::Test
     javascript_disabled: false,
     scroll_bar_style: "Default",
     allow_link_preview: true,
+    data_directory: TestApp.default_data_directory,
+    use_https_scheme: false,
   }.freeze
 
   def window_config(json) = Tokra::Utils::Config::WindowConfig.deserialize({ "label" => "side" }.merge(json))
@@ -187,6 +189,7 @@ class TestWebviewWindowBuilderFromConfig < Minitest::Test
   WEBVIEW_ROWS = [
     ["incognito", true, :incognito, true],
     ["focus", false, :focused, false],
+    ["useHttpsScheme", true, :use_https_scheme, true],
     ["browserExtensionsEnabled", true, :browser_extensions_enabled, true],
     ["backgroundThrottling", "disabled", :background_throttling, "Disabled"],
     ["scrollBarStyle", "fluentOverlay", :scroll_bar_style, WINDOWS ? "FluentOverlay" : "Default"],
@@ -227,13 +230,14 @@ class TestWebviewWindowBuilderFromConfig < Minitest::Test
   end
 
   # Keys whose row Tokra does not have yet (plan 054's inventory), and
-  # those Tauri's from_config itself never reads: dataStoreIdentifier,
-  # which WebviewAttributes::from leaves out (webview.rs:421-478), and
-  # disableInputAccessoryView, which is iOS's.
+  # those Tauri's from_config itself never reads: dataStoreIdentifier and
+  # dataDirectory, which WebviewAttributes::from leaves out
+  # (webview.rs:421-478) though from_config resolves the second first
+  # (webview/mod.rs:393-426), and disableInputAccessoryView, which is
+  # iOS's.
   def test_the_keys_that_wait_for_their_row_change_nothing
     waiting = {
       "zoomHotkeysEnabled" => true,
-      "useHttpsScheme" => true,
       "devtools" => false,
       "dataDirectory" => "side",
       "dataStoreIdentifier" => Array.new(16, 7),

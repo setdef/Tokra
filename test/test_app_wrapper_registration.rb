@@ -35,6 +35,10 @@ class TestAppWrapperRegistration < Minitest::Test
 
   # Stub native module for testing
   module StubNative
+    # The shared stub's temporary local data root, so a window built here
+    # never makes a directory in the developer's own (StubNative).
+    def self.data_local_dir = ::StubNative.data_local_dir
+
     class EventLoop
       def initialize(_app_id); end
       def create_proxy; StubProxy.new; end

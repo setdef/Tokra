@@ -51,6 +51,8 @@ module Tokra
         javascript_disabled: false,
         scroll_bar_style: ScrollBarStyle::Default.name,
         allow_link_preview: true,
+        data_directory: nil,
+        use_https_scheme: false,
       } #: Hash[Symbol, Native::WebView::attribute]
     end
 
@@ -59,12 +61,14 @@ module Tokra
     # from +config+, a Utils::Config::WindowConfig (tauri-runtime
     # webview.rs:421-478).
     #
-    # Tauri resolves <tt>dataDirectory</tt> first; Tokra's webview has no
-    # data directory yet (plan 052e-3), and neither has it rows for
-    # <tt>zoomHotkeysEnabled</tt>, <tt>useHttpsScheme</tt>, or
-    # <tt>devtools</tt>, so those keys are read and ignored until their
-    # rows land (plan 054's inventory). The effects WebviewAttributes::from
-    # copies no runtime reads, so neither does this; the window takes them.
+    # Tauri resolves <tt>dataDirectory</tt> against the local data
+    # directory and the label first (webview/mod.rs:393-426), but
+    # WebviewAttributes::from never copies it, so the webview is built
+    # without it; Tokra reads the key and leaves it out too. Tokra has no
+    # rows yet for <tt>zoomHotkeysEnabled</tt> or <tt>devtools</tt>, so
+    # those keys are read and ignored until their rows land (plan 054's
+    # inventory). The effects WebviewAttributes::from copies no runtime
+    # reads, so neither does this; the window takes them.
     def self.from_config(config)
       new(config.label, config.url).tap { |builder| builder.__send__(:with_config, config) }
     end
@@ -154,6 +158,27 @@ module Tokra
       [url.scheme, url.host.to_s, url.port.to_s]
     end
 
+    # Tauri's WebviewBuilder::data_directory (webview/mod.rs:968-974): Rust's
+    # PathBuf, as a String or anything with +to_path+, kept as File.path
+    # gives it. The context of that directory is the one the webview is
+    # built with (tauri-runtime-wry lib.rs:4589-4625).
+    def data_directory(data_directory)
+      set(:data_directory, File.path(data_directory))
+    end
+
+    # Tauri's WebviewBuilder::use_https_scheme, read on Windows
+    # (webview/mod.rs:1108-1111; lib.rs:4642-4645).
+    def use_https_scheme(enabled)
+      flag(:use_https_scheme, enabled)
+    end
+
+    # Whether the webview's custom protocols use https on Windows, as
+    # Tauri's prepare_webview reads <tt>webview_attributes.use_https_scheme</tt>
+    # for the app URL and core.js (manager/webview.rs:138, 385, 416).
+    def https_scheme?
+      @attributes[:use_https_scheme] == true
+    end
+
     # Tauri's WebviewBuilder::focused (webview/mod.rs:1034-1037).
     def focused(focus)
       flag(:focused, focus)
@@ -222,7 +247,8 @@ module Tokra
     # WebviewAttributes::from's rows, in its order (tauri-runtime
     # webview.rs:421-478).
     private def with_config(config)
-      incognito(config.incognito).focused(config.focus).browser_extensions_enabled(config.browser_extensions_enabled)
+      incognito(config.incognito).focused(config.focus).use_https_scheme(config.use_https_scheme)
+        .browser_extensions_enabled(config.browser_extensions_enabled)
       set(:background_throttling, config.background_throttling&.name)
       set(:scroll_bar_style, WebviewBuilder.scroll_bar_style_of(config.scroll_bar_style).name)
       if App.os_name == "macos"

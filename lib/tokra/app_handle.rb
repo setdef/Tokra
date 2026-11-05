@@ -28,7 +28,9 @@ module Tokra
     )
       @manager = manager
       @window_event_listeners = window_event_listeners
-      @webview_manager = WebviewManager.new(manager, os_name:)
+      # The local data directory comes from the context's native module, as
+      # a webview's default data directory does (WebviewManager#data_directory).
+      @webview_manager = WebviewManager.new(manager, os_name:, data_local_dir: -> { runtime_context.data_local_dir })
       @state_manager = state_manager
       @runtime_context = runtime_context
       @restart_on_exit = false

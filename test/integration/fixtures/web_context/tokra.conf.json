@@ -1,0 +1,14 @@
+{
+  "identifier": "com.tokra.integration.web-context",
+  "app": {
+    "windows": [
+      {
+        "title": "Tokra integration: web context",
+        "width": 240,
+        "height": 180,
+        "backgroundThrottling": "disabled"
+      }
+    ],
+    "withGlobalTauri": true
+  }
+}

@@ -29,7 +29,9 @@
 #   bundle exec ruby test/integration/fixtures/webview_page/app.rb
 
 require_relative "../../support/fixture_app"
+require "fileutils"
 require "socket"
+require "tmpdir"
 
 $stdout.sync = true
 
@@ -45,6 +47,14 @@ module WebviewPageFixture
   # Where "nav" goes, and the URL its cookies are asked for.
   FIRST = "http://localhost:#{PORT}/first".freeze
   ORIGIN = "http://localhost:#{PORT}/".freeze
+
+  # "nav"'s data directory, made fresh for this run and removed after it.
+  # On Linux the app's protocols are registered on a directory's context
+  # by its first webview, and "main" is the first in the default one; an
+  # incognito webview has a context of its own, so built there after
+  # "main" it would have no tokra:// to load index.html from
+  # (WebviewWindowBuilder#data_directory).
+  DATA_DIRECTORY = Dir.mktmpdir("tokra-webview-page").freeze
 
   # The cookie Ruby sets.
   APP_COOKIE = Tokra::Cookie.new(name: "app", value: "from-ruby", domain: "localhost", path: "/")
@@ -146,7 +156,7 @@ module WebviewPageFixture
     FixtureApp.keep_in_sight(app.get_window("main"))
     # Incognito, so the cookies stay in memory and never reach the disk.
     builder = FixtureApp.webview_window(app, "nav", Tokra::WebviewUrl::App.new("index.html"))
-      .inner_size(240, 180).incognito(true)
+      .inner_size(240, 180).incognito(true).data_directory(WebviewPageFixture::DATA_DIRECTORY)
     FixtureApp.keep_in_sight(builder.build.window)
   end
 
@@ -158,6 +168,8 @@ module WebviewPageFixture
     Tokra::Response.ok("<!doctype html><meta charset=utf-8><title>app</title><p>app</p>")
   end
 end
+
+at_exit { FileUtils.rm_rf(WebviewPageFixture::DATA_DIRECTORY) }
 
 puts "SERVER #{WebviewPageFixture::PORT}"
 WebviewPageFixture.serve

@@ -101,7 +101,8 @@ module Tokra
     #   - #open(window, proxy, label, attributes) - build the webview
     #     new_with_protocol builds into an empty one, loading the url, with
     #     the initialization scripts, each [script, for_main_frame_only],
-    #     and the webview rows attributes holds (plan 052, decision e1-2)
+    #     and the webview rows attributes holds (plan 052, decision e1-2);
+    #     its data_directory names the web context it is built with (052e-3)
     #   - #eval(js_string)
     #   - #close - drop the native webview
     #

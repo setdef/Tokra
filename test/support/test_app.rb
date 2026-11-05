@@ -29,6 +29,16 @@ module TestApp
   # as a Tauri app's src-tauri/ does.
   CONFIG_PARENT = File.expand_path("../fixtures/test_app", __dir__)
 
+  # The data directory a webview built with no #data_directory row is
+  # given in a test app: on Linux and Windows the local data directory
+  # StubNative answers, a temporary one, pushed with IDENTIFIER, as Rust's
+  # PathBuf::push writes it, and none on macOS (manager/webview.rs:505-523).
+  def default_data_directory
+    return nil unless %w[linux windows].include?(Tokra::App.os_name)
+
+    "#{StubNative.data_local_dir}#{File::ALT_SEPARATOR || '/'}#{IDENTIFIER}"
+  end
+
   # Builds an app from +builder+ and a context #build_test_context builds,
   # standing +native+ in for the Rust binding.
   def build_test_app(builder = Tokra::Builder.default, native: StubNative, title: nil, width: nil, height: nil,

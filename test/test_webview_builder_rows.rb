@@ -42,6 +42,8 @@ class TestWebviewBuilderRows < Minitest::Test
     javascript_disabled: false,
     scroll_bar_style: "Default",
     allow_link_preview: true,
+    data_directory: TestApp.default_data_directory,
+    use_https_scheme: false,
   }.freeze
 
   def page = Tokra::WebviewUrl::App.new("index.html")
@@ -216,7 +218,9 @@ class TestWebviewBuilderRows < Minitest::Test
 
     assert_equal "pane", builder.label
     assert_same url, builder.url
-    assert_equal WEBVIEW_DEFAULTS.merge(user_agent: "Pane/1"), builder.native_attributes
+    # A bare builder has no data directory, as Tauri's WebviewAttributes::new
+    # holds none; the manager fills it in only when the webview is built.
+    assert_equal WEBVIEW_DEFAULTS.merge(user_agent: "Pane/1", data_directory: nil), builder.native_attributes
     assert_equal [["pane()", true]], builder.initialization_scripts
     assert_raises(TypeError) { Tokra::WebviewBuilder.new(:pane, url) }
   end

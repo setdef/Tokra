@@ -305,6 +305,14 @@ module Tokra
       @tray_natives ||= Tray::Natives.from(@native)
     end
 
+    # The user's local data directory, as the native module this
+    # context's app runs on answers it: the dirs crate's
+    # <tt>data_local_dir</tt> through Native, or a test's stand-in's.
+    def data_local_dir # :nodoc:
+      native = @native #: singleton(Native)
+      native.data_local_dir
+    end
+
     # SPDX-SnippetBegin
     # SPDX-License-Identifier: Apache-2.0 OR MIT
     # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy

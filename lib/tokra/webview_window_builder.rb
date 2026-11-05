@@ -123,12 +123,13 @@ module Tokra
     # makes the window as it makes any other.
     #
     # A few keys wait for their rows, and are read but not acted on:
-    # <tt>zoomHotkeysEnabled</tt>, <tt>useHttpsScheme</tt>,
-    # <tt>dataDirectory</tt>, <tt>devtools</tt>, and on macOS
+    # <tt>zoomHotkeysEnabled</tt>, <tt>devtools</tt>, and on macOS
     # <tt>transparent</tt> (plan 054's inventory). As in Tauri,
-    # <tt>dataStoreIdentifier</tt> is read and not applied: Tauri's
-    # from_config leaves it out (tauri-runtime webview.rs:421-478), so
-    # set it with #data_store_identifier.
+    # <tt>dataStoreIdentifier</tt> and <tt>dataDirectory</tt> are read and
+    # not applied: Tauri's from_config resolves <tt>dataDirectory</tt> and
+    # then leaves both out (webview/mod.rs:393-426; tauri-runtime
+    # webview.rs:421-478), so set them with #data_store_identifier and
+    # #data_directory.
     #
     # Mirrors Tauri's WebviewWindowBuilder::from_config
     # (webview_window.rs:154-159), WindowBuilder::from_config
@@ -749,6 +750,45 @@ module Tokra
       webview_row { |rows| rows.additional_browser_args(additional_args) }
     end
 
+    # Keeps the webview's data, its cookies, local storage, IndexedDB, and
+    # cache, in the directory +path+, a String or a Pathname, and returns
+    # the builder. #build makes the directory if it is missing, and raises
+    # Error::Io with the system's reason if it cannot.
+    #
+    # Webviews that name one directory share its storage: the app keeps
+    # one web context per directory, shared by every webview built with
+    # it. Without this row, on Linux and Windows the webview keeps its data
+    # in the app's own directory, <tt>~/.local/share/<identifier></tt> or
+    # <tt>%LOCALAPPDATA%\<identifier></tt>, named by the config's
+    # <tt>identifier</tt>. macOS ignores the directory, as WebKit keeps
+    # every webview's data in one store there; #data_store_identifier
+    # gives a webview a store of its own on macOS 14 and newer. An
+    # #incognito webview keeps nothing on disk, whatever its directory.
+    #
+    # On Linux a directory's web context holds the app's protocols, and
+    # only the first webview built with it registers them there. An
+    # #incognito webview is built with a context of its own, so, as in
+    # Tauri, an incognito webview built after another webview of its
+    # directory has none of the app's protocols, and when the incognito
+    # one comes first, the webviews after it have none. Without this row
+    # every webview shares the default directory with the app's first
+    # window, so give an incognito webview a directory of its own there.
+    # On Windows webviews that share a directory share one browser
+    # process, which takes the #additional_browser_args of the first
+    # webview made in it.
+    #
+    # Mirrors Tauri's WebviewWindowBuilder::data_directory
+    # (webview_window.rs:1022-1025), with its runtime's web-context store
+    # (tauri-runtime-wry lib.rs:2416-2461, 4589-4625, 4964-4981) and the
+    # default directory of prepare_webview (manager/webview.rs:505-523).
+    #
+    # === Example
+    #
+    #   builder.data_directory(Pathname(Dir.home).join(".notes", "profile-2"))
+    def data_directory(path)
+      webview_row { |rows| rows.data_directory(path) }
+    end
+
     # Hands files dragged onto the page to the page, as a browser does,
     # and returns the builder.
     #
@@ -788,6 +828,8 @@ module Tokra
     # On macOS the webview gets a data store of its own that lives only
     # in memory. On Windows it needs the WebView2 Runtime 101.0.1210.39 or
     # newer, and does nothing on an older one.
+    # On Linux it can lose the app's protocols to a webview sharing its
+    # data directory; #data_directory says when.
     #
     # Mirrors Tauri's WebviewWindowBuilder::incognito (webview_window.rs:1050-1053;
     # tauri-runtime-wry lib.rs:4629).
@@ -885,6 +927,29 @@ module Tokra
       webview_row { |rows| rows.data_store_identifier(data_store_identifier) }
     end
 
+    # Serves the app's pages from <tt>https://tokra.localhost/</tt>, rather
+    # than <tt>http://tokra.localhost/</tt>, on Windows when +enabled+, and
+    # returns the builder. The page's custom protocols, the app's own
+    # included, take the same scheme. Other platforms serve them from
+    # <tt>tokra://localhost/</tt> and ignore the row.
+    #
+    # An https page cannot fetch http endpoints, as mixed content, so it
+    # does not behave as the <tt>tokra://</tt> pages of macOS and Linux do.
+    # Changing the row between releases changes the page's origin, and so
+    # where its IndexedDB, cookies, and local storage live: the app no
+    # longer finds the data it kept before.
+    #
+    # Mirrors Tauri's WebviewWindowBuilder::use_https_scheme
+    # (webview_window.rs:1150-1153; tauri-runtime-wry lib.rs:4642-4645;
+    # manager/webview.rs:385, 416).
+    #
+    # === Example
+    #
+    #   builder.use_https_scheme(true)
+    def use_https_scheme(enabled)
+      webview_row { |rows| rows.use_https_scheme(enabled) }
+    end
+
     # Chooses how the page runs while nobody can see it, with +policy+, a
     # BackgroundThrottlingPolicy, and returns the builder.
     #
@@ -976,6 +1041,8 @@ module Tokra
     # A WebviewUrl::App path the url crate cannot join to the app URL, one
     # naming another host such as <tt>//exa mple</tt>, raises
     # Error::InvalidUrl with the crate's reason, before anything is built.
+    # So does a data directory that cannot be made, with Error::Io and the
+    # system's reason (#data_directory).
     # *Deviation*: Tauri unwraps that error, so its app panics
     # (manager/webview.rs:423-427); a panic would end Ruby's VM.
     #
@@ -988,7 +1055,8 @@ module Tokra
     # WindowBuilder#with_webview and build_internal (window/mod.rs:328-427),
     # and the checks of PendingWebview::new, prepare_webview,
     # PendingWindow::new, and prepare_window (tauri-runtime window.rs:494-522,
-    # webview.rs:230-255; manager/webview.rs:401-409; manager/window.rs:61-77).
+    # webview.rs:230-255; manager/webview.rs:401-409, 505-523;
+    # manager/window.rs:61-77).
     #
     # === Example
     #
@@ -1001,11 +1069,17 @@ module Tokra
       check_label
       raise Error::WebviewLabelAlreadyExists, @label if handle.webviews.key?(@label)
 
-      url = webviews.webview_url(@webview_builder.url)
+      https = @webview_builder.https_scheme?
+      url = webviews.webview_url(@webview_builder.url, https:)
       # Tauri's own scripts, each for the main frame, and then the
       # builder's (manager/webview.rs:152-218).
-      scripts = webviews.initialization_scripts(@label, @label).map { |script| [script, true] } #: Array[[String, bool]]
+      scripts = webviews.initialization_scripts(@label, @label, https:).map { |script| [script, true] } #: Array[[String, bool]]
       scripts.concat(@webview_builder.initialization_scripts)
+      # prepare_webview makes the data directory before prepare_window
+      # checks the window's label (webview/mod.rs:779-782; window/mod.rs:333, 361).
+      webview_attributes = @webview_builder.native_attributes
+      directory = webview_attributes[:data_directory]
+      webview_attributes[:data_directory] = webviews.data_directory(directory.is_a?(String) ? directory : nil)
       raise Error::WindowLabelAlreadyExists, @label if handle.windows.key?(@label)
 
       # A window without an icon takes the app's default (manager/window.rs:70-74).
@@ -1013,7 +1087,7 @@ module Tokra
       @window_builder.icon(default_icon) if default_icon && !@window_builder.has_icon?
       menu = @window_builder.window_menu(handle)
       native_window, native_webview = handle.runtime_context.create_window(@label,
-        window_attributes: @window_builder.native_attributes, webview_attributes: @webview_builder.native_attributes,
+        window_attributes: @window_builder.native_attributes, webview_attributes:,
         url:, initialization_scripts: scripts, menu: menu&.menu)
       window = WindowManager.attach_window(Window.new(label: @label, native: native_window, app_handle: handle, menu:))
       webview = webviews.attach_webview(Webview.new(label: @label, native: native_webview, window:, app_handle: handle))

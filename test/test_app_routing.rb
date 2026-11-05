@@ -68,6 +68,8 @@ class TestAppRouting < Minitest::Test
   module ThemedNative
     StubNative.constants.each { |name| const_set(name, StubNative.const_get(name)) unless name == :WebView }
 
+    def self.data_local_dir = StubNative.data_local_dir
+
     class WebView < StubNative::WebView
       def set_theme(name)
         Thread.current[:routing] << [:set_theme, label, name]

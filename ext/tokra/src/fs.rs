@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! File reading bindings.
+//! File reading and directory making bindings.
 //!
 //! Thin wrapper around `std::fs::read`, the call Tauri's `Image::from_path`
 //! makes (`tauri/crates/tauri/src/image/mod.rs:97`). Tauri sends a failed
@@ -152,6 +152,28 @@ fn fs_read(ruby: &Ruby, path: RString) -> Result<RString, Error> {
     Ok(ruby.str_from_slice(&bytes))
 }
 
+/// Makes the directory `path` and every parent it lacks, as
+/// `std::fs::create_dir_all` does, the call Tauri makes for a webview's
+/// data directory (`tauri/crates/tauri/src/manager/webview.rs:519-523`).
+///
+/// It runs with the GVL held: making a directory is one or a few calls to
+/// the file system, not a read of unknown length, and the caller is about
+/// to build a webview, which holds it too.
+///
+/// # Errors
+///
+/// Returns `RuntimeError` holding the `std::io::Error`'s Display when a
+/// directory cannot be made, such as <tt>Not a directory (os error
+/// 20)</tt>, with Windows' own error code there. On Windows, a path that is
+/// not valid in UTF-8 raises magnus's encoding error first.
+fn fs_create_dir_all(path: RString) -> Result<(), Error> {
+    #[cfg(unix)]
+    let path = path_buf(path);
+    #[cfg(not(unix))]
+    let path = path_buf(path)?;
+    std::fs::create_dir_all(path).map_err(|e| Error::new(crate::runtime_error(), e.to_string()))
+}
+
 /// The path's bytes as they are, NUL bytes included, so std reports them.
 ///
 /// magnus's own `PathBuf` conversion goes through `rb_get_path`, which
@@ -176,6 +198,7 @@ fn path_buf(path: RString) -> Result<PathBuf, Error> {
 /// Returns an error if function definition fails.
 pub fn define_functions(_ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
     native.define_singleton_method("fs_read", function!(fs_read, 1))?;
+    native.define_singleton_method("fs_create_dir_all", function!(fs_create_dir_all, 1))?;
     Ok(())
 }
 

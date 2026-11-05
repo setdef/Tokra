@@ -51,6 +51,7 @@ module Tokra
     def initialization_script_for_all_frames: (String script) -> self
     def user_agent: (String user_agent) -> self
     def additional_browser_args: (String additional_args) -> self
+    def data_directory: (String | _ToPath path) -> self
     def disable_drag_drop_handler: () -> self
     def enable_clipboard_access: () -> self
     def incognito: (bool incognito) -> self
@@ -58,6 +59,7 @@ module Tokra
     def browser_extensions_enabled: (bool enabled) -> self
     def extensions_path: (String | _ToPath path) -> self
     def data_store_identifier: (Array[Integer] data_store_identifier) -> self
+    def use_https_scheme: (bool enabled) -> self
     def background_throttling: (BackgroundThrottlingPolicy policy) -> self
     def disable_javascript: () -> self
     def scroll_bar_style: (ScrollBarStyle style) -> self

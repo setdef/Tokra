@@ -22,24 +22,44 @@ module Tokra
     WEBVIEW_CREATED_EVENT = "tauri://webview-created"
 
     # The URL Tokra serves its own pages from: tokra://localhost on macOS
-    # and Linux, http://tokra.localhost on Windows, where WebView2 serves
-    # custom protocols over http (wry webview2 custom_protocol_workaround).
-    # Mirrors tauri_protocol_url (manager/mod.rs:331-338), a
-    # Ferro::Url::Url as Tauri's is the url crate's Url; Tokra does not
-    # enable wry's https scheme.
-    def self.tokra_protocol_url(os)
-      Ferro::Url::Url.parse((os == "windows") ? "http://tokra.localhost" : "tokra://localhost")
+    # and Linux, and on Windows, where WebView2 serves custom protocols
+    # over http or, for a webview built with +https+, over https (wry
+    # webview2 custom_protocol_workaround), http://tokra.localhost or
+    # https://tokra.localhost. Mirrors tauri_protocol_url
+    # (manager/mod.rs:331-338), a Ferro::Url::Url as Tauri's is the url
+    # crate's Url.
+    def self.tokra_protocol_url(os, https: false)
+      return Ferro::Url::Url.parse("tokra://localhost") unless os == "windows"
+
+      Ferro::Url::Url.parse(https ? "https://tokra.localhost" : "http://tokra.localhost")
+    end
+
+    # +path+ pushed onto +base+, as Rust's <tt>PathBuf::push</tt> pushes a
+    # path: an absolute +path+ stands alone, and otherwise the platform's
+    # separator joins them, unless +base+ ends with one. Windows' paths
+    # with a drive or a root but not both, such as <tt>C:a</tt>, which
+    # Rust treats apart and no identifier is, join as relative ones.
+    def self.push(base, path)
+      return path if File.absolute_path?(path)
+
+      separator = File::ALT_SEPARATOR || File::SEPARATOR
+      base.end_with?(File::SEPARATOR, separator) ? "#{base}#{path}" : "#{base}#{separator}#{path}"
     end
 
     # A manager for the webviews of the app +manager+, an AppManager, on
     # the platform +os_name+ names, as App#os_name gives it.
-    def initialize(manager, os_name:)
+    # +data_local_dir+ answers the user's local data directory, a String,
+    # or +nil+ when the platform names none, as the dirs crate's
+    # <tt>data_local_dir</tt> does (Native.data_local_dir).
+    def initialize(manager, os_name:, data_local_dir: -> { Native.data_local_dir })
       @manager = manager
       @os_name = os_name
+      @data_local_dir = data_local_dir
     end
 
     # The address +url+, a WebviewUrl, names, as prepare_webview resolves
-    # it (manager/webview.rs:414-446). An App path joins the app URL,
+    # it (manager/webview.rs:414-446), for a webview built with +https+ or
+    # not (WebviewBuilder#use_https_scheme). An App path joins the app URL,
     # except <tt>index.html</tt>, which is the app URL itself; the others
     # load as given, a <tt>data:</tt> URL included (plan 052, decision 11).
     #
@@ -55,10 +75,10 @@ module Tokra
     # error to the same Error::InvalidUrl and then unwraps it ("this will
     # never fail"), so its app panics (manager/webview.rs:423-427;
     # *deviation*, tier 1: a panic ends Ruby's VM).
-    def webview_url(url)
+    def webview_url(url, https: false)
       case url
       when WebviewUrl::App
-        app_url = WebviewManager.tokra_protocol_url(@os_name).join("/")
+        app_url = WebviewManager.tokra_protocol_url(@os_name, https:).join("/")
         path = url.path.to_s
         return app_url.as_str if path == "index.html"
 
@@ -70,6 +90,36 @@ module Tokra
       when WebviewUrl::External, WebviewUrl::CustomProtocol then url.url.as_str
       else raise TypeError, "wrong argument type #{url.class} (expected a Tokra::WebviewUrl)"
       end
+    end
+
+    # The data directory a webview is built with, given +data_directory+,
+    # the one its builder named or +nil+, as prepare_webview settles it
+    # (manager/webview.rs:505-523). On Linux and Windows a webview with
+    # none keeps its data in the app's local data directory, the user's
+    # local data directory pushed with the config's identifier, or in
+    # none when the platform names no local data directory. Whatever the
+    # platform, a directory that does not exist is made, with every
+    # parent it lacks.
+    #
+    # Raises Error::Io with the system's reason, in Rust's words, when the
+    # directory cannot be made, as Tauri's create_dir_all error is
+    # Error::Io (error.rs:53-54).
+    def data_directory(data_directory)
+      if data_directory.nil? && (@os_name == "linux" || @os_name == "windows")
+        local = @data_local_dir.call
+        data_directory = WebviewManager.push(local, @manager.config.identifier) if local
+      end
+      create_dir_all(data_directory) if data_directory && !File.exist?(data_directory)
+      data_directory
+    end
+
+    # Makes +directory+ and its missing parents with Rust's
+    # <tt>std::fs::create_dir_all</tt>, whose error text, Windows' codes
+    # included, Error::Io carries.
+    private def create_dir_all(directory)
+      Native.fs_create_dir_all(directory)
+    rescue RuntimeError => e
+      raise Error::Io, e.message
     end
 
     # Joins +webview+ to the app, as attach_webview does
@@ -106,12 +156,12 @@ module Tokra
     # (tauri-codegen context.rs:430-440). Tauri's list also carries plugin
     # global API scripts, which its build scripts collect at compile time;
     # no Tokra plugin ships one yet (Plan 016; plan 054, decision 20).
-    def initialization_scripts(window_label, webview_label)
+    def initialization_scripts(window_label, webview_label, https: false)
       scripts = [
         bootstrap_script,
         invoke_initialization_script,
         metadata_script(window_label, webview_label),
-        init_script,
+        init_script(https),
       ]
       scripts.concat(@manager.plugins.initialization_script)
       scripts << global_api_script if @manager.config.app.with_global_tauri
@@ -169,9 +219,11 @@ module Tokra
 
     # The init.js bundle (manager/webview.rs initialization_script):
     # pattern, the __TAURI_INTERNALS__.ipc router, core.js, and the
-    # event-delivery script. freeze_prototype is config-gated off in
-    # Tauri's default and omitted here.
-    private def init_script
+    # event-delivery script. core.js builds custom protocol URLs with the
+    # scheme +https+ names, as Tauri's protocol_scheme (manager/webview.rs:385).
+    # freeze_prototype is config-gated off in Tauri's default and omitted
+    # here.
+    private def init_script(https)
       render_js_template("init.js.erb",
         freeze_prototype: "",
         pattern_script: render_js_template("pattern.js.erb",
@@ -180,7 +232,7 @@ module Tokra
           isolation_origin: JSON.generate("")),
         core_script: render_js_template("core.js.erb",
           os_name: JSON.generate(@os_name),
-          protocol_scheme: JSON.generate("http")),
+          protocol_scheme: JSON.generate(https ? "https" : "http")),
         event_initialization_script: Event.event_initialization_script(
           @manager.listeners.function_name, @manager.listeners.listeners_object_name
         ))

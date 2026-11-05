@@ -16,6 +16,7 @@
 //! - [`window`] - Window wrapper (`Tokra::Native::Window`)
 //! - [`window_labels`] - Each window's label, by tao's window id
 //! - [`webview`] - `WebView` wrapper with custom protocol (`Tokra::Native::WebView`)
+//! - [`web_context`] - Each data directory's wry `WebContext`, shared by its webviews
 //! - [`proxy`] - Ractor-safe proxy for cross-thread communication (`Tokra::Native::Proxy`)
 //! - [`responders`] - Async protocol responder storage
 //! - [`image`] - PNG/ICO decoding (`Tokra::Native.image_from_bytes`)
@@ -85,6 +86,7 @@ mod tray;
 mod undecorated_resizing;
 mod user_event;
 mod vibrancy;
+mod web_context;
 mod webview;
 mod webview_focus;
 mod window;

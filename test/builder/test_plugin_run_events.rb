@@ -83,6 +83,7 @@ class TestBuilderPluginRunEvents < Minitest::Test
   # LoopDestroyedEvent, not from App#run returning (tao's run never does).
   module SilentNative
     EventLoop = Class.new(StubNative::EventLoop) { def run(_callback) = nil }
+    def self.data_local_dir = StubNative.data_local_dir
     Window = StubNative::Window
     WebView = StubNative::WebView
     # The real menu classes, as every native stand-in carries them (plan 042).

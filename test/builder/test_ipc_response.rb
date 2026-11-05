@@ -245,7 +245,7 @@ class TestBuilderIpcResponse < Minitest::Test
   # one's (plan 055, decision 7).
   def test_a_host_in_another_case_is_local_only_where_the_url_crate_lowercases_it
     app = build_test_app
-    protocol = app.__send__(:tokra_protocol_url)
+    protocol = Tokra::WebviewManager.tokra_protocol_url(app.__send__(:os_name))
     inject_ipc(app, { "cmd" => "missing", "callback" => 1, "error" => 2 },
       "#{protocol.scheme}://#{protocol.domain.to_s.upcase}/")
 
@@ -261,7 +261,7 @@ class TestBuilderIpcResponse < Minitest::Test
   # (webview/mod.rs:1683-1686).
   def test_the_apps_domain_under_another_scheme_is_foreign
     app = build_test_app
-    domain = app.__send__(:tokra_protocol_url).domain
+    domain = Tokra::WebviewManager.tokra_protocol_url(app.__send__(:os_name)).domain
     inject_ipc(app, { "cmd" => "ping", "callback" => 1, "error" => 2 }, "doom://#{domain}/")
 
     app.run
