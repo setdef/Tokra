@@ -24,7 +24,7 @@ module Tokra
     #
     # This is called internally by App and should not be called directly.
     def initialize(manager, state_manager: nil, runtime_context: RuntimeContext.new, menu_event_listeners: [], # :nodoc:
-      tray_icon_event_listeners: [], window_event_listeners: [], os_name: App.os_name
+      tray_icon_event_listeners: [], tray_icon: nil, window_event_listeners: [], os_name: App.os_name
     )
       @manager = manager
       @window_event_listeners = window_event_listeners
@@ -36,7 +36,7 @@ module Tokra
       @loop_theme = nil
       @loop_theme_mutex = Thread::Mutex.new
       @menu_manager = MenuManager.new(runtime_context, menu_event_listeners)
-      @tray_manager = TrayManager.new(tray_icon_event_listeners)
+      @tray_manager = TrayManager.new(tray_icon_event_listeners, icon: tray_icon)
     end
 
     # The app's menus and their listeners, which Tauri's AppManager holds

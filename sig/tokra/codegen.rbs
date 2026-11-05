@@ -22,6 +22,8 @@ module Tokra
     def self.context_codegen: (ContextData data) -> Context
     def self.default_window_icon: (Utils::Config::Config config, String config_parent, Utils::Platform::Target target) -> Image
     def self.app_icon: (Utils::Config::Config config, String config_parent, Utils::Platform::Target target, bool dev) -> String?
+    def self.tray_icon: (Utils::Config::Config config, String config_parent) -> Image?
+    private def self.join: (String config_parent, String icon_path) -> String
     private def self.find_icon: (Utils::Config::Config config, String config_parent, String default) { (String) -> bool } -> String
   end
 end

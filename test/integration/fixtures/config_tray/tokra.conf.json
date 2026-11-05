@@ -1,0 +1,13 @@
+{
+  "identifier": "com.tokra.integration.config-tray",
+  "productName": "Tokra integration config tray",
+  "app": {
+    "windows": [],
+    "trayIcon": {
+      "iconPath": "icons/icon.png",
+      "title": "Config Title",
+      "tooltip": "Config Tip",
+      "showMenuOnLeftClick": false
+    }
+  }
+}

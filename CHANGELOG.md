@@ -493,6 +493,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `Tokra::Codegen::EmbeddedAssetsError::InvalidImageExtension`
 - Dependency: ico 0.5.0 and png 0.17.16, the versions Tauri's codegen
   decodes icons with
+- The config's tray: `Tokra.generate_context` decodes `app.trayIcon`'s
+  `iconPath`, beside the config, into `Context#tray_icon`, which
+  `#set_tray_icon` replaces, and the app builds the tray, `main` unless the
+  config names its id, after the app menu and before the setup hook; its
+  events reach `on_tray_icon_event` listeners, plugins, and the run
+  callback, and `tray_by_id` and the page's `TrayIcon.getById` find it
 
 ### Changed
 

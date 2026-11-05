@@ -12,12 +12,14 @@ module Tokra
       def self.new: (id: Tray::TrayIconId, rid: Integer) -> Entry
     end
 
+    @icon: Image?
     @mutex: Thread::Mutex
     @icons: Array[Entry]
     @global_event_listeners: Array[app_listener]
     @event_listeners: Hash[Tray::TrayIconId, Tray::TrayIcon::listener]
 
-    def initialize: (?Array[app_listener] global_event_listeners) -> void
+    def initialize: (?Array[app_listener] global_event_listeners, ?icon: Image?) -> void
+    attr_reader icon: Image?
     def on_tray_icon_event: (app_listener handler) -> nil
     def set_tray_listener: (Tray::TrayIconId id, Tray::TrayIcon::listener handler) -> nil
     def insert: (Tray::TrayIconId id, Integer rid) -> nil

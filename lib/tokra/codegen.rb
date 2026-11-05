@@ -120,8 +120,8 @@ module Tokra
     private_class_method :config_from
 
     # Builds the Context +data+, a ContextData, describes: its config,
-    # its default window icon, its app icon, its package information, and
-    # its pattern.
+    # its default window icon, its app icon, its tray icon, its package
+    # information, and its pattern.
     #
     # The default window icon is the first <tt>.png</tt> the config's
     # <tt>bundle.icon</tt> lists, else <tt>icons/icon.png</tt>, beside the
@@ -129,7 +129,10 @@ module Tokra
     # else <tt>icons/icon.ico</tt>, when that file exists. So a config
     # directory without the icon fails here, as a Tauri app without one
     # fails to compile. The app icon, set on macOS's Dock in development,
-    # is the first <tt>.icns</tt> or <tt>.png</tt> as it is.
+    # is the first <tt>.icns</tt> or <tt>.png</tt> as it is. The tray
+    # icon, when the config has an <tt>app.trayIcon</tt>, is its
+    # <tt>iconPath</tt> beside the config, a <tt>.png</tt> or an
+    # <tt>.ico</tt>, decoded by CachedIcon.
     #
     # The package information is the config's <tt>productName</tt> and
     # <tt>version</tt>. What Tauri takes from <tt>Cargo.toml</tt> comes
@@ -140,8 +143,8 @@ module Tokra
     # one is neither PNG nor ICO (CachedIcon).
     #
     # Mirrors Tauri's <tt>context_codegen</tt> (tauri-codegen
-    # src/context.rs:135-491), as far as plan 054 has come: the assets, the
-    # tray icon, and the capabilities arrive with their plans.
+    # src/context.rs:135-491), as far as plan 054 has come: the assets and
+    # the capabilities arrive with their plans.
     #
     # === Example
     #
@@ -153,14 +156,27 @@ module Tokra
       target = Utils::Platform::Target.current
       default_window_icon = default_window_icon(config, data.config_parent, target)
       app_icon = app_icon(config, data.config_parent, target, data.dev)
+      tray_icon = tray_icon(config, data.config_parent)
       script = Tokra.script_name
       package_info = Utils::PackageInfo.new(name: config.product_name || script, version: config.version || "0.0.0",
         authors: "", description: "", crate_name: script)
       # Brownfield, and isolation too until an isolation plan builds it
       # (context.rs:354-359; plan 054, decision 21).
       context = Context.new(config:, default_window_icon:, app_icon:, package_info:, pattern: Pattern::Brownfield.new)
+      context.set_tray_icon(tray_icon) if tray_icon
       context.dev = data.dev
       context
+    end
+
+    # The icon of the config's <tt>app.trayIcon</tt>, decoded by CachedIcon
+    # from its <tt>iconPath</tt> joined to the config's directory, or +nil+
+    # when the config has no tray (context.rs:291-300). Every Tokra target
+    # is a desktop one, so the target check Tauri makes always passes.
+    def self.tray_icon(config, config_parent) # :nodoc:
+      tray = config.app.tray_icon
+      return nil unless tray
+
+      CachedIcon.new(join(config_parent, tray.icon_path.to_s)).value #: Image
     end
 
     # The default window icon for +target+, a Tokra::Image decoded from
@@ -198,7 +214,14 @@ module Tokra
     # parent's drive or share. On Unix a <tt>\\</tt> is no separator, so
     # such an entry joins like any relative one.
     private_class_method def self.find_icon(config, config_parent, default, &predicate)
-      icon_path = config.bundle.icon.find(&predicate) || default
+      join(config_parent, config.bundle.icon.find(&predicate) || default)
+    end
+
+    # +path+ joined to +config_parent+ as Rust's <tt>Path::join</tt> joins
+    # it: an absolute +path+ stands alone, and the separator is the
+    # platform's, so the path reads in a message as Tauri's does. #find_icon
+    # explains Windows' prefixes and roots.
+    private_class_method def self.join(config_parent, icon_path)
       return icon_path if File.absolute_path?(icon_path)
 
       parent = Utils::Config::Parse.display(config_parent)

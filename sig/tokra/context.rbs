@@ -9,6 +9,7 @@ module Tokra
     @dev: bool
     @default_window_icon: Image?
     @app_icon: String?
+    @tray_icon: Image?
 
     attr_reader config: Utils::Config::Config
     attr_reader package_info: Utils::PackageInfo
@@ -16,10 +17,12 @@ module Tokra
     attr_accessor dev: bool
     attr_reader default_window_icon: Image?
     attr_reader app_icon: String?
+    attr_reader tray_icon: Image?
 
     def initialize: (config: Utils::Config::Config, default_window_icon: Image?, app_icon: String?,
                      package_info: Utils::PackageInfo, pattern: pattern) -> void
     def set_default_window_icon: (Image? icon) -> nil
+    def set_tray_icon: (Image? icon) -> nil
     def config=: (Utils::Config::Config config) -> Utils::Config::Config
     def package_info=: (Utils::PackageInfo package_info) -> Utils::PackageInfo
   end

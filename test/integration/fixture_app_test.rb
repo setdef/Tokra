@@ -29,7 +29,10 @@ class FixtureAppTest < Minitest::Test
     assert_operator CONFIGS.size, :>=, 26, "the fixture configs were not found"
     CONFIGS.each do |path|
       windows = Tokra.generate_context(path).config.app.windows
-      refute_empty windows, path
+      # A fixture that lists no window says so with "windows": [] (the
+      # config tray's opens none, so it runs on Windows without WebView2);
+      # any other empty list means the config lost its windows.
+      refute_empty windows, path unless JSON.parse(File.read(path)).dig("app", "windows") == []
       windows.each do |window|
         assert_same Tokra::BackgroundThrottlingPolicy::Disabled, window.background_throttling, "#{path}: #{window.label}"
       end

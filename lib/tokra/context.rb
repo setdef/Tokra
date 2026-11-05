@@ -29,10 +29,11 @@ module Tokra
   # Ruby has no way to express (ADR 014 §8).
   #
   # Change the icon each window without one of its own takes with
-  # #set_default_window_icon.
+  # #set_default_window_icon, and the icon of the tray the config
+  # describes with #set_tray_icon.
   #
-  # The tray icon, the assets, and the capabilities Tauri's context
-  # carries join with the plans that port them (plan 054's inventory).
+  # The assets and the capabilities Tauri's context carries join with
+  # the plans that port them (plan 054's inventory).
   #
   # Mirrors Tauri's <tt>tauri::Context</tt> (lib.rs:349-527).
   #
@@ -65,6 +66,18 @@ module Tokra
     #
     #   context.default_window_icon.width  #=> 32
     attr_reader :default_window_icon
+
+    # The icon of the tray the config's <tt>app.trayIcon</tt> describes,
+    # a Tokra::Image, or +nil+ for none. Tokra.generate_context decodes it
+    # from the config's <tt>iconPath</tt>, joined to the config's
+    # directory, and App#run gives it to that tray.
+    #
+    # Mirrors Tauri's <tt>Context::tray_icon</tt> (lib.rs:445-451).
+    #
+    # === Example
+    #
+    #   context.tray_icon&.width  #=> 32
+    attr_reader :tray_icon
 
     # The app's icon file as it is, which Tokra sets on macOS's Dock while
     # the app runs in development, or +nil+. Tauri's is internal too
@@ -104,6 +117,7 @@ module Tokra
       end
 
       @app_icon = app_icon
+      @tray_icon = nil
       self.package_info = package_info
       raise TypeError, "wrong argument type #{pattern.class} (expected Tokra::Pattern)" unless pattern.is_a?(Pattern::Brownfield)
 
@@ -128,6 +142,23 @@ module Tokra
       nil
     end
 
+    # Makes +icon+, a Tokra::Image or +nil+, the icon of the tray the
+    # config's <tt>app.trayIcon</tt> describes, which App#run builds. With
+    # +nil+ that tray has no icon. Answers +nil+. Anything else raises
+    # TypeError.
+    #
+    # Mirrors Tauri's <tt>Context::set_tray_icon</tt> (lib.rs:453-459).
+    #
+    # === Example
+    #
+    #   context.set_tray_icon(Tokra::Image.from_path("icons/tray-beta.png"))
+    def set_tray_icon(icon)
+      raise TypeError, "wrong argument type #{icon.class} (expected Tokra::Image)" unless icon.nil? || icon.is_a?(Image)
+
+      @tray_icon = icon
+      nil
+    end
+
     # Replaces the config with +config+, a Tokra::Utils::Config::Config,
     # deep-frozen so any Ractor may read it. Answers +config+.
     #
@@ -147,7 +178,7 @@ module Tokra
     # Replaces the package information with +package_info+, a
     # Tokra::Utils::PackageInfo, deep-frozen. Answers +package_info+.
     #
-    # Mirrors Tauri's <tt>Context::package_info_mut</tt> (lib.rs:456-459).
+    # Mirrors Tauri's <tt>Context::package_info_mut</tt> (lib.rs:466-470).
     #
     # === Example
     #

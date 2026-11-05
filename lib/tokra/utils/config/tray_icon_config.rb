@@ -22,8 +22,10 @@ module Tokra
       # icon there from the start. The config names its image and how it
       # behaves, so the app builds it before your setup code runs.
       #
-      # Tokra reads it now and builds the tray from it in plan 054's third
-      # phase (plan 049, part B).
+      # Tokra.generate_context decodes its icon into Context#tray_icon, and
+      # App#run builds the tray from it, with the id +main+ unless it names
+      # one, after the app menu and before the setup hook (plan 049, part
+      # B).
       #
       # Mirrors Tauri's <tt>TrayIconConfig</tt> (config.rs:2802-2840).
       #

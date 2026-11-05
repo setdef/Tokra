@@ -187,7 +187,7 @@ module Tokra
       @runtime_context = RuntimeContext.new(native:)
       @handle = AppHandle.new(@manager, state_manager: builder.__send__(:state_manager),
         runtime_context: @runtime_context, menu_event_listeners: builder.__send__(:menu_event_listeners),
-        tray_icon_event_listeners: builder.__send__(:tray_icon_event_listeners),
+        tray_icon_event_listeners: builder.__send__(:tray_icon_event_listeners), tray_icon: context.tray_icon,
         window_event_listeners: builder.__send__(:window_event_listeners), os_name:)
       @builder = builder
       # Set by App#set_activation_policy, on macOS (activation_policy.rb).
@@ -223,6 +223,15 @@ module Tokra
     # RunEvent::ExitRequested when the last window has closed or code
     # called AppHandle#exit, and RunEvent::Exit as the loop ends.
     # Registered plugins hear each one first.
+    #
+    # The tray the config's <tt>app.trayIcon</tt> describes is built right
+    # after the app menu, with the id +main+ unless it names one, so the
+    # setup hook finds it with #tray_by_id. Tauri builds it in
+    # Builder::build; Tokra builds trays only once the event loop exists
+    # (plan 043, decision 3), so #tray_by_id answers +nil+ for it before
+    # this method runs. A tray the platform refuses ends this method with
+    # Error::Tray, as Tauri's Builder::build returns the error
+    # (app.rs:2265-2287).
     #
     # Each window the config's <tt>app.windows</tt> lists with +create+
     # set is built through WebviewWindowBuilder.from_config, in order,
@@ -275,6 +284,11 @@ module Tokra
       # The builder's menu, now that tao has made NSApp (plan 042,
       # decision 7), before the setup hook, as Tauri's Builder::build does.
       install_app_menu
+
+      # The config's tray, after the app menu and before the plugins'
+      # setup and the setup hook, where Tauri's Builder::build builds it
+      # (app.rs:2265-2289; plan 049, decision 9). Its error ends run.
+      create_config_tray
 
       # If a Rack app was configured, build the adapter that serves it
       # over tokra:// (ADR 004: Builder aggregates the app, App instantiates
@@ -418,6 +432,40 @@ module Tokra
       config.app.windows.select(&:create).each do |window_config|
         WebviewWindowBuilder.from_config(self, window_config).build
       end
+    end
+
+    # SPDX-SnippetEnd
+
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: the config's tray adapted from tauri/crates/tauri/src/app.rs:2265-2287
+
+    # Builds the tray the config's <tt>app.trayIcon</tt> describes, with
+    # the id +main+ unless it names one and the Context's tray icon, as
+    # Tauri's Builder::build does. The tray gets no menu and no listener
+    # of its own: its events reach the app's on_tray_icon_event
+    # listeners, plugins, and the run callback.
+    #
+    # Both left-click flags set tray-icon's one, the deprecated
+    # <tt>menuOnLeftClick</tt> first, so <tt>showMenuOnLeftClick</tt>
+    # always wins (plan 049, decision 10).
+    private def create_config_tray
+      tray_config = config.app.tray_icon
+      return unless tray_config
+
+      tray = Tray::TrayIconBuilder.with_id(tray_config.id || "main")
+        .icon_as_template(tray_config.icon_as_template)
+        .menu_on_left_click(tray_config.menu_on_left_click)
+        .show_menu_on_left_click(tray_config.show_menu_on_left_click)
+      icon = @handle.tray_manager.icon
+      tray = tray.icon(icon) if icon
+      title = tray_config.title
+      tray = tray.title(title) if title
+      tooltip = tray_config.tooltip
+      tray = tray.tooltip(tooltip) if tooltip
+      tray.build(@handle)
+      nil
     end
 
     # SPDX-SnippetEnd

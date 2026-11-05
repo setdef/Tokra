@@ -22,12 +22,20 @@ module Tokra
     # resources table.
     Entry = Data.define(:id, :rid)
 
-    def initialize(global_event_listeners = [])
+    # The manager of trays whose app-wide listeners are
+    # +global_event_listeners+, and whose config tray takes +icon+, the
+    # Context's tray icon (manager/mod.rs:293-298).
+    def initialize(global_event_listeners = [], icon: nil)
+      @icon = icon
       @mutex = Thread::Mutex.new
       @icons = [] #: Array[Entry]
       @global_event_listeners = global_event_listeners.dup
       @event_listeners = {} #: Hash[Tray::TrayIconId, ^(Tray::TrayIcon, Tray::TrayIconEvent::event) -> void]
     end
+
+    # The icon of the tray the config's <tt>app.trayIcon</tt> describes, a
+    # Tokra::Image, or +nil+ (manager/tray.rs:18-19).
+    attr_reader :icon
 
     # Adds +handler+ to the listeners of every tray's events
     # (manager/tray.rs:37-46).

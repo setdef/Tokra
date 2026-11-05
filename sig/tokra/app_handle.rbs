@@ -23,7 +23,7 @@ module Tokra
 
     def initialize: (AppManager manager, ?state_manager: StateManager?, ?runtime_context: RuntimeContext,
                      ?menu_event_listeners: Array[MenuManager::app_listener],
-                     ?tray_icon_event_listeners: Array[TrayManager::app_listener],
+                     ?tray_icon_event_listeners: Array[TrayManager::app_listener], ?tray_icon: Image?,
                      ?window_event_listeners: Array[^(Window, window_event) -> void],
                      ?os_name: String) -> void
     attr_reader window_event_listeners: Array[^(Window, window_event) -> void]
