@@ -13,27 +13,33 @@ module Tokra
       # SPDX-License-Identifier: Apache-2.0 OR MIT
       # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
       # SPDX-SnippetComment: adapted from tauri-utils src/config/parse.rs at
-      #   vendor/tauri 9f0306fbc, without the config-json5 and config-toml
-      #   features, with the brand renamed (ADR 014 §3)
+      #   vendor/tauri 9f0306fbc, with the config-json5 feature and without
+      #   config-toml, with the brand renamed (ADR 014 §3)
       #++
 
       # Reads config files from disk into JSON values.
       #
       # An app's config is a main file with an optional file per platform
       # beside it: <tt>tokra.conf.json</tt>, and <tt>tokra.macos.conf.json</tt>
-      # read over it on macOS. Reading them takes several steps: finding
-      # the file, reading it as UTF-8, parsing its JSON, and merging the
-      # platform's file over it. Each step fails in its own words.
+      # read over it on macOS, each of which may be written as JSON5
+      # instead, <tt>tokra.conf.json5</tt>. Reading them takes several
+      # steps: finding the file, reading it as UTF-8, parsing it, and
+      # merging the platform's file over it. Each step fails in its own
+      # words.
       #
       # This module takes those steps as Tauri's <tt>config::parse</tt>
       # takes them, with its errors, ConfigError. Tokra.generate_context
       # calls it; call it yourself to read a config without building a
       # context.
       #
-      # JSON is the only format so far: a lone <tt>tokra.conf.json5</tt>
-      # or <tt>Tokra.toml</tt> raises ConfigError::DisabledFormat, as Tauri
-      # without its <tt>config-json5</tt> and <tt>config-toml</tt> features
-      # does. Plan 054's second phase reads both.
+      # Tokra reads JSON and JSON5, as Tauri does with its
+      # <tt>config-json5</tt> feature, which ADR 014 §7 builds in. A
+      # <tt>tokra.conf.json</tt> is read as JSON5 first, so one with
+      # comments or trailing commas reads too, and serde_json's error is
+      # the one reported when neither reads it (parse.rs:288-300). TOML
+      # waits on plan 054's question 2: a lone <tt>Tokra.toml</tt> raises
+      # ConfigError::DisabledFormat, as Tauri without its
+      # <tt>config-toml</tt> feature does.
       #
       # Mirrors Tauri's <tt>tauri_utils::config::parse</tt>
       # (tauri-utils src/config/parse.rs).
@@ -105,12 +111,13 @@ module Tokra
         # Every format a config file may have, enabled or not.
         SUPPORTED_FORMATS = [ConfigFormat::Json, ConfigFormat::Json5, ConfigFormat::Toml].freeze
 
-        # The formats Tokra reads.
-        ENABLED_FORMATS = [ConfigFormat::Json].freeze
+        # The formats Tokra reads: JSON, and JSON5 (ADR 014 §7). TOML
+        # waits on plan 054's question 2.
+        ENABLED_FORMATS = [ConfigFormat::Json, ConfigFormat::Json5].freeze
 
         # Raised when a config file cannot be read.
         #
-        # Reading a config fails in one of four ways, and each names the
+        # Reading a config fails in one of five ways, and each names the
         # file and the reason in Tauri's words. Rescue ConfigError for any
         # of them, or a subclass for one.
         #
@@ -126,11 +133,15 @@ module Tokra
         #     warn e.message  # unable to read Tokra config file at /app/tokra.conf.json because entity not found
         #   end
         class ConfigError < Tokra::Error
-          # The file is not valid JSON.
+          # The file is valid neither as JSON5 nor as JSON.
+          #
+          # A <tt>tokra.conf.json</tt> is read as JSON5 first, and only when
+          # that fails as JSON, so this error carries serde_json's words
+          # and position, not json5's.
           #
           # === Example
           #
-          #   e.message  #=> "unable to parse JSON Tokra config file at /app/tokra.conf.json because trailing comma at line 3 column 1"
+          #   e.message  #=> "unable to parse JSON Tokra config file at /app/tokra.conf.json because expected value at line 4 column 1"
           class FormatJson < ConfigError
             # The file's path.
             attr_reader :path
@@ -145,6 +156,34 @@ module Tokra
               @path = path
               @error = error
               super("unable to parse JSON Tokra config file at #{Parse.display(path)} because #{error.message}")
+            end
+          end
+
+          # The file is not valid JSON5.
+          #
+          # A <tt>tokra.conf.json5</tt> that json5 rejects raises this,
+          # with json5's words: pest's report of a syntax error, which
+          # spans lines, or the deserializer's reason, such as
+          # <tt>error parsing hex</tt>. A <tt>tokra.conf.json</tt> that
+          # json5 rejects raises FormatJson instead, with serde_json's.
+          #
+          # === Example
+          #
+          #   e.message
+          #   #=> "unable to parse JSON5 Tokra config file at /app/tokra.conf.json5 because error parsing hex"
+          class FormatJson5 < ConfigError
+            # The file's path.
+            attr_reader :path
+
+            # The parse error, a Tokra::Json5::Error.
+            attr_reader :error
+
+            # [path] the file's path.
+            # [error] the Tokra::Json5::Error.
+            def initialize(path, error)
+              @path = path
+              @error = error
+              super("unable to parse JSON5 Tokra config file at #{Parse.display(path)} because #{error.message}")
             end
           end
 
@@ -164,15 +203,15 @@ module Tokra
             end
           end
 
-          # The file is in a format Tokra does not read yet.
+          # The file is in a format Tokra does not read yet: TOML, until
+          # plan 054's question 2 is answered.
           #
           # The message names Tauri's Cargo feature for the format, as
-          # Tauri's does; plan 054's second phase reads both formats, and
-          # this error goes.
+          # Tauri's does.
           #
           # === Example
           #
-          #   e.message  #=> "supported (but disabled) format encountered .json5 - try enabling `config-json5` "
+          #   e.message  #=> "supported (but disabled) format encountered .toml - try enabling `config-toml` "
           class DisabledFormat < ConfigError
             # The extension, with its dot.
             attr_reader :extension
@@ -230,8 +269,9 @@ module Tokra
         INVALID_UTF8 = "stream did not contain valid UTF-8" # :nodoc:
 
         # Reads the config in the directory +root_dir+ for +target+, a
-        # Platform::Target: <tt>tokra.conf.json</tt>, which has to exist,
-        # with the platform's file merged over it when there is one, as
+        # Platform::Target: <tt>tokra.conf.json</tt> or
+        # <tt>tokra.conf.json5</tt>, one of which has to exist, with the
+        # platform's file merged over it when there is one, as
         # JSON Merge Patch merges (RFC 7396): an object key by key, +null+
         # deleting a key, and anything else, an array too, replacing.
         # Answers the merged value and the paths read. Raises ConfigError.
@@ -258,8 +298,9 @@ module Tokra
         end
 
         # Reads the file for +target+ in +root_dir+, such as
-        # <tt>tokra.macos.conf.json</tt>, when one of an enabled format
-        # exists, answering its value and path; +nil+ when none does.
+        # <tt>tokra.macos.conf.json</tt> or <tt>tokra.macos.conf.json5</tt>,
+        # when one of an enabled format exists, answering its value and
+        # path; +nil+ when none does.
         # Raises ConfigError.
         #
         # Mirrors Tauri's <tt>read_platform</tt> (parse.rs:190-204).
@@ -298,10 +339,12 @@ module Tokra
         end
 
         # Reads the config file at +path+ into its JSON value, answering
-        # the value and the path read. When no file is there, a file of
-        # another format beside it under the same kind of name stands in,
-        # and raises ConfigError::DisabledFormat, since JSON is the only
-        # format enabled. Raises ConfigError.
+        # the value and the path read. A file there is read as JSON5 first
+        # and as JSON when that fails, with serde_json's error when both
+        # do. When no file is there, a <tt>.json5</tt> beside it under the
+        # same kind of name stands in, and then a <tt>.toml</tt>, which
+        # raises ConfigError::DisabledFormat, since TOML is not enabled.
+        # Raises ConfigError.
         #
         # Mirrors Tauri's <tt>parse_value</tt> and <tt>do_parse</tt>
         # (parse.rs:227-335).
@@ -319,9 +362,17 @@ module Tokra
           path_ext = File.extname(file_name).delete_prefix(".")
 
           if File.exist?(path)
-            [do_parse_json(read_to_string(path), path), path]
+            raw = read_to_string(path)
+            # Valid JSON5 reads, whatever the extension; a .json that is
+            # not keeps serde_json's error (parse.rs:288-300).
+            json = begin
+              Tokra::Json5.from_str(raw)
+            rescue Tokra::Json5::Error
+              do_parse_json(raw, path)
+            end
+            [json, path]
           elsif File.exist?(json5)
-            raise ConfigError::DisabledFormat.new(".json5", "config-json5")
+            [do_parse_json5(read_to_string(json5), json5), json5]
           elsif File.exist?(toml)
             raise ConfigError::DisabledFormat.new(".toml", "config-toml")
           elsif !EXTENSIONS_SUPPORTED.include?(path_ext)
@@ -345,6 +396,15 @@ module Tokra
           raise ConfigError::FormatJson.new(path, e)
         end
         private_class_method :do_parse_json
+
+        # +raw+, a config file's text, as JSON5, or ConfigError::FormatJson5
+        # with json5's words (parse.rs:376-382).
+        def self.do_parse_json5(raw, path) # :nodoc:
+          Tokra::Json5.from_str(raw)
+        rescue Tokra::Json5::Error => e
+          raise ConfigError::FormatJson5.new(path, e)
+        end
+        private_class_method :do_parse_json5
 
         # The file at +path+ as a UTF-8 String, as Rust's
         # <tt>fs::read_to_string</tt> reads it, or ConfigError::Io

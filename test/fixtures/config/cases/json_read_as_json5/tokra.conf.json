@@ -1,0 +1,5 @@
+// Tokra reads a .json as JSON5 first
+{
+  identifier: 'com.tokra.fixture',
+  plugins: { p: { hex: 0xff, half: .5, list: [1, 2,], inf: Infinity } },
+}

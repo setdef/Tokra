@@ -463,6 +463,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Tokra.generate_context(path = nil)` reads `tokra.conf.json` beside the
   entry script (or at `path`), merges `tokra.<platform>.conf.json` over
   it, and returns a `Tokra::Context`; the schema is Tauri's
+- Config files may be JSON5, as with Tauri's `config-json5` feature:
+  `tokra.conf.json5` and `tokra.<platform>.conf.json5` are read, a
+  `tokra.conf.json` is read as JSON5 first (serde_json's error is kept when
+  neither reads it), and a `.json5` json5 rejects raises
+  `Utils::Config::Parse::ConfigError::FormatJson5` with json5's message;
+  `Tokra.toml` still raises `DisabledFormat`
+- `Tokra::Json5.from_str`, json5 0.4.1's parser, with its values and its
+  pest-rendered `Tokra::Json5::Error`s
 - `Tokra::Context` (`config`, `config=`, `package_info`, `package_info=`,
   `pattern`) and `Tokra::PackageInfo`
 - `Builder#build(context)` and `Builder#run(context)` build the app from a

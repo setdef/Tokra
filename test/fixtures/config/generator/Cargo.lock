@@ -1778,6 +1778,7 @@ dependencies = [
 name = "tokra-config-fixtures"
 version = "0.0.0"
 dependencies = [
+ "json5",
  "serde",
  "serde_json",
  "tauri-codegen",

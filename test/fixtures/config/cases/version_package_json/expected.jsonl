@@ -1,6 +1,9 @@
 {"build":"json","case":"cases/version_package_json","path":null,"probes":{"/version":"2.0.0"},"target":"aarch64-apple-darwin"}
 {"build":"json","case":"cases/version_package_json","path":null,"probes":{"/version":"2.0.0"},"target":"x86_64-pc-windows-msvc"}
 {"build":"json","case":"cases/version_package_json","path":null,"probes":{"/version":"2.0.0"},"target":"x86_64-unknown-linux-gnu"}
+{"build":"json5","case":"cases/version_package_json","path":null,"probes":{"/version":"2.0.0"},"target":"aarch64-apple-darwin"}
+{"build":"json5","case":"cases/version_package_json","path":null,"probes":{"/version":"2.0.0"},"target":"x86_64-pc-windows-msvc"}
+{"build":"json5","case":"cases/version_package_json","path":null,"probes":{"/version":"2.0.0"},"target":"x86_64-unknown-linux-gnu"}
 {"build":"formats","case":"cases/version_package_json","path":null,"probes":{"/version":"2.0.0"},"target":"aarch64-apple-darwin"}
 {"build":"formats","case":"cases/version_package_json","path":null,"probes":{"/version":"2.0.0"},"target":"x86_64-pc-windows-msvc"}
 {"build":"formats","case":"cases/version_package_json","path":null,"probes":{"/version":"2.0.0"},"target":"x86_64-unknown-linux-gnu"}

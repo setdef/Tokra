@@ -145,7 +145,7 @@ yet:
 - **`devUrl` and `frontendDist`.** Tokra reads both from the config, but
   loads pages only from a Rack app or a protocol you register, not from a
   dev server or a folder of built files.
-- **JSON5 and TOML configs.** The config is JSON.
+- **TOML configs.** The config is JSON or JSON5.
 - **The `tokra` command and app bundles.** See
   [Shipping your app](#shipping-your-app).
 - **iOS and Android.** Tokra runs on desktop systems only.
@@ -211,6 +211,9 @@ Tokra looks for the file beside the script you run, even if the script
 changes directory later. A `tokra.macos.conf.json`,
 `tokra.windows.conf.json`, or `tokra.linux.conf.json` beside it is
 merged over it on that platform.
+If you prefer JSON5, with its comments and trailing commas, name the files
+`tokra.conf.json5` and `tokra.macos.conf.json5` instead; Tokra reads them
+the same way.
 To keep the config elsewhere, pass its path:
 `Tokra.generate_context("config/tokra.conf.json")`.
 

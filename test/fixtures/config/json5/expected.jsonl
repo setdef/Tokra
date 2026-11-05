@@ -1,0 +1,212 @@
+{"build":"json5","case":"json5","error":" --> 1:2\n  |\n1 | {\n  |  ^---\n  |\n  = expected identifier or string","location":[1,2],"name":"de_parse_error"}
+{"build":"json5","case":"json5","name":"de_bool_true","ok":true}
+{"build":"json5","case":"json5","name":"de_bool_false","ok":false}
+{"build":"json5","case":"json5","name":"de_number_0","ok":42}
+{"build":"json5","case":"json5","name":"de_number_1","ok":42}
+{"build":"json5","case":"json5","name":"de_number_2","ok":42}
+{"build":"json5","case":"json5","name":"de_number_3","ok":42}
+{"build":"json5","case":"json5","name":"de_number_4","ok":42}
+{"build":"json5","case":"json5","name":"de_number_5","ok":42}
+{"build":"json5","case":"json5","name":"de_number_6","ok":42.0}
+{"build":"json5","case":"json5","name":"de_number_7","ok":42.0}
+{"build":"json5","case":"json5","name":"de_number_8","ok":42.0}
+{"build":"json5","case":"json5","name":"de_number_9","ok":42.0}
+{"build":"json5","case":"json5","name":"de_number_10","ok":42.0}
+{"build":"json5","case":"json5","name":"de_number_11","ok":42.0}
+{"build":"json5","case":"json5","name":"de_number_12","ok":-42}
+{"build":"json5","case":"json5","name":"de_number_13","ok":-42.0}
+{"build":"json5","case":"json5","name":"de_number_14","ok":-42.0}
+{"build":"json5","case":"json5","name":"de_number_15","ok":-42.0}
+{"build":"json5","case":"json5","name":"de_number_16","ok":-42.0}
+{"build":"json5","case":"json5","name":"de_number_17","ok":-42.0}
+{"build":"json5","case":"json5","name":"de_number_18","ok":-42.0}
+{"build":"json5","case":"json5","error":"error parsing integer","location":[2,2],"name":"de_over_i64"}
+{"build":"json5","case":"json5","error":"error parsing number: too large","location":[2,2],"name":"de_too_large"}
+{"build":"json5","case":"json5","name":"de_float_0","ok":42.42}
+{"build":"json5","case":"json5","name":"de_float_1","ok":42.42}
+{"build":"json5","case":"json5","name":"de_float_2","ok":42.42}
+{"build":"json5","case":"json5","name":"de_float_3","ok":42.42}
+{"build":"json5","case":"json5","name":"de_float_4","ok":42.42}
+{"build":"json5","case":"json5","name":"de_float_5","ok":-42.42}
+{"build":"json5","case":"json5","name":"de_float_6","ok":-42.42}
+{"build":"json5","case":"json5","name":"de_float_7","ok":-42.42}
+{"build":"json5","case":"json5","name":"de_float_8","ok":-42.42}
+{"build":"json5","case":"json5","name":"de_float_9","ok":-42.42}
+{"build":"json5","case":"json5","name":"de_float_10","ok":null}
+{"build":"json5","case":"json5","name":"de_float_11","ok":null}
+{"build":"json5","case":"json5","name":"de_float_12","ok":null}
+{"build":"json5","case":"json5","name":"de_float_13","ok":null}
+{"build":"json5","case":"json5","name":"de_char_single","ok":"x"}
+{"build":"json5","case":"json5","name":"de_char_hangul","ok":"자"}
+{"build":"json5","case":"json5","name":"de_char_escape_0","ok":"\""}
+{"build":"json5","case":"json5","name":"de_char_escape_1","ok":"\r"}
+{"build":"json5","case":"json5","name":"de_char_escape_2","ok":"\n"}
+{"build":"json5","case":"json5","name":"de_char_escape_3","ok":"\t"}
+{"build":"json5","case":"json5","name":"de_char_escape_4","ok":"\\"}
+{"build":"json5","case":"json5","name":"de_char_escape_5","ok":"/"}
+{"build":"json5","case":"json5","name":"de_char_escape_6","ok":"\b"}
+{"build":"json5","case":"json5","name":"de_char_escape_7","ok":"\f"}
+{"build":"json5","case":"json5","name":"de_string_hello","ok":"Hello!"}
+{"build":"json5","case":"json5","name":"de_string_hangul","ok":"안녕하세요"}
+{"build":"json5","case":"json5","name":"de_string_surrogates","ok":"🇯🇵"}
+{"build":"json5","case":"json5","name":"de_option_null","ok":null}
+{"build":"json5","case":"json5","name":"de_seq","ok":[1,2,3]}
+{"build":"json5","case":"json5","name":"de_seq_mixed","ok":[42,true,"hello"]}
+{"build":"json5","case":"json5","name":"de_seq_nested","ok":[42,true,[1,2]]}
+{"build":"json5","case":"json5","name":"de_map","ok":{"a":1,"b":2,"c":3}}
+{"build":"json5","case":"json5","name":"de_map_nested","ok":{"a":1,"b":2,"c":[1,2]}}
+{"build":"json5","case":"json5","name":"de_enum_map","ok":{"D":{"a":7,"b":11}}}
+{"build":"json5","case":"json5","name":"de_enum_empty","ok":{"E":{}}}
+{"build":"json5","case":"json5","name":"de_ignored","ok":{"a":1,"b":2,"ignored":42}}
+{"build":"json5","case":"json5","name":"de_json_values_0","ok":42}
+{"build":"json5","case":"json5","name":"de_json_values_1","ok":400.0}
+{"build":"json5","case":"json5","name":"js_empty_object","ok":{}}
+{"build":"json5","case":"json5","name":"js_double_string_property_names","ok":{"a":1}}
+{"build":"json5","case":"json5","name":"js_single_string_property_names","ok":{"a":1}}
+{"build":"json5","case":"json5","name":"js_unquoted_property_names","ok":{"a":1}}
+{"build":"json5","case":"json5","name":"js_special_character_property_names","ok":{"$_":1,"_$":2,"a‌":3}}
+{"build":"json5","case":"json5","name":"js_unicode_property_names","ok":{"ùńîċõďë":9}}
+{"build":"json5","case":"json5","name":"js_escaped_property_names","ok":{"$_":2,"_$":3,"ab":1}}
+{"build":"json5","case":"json5","name":"js_multiple_properties","ok":{"abc":1,"def":2}}
+{"build":"json5","case":"json5","name":"js_nested_objects","ok":{"a":{"b":2}}}
+{"build":"json5","case":"json5","name":"js_empty_arrays","ok":[]}
+{"build":"json5","case":"json5","name":"js_array_values","ok":[1]}
+{"build":"json5","case":"json5","name":"js_multiple_array_values","ok":[1,2]}
+{"build":"json5","case":"json5","name":"js_nested_arrays","ok":[1,[2,3]]}
+{"build":"json5","case":"json5","name":"js_leading_zeroes","ok":[0,0,0.0]}
+{"build":"json5","case":"json5","name":"js_integers","ok":[1,23,456,7890]}
+{"build":"json5","case":"json5","name":"js_signed_numbers","ok":[-1,2,-0.1,0]}
+{"build":"json5","case":"json5","name":"js_leading_decimal_points","ok":[0.1,0.23]}
+{"build":"json5","case":"json5","name":"js_fractional_numbers","ok":[1.0,1.23]}
+{"build":"json5","case":"json5","name":"js_exponents","ok":[1.0,10.0,10.0,1.0,1.1,0.1,10.0]}
+{"build":"json5","case":"json5","name":"js_hexadecimal_numbers","ok":[1,16,255,255]}
+{"build":"json5","case":"json5","name":"js_infinity","ok":[null,null]}
+{"build":"json5","case":"json5","name":"js_double_quoted_strings","ok":"abc"}
+{"build":"json5","case":"json5","name":"js_single_quoted_strings","ok":"abc"}
+{"build":"json5","case":"json5","name":"js_nested_quotes_strings","ok":["\"","'"]}
+{"build":"json5","case":"json5","name":"js_escaped_characters","ok":"\b\f\n\r\t\u000b\u0000\u000fǿa'\""}
+{"build":"json5","case":"json5","name":"js_single_line_comments","ok":{}}
+{"build":"json5","case":"json5","name":"js_single_line_comments_at_end_of_input","ok":{}}
+{"build":"json5","case":"json5","name":"js_multi_line_comments","ok":{}}
+{"build":"json5","case":"json5","name":"js_whitespace","ok":{}}
+{"build":"json5","case":"json5","name":"example_infinite","ok":{"inf":null,"neg_inf":null}}
+{"build":"json5","case":"json5","name":"example_nan","ok":{"nan":null,"neg_nan":null}}
+{"build":"json5","case":"json5","name":"example_json5_dot_org","ok":{"andIn":["arrays"],"andTrailing":8675309.0,"backwardsCompatible":"with JSON","hexadecimal":912559,"leadingDecimalPoint":0.8675309,"lineBreaks":"Look, Mom! No \\n's!","positiveSign":1,"singleQuotes":"I can use \"double quotes\" here","trailingComma":"in objects","unquoted":"and you can quote me on that"}}
+{"build":"json5","case":"json5","name":"value_negative_zero","ok":0}
+{"build":"json5","case":"json5","name":"value_negative_zero_float","ok":-0.0}
+{"build":"json5","case":"json5","name":"value_i64_max","ok":9223372036854775807}
+{"build":"json5","case":"json5","name":"value_i64_min","ok":-9223372036854775808}
+{"build":"json5","case":"json5","error":"error parsing integer","location":[1,1],"name":"value_past_i64"}
+{"build":"json5","case":"json5","name":"value_u32_hex","ok":4294967295}
+{"build":"json5","case":"json5","error":"error parsing hex","location":[1,1],"name":"value_hex_past_u32"}
+{"build":"json5","case":"json5","error":"error parsing integer","location":[1,1],"name":"value_negative_hex"}
+{"build":"json5","case":"json5","error":"error parsing number","location":[1,1],"name":"value_negative_hex_with_e"}
+{"build":"json5","case":"json5","error":"error parsing integer","location":[1,1],"name":"value_positive_hex"}
+{"build":"json5","case":"json5","error":"error parsing integer","location":[1,1],"name":"value_positive_infinity"}
+{"build":"json5","case":"json5","error":"error parsing integer","location":[1,1],"name":"value_positive_nan"}
+{"build":"json5","case":"json5","error":"error parsing number: too large","location":[1,1],"name":"value_too_small"}
+{"build":"json5","case":"json5","name":"value_underflow","ok":0.0}
+{"build":"json5","case":"json5","name":"value_f64_max","ok":1.7976931348623157e308}
+{"build":"json5","case":"json5","name":"value_f64_min_subnormal","ok":5e-324}
+{"build":"json5","case":"json5","name":"value_long_float","ok":1.2345678901234568e29}
+{"build":"json5","case":"json5","error":"error parsing number: too large","location":[1,1],"name":"value_long_exponent"}
+{"build":"json5","case":"json5","name":"value_tiny_long_exponent","ok":0.0}
+{"build":"json5","case":"json5","name":"value_rounding","ok":1.0}
+{"build":"json5","case":"json5","name":"value_rounds_to_max","ok":1.7976931348623157e308}
+{"build":"json5","case":"json5","error":"error parsing number: too large","location":[1,1],"name":"value_past_max"}
+{"build":"json5","case":"json5","name":"value_below_half_subnormal","ok":0.0}
+{"build":"json5","case":"json5","name":"value_above_half_subnormal","ok":5e-324}
+{"build":"json5","case":"json5","name":"value_rounds_to_subnormal","ok":-5e-324}
+{"build":"json5","case":"json5","name":"value_trailing_dot_exponent","ok":100000.0}
+{"build":"json5","case":"json5","name":"value_duplicate_keys","ok":{"a":2}}
+{"build":"json5","case":"json5","name":"value_key_order","ok":{"B":3,"a":2,"b":1,"é":4}}
+{"build":"json5","case":"json5","name":"value_keyword_keys","ok":{"Infinity":3,"null":1,"true":2}}
+{"build":"json5","case":"json5","name":"value_trailing_comma_object","ok":{"a":1}}
+{"build":"json5","case":"json5","name":"value_trailing_comma_array","ok":[1]}
+{"build":"json5","case":"json5","name":"value_identifier_digits","ok":{"_a$":2,"a1":1}}
+{"build":"json5","case":"json5","name":"value_identifier_combining_mark","ok":{"á":1}}
+{"build":"json5","case":"json5","name":"value_identifier_escape","ok":{"A":1}}
+{"build":"json5","case":"json5","name":"value_identifier_surrogates","ok":{"𐀀":1}}
+{"build":"json5","case":"json5","name":"value_nul_escape","ok":"\u0000"}
+{"build":"json5","case":"json5","name":"value_hex_escape","ok":"Aÿ"}
+{"build":"json5","case":"json5","name":"value_non_escape_chars","ok":"aq/é"}
+{"build":"json5","case":"json5","name":"value_line_continuations","ok":"abcd"}
+{"build":"json5","case":"json5","name":"value_surrogate_pair_bug","ok":"𐀀"}
+{"build":"json5","case":"json5","name":"value_smile","ok":"😀"}
+{"build":"json5","case":"json5","name":"value_bom","ok":{}}
+{"build":"json5","case":"json5","name":"value_comments_everywhere","ok":[1,2]}
+{"build":"json5","case":"json5","name":"value_empty_block_comment","ok":{}}
+{"build":"json5","case":"json5","name":"value_nested_arrays_500","ok":[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]}
+{"build":"json5","case":"json5","name":"value_nested_objects_300","ok":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":1}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}
+{"build":"json5","case":"json5","error":"unexpected unicode trail surrogate","location":[1,1],"name":"error_lone_trail_surrogate"}
+{"build":"json5","case":"json5","error":"missing unicode trail surrogate","location":[1,1],"name":"error_missing_trail_surrogate"}
+{"build":"json5","case":"json5","error":"expecting unicode trail surrogate","location":[1,1],"name":"error_expecting_trail_surrogate"}
+{"build":"json5","case":"json5","error":"error parsing hex","location":[1,1],"name":"error_trail_not_hex"}
+{"build":"json5","case":"json5","error":"expecting unicode trail surrogate","location":[1,1],"name":"error_trail_hex_letter"}
+{"build":"json5","case":"json5","error":"error parsing hex","location":[1,1],"name":"error_trail_escape"}
+{"build":"json5","case":"json5","error":"missing unicode trail surrogate","location":[1,2],"name":"error_identifier_lone_surrogate"}
+{"build":"json5","case":"json5","error":"error parsing hex","location":[1,5],"name":"error_first_in_document_order"}
+{"build":"json5","case":"json5","error":"unexpected unicode trail surrogate","location":[1,2],"name":"error_key_before_value"}
+{"build":"json5","case":"json5","error":"error parsing integer","location":[3,8],"name":"error_nested_location"}
+{"build":"json5","case":"json5","error":" --> 1:1\n  |\n1 | \n  | ^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[1,1],"name":"syntax_empty"}
+{"build":"json5","case":"json5","error":" --> 1:4\n  |\n1 |    \n  |    ^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[1,4],"name":"syntax_whitespace_only"}
+{"build":"json5","case":"json5","error":" --> 1:2\n  |\n1 | [\n  |  ^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[1,2],"name":"syntax_open_bracket"}
+{"build":"json5","case":"json5","error":" --> 1:2\n  |\n1 | [1\n  |  ^---\n  |\n  = expected boolean, null, or string","location":[1,2],"name":"syntax_unclosed_array"}
+{"build":"json5","case":"json5","error":" --> 1:4\n  |\n1 | [1,\n  |    ^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[1,4],"name":"syntax_array_trailing_comma_eof"}
+{"build":"json5","case":"json5","error":" --> 1:2\n  |\n1 | [1 2]\n  |  ^---\n  |\n  = expected boolean, null, or string","location":[1,2],"name":"syntax_array_missing_comma"}
+{"build":"json5","case":"json5","error":" --> 1:4\n  |\n1 | [1,,2]\n  |    ^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[1,4],"name":"syntax_array_double_comma"}
+{"build":"json5","case":"json5","error":" --> 1:2\n  |\n1 | [,]\n  |  ^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[1,2],"name":"syntax_array_lone_comma"}
+{"build":"json5","case":"json5","error":" --> 1:2\n  |\n1 | {,}\n  |  ^---\n  |\n  = expected identifier or string","location":[1,2],"name":"syntax_object_lone_comma"}
+{"build":"json5","case":"json5","error":" --> 1:1\n  |\n1 | {a 1}\n  | ^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[1,1],"name":"syntax_object_missing_colon"}
+{"build":"json5","case":"json5","error":" --> 1:2\n  |\n1 | {\"a\" 1}\n  |  ^---\n  |\n  = expected identifier","location":[1,2],"name":"syntax_object_string_key_missing_colon"}
+{"build":"json5","case":"json5","error":" --> 1:4\n  |\n1 | {a:}\n  |    ^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[1,4],"name":"syntax_object_missing_value"}
+{"build":"json5","case":"json5","error":" --> 1:4\n  |\n1 | {a:1 x}\n  |    ^---\n  |\n  = expected boolean, null, or string","location":[1,4],"name":"syntax_object_junk_after_value"}
+{"build":"json5","case":"json5","error":" --> 1:4\n  |\n1 | {} x\n  |    ^---\n  |\n  = expected EOI","location":[1,4],"name":"syntax_trailing_junk"}
+{"build":"json5","case":"json5","error":" --> 1:6\n  |\n1 | true false\n  |      ^---\n  |\n  = expected EOI","location":[1,6],"name":"syntax_trailing_value"}
+{"build":"json5","case":"json5","error":" --> 1:1\n  |\n1 | nul\n  | ^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[1,1],"name":"syntax_keyword_prefix"}
+{"build":"json5","case":"json5","error":" --> 1:5\n  |\n1 | nullx\n  |     ^---\n  |\n  = expected EOI","location":[1,5],"name":"syntax_keyword_suffix"}
+{"build":"json5","case":"json5","error":" --> 1:5\n  |\n1 | 'abc\n  |     ^---\n  |\n  = expected char_literal","location":[1,5],"name":"syntax_unterminated_string"}
+{"build":"json5","case":"json5","error":" --> 1:4\n  |\n1 | \"ab␊\n  |    ^---\n  |\n  = expected char_literal","location":[1,4],"name":"syntax_newline_in_string"}
+{"build":"json5","case":"json5","error":" --> 1:3\n  |\n1 | 'a␍b'\n  |   ^---\n  |\n  = expected char_literal","location":[1,3],"name":"syntax_carriage_return_in_string"}
+{"build":"json5","case":"json5","error":" --> 1:3\n  |\n1 | \"\\1\"\n  |   ^---\n  |\n  = expected char_escape_sequence or nul_escape_sequence","location":[1,3],"name":"syntax_digit_escape"}
+{"build":"json5","case":"json5","error":" --> 1:4\n  |\n1 | \"\\x4\"\n  |    ^---\n  |\n  = expected hex_escape_sequence","location":[1,4],"name":"syntax_short_hex_escape"}
+{"build":"json5","case":"json5","error":" --> 1:4\n  |\n1 | \"\\u12\"\n  |    ^---\n  |\n  = expected unicode_escape_sequence","location":[1,4],"name":"syntax_short_unicode_escape"}
+{"build":"json5","case":"json5","error":" --> 1:5\n  |\n1 | {a\\u12:1}\n  |     ^---\n  |\n  = expected unicode_escape_sequence","location":[1,5],"name":"syntax_short_unicode_escape_in_key"}
+{"build":"json5","case":"json5","error":" --> 1:2\n  |\n1 | {1a:1}\n  |  ^---\n  |\n  = expected identifier or string","location":[1,2],"name":"syntax_identifier_starting_with_digit"}
+{"build":"json5","case":"json5","error":" --> 1:1\n  |\n1 | +\n  | ^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[1,1],"name":"syntax_sign_only"}
+{"build":"json5","case":"json5","error":" --> 1:1\n  |\n1 | -\n  | ^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[1,1],"name":"syntax_minus_only"}
+{"build":"json5","case":"json5","error":" --> 1:2\n  |\n1 | 0x\n  |  ^---\n  |\n  = expected EOI","location":[1,2],"name":"syntax_hex_prefix_only"}
+{"build":"json5","case":"json5","error":" --> 1:2\n  |\n1 | 0xg\n  |  ^---\n  |\n  = expected EOI","location":[1,2],"name":"syntax_hex_bad_digit"}
+{"build":"json5","case":"json5","error":" --> 1:2\n  |\n1 | 1e\n  |  ^---\n  |\n  = expected EOI","location":[1,2],"name":"syntax_exponent_without_digits"}
+{"build":"json5","case":"json5","error":" --> 1:4\n  |\n1 | 1.5.5\n  |    ^---\n  |\n  = expected EOI","location":[1,4],"name":"syntax_two_dots"}
+{"build":"json5","case":"json5","error":" --> 1:2\n  |\n1 | 01\n  |  ^---\n  |\n  = expected EOI","location":[1,2],"name":"syntax_leading_zero"}
+{"build":"json5","case":"json5","error":" --> 1:1\n  |\n1 | .e5\n  | ^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[1,1],"name":"syntax_dot_exponent"}
+{"build":"json5","case":"json5","error":" --> 1:1\n  |\n1 | /* unterminated\n  | ^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[1,1],"name":"syntax_unterminated_comment"}
+{"build":"json5","case":"json5","error":" --> 1:18\n  |\n1 | // only a comment\n  |                  ^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[1,18],"name":"syntax_comment_only"}
+{"build":"json5","case":"json5","error":" --> 2:5\n  |\n2 |   b:2\n  |     ^---\n  |\n  = expected boolean, null, or string","location":[2,5],"name":"syntax_multiline"}
+{"build":"json5","case":"json5","error":" --> 2:5\n  |\n2 |   a:1\n  |     ^---\n  |\n  = expected boolean, null, or string","location":[2,5],"name":"syntax_crlf"}
+{"build":"json5","case":"json5","error":"  --> 10:1\n   |\n10 | {x}\n   | ^---\n   |\n   = expected array, boolean, null, number, object, or string","location":[10,1],"name":"syntax_line_ten"}
+{"build":"json5","case":"json5","error":"  --> 11:1\n   |\n11 | \n   | ^---\n   |\n   = expected array, boolean, null, number, object, or string","location":[11,1],"name":"syntax_line_ten_at_newline"}
+{"build":"json5","case":"json5","error":" --> 1:4\n  |\n1 | [\t\t,]\n  |  \t\t^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[1,4],"name":"syntax_tabs_before"}
+{"build":"json5","case":"json5","error":" --> 1:1\n  |\n1 | {ü x}\n  | ^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[1,1],"name":"syntax_unicode_before"}
+{"build":"json5","case":"json5","error":" --> 2:1\n  |\n2 | }\n  | ^---\n  |\n  = expected EOI","location":[2,1],"name":"syntax_after_value_newline"}
+{"build":"json5","case":"json5","error":" --> 2:1\n  |\n2 | \n  | ^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[2,1],"name":"syntax_open_then_newline"}
+{"build":"json5","case":"json5","error":" --> 3:1\n  |\n3 | \n  | ^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[3,1],"name":"syntax_eof_after_newlines"}
+{"build":"json5","case":"json5","error":" --> 1:2\n  |\n1 | [1\n  |  ^---\n  |\n  = expected boolean, null, or string","location":[1,2],"name":"syntax_error_at_newline"}
+{"build":"json5","case":"json5","error":" --> 1:2\n  |\n1 | [12]\n  |  ^---\n  |\n  = expected boolean, null, or string","location":[1,2],"name":"syntax_error_at_cr"}
+{"build":"json5","case":"json5","error":" --> 1:5\n  |\n1 | {a: b}\n  |     ^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[1,5],"name":"syntax_identifier_value"}
+{"build":"json5","case":"json5","error":" --> 1:301\n  |\n1 | [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[\n  |                                                                                                                                                                                                                                                                                                             ^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[1,301],"name":"syntax_nested_unclosed"}
+{"build":"json5","case":"json5","error":" --> 1:10\n  |\n1 | {a:{b:{c:}}}\n  |          ^---\n  |\n  = expected array, boolean, null, number, object, or string","location":[1,10],"name":"syntax_nested_object_error"}
+{"build":"json5","case":"json5","error":" --> 1:9\n  |\n1 | Infinityx\n  |         ^---\n  |\n  = expected EOI","location":[1,9],"name":"syntax_infinity_suffix"}
+{"build":"json5","case":"json5","error":" --> 1:6\n  |\n1 | 'abc\"\n  |      ^---\n  |\n  = expected char_literal","location":[1,6],"name":"syntax_single_quote_mismatch"}
+{"build":"json5","case":"json5","error":" --> 1:3\n  |\n1 | '\\\n  |   ^---\n  |\n  = expected char_escape_sequence or nul_escape_sequence","location":[1,3],"name":"syntax_escape_at_eof"}
+{"build":"json5","case":"json5","error":" --> 1:3\n  |\n1 | 'a b'\n  |   ^---\n  |\n  = expected char_literal","location":[1,3],"name":"syntax_line_separator_in_string"}
+{"build":"json5","case":"json5","name":"syntax_whitespace_before_trailing_comma_in_array","ok":[1]}
+{"build":"json5","case":"json5","name":"syntax_comment_before_trailing_comma_in_object","ok":{"a":1}}
+{"build":"json5","case":"json5","name":"identifier_nonspacing_mark","ok":{"â":1}}
+{"build":"json5","case":"json5","name":"identifier_diacritic","ok":{"a^":1}}
+{"build":"json5","case":"json5","name":"identifier_diacritic_not_a_mark","ok":{"a¨":1}}
+{"build":"json5","case":"json5","name":"identifier_zero_width_joiner","ok":{"a‍b":1}}
+{"build":"json5","case":"json5","name":"identifier_zero_width_non_joiner","ok":{"a‌b":1}}
+{"build":"json5","case":"json5","error":" --> 1:2\n  |\n1 | {࢏:1}\n  |  ^---\n  |\n  = expected identifier or string","location":[1,2],"name":"identifier_start_new_in_unicode_17_088f"}
+{"build":"json5","case":"json5","error":" --> 1:2\n  |\n1 | {౜:1}\n  |  ^---\n  |\n  = expected identifier or string","location":[1,2],"name":"identifier_start_new_in_unicode_17_0c5c"}

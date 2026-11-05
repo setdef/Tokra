@@ -1,6 +1,9 @@
 {"build":"json","case":"cases/platform_json5_ignored","path":null,"probes":{"/identifier":"com.tokra.fixture"},"target":"aarch64-apple-darwin"}
 {"build":"json","case":"cases/platform_json5_ignored","path":null,"probes":{"/identifier":"com.tokra.fixture"},"target":"x86_64-pc-windows-msvc"}
 {"build":"json","case":"cases/platform_json5_ignored","path":null,"probes":{"/identifier":"com.tokra.fixture"},"target":"x86_64-unknown-linux-gnu"}
+{"build":"json5","case":"cases/platform_json5_ignored","path":null,"probes":{"/identifier":"com.tokra.macos"},"target":"aarch64-apple-darwin"}
+{"build":"json5","case":"cases/platform_json5_ignored","path":null,"probes":{"/identifier":"com.tokra.fixture"},"target":"x86_64-pc-windows-msvc"}
+{"build":"json5","case":"cases/platform_json5_ignored","path":null,"probes":{"/identifier":"com.tokra.fixture"},"target":"x86_64-unknown-linux-gnu"}
 {"build":"formats","case":"cases/platform_json5_ignored","path":null,"probes":{"/identifier":"com.tokra.macos"},"target":"aarch64-apple-darwin"}
 {"build":"formats","case":"cases/platform_json5_ignored","path":null,"probes":{"/identifier":"com.tokra.fixture"},"target":"x86_64-pc-windows-msvc"}
 {"build":"formats","case":"cases/platform_json5_ignored","path":null,"probes":{"/identifier":"com.tokra.fixture"},"target":"x86_64-unknown-linux-gnu"}

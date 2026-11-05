@@ -41,11 +41,26 @@ module ConfigFixtures
     end
   end
 
-  # The answers of the build without Tauri's optional formats, the
-  # answer key of plan 054's first phase, for the config case +name+.
+  # The generator's build Tokra reads as: Tauri with its config-json5
+  # feature and without config-toml, since Tokra reads JSON5 and TOML
+  # waits on plan 054's question 2.
+  BUILD = "json5"
+
+  # The answers of BUILD for the config case +name+.
   def self.answers(name)
     File.readlines(File.join(CASES, name, "expected.jsonl"), chomp: true).reject(&:empty?)
-      .map { |line| Tokra::Ipc::Json.parse(line) }.select { |answer| answer.fetch("build") == "json" }
+      .map { |line| Tokra::Ipc::Json.parse(line) }.select { |answer| answer.fetch("build") == BUILD }
+  end
+
+  # The json5 cases, each with json5's answer merged in. Ruby's JSON reads
+  # them, since some nest past the 128 levels Ipc::Json allows.
+  def self.json5
+    @json5 ||= begin
+      dir = File.join(ROOT, "json5")
+      read = -> (file) { File.readlines(File.join(dir, file), chomp: true).reject(&:empty?).map { |line| JSON.parse(line, max_nesting: false) } }
+      cases = read.("cases.jsonl").to_h { |row| [row.fetch("name"), row] }
+      read.("expected.jsonl").to_h { |answer| [answer.fetch("name"), cases.fetch(answer.fetch("name")).merge(answer)] }
+    end
   end
 
   # The answer for +name+ on the platform these tests run on.

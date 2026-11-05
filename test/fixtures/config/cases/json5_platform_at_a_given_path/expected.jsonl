@@ -1,0 +1,9 @@
+{"build":"json","case":"cases/json5_platform_at_a_given_path","check":"no file at path {dir}/{brand}.macos.conf.json exists, expected {brand} config file","path":"tokra.macos.conf.json","target":"aarch64-apple-darwin"}
+{"build":"json","case":"cases/json5_platform_at_a_given_path","check":"no file at path {dir}/{brand}.macos.conf.json exists, expected {brand} config file","path":"tokra.macos.conf.json","target":"x86_64-pc-windows-msvc"}
+{"build":"json","case":"cases/json5_platform_at_a_given_path","check":"no file at path {dir}/{brand}.macos.conf.json exists, expected {brand} config file","path":"tokra.macos.conf.json","target":"x86_64-unknown-linux-gnu"}
+{"build":"json5","case":"cases/json5_platform_at_a_given_path","check":null,"path":"tokra.macos.conf.json","probes":{"/identifier":"com.tokra.macos"},"target":"aarch64-apple-darwin"}
+{"build":"json5","case":"cases/json5_platform_at_a_given_path","check":null,"path":"tokra.macos.conf.json","probes":{"/identifier":"com.tokra.json5"},"target":"x86_64-pc-windows-msvc"}
+{"build":"json5","case":"cases/json5_platform_at_a_given_path","check":null,"path":"tokra.macos.conf.json","probes":{"/identifier":"com.tokra.json5"},"target":"x86_64-unknown-linux-gnu"}
+{"build":"formats","case":"cases/json5_platform_at_a_given_path","check":null,"path":"tokra.macos.conf.json","probes":{"/identifier":"com.tokra.macos"},"target":"aarch64-apple-darwin"}
+{"build":"formats","case":"cases/json5_platform_at_a_given_path","check":null,"path":"tokra.macos.conf.json","probes":{"/identifier":"com.tokra.json5"},"target":"x86_64-pc-windows-msvc"}
+{"build":"formats","case":"cases/json5_platform_at_a_given_path","check":null,"path":"tokra.macos.conf.json","probes":{"/identifier":"com.tokra.json5"},"target":"x86_64-unknown-linux-gnu"}

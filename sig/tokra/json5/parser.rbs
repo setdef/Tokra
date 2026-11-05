@@ -1,0 +1,99 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Json5
+    class Parser
+      type deferred = [String, Integer]
+      type result = [bool, json_value, deferred?]
+      type component = [Symbol, String]
+
+      RULES: Array[Symbol]
+      BACKSLASH: Integer
+      DOUBLE_QUOTE: Integer
+      SINGLE_QUOTE: Integer
+      DOLLAR: Integer
+      UNDERSCORE: Integer
+      ZWNJ: Integer
+      ZWJ: Integer
+      LINE_TERMINATORS: Array[Integer]
+      WHITESPACE: Array[Integer]
+      SINGLE_ESCAPES: Array[Integer]
+      SPACE_SEPARATOR: Regexp
+      UNICODE_LETTER: Regexp
+      IDENTIFIER_PART: Regexp
+
+      class Frame
+        attr_reader rule: Symbol
+        attr_reader start: Integer
+        attr_reader elements: Array[json_value]
+        attr_reader entries: Hash[String, json_value]
+        attr_accessor state: Symbol
+        attr_accessor restore: Integer
+        attr_accessor key: String
+        attr_accessor key_error: deferred?
+        attr_accessor error: deferred?
+
+        def initialize: (Symbol rule, Integer start) -> void
+        def add: (json_value value, deferred? error) -> void
+        def value: () -> (Hash[String, json_value] | Array[json_value])
+      end
+
+      @chars: Array[Integer]
+      @pos: Integer
+      @attempt_pos: Integer
+      @pos_attempts: Array[Symbol]
+
+      def initialize: (String text) -> void
+      def parse: () -> json_value
+
+      private
+
+      def deferred: (deferred error) -> Error
+      def rule: (Symbol name) { () -> boolish } -> bool
+      def failed: (Symbol name, Integer start) -> void
+      def track: (Symbol name, Integer pos) -> void
+      def frame: (Symbol name) -> Frame
+      def char: () -> Integer?
+      def match: (String string) -> bool
+      def parse_value: () -> result
+      def step_value: (Frame current, result? returned) -> (Frame | result)
+      def parse_leaf: () -> result?
+      def step_collection: (Frame current, result? returned) -> (Frame | result)
+      def collection_next: (Frame current, String close) -> (Frame | result)
+      def member_head: (Frame current) -> bool
+      def collection_tail: (Frame current, String close) -> result
+      def collection_failed: (Frame current) -> result
+      def parse_key: () -> [String?, deferred?]?
+      def parse_string: () -> [String?, deferred?]?
+      def quoted: (Integer quote, Array[component] components) -> bool
+      def quote_char: (Integer quote, Array[component] components) -> bool
+      def escape_sequence: (Array[component] components) -> bool
+      def hex_escape: (Integer letter, Symbol name, Integer digits, Array[component] components) -> bool
+      def char_escape?: () -> bool
+      def line_terminator_sequence: () -> bool
+      def char_literal: (Array[component] components) -> bool
+      def component: (Symbol name, Array[component] components, ?Integer length) -> true
+      def hex_digits?: (Integer count) -> bool
+      def hex?: (Integer? code) -> bool
+      def parse_identifier: () -> [String?, deferred?]?
+      def identifier_start: (Array[component] components) -> bool
+      def identifier_part: (Array[component] components) -> bool
+      def unicode?: (Integer code, Regexp pattern) -> bool
+      def parse_number: () -> [(Integer | Float | nil), deferred?]?
+      def number_end: (Integer pos) -> Integer?
+      def hex_integer_end: (Integer pos) -> Integer?
+      def decimal_end: (Integer pos) -> Integer?
+      def integer_end: (Integer pos) -> Integer?
+      def exponent_end: (Integer pos) -> Integer?
+      def digits_end: (Integer pos) -> Integer
+      def digit?: (Integer? code) -> bool
+      def word_end: (Integer pos, String word) -> Integer?
+      def skip: () -> void
+      def whitespace?: (Integer? code) -> bool
+      def comment: () -> bool
+      def line_terminator?: (Integer? code) -> bool
+      def convert: [T] (Integer start) { () -> T } -> [T?, deferred?]
+    end
+  end
+end

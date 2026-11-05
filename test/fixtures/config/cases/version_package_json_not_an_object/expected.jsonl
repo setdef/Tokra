@@ -1,6 +1,9 @@
 {"build":"json","case":"cases/version_package_json_not_an_object","error":"`{brand}.conf.json > version` value is not a path to a JSON object","path":null,"target":"aarch64-apple-darwin"}
 {"build":"json","case":"cases/version_package_json_not_an_object","error":"`{brand}.conf.json > version` value is not a path to a JSON object","path":null,"target":"x86_64-pc-windows-msvc"}
 {"build":"json","case":"cases/version_package_json_not_an_object","error":"`{brand}.conf.json > version` value is not a path to a JSON object","path":null,"target":"x86_64-unknown-linux-gnu"}
+{"build":"json5","case":"cases/version_package_json_not_an_object","error":"`{brand}.conf.json > version` value is not a path to a JSON object","path":null,"target":"aarch64-apple-darwin"}
+{"build":"json5","case":"cases/version_package_json_not_an_object","error":"`{brand}.conf.json > version` value is not a path to a JSON object","path":null,"target":"x86_64-pc-windows-msvc"}
+{"build":"json5","case":"cases/version_package_json_not_an_object","error":"`{brand}.conf.json > version` value is not a path to a JSON object","path":null,"target":"x86_64-unknown-linux-gnu"}
 {"build":"formats","case":"cases/version_package_json_not_an_object","error":"`{brand}.conf.json > version` value is not a path to a JSON object","path":null,"target":"aarch64-apple-darwin"}
 {"build":"formats","case":"cases/version_package_json_not_an_object","error":"`{brand}.conf.json > version` value is not a path to a JSON object","path":null,"target":"x86_64-pc-windows-msvc"}
 {"build":"formats","case":"cases/version_package_json_not_an_object","error":"`{brand}.conf.json > version` value is not a path to a JSON object","path":null,"target":"x86_64-unknown-linux-gnu"}

@@ -1,0 +1,9 @@
+{"build":"json","case":"cases/json_nested_past_128","error":"unable to parse JSON {Brand} config file at {dir}/{brand}.conf.json because recursion limit exceeded at line 1 column 181","path":null,"target":"aarch64-apple-darwin"}
+{"build":"json","case":"cases/json_nested_past_128","error":"unable to parse JSON {Brand} config file at {dir}/{brand}.conf.json because recursion limit exceeded at line 1 column 181","path":null,"target":"x86_64-pc-windows-msvc"}
+{"build":"json","case":"cases/json_nested_past_128","error":"unable to parse JSON {Brand} config file at {dir}/{brand}.conf.json because recursion limit exceeded at line 1 column 181","path":null,"target":"x86_64-unknown-linux-gnu"}
+{"build":"json5","case":"cases/json_nested_past_128","path":null,"probes":{"/identifier":"com.tokra.fixture"},"target":"aarch64-apple-darwin"}
+{"build":"json5","case":"cases/json_nested_past_128","path":null,"probes":{"/identifier":"com.tokra.fixture"},"target":"x86_64-pc-windows-msvc"}
+{"build":"json5","case":"cases/json_nested_past_128","path":null,"probes":{"/identifier":"com.tokra.fixture"},"target":"x86_64-unknown-linux-gnu"}
+{"build":"formats","case":"cases/json_nested_past_128","path":null,"probes":{"/identifier":"com.tokra.fixture"},"target":"aarch64-apple-darwin"}
+{"build":"formats","case":"cases/json_nested_past_128","path":null,"probes":{"/identifier":"com.tokra.fixture"},"target":"x86_64-pc-windows-msvc"}
+{"build":"formats","case":"cases/json_nested_past_128","path":null,"probes":{"/identifier":"com.tokra.fixture"},"target":"x86_64-unknown-linux-gnu"}

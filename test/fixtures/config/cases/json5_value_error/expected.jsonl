@@ -1,0 +1,9 @@
+{"build":"json","case":"cases/json5_value_error","error":"supported (but disabled) format encountered .json5 - try enabling `config-json5` ","path":null,"target":"aarch64-apple-darwin"}
+{"build":"json","case":"cases/json5_value_error","error":"supported (but disabled) format encountered .json5 - try enabling `config-json5` ","path":null,"target":"x86_64-pc-windows-msvc"}
+{"build":"json","case":"cases/json5_value_error","error":"supported (but disabled) format encountered .json5 - try enabling `config-json5` ","path":null,"target":"x86_64-unknown-linux-gnu"}
+{"build":"json5","case":"cases/json5_value_error","error":"unable to parse JSON5 {Brand} config file at {dir}/{brand}.conf.json5 because error parsing hex","path":null,"target":"aarch64-apple-darwin"}
+{"build":"json5","case":"cases/json5_value_error","error":"unable to parse JSON5 {Brand} config file at {dir}/{brand}.conf.json5 because error parsing hex","path":null,"target":"x86_64-pc-windows-msvc"}
+{"build":"json5","case":"cases/json5_value_error","error":"unable to parse JSON5 {Brand} config file at {dir}/{brand}.conf.json5 because error parsing hex","path":null,"target":"x86_64-unknown-linux-gnu"}
+{"build":"formats","case":"cases/json5_value_error","error":"unable to parse JSON5 {Brand} config file at {dir}/{brand}.conf.json5 because error parsing hex","path":null,"target":"aarch64-apple-darwin"}
+{"build":"formats","case":"cases/json5_value_error","error":"unable to parse JSON5 {Brand} config file at {dir}/{brand}.conf.json5 because error parsing hex","path":null,"target":"x86_64-pc-windows-msvc"}
+{"build":"formats","case":"cases/json5_value_error","error":"unable to parse JSON5 {Brand} config file at {dir}/{brand}.conf.json5 because error parsing hex","path":null,"target":"x86_64-unknown-linux-gnu"}

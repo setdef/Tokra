@@ -35,8 +35,9 @@ namespace :config do
     target_dir = File.expand_path("tmp/config-fixtures")
     cargo = ["--locked", "--manifest-path", manifest, "--target-dir", target_dir]
     # The build without Tauri's optional formats answers for phase 1, the
-    # one with them for phase 2; each line names its build.
-    builds = [[], ["--features", "formats"]]
+    # one with config-json5 alone for phase 2's JSON5 half, and the one
+    # with both formats for its TOML half; each line names its build.
+    builds = [[], ["--features", "config-json5"], ["--features", "formats"]]
     answers = builds.flat_map do |features|
       CargoOutput.run!("cargo", "clippy", *cargo, *features, "--all-targets", "--", "-D", "warnings")
       CargoOutput.run!("cargo", "build", *cargo, *features)
@@ -45,7 +46,7 @@ namespace :config do
 
       output.lines
     end
-    answers.group_by { |line| JSON.parse(line).fetch("case") }.each do |name, lines|
+    answers.group_by { |line| JSON.parse(line, max_nesting: false).fetch("case") }.each do |name, lines|
       File.write(File.join(root, name, "expected.jsonl"), lines.join)
       puts "#{root}/#{name}/expected.jsonl: #{lines.size} answers"
     end

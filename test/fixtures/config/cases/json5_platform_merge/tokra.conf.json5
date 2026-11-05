@@ -1,0 +1,6 @@
+// the main file
+{
+  identifier: "com.tokra.json5",
+  app: { withGlobalTauri: false, windows: [{ title: "Main" }, { label: "second" }] },
+  plugins: { p: { keep: 1, gone: true } },
+}

@@ -79,8 +79,9 @@ module Tokra
     end
 
     # Reads the config beside +path+ for the platform this process runs
-    # on: the directory's <tt>tokra.conf.json</tt>, with the platform's
-    # file merged over it, checked against the schema. A relative +path+
+    # on: the directory's <tt>tokra.conf.json</tt> (or
+    # <tt>tokra.conf.json5</tt>), with the platform's file merged over it,
+    # checked against the schema. A relative +path+
     # joins the working directory. Answers the Tokra::Utils::Config::Config
     # and the directory it came from.
     #

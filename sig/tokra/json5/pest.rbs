@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Json5
+    module Pest
+      LINE_FEED: Integer
+      CARRIAGE_RETURN: Integer
+
+      def self.render: (Array[Integer] chars, Integer pos, Array[Symbol] positives) -> String
+      def self.line_col: (Array[Integer] chars, Integer pos) -> [Integer, Integer]
+      def self.line_of: (Array[Integer] chars, Integer pos) -> String
+      def self.underline: (String text, Integer column) -> String
+      def self.message: (Array[Symbol] positives) -> String
+      def self.enumerate: (Array[String] names) -> String
+    end
+  end
+end

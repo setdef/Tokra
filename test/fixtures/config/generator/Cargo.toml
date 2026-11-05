@@ -21,8 +21,15 @@ serde = "1"
 serde_json = "1"
 tauri-codegen = { path = "../../../../vendor/tauri/crates/tauri-codegen" }
 tauri-utils = { path = "../../../../vendor/tauri/crates/tauri-utils" }
+# json5 itself, at the version tauri-utils reads JSON5 with, for the
+# json5 cases (from_str into a serde_json Value, as parse.rs:377-382 calls
+# it).
+json5 = { version = "=0.4.1", optional = true }
 
 [features]
+# The build with JSON5 alone: the answer key for plan 054's phase 2,
+# JSON5 half, where Tokra reads JSON5 and TOML waits (question 2).
+config-json5 = ["tauri-codegen/config-json5", "dep:json5"]
 # The build with Tauri's two optional config formats on: the answer key
 # for plan 054's phase 2. Without it, only JSON is enabled.
 formats = ["tauri-codegen/config-json5", "tauri-codegen/config-toml"]

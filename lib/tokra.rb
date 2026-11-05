@@ -47,6 +47,7 @@ require_relative "tokra/ipc/invoke_error"
 require_relative "tokra/ipc/format_callback"
 require_relative "tokra/ipc/unexpected"
 require_relative "tokra/ipc/json"
+require_relative "tokra/json5"
 require_relative "tokra/ipc/command_item"
 require_relative "tokra/ipc/serde"
 require_relative "tokra/builder"
@@ -169,6 +170,10 @@ module Tokra
   # call it, with the same rules and the same errors, raised before any
   # window exists (ADR 014 §2).
   #
+  # The file may be JSON5 instead, as <tt>tokra.conf.json5</tt> or as a
+  # <tt>tokra.conf.json</tt> with comments or trailing commas, as Tauri
+  # reads it with its <tt>config-json5</tt> feature (ADR 014 §7).
+  #
   # With no +path+ it reads <tt>tokra.conf.json</tt> in the entry
   # script's directory, the one Ruby was started with, taken when
   # <tt>tokra</tt> loads, so a later <tt>Dir.chdir</tt> does not move it,
@@ -177,8 +182,9 @@ module Tokra
   # directory and an absolute one is taken as given; a path where no
   # config file exists raises ArgumentError, "no file at path {path}
   # exists, expected tokra config file". Once the path is found only its
-  # directory counts: the directory's <tt>tokra.conf.json</tt> is read,
-  # with the platform's file merged over it (Tokra::Codegen.get_config).
+  # directory counts: the directory's <tt>tokra.conf.json</tt> (or
+  # <tt>tokra.conf.json5</tt>) is read, with the platform's file merged
+  # over it (Tokra::Codegen.get_config).
   #
   # Raises Tokra::Utils::Config::Parse::ConfigError when the files
   # cannot be read, and Tokra::Codegen::CodegenConfigError::Json when

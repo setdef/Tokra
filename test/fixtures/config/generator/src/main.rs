@@ -7,11 +7,11 @@
 //! hand. This program asks Tauri's own crates, at the versions Tauri's
 //! lock pins, what they make of each case under `test/fixtures/config`,
 //! and prints one JSON line per answer. `rake config:fixtures` builds it
-//! twice (without and with the `formats` feature), runs it, and writes
-//! the lines beside each case as `expected.jsonl`, the answer key Tokra's
-//! tests read.
+//! three times (with no optional format, with `config-json5` alone, and
+//! with `formats`), runs it, and writes the lines beside each case as
+//! `expected.jsonl`, the answer key Tokra's tests read.
 //!
-//! Two kinds of case:
+//! Three kinds of case:
 //!
 //! - `from_value/cases.jsonl`: one JSON object per line, naming a
 //!   tauri-utils config type and a JSON value. The answer is
@@ -22,6 +22,10 @@
 //!   the case) and `probes.txt` (JSON pointers, one per line). The answer
 //!   is the macro's path check and `tauri_codegen::get_config` for each
 //!   desktop target, run on a copy of the case under Tauri's names.
+//! - `json5/cases.jsonl`: one JSON5 text per line, answered by the build
+//!   with `config-json5` alone: `json5::from_str` into a `Value`, as
+//!   tauri-utils reads a JSON5 config, giving the value or the error's
+//!   `Display` and location.
 //!
 //! Every string in an answer has the case's directory as `{dir}` (with
 //! `{dir}/` for the directory and a separator), and Tauri's brand as
@@ -58,9 +62,11 @@ use tauri_utils::{
     platform::Target,
 };
 
-/// Which of the two builds this is, recorded in every answer.
+/// Which of the three builds this is, recorded in every answer.
 const BUILD: &str = if cfg!(feature = "formats") {
     "formats"
+} else if cfg!(feature = "config-json5") {
+    "json5"
 } else {
     "json"
 };
@@ -93,6 +99,8 @@ fn main() {
     if BUILD == "json" {
         from_value_cases(&root.join("from_value"));
     }
+    #[cfg(feature = "config-json5")]
+    json5_cases(&root.join("json5"));
     let cases = root.join("cases");
     if cases.is_dir() {
         for case in sorted_entries(&cases) {
@@ -140,6 +148,31 @@ fn from_value_cases(dir: &Path) {
         match result {
             Ok(read) => answer["ok"] = probed(&read, case.get("probes")),
             Err(error) => answer["error"] = Value::String(error.to_string()),
+        }
+        println!("{answer}");
+    }
+}
+
+/// Each line of `json5/cases.jsonl` read by json5 as tauri-utils reads a
+/// JSON5 config (`json5::from_str` into a `Value`, parse.rs:377-382): the
+/// value, or the error's `Display` and its location.
+#[cfg(feature = "config-json5")]
+fn json5_cases(dir: &Path) {
+    let cases = fs::read_to_string(dir.join("cases.jsonl")).expect("json5/cases.jsonl");
+    for line in cases.lines().filter(|line| !line.trim().is_empty()) {
+        let case: Value = serde_json::from_str(line).expect("a JSON object per line");
+        let name = case["name"].as_str().expect("a case name");
+        let text = case["text"].as_str().expect("the JSON5 text");
+        let mut answer = json!({ "case": "json5", "name": name, "build": BUILD });
+        match json5::from_str::<Value>(text) {
+            Ok(value) => answer["ok"] = value,
+            Err(error) => {
+                let json5::Error::Message { location, .. } = &error;
+                answer["location"] = location
+                    .as_ref()
+                    .map_or(Value::Null, |at| json!([at.line, at.column]));
+                answer["error"] = Value::String(error.to_string());
+            }
         }
         println!("{answer}");
     }

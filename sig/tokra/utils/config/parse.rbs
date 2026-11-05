@@ -35,6 +35,12 @@ module Tokra
             def initialize: (String path, Ipc::Json::Error error) -> void
           end
 
+          class FormatJson5 < ConfigError
+            attr_reader path: String
+            attr_reader error: Tokra::Json5::Error
+            def initialize: (String path, Tokra::Json5::Error error) -> void
+          end
+
           class UnsupportedFormat < ConfigError
             attr_reader extension: String
             def initialize: (String extension) -> void
@@ -59,6 +65,7 @@ module Tokra
         def self.parse_value: (Platform::Target target, String | Pathname path) -> [json_value, String]
         private def self.sibling: (String path, ConfigFormat format, Platform::Target target, bool platform) -> String
         private def self.do_parse_json: (String raw, String path) -> json_value
+        private def self.do_parse_json5: (String raw, String path) -> json_value
         def self.read_to_string: (String path) -> String
         private def self.io_error: (SystemCallError error) -> String
         def self.display: (String | Pathname path) -> String

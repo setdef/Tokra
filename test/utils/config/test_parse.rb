@@ -10,8 +10,9 @@ require_relative "../../support/config_fixtures"
 
 # Reading config files, held up against what tauri-utils' config::parse
 # and tauri-codegen's get_config answered for the same files on each
-# desktop target (test/fixtures/config/cases, the build without Tauri's
-# optional formats). Each case is copied into a fresh directory and read
+# desktop target (test/fixtures/config/cases, the build with config-json5
+# alone, as Tokra reads JSON5 and not yet TOML). Each case is copied into
+# a fresh directory and read
 # for all three targets, whatever this machine runs: the files, the
 # platform's file merged over the main one, and the schema.
 class TestUtilsConfigParse < Minitest::Test
@@ -69,8 +70,11 @@ class TestUtilsConfigParse < Minitest::Test
     end
   end
 
-  def test_the_check_finds_no_disabled_format
+  def test_the_check_finds_json5_and_no_toml
     ConfigFixtures.with_case("json5_only") do |dir|
+      assert P.does_supported_file_name_exist(Target.current, File.join(dir, "tokra.conf.json"))
+    end
+    ConfigFixtures.with_case("toml_only") do |dir|
       refute P.does_supported_file_name_exist(Target.current, File.join(dir, "tokra.conf.json"))
     end
   end
@@ -81,16 +85,36 @@ class TestUtilsConfigParse < Minitest::Test
     error = P::ConfigError::Io.new("/app/tokra.conf.json", "entity not found")
     assert_kind_of Tokra::Error, error
     assert_equal ["/app/tokra.conf.json", "entity not found"], [error.path, error.error]
+    json5_error = Tokra::Json5::Error.new("error parsing hex")
+    json5 = P::ConfigError::FormatJson5.new("/app/tokra.conf.json5", json5_error)
+    assert_kind_of P::ConfigError, json5
+    assert_equal ["/app/tokra.conf.json5", json5_error], [json5.path, json5.error]
     disabled = P::ConfigError::DisabledFormat.new(".toml", "config-toml")
     assert_equal [".toml", "config-toml"], [disabled.extension, disabled.feature]
     assert_equal "yaml", P::ConfigError::UnsupportedFormat.new("yaml").extension
   end
 
-  def test_a_syntax_error_keeps_serde_jsons_error
-    ConfigFixtures.with_case("syntax_error") do |dir|
+  def test_a_json_neither_parser_reads_keeps_serde_jsons_error
+    ConfigFixtures.with_case("json_neither") do |dir|
       error = assert_raises(P::ConfigError::FormatJson) { P.read_from(Target.current, dir) }
       assert_equal File.join(dir, "tokra.conf.json"), error.path
       assert_kind_of Tokra::Ipc::Json::Error, error.error
+    end
+  end
+
+  def test_a_json5_syntax_error_keeps_json5s_error
+    ConfigFixtures.with_case("json5_syntax_error") do |dir|
+      error = assert_raises(P::ConfigError::FormatJson5) { P.read_from(Target.current, dir) }
+      assert_equal File.join(dir, "tokra.conf.json5"), error.path
+      assert_kind_of Tokra::Json5::Error, error.error
+      assert_equal Tokra::Json5::Location.new(line: 2, column: 15), error.error.location
+    end
+  end
+
+  def test_read_from_answers_the_json5_paths_it_read
+    ConfigFixtures.with_case("json5_platform_merge") do |dir|
+      _, paths = P.read_from(Target::Linux, dir)
+      assert_equal [File.join(dir, "tokra.conf.json5"), File.join(dir, "tokra.linux.conf.json5")], paths
     end
   end
 
@@ -114,7 +138,7 @@ class TestUtilsConfigParse < Minitest::Test
     assert_equal %w[tokra.conf.json tokra.conf.json5 Tokra.toml], formats.map(&:into_file_name)
     assert_equal %w[tokra.windows.conf.json tokra.windows.conf.json5 Tokra.windows.toml],
       formats.map { |format| format.into_platform_file_name(Target::Windows) }
-    assert_equal [P::ConfigFormat::Json], P::ENABLED_FORMATS
+    assert_equal [P::ConfigFormat::Json, P::ConfigFormat::Json5], P::ENABLED_FORMATS
   end
 
   # Reads the case for the answer's target as get_config does, and checks

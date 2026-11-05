@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Json5
+    class Error < Tokra::Error
+      attr_reader location: Location?
+      def initialize: (String message, ?Location? location) -> void
+    end
+
+    class Location < Data
+      attr_reader line: Integer
+      attr_reader column: Integer
+      def self.new: (line: Integer, column: Integer) -> Location
+    end
+
+    def self.from_str: (String text) -> json_value
+
+    module De
+      CHAR_ESCAPES: Hash[String, String]
+      U32_MAX: Integer
+      I64_RANGE: Range[Integer]
+      DECIMAL: Regexp
+      OVERFLOW: Rational
+      UNDERFLOW: Rational
+
+      def self.number: (String text) -> (Integer | Float | nil)
+      def self.string: (Array[[Symbol, String]] components) -> String
+      def self.unicode_escape: (Array[[Symbol, String]] components, String text, Integer index) -> [Integer, Integer]
+      def self.int?: (String text) -> bool
+      def self.parse_integer: (String text) -> Integer
+      def self.parse_number: (String text) -> Float
+      def self.parse_f64: (String text) -> Float?
+      def self.parse_hex: (String text) -> Integer
+      def self.hex_literal?: (String text) -> bool
+    end
+  end
+end
