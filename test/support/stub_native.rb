@@ -24,6 +24,7 @@ module StubNative
     Thread.current[:stub_native_webviews] = nil
     Thread.current[:stub_native_task_wake_ups] = nil
     Thread.current[:stub_native_event_loop_calls] = nil
+    Thread.current[:stub_native_event_loop_app_ids] = nil
     Thread.current[:stub_native_exit_code] = nil
     Thread.current[:stub_native_nsapp_calls] = nil
     Thread.current[:stub_native_app_icons] = nil
@@ -56,6 +57,12 @@ module StubNative
   # <tt>[:set_activation_policy, name]</tt> and <tt>[:run]</tt>.
   def self.event_loop_calls
     Thread.current[:stub_native_event_loop_calls] ||= []
+  end
+
+  # The GTK application id each event loop was built with, in order,
+  # +nil+ for none, as App#run hands it to Native::EventLoop.new.
+  def self.event_loop_app_ids
+    Thread.current[:stub_native_event_loop_app_ids] ||= []
   end
 
   # How many times Proxy#send_task woke the loop across the run.
@@ -709,7 +716,10 @@ set_enabled: :is_enabled,
     # Events waiting for the callback; windows and proxies add to it.
     attr_reader :queue
 
-    def initialize
+    # Takes the GTK application id, or +nil+, as Native::EventLoop.new
+    # does; the tests that build a target alone pass none.
+    def initialize(app_id = nil)
+      StubNative.event_loop_app_ids << app_id
       @queue = []
       @ended = false
       @cursor = [[812.0, 455.5]]

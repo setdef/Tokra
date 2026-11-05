@@ -143,3 +143,234 @@
 {"name": "webview_url_windows_path", "type": "WebviewUrl", "value": "C:\\dist"}
 {"name": "webview_url_opaque_with_space", "type": "WebviewUrl", "value": "foo:bar baz"}
 {"name": "window_default_width_is_a_float", "type": "WindowConfig", "value": {"width": 1024}, "probes": ["/width", "/height"]}
+{"name": "bundle_type_each", "type": "BundleTarget", "value": ["deb", "rpm", "appimage", "msi", "nsis", "app", "dmg"]}
+{"name": "bundle_type_case_insensitive", "type": "BundleType", "value": "AppImage"}
+{"name": "bundle_type_upper", "type": "BundleType", "value": "DMG"}
+{"name": "bundle_type_unknown", "type": "BundleType", "value": "exe"}
+{"name": "bundle_type_not_a_string", "type": "BundleType", "value": 1}
+{"name": "bundle_type_map", "type": "BundleType", "value": {"deb": null}}
+{"name": "bundle_target_all", "type": "BundleTarget", "value": "all"}
+{"name": "bundle_target_all_upper", "type": "BundleTarget", "value": "ALL"}
+{"name": "bundle_target_one", "type": "BundleTarget", "value": "Deb"}
+{"name": "bundle_target_list", "type": "BundleTarget", "value": ["deb", "DMG"]}
+{"name": "bundle_target_empty_list", "type": "BundleTarget", "value": []}
+{"name": "bundle_target_unknown", "type": "BundleTarget", "value": "exe"}
+{"name": "bundle_target_unknown_in_list", "type": "BundleTarget", "value": ["deb", "exe"]}
+{"name": "bundle_target_all_in_list", "type": "BundleTarget", "value": ["all"]}
+{"name": "bundle_target_integer", "type": "BundleTarget", "value": 1}
+{"name": "bundle_target_null", "type": "BundleTarget", "value": null}
+{"name": "bundle_target_map", "type": "BundleTarget", "value": {"all": null}}
+{"name": "bundle_target_unicode_lowercase", "type": "BundleTarget", "value": "ÄLL"}
+{"name": "updater_true", "type": "Updater", "value": true}
+{"name": "updater_false", "type": "Updater", "value": false}
+{"name": "updater_v1_compatible", "type": "Updater", "value": "v1Compatible"}
+{"name": "updater_v1_compatible_map", "type": "Updater", "value": {"v1Compatible": null}}
+{"name": "updater_v1_compatible_map_with_object", "type": "Updater", "value": {"v1Compatible": {}}}
+{"name": "updater_v1_compatible_map_with_true", "type": "Updater", "value": {"v1Compatible": true}}
+{"name": "updater_wrong_case", "type": "Updater", "value": "V1Compatible"}
+{"name": "updater_integer", "type": "Updater", "value": 1}
+{"name": "updater_null", "type": "Updater", "value": null}
+{"name": "v1_compatible", "type": "V1Compatible", "value": "v1Compatible"}
+{"name": "v1_compatible_unknown", "type": "V1Compatible", "value": "v2"}
+{"name": "resources_list", "type": "BundleResources", "value": ["a.txt", "dir/"]}
+{"name": "resources_empty_list", "type": "BundleResources", "value": []}
+{"name": "resources_map", "type": "BundleResources", "value": {"a.txt": "b.txt", "dir/": ""}}
+{"name": "resources_empty_map", "type": "BundleResources", "value": {}}
+{"name": "resources_list_of_integers", "type": "BundleResources", "value": [1]}
+{"name": "resources_map_of_integers", "type": "BundleResources", "value": {"a": 1}}
+{"name": "resources_string", "type": "BundleResources", "value": "a.txt"}
+{"name": "association_minimal", "type": "FileAssociation", "value": {"ext": ["png", ".jpg"]}}
+{"name": "association_full", "type": "FileAssociation", "value": {"ext": ["..doc", "."], "contentTypes": ["public.data"], "name": "Doc", "description": "A doc", "role": "Viewer", "mimeType": "text/plain", "rank": "Owner", "exportedType": {"identifier": "com.example.doc", "conformsTo": ["public.data"]}}}
+{"name": "association_aliases", "type": "FileAssociation", "value": {"ext": ["a"], "content-types": ["public.image"], "mime-type": "image/png", "exportedType": {"identifier": "x", "conforms-to": ["public.json"]}}}
+{"name": "association_missing_ext", "type": "FileAssociation", "value": {"name": "x"}}
+{"name": "association_unknown_field", "type": "FileAssociation", "value": {"ext": ["a"], "bogus": 1}}
+{"name": "association_kebab_exported_type", "type": "FileAssociation", "value": {"ext": ["a"], "exported-type": {"identifier": "x"}}}
+{"name": "association_ext_not_a_sequence", "type": "FileAssociation", "value": {"ext": "png"}}
+{"name": "association_ext_integer", "type": "FileAssociation", "value": {"ext": [1]}}
+{"name": "association_role_lowercase", "type": "FileAssociation", "value": {"ext": ["a"], "role": "viewer"}}
+{"name": "association_rank_unknown", "type": "FileAssociation", "value": {"ext": ["a"], "rank": "First"}}
+{"name": "association_exported_missing_identifier", "type": "FileAssociation", "value": {"ext": ["a"], "exportedType": {}}}
+{"name": "association_exported_unknown_field", "type": "FileAssociation", "value": {"ext": ["a"], "exportedType": {"identifier": "x", "bogus": 1}}}
+{"name": "association_as_sequence", "type": "FileAssociation", "value": [["a"]]}
+{"name": "association_ext_strip", "type": "AssociationExt", "value": ".txt"}
+{"name": "association_ext_integer_alone", "type": "AssociationExt", "value": 1}
+{"name": "role_each", "type": "FileAssociation", "value": {"ext": ["a"], "role": "QLGenerator"}}
+{"name": "role_shell", "type": "BundleTypeRole", "value": "Shell"}
+{"name": "role_none_map", "type": "BundleTypeRole", "value": {"None": null}}
+{"name": "role_editor", "type": "BundleTypeRole", "value": "Editor"}
+{"name": "role_unknown", "type": "BundleTypeRole", "value": "Bogus"}
+{"name": "rank_alternate", "type": "HandlerRank", "value": "Alternate"}
+{"name": "rank_none", "type": "HandlerRank", "value": "None"}
+{"name": "rank_default", "type": "HandlerRank", "value": "Default"}
+{"name": "rank_integer", "type": "HandlerRank", "value": 1}
+{"name": "exported_seq", "type": "ExportedFileAssociation", "value": ["x", ["public.data"]]}
+{"name": "windows_defaults", "type": "WindowsConfig", "value": {}}
+{"name": "windows_values", "type": "WindowsConfig", "value": {"digestAlgorithm": "sha256", "certificateThumbprint": "A1", "timestampUrl": "http://ts", "tsp": true, "webviewInstallMode": {"type": "skip"}, "allowDowngrades": false, "wix": {}, "nsis": {}, "signCommand": "signtool sign %1"}}
+{"name": "windows_aliases", "type": "WindowsConfig", "value": {"digest-algorithm": "sha1", "certificate-thumbprint": "B2", "timestamp-url": "http://t", "webview-install-mode": {"type": "offlineInstaller"}, "allow-downgrades": false, "sign-command": {"cmd": "osslsigncode", "args": ["%1"]}}}
+{"name": "windows_unknown_field", "type": "WindowsConfig", "value": {"bogus": 1}}
+{"name": "windows_tsp_not_a_bool", "type": "WindowsConfig", "value": {"tsp": "yes"}}
+{"name": "windows_wix_null", "type": "WindowsConfig", "value": {"wix": null, "nsis": null}}
+{"name": "install_mode_skip", "type": "WebviewInstallMode", "value": {"type": "skip"}}
+{"name": "install_mode_skip_with_extra", "type": "WebviewInstallMode", "value": {"type": "skip", "extra": 1}}
+{"name": "install_mode_download_default", "type": "WebviewInstallMode", "value": {"type": "downloadBootstrapper"}}
+{"name": "install_mode_embed", "type": "WebviewInstallMode", "value": {"type": "embedBootstrapper", "silent": false}}
+{"name": "install_mode_offline", "type": "WebviewInstallMode", "value": {"type": "offlineInstaller"}}
+{"name": "install_mode_fixed", "type": "WebviewInstallMode", "value": {"type": "fixedRuntime", "path": "./runtime"}}
+{"name": "install_mode_fixed_missing_path", "type": "WebviewInstallMode", "value": {"type": "fixedRuntime"}}
+{"name": "install_mode_unknown_field", "type": "WebviewInstallMode", "value": {"type": "downloadBootstrapper", "bogus": 1}}
+{"name": "install_mode_wrong_case", "type": "WebviewInstallMode", "value": {"type": "Skip"}}
+{"name": "install_mode_missing_type", "type": "WebviewInstallMode", "value": {}}
+{"name": "install_mode_string", "type": "WebviewInstallMode", "value": "skip"}
+{"name": "install_mode_seq_fixed", "type": "WebviewInstallMode", "value": ["fixedRuntime", "./rt"]}
+{"name": "install_mode_seq_default", "type": "WebviewInstallMode", "value": ["downloadBootstrapper"]}
+{"name": "install_mode_seq_skip_extra", "type": "WebviewInstallMode", "value": ["skip", 1]}
+{"name": "install_mode_seq_too_long", "type": "WebviewInstallMode", "value": ["embedBootstrapper", true, 1]}
+{"name": "install_mode_seq_empty", "type": "WebviewInstallMode", "value": []}
+{"name": "install_mode_tag_integer", "type": "WebviewInstallMode", "value": {"type": 1}}
+{"name": "install_mode_silent_string", "type": "WebviewInstallMode", "value": {"type": "downloadBootstrapper", "silent": "yes"}}
+{"name": "install_mode_silent_null", "type": "WebviewInstallMode", "value": {"type": "downloadBootstrapper", "silent": null}}
+{"name": "sign_command_string", "type": "CustomSignCommandConfig", "value": "signtool sign /fd sha256 %1"}
+{"name": "sign_command_object", "type": "CustomSignCommandConfig", "value": {"cmd": "osslsigncode", "args": ["sign", "%1"]}}
+{"name": "sign_command_missing_args", "type": "CustomSignCommandConfig", "value": {"cmd": "x"}}
+{"name": "sign_command_extra_key", "type": "CustomSignCommandConfig", "value": {"cmd": "x", "args": [], "extra": 1}}
+{"name": "sign_command_integer", "type": "CustomSignCommandConfig", "value": 1}
+{"name": "sign_command_seq", "type": "CustomSignCommandConfig", "value": ["x", []]}
+{"name": "wix_defaults", "type": "WixConfig", "value": {}}
+{"name": "wix_values", "type": "WixConfig", "value": {"version": "1.2.3.4", "upgradeCode": "67e55044-10b1-426f-9247-bb680e5fe0c8", "language": ["en-US", "fr-FR"], "template": "main.wxs", "fragmentPaths": ["f.wxs"], "componentGroupRefs": ["cg"], "componentRefs": ["c"], "featureGroupRefs": ["fg"], "featureRefs": ["f"], "mergeRefs": ["m"], "enableElevatedUpdateTask": true, "bannerPath": "banner.bmp", "dialogImagePath": "dialog.bmp", "fipsCompliant": true}}
+{"name": "wix_aliases", "type": "WixConfig", "value": {"upgrade-code": "67E55044-10B1-426F-9247-BB680E5FE0C8", "fragment-paths": ["a"], "component-group-refs": ["b"], "component-refs": ["c"], "feature-group-refs": ["d"], "feature-refs": ["e"], "merge-refs": ["f"], "enable-elevated-update-task": true, "banner-path": "g", "dialog-image-path": "h", "fips-compliant": true}}
+{"name": "wix_unknown_field", "type": "WixConfig", "value": {"bogus": 1}}
+{"name": "wix_upgrade_code_simple", "type": "WixConfig", "value": {"upgradeCode": "67e5504410b1426f9247bb680e5fe0c8"}}
+{"name": "wix_upgrade_code_braced", "type": "WixConfig", "value": {"upgradeCode": "{67e55044-10b1-426f-9247-bb680e5fe0c8}"}}
+{"name": "wix_upgrade_code_urn", "type": "WixConfig", "value": {"upgradeCode": "urn:uuid:67e55044-10b1-426f-9247-bb680e5fe0c8"}}
+{"name": "wix_upgrade_code_null", "type": "WixConfig", "value": {"upgradeCode": null}}
+{"name": "uuid_too_short", "type": "WixConfig", "value": {"upgradeCode": "1234"}}
+{"name": "uuid_empty", "type": "WixConfig", "value": {"upgradeCode": ""}}
+{"name": "uuid_bad_character", "type": "WixConfig", "value": {"upgradeCode": "67e55044-10b1-426f-9247-bb680e5fe0cz"}}
+{"name": "uuid_bad_simple_character", "type": "WixConfig", "value": {"upgradeCode": "g7e5504410b1426f9247bb680e5fe0c8"}}
+{"name": "uuid_multibyte", "type": "WixConfig", "value": {"upgradeCode": "67e55044-10b1-426f-9247-bb680e5fe0é"}}
+{"name": "uuid_latin1_range", "type": "WixConfig", "value": {"upgradeCode": "67e5504é"}}
+{"name": "uuid_wide_character", "type": "WixConfig", "value": {"upgradeCode": "67e5504€10b1426f9247bb680e5fe0c8"}}
+{"name": "uuid_group_count", "type": "WixConfig", "value": {"upgradeCode": "67e55044-10b1-426f-9247bb680e5fe0c8"}}
+{"name": "uuid_too_many_groups", "type": "WixConfig", "value": {"upgradeCode": "67e55044-10b1-426f-9247-bb68-0e5fe0c8"}}
+{"name": "uuid_group_length", "type": "WixConfig", "value": {"upgradeCode": "67e5504-410b1-426f-9247-bb680e5fe0c8"}}
+{"name": "uuid_second_group_length", "type": "WixConfig", "value": {"upgradeCode": "67e55044-10b14-26f-9247-bb680e5fe0c8"}}
+{"name": "uuid_last_group_long", "type": "WixConfig", "value": {"upgradeCode": "67e55044-10b1-426f-9247-bb680e5fe0c88"}}
+{"name": "uuid_last_group_short", "type": "WixConfig", "value": {"upgradeCode": "67e55044-10b1-426f-9247-bb680e5fe0c"}}
+{"name": "uuid_braced_long", "type": "WixConfig", "value": {"upgradeCode": "{67e55044-10b1-426f-9247-bb680e5fe0c88}"}}
+{"name": "uuid_urn_bad", "type": "WixConfig", "value": {"upgradeCode": "urn:uuid:67e55044-10b1-426f-9247-bb680e5fe0cx"}}
+{"name": "uuid_simple_with_hyphen", "type": "WixConfig", "value": {"upgradeCode": "67e55044-10b1426f9247bb680e5fe0c"}}
+{"name": "uuid_braced_only", "type": "WixConfig", "value": {"upgradeCode": "{}"}}
+{"name": "uuid_integer", "type": "WixConfig", "value": {"upgradeCode": 1}}
+{"name": "uuid_sequence", "type": "WixConfig", "value": {"upgradeCode": [1, 2]}}
+{"name": "uuid_33_hex", "type": "WixConfig", "value": {"upgradeCode": "67e5504410b1426f9247bb680e5fe0c80"}}
+{"name": "wix_language_one", "type": "WixLanguage", "value": "de-DE"}
+{"name": "wix_language_list", "type": "WixLanguage", "value": ["en-US", "fr-FR"]}
+{"name": "wix_language_localized", "type": "WixLanguage", "value": {"en-US": {"localePath": "en.wxl"}, "fr-FR": {}}}
+{"name": "wix_language_localized_alias", "type": "WixLanguage", "value": {"en-US": {"locale-path": "en.wxl"}}}
+{"name": "wix_language_localized_unknown", "type": "WixLanguage", "value": {"en-US": {"bogus": 1}}}
+{"name": "wix_language_localized_null", "type": "WixLanguage", "value": {"en-US": null}}
+{"name": "wix_language_integer", "type": "WixLanguage", "value": 1}
+{"name": "wix_language_list_of_integers", "type": "WixLanguage", "value": [1]}
+{"name": "wix_language_config_seq", "type": "WixLanguageConfig", "value": ["en.wxl"]}
+{"name": "nsis_defaults", "type": "NsisConfig", "value": {}}
+{"name": "nsis_values", "type": "NsisConfig", "value": {"template": "i.nsi", "headerImage": "h.bmp", "sidebarImage": "s.bmp", "installerIcon": "i.ico", "installMode": "perMachine", "languages": ["English", "French"], "customLanguageFiles": {"English": "en.nsh"}, "displayLanguageSelector": true, "compression": "zlib", "startMenuFolder": "Acme", "installerHooks": "hooks.nsh", "minimumWebview2Version": "110.0.1531.0"}}
+{"name": "nsis_aliases", "type": "NsisConfig", "value": {"header-image": "h", "sidebar-image": "s", "install-icon": "i", "install-mode": "both", "display-language-selector": true, "start-menu-folder": "f", "installer-hooks": "k", "minimum-webview2-version": "1"}}
+{"name": "nsis_installer_icon_kebab", "type": "NsisConfig", "value": {"installer-icon": "i.ico"}}
+{"name": "nsis_unknown_field", "type": "NsisConfig", "value": {"bogus": 1}}
+{"name": "nsis_compression_bzip2", "type": "NsisConfig", "value": {"compression": "bzip2"}}
+{"name": "nsis_compression_none", "type": "NsisConfig", "value": {"compression": "none"}}
+{"name": "nsis_compression_lzma", "type": "NsisConfig", "value": {"compression": {"lzma": null}}}
+{"name": "nsis_compression_wrong_case", "type": "NsisConfig", "value": {"compression": "Zlib"}}
+{"name": "nsis_install_mode_current_user", "type": "NsisConfig", "value": {"installMode": "currentUser"}}
+{"name": "nsis_install_mode_wrong_case", "type": "NsisConfig", "value": {"installMode": "PerMachine"}}
+{"name": "nsis_custom_language_files_not_a_map", "type": "NsisConfig", "value": {"customLanguageFiles": ["a"]}}
+{"name": "nsis_compression_alone", "type": "NsisCompression", "value": "none"}
+{"name": "nsis_installer_mode_alone", "type": "NSISInstallerMode", "value": "both"}
+{"name": "linux_defaults", "type": "LinuxConfig", "value": {}}
+{"name": "linux_values", "type": "LinuxConfig", "value": {"appimage": {"bundleMediaFramework": true, "files": {"/usr/share/a": "a"}}, "deb": {"depends": ["libc6"]}, "rpm": {"release": "2"}}}
+{"name": "linux_unknown_field", "type": "LinuxConfig", "value": {"flatpak": {}}}
+{"name": "appimage_alias", "type": "AppImageConfig", "value": {"bundle-media-framework": true}}
+{"name": "appimage_unknown_field", "type": "AppImageConfig", "value": {"bogus": 1}}
+{"name": "appimage_files_not_a_map", "type": "AppImageConfig", "value": {"files": ["a"]}}
+{"name": "appimage_files_value_integer", "type": "AppImageConfig", "value": {"files": {"a": 1}}}
+{"name": "deb_defaults", "type": "DebConfig", "value": {}}
+{"name": "deb_values", "type": "DebConfig", "value": {"depends": ["a"], "recommends": ["b"], "provides": ["c"], "conflicts": ["d"], "replaces": ["e"], "files": {"/usr/bin/x": "x"}, "section": "utils", "priority": "optional", "changelog": "CHANGELOG", "desktopTemplate": "t.desktop", "preInstallScript": "pre.sh", "postInstallScript": "post.sh", "preRemoveScript": "prerm.sh", "postRemoveScript": "postrm.sh"}}
+{"name": "deb_aliases", "type": "DebConfig", "value": {"desktop-template": "t", "pre-install-script": "a", "post-install-script": "b", "pre-remove-script": "c", "post-remove-script": "d"}}
+{"name": "deb_unknown_field", "type": "DebConfig", "value": {"bogus": 1}}
+{"name": "deb_depends_string", "type": "DebConfig", "value": {"depends": "libc6"}}
+{"name": "rpm_defaults", "type": "RpmConfig", "value": {}}
+{"name": "rpm_values", "type": "RpmConfig", "value": {"depends": ["a"], "recommends": ["b"], "provides": ["c"], "conflicts": ["d"], "obsoletes": ["e"], "release": "3", "epoch": 2, "files": {"/a": "b"}, "desktopTemplate": "t", "preInstallScript": "a", "postInstallScript": "b", "preRemoveScript": "c", "postRemoveScript": "d", "compression": {"type": "zstd", "level": -3}}}
+{"name": "rpm_aliases", "type": "RpmConfig", "value": {"desktop-template": "t", "pre-install-script": "a", "post-install-script": "b", "pre-remove-script": "c", "post-remove-script": "d"}}
+{"name": "rpm_unknown_field", "type": "RpmConfig", "value": {"bogus": 1}}
+{"name": "rpm_epoch_negative", "type": "RpmConfig", "value": {"epoch": -1}}
+{"name": "rpm_epoch_past_u32", "type": "RpmConfig", "value": {"epoch": 4294967296}}
+{"name": "rpm_epoch_float", "type": "RpmConfig", "value": {"epoch": 1.5}}
+{"name": "rpm_release_integer", "type": "RpmConfig", "value": {"release": 1}}
+{"name": "rpm_compression_gzip", "type": "RpmCompression", "value": {"type": "gzip", "level": 6}}
+{"name": "rpm_compression_xz", "type": "RpmCompression", "value": {"type": "xz", "level": 9}}
+{"name": "rpm_compression_bzip2", "type": "RpmCompression", "value": {"type": "bzip2", "level": 1}}
+{"name": "rpm_compression_none", "type": "RpmCompression", "value": {"type": "none"}}
+{"name": "rpm_compression_none_with_level", "type": "RpmCompression", "value": {"type": "none", "level": 1}}
+{"name": "rpm_compression_none_seq", "type": "RpmCompression", "value": ["none"]}
+{"name": "rpm_compression_none_seq_extra", "type": "RpmCompression", "value": ["none", 1]}
+{"name": "rpm_compression_gzip_seq", "type": "RpmCompression", "value": ["gzip", 5]}
+{"name": "rpm_compression_gzip_seq_short", "type": "RpmCompression", "value": ["gzip"]}
+{"name": "rpm_compression_missing_level", "type": "RpmCompression", "value": {"type": "gzip"}}
+{"name": "rpm_compression_unknown_field", "type": "RpmCompression", "value": {"type": "gzip", "level": 6, "x": 1}}
+{"name": "rpm_compression_gzip_negative", "type": "RpmCompression", "value": {"type": "gzip", "level": -1}}
+{"name": "rpm_compression_zstd_past_i32", "type": "RpmCompression", "value": {"type": "zstd", "level": -2147483649}}
+{"name": "rpm_compression_zstd_float", "type": "RpmCompression", "value": {"type": "zstd", "level": 1.0}}
+{"name": "rpm_compression_unknown_variant", "type": "RpmCompression", "value": {"type": "lz4"}}
+{"name": "rpm_compression_wrong_case", "type": "RpmCompression", "value": {"type": "Gzip", "level": 6}}
+{"name": "rpm_compression_string", "type": "RpmCompression", "value": "none"}
+{"name": "macos_defaults", "type": "MacConfig", "value": {}}
+{"name": "macos_values", "type": "MacConfig", "value": {"frameworks": ["A.framework"], "files": {"embedded.provisionprofile": "./p"}, "bundleVersion": "42", "bundleName": "Acme", "minimumSystemVersion": "12.0", "exceptionDomain": "example.com", "signingIdentity": "-", "hardenedRuntime": false, "providerShortName": "ACME", "entitlements": "e.plist", "infoPlist": "Info.plist", "dmg": {"background": "bg.png"}}}
+{"name": "macos_aliases", "type": "MacConfig", "value": {"bundle-version": "1", "bundle-name": "n", "minimum-system-version": "11.0", "exception-domain": "d", "signing-identity": "s", "hardened-runtime": false, "provider-short-name": "p", "info-plist": "i"}}
+{"name": "macos_minimum_empty", "type": "MacConfig", "value": {"minimumSystemVersion": ""}}
+{"name": "macos_minimum_empty_alias", "type": "MacConfig", "value": {"minimum-system-version": ""}}
+{"name": "macos_minimum_null", "type": "MacConfig", "value": {"minimumSystemVersion": null}}
+{"name": "macos_minimum_integer", "type": "MacConfig", "value": {"minimumSystemVersion": 13}}
+{"name": "macos_minimum_space", "type": "MacConfig", "value": {"minimumSystemVersion": " "}}
+{"name": "macos_unknown_field", "type": "MacConfig", "value": {"bogus": 1}}
+{"name": "macos_hardened_runtime_null", "type": "MacConfig", "value": {"hardenedRuntime": null}}
+{"name": "dmg_defaults", "type": "DmgConfig", "value": {}}
+{"name": "dmg_values", "type": "DmgConfig", "value": {"background": "bg.png", "windowPosition": {"x": 10, "y": 20}, "windowSize": {"width": 500, "height": 300}, "appPosition": {"x": 1, "y": 2}, "applicationFolderPosition": {"x": 3, "y": 4}}}
+{"name": "dmg_aliases", "type": "DmgConfig", "value": {"window-size": {"width": 1, "height": 2}, "app-position": {"x": 5, "y": 6}, "application-folder-position": {"x": 7, "y": 8}}}
+{"name": "dmg_window_position_kebab", "type": "DmgConfig", "value": {"window-position": {"x": 1, "y": 1}}}
+{"name": "dmg_unknown_field", "type": "DmgConfig", "value": {"bogus": 1}}
+{"name": "dmg_position_missing_y", "type": "DmgConfig", "value": {"appPosition": {"x": 1}}}
+{"name": "dmg_position_negative", "type": "DmgConfig", "value": {"appPosition": {"x": -1, "y": 0}}}
+{"name": "dmg_size_unknown_field", "type": "DmgConfig", "value": {"windowSize": {"width": 1, "height": 2, "depth": 3}}}
+{"name": "position_seq", "type": "Position", "value": [1, 2]}
+{"name": "position_seq_short", "type": "Position", "value": [1]}
+{"name": "position_float", "type": "Position", "value": {"x": 1.0, "y": 2}}
+{"name": "size_seq", "type": "Size", "value": [640, 480]}
+{"name": "size_missing_width", "type": "Size", "value": {"height": 1}}
+{"name": "ios_defaults", "type": "IosConfig", "value": {}}
+{"name": "ios_values", "type": "IosConfig", "value": {"template": "project.yml", "frameworks": ["UIKit"], "developmentTeam": "ABC123", "bundleVersion": "7", "minimumSystemVersion": "15.0", "infoPlist": "Info.ios.plist"}}
+{"name": "ios_aliases", "type": "IosConfig", "value": {"development-team": "T", "bundle-version": "1", "minimum-system-version": "16.0", "info-plist": "i"}}
+{"name": "ios_minimum_empty", "type": "IosConfig", "value": {"minimumSystemVersion": ""}}
+{"name": "ios_minimum_null", "type": "IosConfig", "value": {"minimumSystemVersion": null}}
+{"name": "ios_unknown_field", "type": "IosConfig", "value": {"bogus": 1}}
+{"name": "android_defaults", "type": "AndroidConfig", "value": {}}
+{"name": "android_values", "type": "AndroidConfig", "value": {"minSdkVersion": 26, "versionCode": 100, "autoIncrementVersionCode": true}}
+{"name": "android_aliases", "type": "AndroidConfig", "value": {"min-sdk-version": 21, "version-code": 1, "auto-increment-version-code": true}}
+{"name": "android_version_code_zero", "type": "AndroidConfig", "value": {"versionCode": 0}}
+{"name": "android_version_code_past_limit", "type": "AndroidConfig", "value": {"versionCode": 2100000001}}
+{"name": "android_version_code_negative", "type": "AndroidConfig", "value": {"versionCode": -1}}
+{"name": "android_min_sdk_null", "type": "AndroidConfig", "value": {"minSdkVersion": null}}
+{"name": "android_unknown_field", "type": "AndroidConfig", "value": {"bogus": 1}}
+{"name": "bundle_nested_defaults", "type": "BundleConfig", "value": {}, "probes": ["/targets", "/createUpdaterArtifacts", "/resources", "/fileAssociations", "/windows", "/linux", "/macOS", "/iOS", "/android"]}
+{"name": "bundle_nested_values", "type": "BundleConfig", "value": {"targets": ["deb", "msi"], "createUpdaterArtifacts": "v1Compatible", "resources": {"a": "b"}, "fileAssociations": [{"ext": ["txt"]}], "windows": {"tsp": true}, "linux": {"deb": {"section": "x"}}, "macOS": {"minimumSystemVersion": ""}, "iOS": {"bundleVersion": "3"}, "android": {"versionCode": 9}}}
+{"name": "bundle_platform_aliases", "type": "BundleConfig", "value": {"macos": {"bundleName": "a"}, "ios": {"bundleVersion": "b"}}, "probes": ["/macOS/bundleName", "/iOS/bundleVersion"]}
+{"name": "bundle_targets_error", "type": "BundleConfig", "value": {"targets": "exe"}}
+{"name": "bundle_updater_error", "type": "BundleConfig", "value": {"createUpdaterArtifacts": "v2"}}
+{"name": "bundle_resources_error", "type": "BundleConfig", "value": {"resources": 1}}
+{"name": "bundle_file_associations_error", "type": "BundleConfig", "value": {"fileAssociations": [{"ext": ["a"], "bogus": 1}]}}
+{"name": "bundle_windows_error", "type": "BundleConfig", "value": {"windows": {"bogus": 1}}}
+{"name": "bundle_linux_error", "type": "BundleConfig", "value": {"linux": {"rpm": {"epoch": -1}}}}
+{"name": "bundle_macos_error", "type": "BundleConfig", "value": {"macOS": {"dmg": {"bogus": 1}}}}
+{"name": "bundle_ios_error", "type": "BundleConfig", "value": {"iOS": {"bogus": 1}}}
+{"name": "bundle_android_error", "type": "BundleConfig", "value": {"android": {"bogus": 1}}}
+{"name": "bundle_windows_null", "type": "BundleConfig", "value": {"windows": null}}
+{"name": "bundle_macos_and_alias", "type": "BundleConfig", "value": {"macOS": {}, "macos": {}}}

@@ -30,7 +30,7 @@ module NativeEventLoop
   def self.shared
     @shared ||= begin
       RealWindowsRun.require!("NativeEventLoop.shared")
-      Tokra::Native::EventLoop.new
+      Tokra::Native::EventLoop.new(nil)
     end
   end
 end

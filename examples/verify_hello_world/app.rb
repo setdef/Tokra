@@ -41,9 +41,9 @@ LOGGER.debug { "Tokra version: #{Tokra::VERSION}" }
 LOGGER.info { "Serving: #{html_path}" }
 LOGGER.debug { "HTML content length: #{html_content.bytesize} bytes" }
 
-# Create the event loop and window
+# Create the event loop, with no GTK application id, and the window
 LOGGER.debug { "Creating EventLoop" }
-event_loop = Tokra::Native::EventLoop.new
+event_loop = Tokra::Native::EventLoop.new(nil)
 
 LOGGER.debug { "Creating Proxy" }
 proxy = event_loop.create_proxy

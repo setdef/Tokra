@@ -1,0 +1,76 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      class BundleTypeRole < Data
+        extend ClosedEnum
+        include ClosedEnum::With
+
+        attr_reader name: String
+
+        private def self.new: (name: String) -> BundleTypeRole
+        def self.deserialize: (json_value value) -> BundleTypeRole
+        def to_s: () -> String
+
+        Editor: BundleTypeRole
+        Viewer: BundleTypeRole
+        Shell: BundleTypeRole
+        QLGenerator: BundleTypeRole
+        None: BundleTypeRole
+      end
+
+      class HandlerRank < Data
+        extend ClosedEnum
+        include ClosedEnum::With
+
+        attr_reader name: String
+
+        private def self.new: (name: String) -> HandlerRank
+        def self.deserialize: (json_value value) -> HandlerRank
+        def to_s: () -> String
+
+        Default: HandlerRank
+        Owner: HandlerRank
+        Alternate: HandlerRank
+        None: HandlerRank
+      end
+
+      module AssociationExt
+        def self.deserialize: (json_value value) -> String
+      end
+
+      class ExportedFileAssociation < Data
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader identifier: String
+        attr_reader conforms_to: Array[String]?
+
+        def self.new: (identifier: String, ?conforms_to: Array[String]?) -> ExportedFileAssociation
+        def self.deserialize: (json_value value) -> ExportedFileAssociation
+      end
+
+      class FileAssociation < Data
+        STRING: reader
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader ext: Array[String]
+        attr_reader content_types: Array[String]?
+        attr_reader name: String?
+        attr_reader description: String?
+        attr_reader role: BundleTypeRole
+        attr_reader mime_type: String?
+        attr_reader rank: HandlerRank
+        attr_reader exported_type: ExportedFileAssociation?
+
+        def self.new: (ext: Array[String], ?content_types: Array[String]?, ?name: String?, ?description: String?,
+                       ?role: BundleTypeRole, ?mime_type: String?, ?rank: HandlerRank,
+                       ?exported_type: ExportedFileAssociation?) -> FileAssociation
+        def self.deserialize: (json_value value) -> FileAssociation
+      end
+    end
+  end
+end

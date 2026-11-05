@@ -1,0 +1,8 @@
+{
+  "identifier": "com.tokra.integration.gtk-app-id",
+  "productName": "Tokra integration GTK app id",
+  "app": {
+    "windows": [],
+    "enableGTKAppId": true
+  }
+}

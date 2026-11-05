@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      class IosConfig < Data
+        STRING: reader
+        PATH: reader
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader template: Pathname?
+        attr_reader frameworks: Array[String]?
+        attr_reader development_team: String?
+        attr_reader bundle_version: String?
+        attr_reader minimum_system_version: String
+        attr_reader info_plist: Pathname?
+
+        def self.new: (?template: Pathname?, ?frameworks: Array[String]?, ?development_team: String?,
+                       ?bundle_version: String?, ?minimum_system_version: String, ?info_plist: Pathname?) -> IosConfig
+        def self.deserialize: (json_value value) -> IosConfig
+      end
+    end
+  end
+end

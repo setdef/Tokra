@@ -1,0 +1,5 @@
+/bundle/targets
+/bundle/linux/deb
+/bundle/windows/tsp
+/bundle/windows/webviewInstallMode
+/bundle/macOS/minimumSystemVersion

@@ -1,0 +1,4 @@
+{
+  "identifier": "com.tokra.fixture",
+  "bundle": { "targets": "all", "linux": { "deb": { "depends": ["libc6"] } }, "windows": { "tsp": true } }
+}

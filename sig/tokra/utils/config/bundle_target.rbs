@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      class BundleType < Data
+        extend ClosedEnum
+        include ClosedEnum::With
+
+        attr_reader name: String
+
+        private def self.new: (name: String) -> BundleType
+        def self.deserialize: (json_value value) -> BundleType
+        def to_s: () -> String
+
+        Deb: BundleType
+        Rpm: BundleType
+        AppImage: BundleType
+        Msi: BundleType
+        Nsis: BundleType
+        App: BundleType
+        Dmg: BundleType
+        ALL: Array[BundleType]
+      end
+
+      module BundleTarget
+        class All < Data
+          def self.new: () -> All
+        end
+
+        class List < Data
+          attr_reader targets: Array[BundleType]
+          def self.new: (Array[BundleType] targets) -> List
+                      | (targets: Array[BundleType]) -> List
+        end
+
+        class One < Data
+          attr_reader target: BundleType
+          def self.new: (BundleType target) -> One
+                      | (target: BundleType) -> One
+        end
+
+        INVALID: String
+
+        def self.deserialize: (json_value value) -> bundle_target
+      end
+
+      type bundle_target = BundleTarget::All | BundleTarget::List | BundleTarget::One
+    end
+  end
+end

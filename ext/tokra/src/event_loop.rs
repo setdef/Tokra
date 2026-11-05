@@ -58,10 +58,26 @@ pub struct RbEventLoop {
 impl RbEventLoop {
     /// Create a new `EventLoop`.
     ///
+    /// `app_id` is the GTK application id, or `nil` for none, as
+    /// tauri-runtime's `RuntimeInitArgs` carries it (`src/lib.rs:373-386`).
+    /// On Linux and the BSDs the builder takes it before it builds the loop,
+    /// as tauri-runtime-wry's `init_with_builder` does
+    /// (`src/lib.rs:2769-2791`); tao hands it to `gtk::Application::new`,
+    /// which registers the app under that name on the session bus
+    /// (tao `platform/unix.rs:62-65`, `platform_impl/linux/event_loop.rs:223-230`).
+    /// Elsewhere it is ignored, as Tauri compiles the field only there.
+    ///
     /// # Errors
     ///
-    /// This function is infallible but returns `Result` for consistency with Magnus FFI.
-    pub fn new() -> Result<Self, Error> {
+    /// On Linux and the BSDs, `ArgumentError` for an id `GLib`'s
+    /// `g_application_id_is_valid` refuses or one holding a NUL, before
+    /// any loop is built. *Deviation*: Tauri passes such an id on, and
+    /// `gtk_application_new` answers `NULL` for it, which gtk-rs 0.18
+    /// wraps without a check in a release build (glib `object.rs:908-915`)
+    /// and the loop then uses; a NUL panics in glib's string conversion in
+    /// a debug build and cuts the id short in a release one
+    /// (`translate.rs:563-565`). Tokra refuses both first.
+    pub fn new(ruby: &Ruby, app_id: Option<String>) -> Result<Self, Error> {
         #[cfg_attr(not(windows), allow(unused_mut))]
         let mut builder = EventLoopBuilder::<UserEvent>::with_user_event();
         // Keyboard accelerators for the app's menus, as Tauri's runtime
@@ -71,6 +87,31 @@ impl RbEventLoop {
             use tao::platform::windows::EventLoopBuilderExtWindows;
             builder.with_msg_hook(crate::menu::translate_accelerator);
         }
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "dragonfly",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd"
+        ))]
+        if let Some(app_id) = app_id {
+            use tao::platform::unix::EventLoopBuilderExtUnix;
+            if app_id.contains('\0') || !gtk::gio::Application::id_is_valid(&app_id) {
+                return Err(Error::new(
+                    ruby.exception_arg_error(),
+                    format!("invalid GTK application id: {app_id:?}"),
+                ));
+            }
+            builder.with_app_id(app_id);
+        }
+        #[cfg(not(any(
+            target_os = "linux",
+            target_os = "dragonfly",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd"
+        )))]
+        let _ = (ruby, app_id);
         let event_loop = builder.build();
 
         let proxy = event_loop.create_proxy();
@@ -873,7 +914,7 @@ fn gvl_handoff_counts(ruby: &Ruby) -> Result<RHash, Error> {
 /// Returns an error if class or method definition fails.
 pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
     let event_loop_class = native.define_class("EventLoop", ruby.class_object())?;
-    event_loop_class.define_singleton_method("new", function!(RbEventLoop::new, 0))?;
+    event_loop_class.define_singleton_method("new", function!(RbEventLoop::new, 1))?;
     event_loop_class
         .define_singleton_method("gvl_handoff_counts", function!(gvl_handoff_counts, 0))?;
     event_loop_class.define_method("create_proxy", method!(RbEventLoop::create_proxy, 0))?;

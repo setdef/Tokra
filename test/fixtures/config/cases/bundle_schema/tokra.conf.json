@@ -1,0 +1,22 @@
+{
+  "identifier": "com.tokra.fixture",
+  "bundle": {
+    "targets": ["DEB", "rpm"],
+    "createUpdaterArtifacts": true,
+    "resources": { "data/": "assets/" },
+    "fileAssociations": [{ "ext": [".md"], "role": "Viewer", "rank": "Owner" }],
+    "windows": {
+      "webviewInstallMode": { "type": "embedBootstrapper" },
+      "wix": { "upgrade-code": "{67E55044-10B1-426F-9247-BB680E5FE0C8}", "language": ["en-US"] },
+      "nsis": { "compression": "zlib", "install-mode": "both" },
+      "signCommand": { "cmd": "osslsigncode", "args": ["sign", "%1"] }
+    },
+    "linux": {
+      "appimage": { "bundle-media-framework": true },
+      "rpm": { "epoch": 3, "compression": { "type": "xz", "level": 9 } }
+    },
+    "macos": { "minimumSystemVersion": "", "dmg": { "windowPosition": { "x": 10, "y": 20 } } },
+    "ios": {},
+    "android": { "version-code": 7 }
+  }
+}

@@ -20,32 +20,62 @@ class TestUtilsConfig < Minitest::Test
 
   # Each tauri-utils type the generator reads, as Tokra reads it.
   READERS = {
+    "AndroidConfig" => -> (value) { C::AndroidConfig.deserialize(value) },
     "AppConfig" => -> (value) { C::AppConfig.deserialize(value) },
+    "AppImageConfig" => -> (value) { C::AppImageConfig.deserialize(value) },
     "AssetProtocolConfig" => -> (value) { C::AssetProtocolConfig.deserialize(value) },
+    "AssociationExt" => -> (value) { C::AssociationExt.deserialize(value) },
     "BackgroundThrottlingPolicy" => -> (value) { Tokra::BackgroundThrottlingPolicy.deserialize(value) },
     "BeforeDevCommand" => -> (value) { C::BeforeDevCommand.deserialize(value) },
     "BuildConfig" => -> (value) { C::BuildConfig.deserialize(value) },
     "BundleConfig" => -> (value) { C::BundleConfig.deserialize(value) },
+    "BundleResources" => -> (value) { C::BundleResources.deserialize(value) },
+    "BundleTarget" => -> (value) { C::BundleTarget.deserialize(value) },
+    "BundleType" => -> (value) { C::BundleType.deserialize(value) },
+    "BundleTypeRole" => -> (value) { C::BundleTypeRole.deserialize(value) },
     "CapabilityEntry" => -> (value) { C::CapabilityEntry.deserialize(value) },
     # The generator ran from the repository's root, where no file is named
     # like a version.
     "Config" => -> (value) { C::Config.deserialize(value, REPOSITORY) },
     "Csp" => -> (value) { C::Csp.deserialize(value) },
+    "CustomSignCommandConfig" => -> (value) { C::CustomSignCommandConfig.deserialize(value) },
+    "DebConfig" => -> (value) { C::DebConfig.deserialize(value) },
     "DisabledCspModificationKind" => -> (value) { C::DisabledCspModificationKind.deserialize(value) },
+    "DmgConfig" => -> (value) { C::DmgConfig.deserialize(value) },
+    "ExportedFileAssociation" => -> (value) { C::ExportedFileAssociation.deserialize(value) },
+    "FileAssociation" => -> (value) { C::FileAssociation.deserialize(value) },
     "FrontendDist" => -> (value) { C::FrontendDist.deserialize(value) },
     "FsScope" => -> (value) { C::FsScope.deserialize(value) },
+    "HandlerRank" => -> (value) { C::HandlerRank.deserialize(value) },
     "HeaderConfig" => -> (value) { C::HeaderConfig.deserialize(value) },
     "HookCommand" => -> (value) { C::HookCommand.deserialize(value) },
+    "IosConfig" => -> (value) { C::IosConfig.deserialize(value) },
+    "LinuxConfig" => -> (value) { C::LinuxConfig.deserialize(value) },
     "LogicalPosition" => -> (value) { C::LogicalPosition.deserialize(value) },
+    "MacConfig" => -> (value) { C::MacConfig.deserialize(value) },
+    "NSISInstallerMode" => -> (value) { C::NSISInstallerMode.deserialize(value) },
+    "NsisCompression" => -> (value) { C::NsisCompression.deserialize(value) },
+    "NsisConfig" => -> (value) { C::NsisConfig.deserialize(value) },
     "PatternKind" => -> (value) { C::PatternKind.deserialize(value) },
+    "Position" => -> (value) { C::Position.deserialize(value) },
     "PreventOverflowConfig" => -> (value) { C::PreventOverflowConfig.deserialize(value) },
     "PreventOverflowMargin" => -> (value) { C::PreventOverflowMargin.deserialize(value) },
+    "RpmCompression" => -> (value) { C::RpmCompression.deserialize(value) },
+    "RpmConfig" => -> (value) { C::RpmConfig.deserialize(value) },
     "RunnerConfig" => -> (value) { C::RunnerConfig.deserialize(value) },
     "ScrollBarStyle" => -> (value) { C::ScrollBarStyle.deserialize(value) },
     "SecurityConfig" => -> (value) { C::SecurityConfig.deserialize(value) },
+    "Size" => -> (value) { C::Size.deserialize(value) },
     "TrayIconConfig" => -> (value) { C::TrayIconConfig.deserialize(value) },
+    "Updater" => -> (value) { C::Updater.deserialize(value) },
+    "V1Compatible" => -> (value) { C::V1Compatible.deserialize(value) },
+    "WebviewInstallMode" => -> (value) { C::WebviewInstallMode.deserialize(value) },
     "WebviewUrl" => -> (value) { Tokra::WebviewUrl.deserialize(value) },
     "WindowConfig" => -> (value) { C::WindowConfig.deserialize(value) },
+    "WindowsConfig" => -> (value) { C::WindowsConfig.deserialize(value) },
+    "WixConfig" => -> (value) { C::WixConfig.deserialize(value) },
+    "WixLanguage" => -> (value) { C::WixLanguage.deserialize(value) },
+    "WixLanguageConfig" => -> (value) { C::WixLanguageConfig.deserialize(value) },
   }.freeze
 
   def test_every_type_the_generator_reads_is_read
@@ -73,6 +103,22 @@ class TestUtilsConfig < Minitest::Test
       C::TrayIconConfig,
       C::BuildConfig,
       C::BundleConfig,
+      C::WindowsConfig,
+      C::WixConfig,
+      C::WixLanguageConfig,
+      C::NsisConfig,
+      C::LinuxConfig,
+      C::AppImageConfig,
+      C::DebConfig,
+      C::RpmConfig,
+      C::MacConfig,
+      C::DmgConfig,
+      C::Position,
+      C::Size,
+      C::IosConfig,
+      C::AndroidConfig,
+      C::FileAssociation,
+      C::ExportedFileAssociation,
       C::LogicalPosition,
       C::PreventOverflowMargin,
 ].each do |struct|
@@ -90,6 +136,28 @@ class TestUtilsConfig < Minitest::Test
     assert_equal C::PatternKind::Brownfield.new, C::Config.new(identifier: "a").app.security.pattern
     assert_raises(ArgumentError) { C::Config.new }
     assert_raises(ArgumentError) { C::TrayIconConfig.new }
+  end
+
+  # Each bundle struct built in Ruby is the one Tauri's Default builds,
+  # which is what an empty object reads as.
+  def test_each_bundle_struct_built_in_ruby_takes_tauris_defaults
+    [
+      C::BundleConfig,
+      C::WindowsConfig,
+      C::WixConfig,
+      C::WixLanguageConfig,
+      C::NsisConfig,
+      C::LinuxConfig,
+      C::AppImageConfig,
+      C::DebConfig,
+      C::RpmConfig,
+      C::MacConfig,
+      C::DmgConfig,
+      C::IosConfig,
+      C::AndroidConfig,
+    ].each { |struct| assert_equal struct.deserialize({}), struct.new, struct.name }
+    assert_equal "10.13", C::MacConfig.new.minimum_system_version
+    assert_raises(ArgumentError) { C::FileAssociation.new }
   end
 
   # A default is shared by every struct that takes it, so it is frozen.

@@ -1,0 +1,9 @@
+/bundle/targets
+/bundle/createUpdaterArtifacts
+/bundle/resources
+/bundle/fileAssociations
+/bundle/windows
+/bundle/linux
+/bundle/macOS
+/bundle/iOS
+/bundle/android

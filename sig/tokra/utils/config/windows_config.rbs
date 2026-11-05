@@ -1,0 +1,208 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      class WixLanguageConfig < Data
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader locale_path: String?
+
+        def self.new: (?locale_path: String?) -> WixLanguageConfig
+        def self.deserialize: (json_value value) -> WixLanguageConfig
+      end
+
+      module WixLanguage
+        class One < Data
+          attr_reader language: String
+          def self.new: (String language) -> One
+                      | (language: String) -> One
+        end
+
+        class List < Data
+          attr_reader languages: Array[String]
+          def self.new: (Array[String] languages) -> List
+                      | (languages: Array[String]) -> List
+        end
+
+        class Localized < Data
+          attr_reader languages: Hash[String, WixLanguageConfig]
+          def self.new: (Hash[String, WixLanguageConfig] languages) -> Localized
+                      | (languages: Hash[String, WixLanguageConfig]) -> Localized
+        end
+
+        def self.deserialize: (json_value value) -> wix_language
+      end
+
+      type wix_language = WixLanguage::One | WixLanguage::List | WixLanguage::Localized
+
+      class WixConfig < Data
+        STRINGS: reader
+        PATH: reader
+        BOOL: reader
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader version: String?
+        attr_reader upgrade_code: String?
+        attr_reader language: wix_language
+        attr_reader template: Pathname?
+        attr_reader fragment_paths: Array[Pathname]
+        attr_reader component_group_refs: Array[String]
+        attr_reader component_refs: Array[String]
+        attr_reader feature_group_refs: Array[String]
+        attr_reader feature_refs: Array[String]
+        attr_reader merge_refs: Array[String]
+        attr_reader enable_elevated_update_task: bool
+        attr_reader banner_path: Pathname?
+        attr_reader dialog_image_path: Pathname?
+        attr_reader fips_compliant: bool
+
+        def self.new: (?version: String?, ?upgrade_code: String?, ?language: wix_language, ?template: Pathname?,
+                       ?fragment_paths: Array[Pathname], ?component_group_refs: Array[String],
+                       ?component_refs: Array[String], ?feature_group_refs: Array[String], ?feature_refs: Array[String],
+                       ?merge_refs: Array[String], ?enable_elevated_update_task: bool, ?banner_path: Pathname?,
+                       ?dialog_image_path: Pathname?, ?fips_compliant: bool) -> WixConfig
+        def self.deserialize: (json_value value) -> WixConfig
+      end
+
+      class NsisCompression < Data
+        extend ClosedEnum
+        include ClosedEnum::With
+
+        attr_reader name: String
+
+        private def self.new: (name: String) -> NsisCompression
+        def self.deserialize: (json_value value) -> NsisCompression
+
+        Zlib: NsisCompression
+        Bzip2: NsisCompression
+        Lzma: NsisCompression
+        None: NsisCompression
+      end
+
+      class NSISInstallerMode < Data
+        extend ClosedEnum
+        include ClosedEnum::With
+
+        attr_reader name: String
+
+        private def self.new: (name: String) -> NSISInstallerMode
+        def self.deserialize: (json_value value) -> NSISInstallerMode
+
+        CurrentUser: NSISInstallerMode
+        PerMachine: NSISInstallerMode
+        Both: NSISInstallerMode
+      end
+
+      class NsisConfig < Data
+        PATH: reader
+        STRING: reader
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader template: Pathname?
+        attr_reader header_image: Pathname?
+        attr_reader sidebar_image: Pathname?
+        attr_reader installer_icon: Pathname?
+        attr_reader install_mode: NSISInstallerMode
+        attr_reader languages: Array[String]?
+        attr_reader custom_language_files: Hash[String, Pathname]?
+        attr_reader display_language_selector: bool
+        attr_reader compression: NsisCompression
+        attr_reader start_menu_folder: String?
+        attr_reader installer_hooks: Pathname?
+        attr_reader minimum_webview2_version: String?
+
+        def self.new: (?template: Pathname?, ?header_image: Pathname?, ?sidebar_image: Pathname?,
+                       ?installer_icon: Pathname?, ?install_mode: NSISInstallerMode, ?languages: Array[String]?,
+                       ?custom_language_files: Hash[String, Pathname]?, ?display_language_selector: bool,
+                       ?compression: NsisCompression, ?start_menu_folder: String?, ?installer_hooks: Pathname?,
+                       ?minimum_webview2_version: String?) -> NsisConfig
+        def self.deserialize: (json_value value) -> NsisConfig
+      end
+
+      module WebviewInstallMode
+        class Skip < Data
+          def self.new: () -> Skip
+        end
+
+        class DownloadBootstrapper < Data
+          attr_reader silent: bool
+          def self.new: (bool silent) -> DownloadBootstrapper
+                      | (silent: bool) -> DownloadBootstrapper
+        end
+
+        class EmbedBootstrapper < Data
+          attr_reader silent: bool
+          def self.new: (bool silent) -> EmbedBootstrapper
+                      | (silent: bool) -> EmbedBootstrapper
+        end
+
+        class OfflineInstaller < Data
+          attr_reader silent: bool
+          def self.new: (bool silent) -> OfflineInstaller
+                      | (silent: bool) -> OfflineInstaller
+        end
+
+        class FixedRuntime < Data
+          attr_reader path: Pathname
+          def self.new: (Pathname path) -> FixedRuntime
+                      | (path: Pathname) -> FixedRuntime
+        end
+
+        SILENT: Array[Field]
+        PATH: Array[Field]
+        VARIANTS: Array[String]
+
+        def self.deserialize: (json_value value) -> webview_install_mode
+      end
+
+      type webview_install_mode = WebviewInstallMode::Skip | WebviewInstallMode::DownloadBootstrapper
+                                | WebviewInstallMode::EmbedBootstrapper | WebviewInstallMode::OfflineInstaller
+                                | WebviewInstallMode::FixedRuntime
+
+      module CustomSignCommandConfig
+        class Command < Data
+          attr_reader command: String
+          def self.new: (String command) -> Command
+                      | (command: String) -> Command
+        end
+
+        class CommandWithOptions < Data
+          attr_reader cmd: String
+          attr_reader args: Array[String]
+          def self.new: (String cmd, Array[String] args) -> CommandWithOptions
+                      | (cmd: String, args: Array[String]) -> CommandWithOptions
+        end
+
+        def self.deserialize: (json_value value) -> custom_sign_command_config
+      end
+
+      type custom_sign_command_config = CustomSignCommandConfig::Command | CustomSignCommandConfig::CommandWithOptions
+
+      class WindowsConfig < Data
+        STRING: reader
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader digest_algorithm: String?
+        attr_reader certificate_thumbprint: String?
+        attr_reader timestamp_url: String?
+        attr_reader tsp: bool
+        attr_reader webview_install_mode: webview_install_mode
+        attr_reader allow_downgrades: bool
+        attr_reader wix: WixConfig?
+        attr_reader nsis: NsisConfig?
+        attr_reader sign_command: custom_sign_command_config?
+
+        def self.new: (?digest_algorithm: String?, ?certificate_thumbprint: String?, ?timestamp_url: String?,
+                       ?tsp: bool, ?webview_install_mode: webview_install_mode, ?allow_downgrades: bool,
+                       ?wix: WixConfig?, ?nsis: NsisConfig?, ?sign_command: custom_sign_command_config?) -> WindowsConfig
+        def self.deserialize: (json_value value) -> WindowsConfig
+      end
+    end
+  end
+end

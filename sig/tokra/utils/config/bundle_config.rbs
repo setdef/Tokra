@@ -7,38 +7,37 @@ module Tokra
       class BundleConfig < Data
         STRING: reader
         STRINGS: reader
-        RAW: reader
         FIELDS: Array[Field]
         DEFAULTS: Hash[Symbol, top]
 
         attr_reader active: bool
-        attr_reader targets: json_value
-        attr_reader create_updater_artifacts: json_value
+        attr_reader targets: bundle_target
+        attr_reader create_updater_artifacts: updater
         attr_reader publisher: String?
         attr_reader homepage: String?
         attr_reader icon: Array[String]
-        attr_reader resources: json_value
+        attr_reader resources: bundle_resources?
         attr_reader copyright: String?
         attr_reader license: String?
         attr_reader license_file: Pathname?
         attr_reader category: String?
-        attr_reader file_associations: json_value
+        attr_reader file_associations: Array[FileAssociation]?
         attr_reader short_description: String?
         attr_reader long_description: String?
         attr_reader use_local_tools_dir: bool
         attr_reader external_bin: Array[String]?
-        attr_reader windows: json_value
-        attr_reader linux: json_value
-        attr_reader macos: json_value
-        attr_reader ios: json_value
-        attr_reader android: json_value
+        attr_reader windows: WindowsConfig
+        attr_reader linux: LinuxConfig
+        attr_reader macos: MacConfig
+        attr_reader ios: IosConfig
+        attr_reader android: AndroidConfig
 
-        def self.new: (?active: bool, ?targets: json_value, ?create_updater_artifacts: json_value, ?publisher: String?,
-                       ?homepage: String?, ?icon: Array[String], ?resources: json_value, ?copyright: String?,
-                       ?license: String?, ?license_file: Pathname?, ?category: String?, ?file_associations: json_value,
+        def self.new: (?active: bool, ?targets: bundle_target, ?create_updater_artifacts: updater, ?publisher: String?,
+                       ?homepage: String?, ?icon: Array[String], ?resources: bundle_resources?, ?copyright: String?,
+                       ?license: String?, ?license_file: Pathname?, ?category: String?, ?file_associations: Array[FileAssociation]?,
                        ?short_description: String?, ?long_description: String?, ?use_local_tools_dir: bool,
-                       ?external_bin: Array[String]?, ?windows: json_value, ?linux: json_value, ?macos: json_value,
-                       ?ios: json_value, ?android: json_value) -> BundleConfig
+                       ?external_bin: Array[String]?, ?windows: WindowsConfig, ?linux: LinuxConfig, ?macos: MacConfig,
+                       ?ios: IosConfig, ?android: AndroidConfig) -> BundleConfig
         def self.deserialize: (json_value value) -> BundleConfig
       end
     end

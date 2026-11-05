@@ -1,0 +1,127 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      class AppImageConfig < Data
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader bundle_media_framework: bool
+        attr_reader files: Hash[Pathname, Pathname]
+
+        def self.new: (?bundle_media_framework: bool, ?files: Hash[Pathname, Pathname]) -> AppImageConfig
+        def self.deserialize: (json_value value) -> AppImageConfig
+      end
+
+      class DebConfig < Data
+        PATH: reader
+        STRINGS: reader
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader depends: Array[String]?
+        attr_reader recommends: Array[String]?
+        attr_reader provides: Array[String]?
+        attr_reader conflicts: Array[String]?
+        attr_reader replaces: Array[String]?
+        attr_reader files: Hash[Pathname, Pathname]
+        attr_reader section: String?
+        attr_reader priority: String?
+        attr_reader changelog: Pathname?
+        attr_reader desktop_template: Pathname?
+        attr_reader pre_install_script: Pathname?
+        attr_reader post_install_script: Pathname?
+        attr_reader pre_remove_script: Pathname?
+        attr_reader post_remove_script: Pathname?
+
+        def self.new: (?depends: Array[String]?, ?recommends: Array[String]?, ?provides: Array[String]?,
+                       ?conflicts: Array[String]?, ?replaces: Array[String]?, ?files: Hash[Pathname, Pathname],
+                       ?section: String?, ?priority: String?, ?changelog: Pathname?, ?desktop_template: Pathname?,
+                       ?pre_install_script: Pathname?, ?post_install_script: Pathname?,
+                       ?pre_remove_script: Pathname?, ?post_remove_script: Pathname?) -> DebConfig
+        def self.deserialize: (json_value value) -> DebConfig
+      end
+
+      module RpmCompression
+        class Gzip < Data
+          attr_reader level: Integer
+          def self.new: (Integer level) -> Gzip
+                      | (level: Integer) -> Gzip
+        end
+
+        class Zstd < Data
+          attr_reader level: Integer
+          def self.new: (Integer level) -> Zstd
+                      | (level: Integer) -> Zstd
+        end
+
+        class Xz < Data
+          attr_reader level: Integer
+          def self.new: (Integer level) -> Xz
+                      | (level: Integer) -> Xz
+        end
+
+        class Bzip2 < Data
+          attr_reader level: Integer
+          def self.new: (Integer level) -> Bzip2
+                      | (level: Integer) -> Bzip2
+        end
+
+        class None < Data
+          def self.new: () -> None
+        end
+
+        U32: Array[Field]
+        I32: Array[Field]
+
+        def self.deserialize: (json_value value) -> rpm_compression
+      end
+
+      type rpm_compression = RpmCompression::Gzip | RpmCompression::Zstd | RpmCompression::Xz
+                           | RpmCompression::Bzip2 | RpmCompression::None
+
+      class RpmConfig < Data
+        PATH: reader
+        STRINGS: reader
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader depends: Array[String]?
+        attr_reader recommends: Array[String]?
+        attr_reader provides: Array[String]?
+        attr_reader conflicts: Array[String]?
+        attr_reader obsoletes: Array[String]?
+        attr_reader release: String
+        attr_reader epoch: Integer
+        attr_reader files: Hash[Pathname, Pathname]
+        attr_reader desktop_template: Pathname?
+        attr_reader pre_install_script: Pathname?
+        attr_reader post_install_script: Pathname?
+        attr_reader pre_remove_script: Pathname?
+        attr_reader post_remove_script: Pathname?
+        attr_reader compression: rpm_compression?
+
+        def self.new: (?depends: Array[String]?, ?recommends: Array[String]?, ?provides: Array[String]?,
+                       ?conflicts: Array[String]?, ?obsoletes: Array[String]?, ?release: String, ?epoch: Integer,
+                       ?files: Hash[Pathname, Pathname], ?desktop_template: Pathname?, ?pre_install_script: Pathname?,
+                       ?post_install_script: Pathname?, ?pre_remove_script: Pathname?,
+                       ?post_remove_script: Pathname?, ?compression: rpm_compression?) -> RpmConfig
+        def self.deserialize: (json_value value) -> RpmConfig
+      end
+
+      class LinuxConfig < Data
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader appimage: AppImageConfig
+        attr_reader deb: DebConfig
+        attr_reader rpm: RpmConfig
+
+        def self.new: (?appimage: AppImageConfig, ?deb: DebConfig, ?rpm: RpmConfig) -> LinuxConfig
+        def self.deserialize: (json_value value) -> LinuxConfig
+      end
+    end
+  end
+end

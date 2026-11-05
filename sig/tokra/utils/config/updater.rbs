@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      class V1Compatible < Data
+        extend ClosedEnum
+        include ClosedEnum::With
+
+        attr_reader name: String
+
+        private def self.new: (name: String) -> V1Compatible
+        def self.deserialize: (json_value value) -> V1Compatible
+
+        V1Compatible: V1Compatible
+      end
+
+      module Updater
+        class String < Data
+          attr_reader compatible: V1Compatible
+          def self.new: (V1Compatible compatible) -> Updater::String
+                      | (compatible: V1Compatible) -> Updater::String
+        end
+
+        class Bool < Data
+          attr_reader enabled: bool
+          def self.new: (bool enabled) -> Bool
+                      | (enabled: bool) -> Bool
+        end
+
+        def self.deserialize: (json_value value) -> updater
+      end
+
+      type updater = Updater::String | Updater::Bool
+    end
+  end
+end

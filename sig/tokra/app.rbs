@@ -37,6 +37,7 @@ module Tokra
     def resources_table: () -> ResourceTable
     def initialize: (Builder builder, Context context, ?native: Module) -> void
     def self.os_name: () -> String
+    def self.gtk_app_id: (Utils::Config::Config config, ?Utils::Platform::Target target) -> String?
     def run: () { (AppHandle, run_event) -> void } -> void
          | () -> void
     def listen: (String event) { (Event) -> void } -> Integer

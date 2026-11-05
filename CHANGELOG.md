@@ -499,6 +499,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   config names its id, after the app menu and before the setup hook; its
   events reach `on_tray_icon_event` listeners, plugins, and the run
   callback, and `tray_by_id` and the page's `TrayIcon.getById` find it
+- The whole `bundle` is typed and checked as Tauri checks it, read and not
+  acted on: `targets` (`BundleTarget`, `BundleType`),
+  `createUpdaterArtifacts` (`Updater`), `resources` (`BundleResources`),
+  `fileAssociations` (`FileAssociation`), and the `windows` (WiX, NSIS, the
+  WebView2 install mode, the sign command, a WiX upgrade code read as uuid
+  reads one), `linux` (AppImage, deb, RPM), `macOS` (with its DMG), `iOS`,
+  and `android` settings, each with Tauri's keys, aliases, defaults, and
+  error messages
+- `app.enableGTKAppId`: on Linux the app registers with GTK under its
+  identifier, as Tauri's does, and `Native::EventLoop.new` raises
+  `ArgumentError` for an identifier GLib refuses as an application id
 
 ### Changed
 
@@ -508,6 +519,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - An app opens the windows its config's `app.windows` lists, and none if it
   lists none, instead of always opening `main` (breaking)
 - An app needs a config file with an `identifier` (breaking)
+- `Native::EventLoop.new` takes the GTK application id, or `nil` (breaking)
 - An app needs an RGBA PNG at `icons/icon.png` beside its config, or one
   `bundle.icon` names; without it `Tokra.generate_context` raises "failed to
   open icon {path}: {e}", as a Tauri app fails to compile (breaking)

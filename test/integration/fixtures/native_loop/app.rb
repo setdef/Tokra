@@ -62,7 +62,7 @@ def page(script)
   "<!doctype html><meta charset=utf-8><body><script>#{script}</script>"
 end
 
-event_loop = Tokra::Native::EventLoop.new
+event_loop = Tokra::Native::EventLoop.new(nil)
 # On macOS, never become the active app, and keep each window with a page
 # in sight, and out of the cursor's way, so WebKit does not throttle it, as
 # FixtureApp.background and FixtureApp.keep_in_sight do for the other

@@ -115,7 +115,7 @@ module ConfigFixtures
     when nil, true, false, Integer, Float, String then value
     when Pathname, Ferro::Url::Url then value.to_s
     when Array then value.map { |item| dump(item) }
-    when Hash then value.transform_values { |item| dump(item) }
+    when Hash then value.to_h { |key, item| [key.to_s, dump(item)] }
     else dump_data(value)
     end
   end
@@ -130,6 +130,13 @@ module ConfigFixtures
     C::TrayIconConfig,
     C::BuildConfig,
     C::BundleConfig,
+    C::LinuxConfig,
+    C::DebConfig,
+    C::RpmConfig,
+    C::MacConfig,
+    C::DmgConfig,
+    C::IosConfig,
+    C::AndroidConfig,
     Tokra::WindowEffectsConfig,
   ].freeze
 
@@ -169,6 +176,34 @@ module ConfigFixtures
     C::HookCommand::ScriptWithOptions => -> (value) { { "script" => value.script, "cwd" => value.cwd } },
     C::RunnerConfig::String => lambda(&:cmd),
     C::RunnerConfig::Object => -> (value) { { "cmd" => value.cmd, "cwd" => value.cwd, "args" => value.args }.compact },
+    C::BundleType => lambda(&:to_s),
+    C::BundleTarget::All => -> (_value) { "all" },
+    C::BundleTarget::List => -> (value) { dump(value.targets) },
+    C::BundleTarget::One => -> (value) { value.target.to_s },
+    C::V1Compatible => -> (value) { camel(value.name) },
+    C::Updater::String => -> (value) { dump(value.compatible) },
+    C::Updater::Bool => lambda(&:enabled),
+    C::BundleResources::List => lambda(&:paths),
+    C::BundleResources::Map => lambda(&:paths),
+    C::BundleTypeRole => lambda(&:name),
+    C::HandlerRank => lambda(&:name),
+    C::NsisCompression => -> (value) { camel(value.name) },
+    C::NSISInstallerMode => -> (value) { camel(value.name) },
+    C::WixLanguage::One => lambda(&:language),
+    C::WixLanguage::List => lambda(&:languages),
+    C::WixLanguage::Localized => -> (value) { dump(value.languages) },
+    C::WebviewInstallMode::Skip => -> (_value) { { "type" => "skip" } },
+    C::WebviewInstallMode::DownloadBootstrapper => -> (value) { { "type" => "downloadBootstrapper", "silent" => value.silent } },
+    C::WebviewInstallMode::EmbedBootstrapper => -> (value) { { "type" => "embedBootstrapper", "silent" => value.silent } },
+    C::WebviewInstallMode::OfflineInstaller => -> (value) { { "type" => "offlineInstaller", "silent" => value.silent } },
+    C::WebviewInstallMode::FixedRuntime => -> (value) { { "type" => "fixedRuntime", "path" => value.path.to_s } },
+    C::CustomSignCommandConfig::Command => lambda(&:command),
+    C::CustomSignCommandConfig::CommandWithOptions => -> (value) { { "cmd" => value.cmd, "args" => value.args } },
+    C::RpmCompression::Gzip => -> (value) { { "type" => "gzip", "level" => value.level } },
+    C::RpmCompression::Zstd => -> (value) { { "type" => "zstd", "level" => value.level } },
+    C::RpmCompression::Xz => -> (value) { { "type" => "xz", "level" => value.level } },
+    C::RpmCompression::Bzip2 => -> (value) { { "type" => "bzip2", "level" => value.level } },
+    C::RpmCompression::None => -> (_value) { { "type" => "none" } },
     Tokra::Color => -> (value) { [value.red, value.green, value.blue, value.alpha] },
     Tokra::Theme => lambda(&:as_json),
     Tokra::TitleBarStyle => lambda(&:name),

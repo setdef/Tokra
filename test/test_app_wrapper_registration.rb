@@ -36,6 +36,7 @@ class TestAppWrapperRegistration < Minitest::Test
   # Stub native module for testing
   module StubNative
     class EventLoop
+      def initialize(_app_id); end
       def create_proxy; StubProxy.new; end
       def run(_callback); end # Exits immediately
     end

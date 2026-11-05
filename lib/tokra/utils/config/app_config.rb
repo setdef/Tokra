@@ -23,10 +23,11 @@ module Tokra
       # reads, apart from how it is built and bundled. Its windows open
       # when the app starts; its security settings limit its pages.
       #
-      # Tokra reads every key now. The windows and <tt>withGlobalTauri</tt>
-      # act once the builder takes a context; the tray icon in plan 054's
-      # third phase; <tt>enableGTKAppId</tt> in its fourth; and
-      # <tt>macOSPrivateApi</tt> with plan 052's question 2.
+      # Tokra reads every key and acts on all but one: the windows open
+      # when the app runs, <tt>withGlobalTauri</tt> adds the global API,
+      # the tray icon is built, and on Linux <tt>enableGTKAppId</tt> makes
+      # the identifier the app's GTK application id (App.gtk_app_id).
+      # <tt>macOSPrivateApi</tt> waits on plan 052's question 2.
       #
       # Mirrors Tauri's <tt>AppConfig</tt> (config.rs:2687-2766).
       #

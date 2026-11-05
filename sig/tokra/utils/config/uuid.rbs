@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      def self.uuid: (json_value value) -> String
+
+      module Uuid
+        HEX: Regexp
+        URN: String
+        BLOCK_STARTS: Array[Integer]
+        GROUP_LENGTHS: Array[Integer]
+
+        def self.parse: (String input) -> String
+        private def self.try_parse: (String bytes) -> [String?, String?]
+        private def self.simple: (String bytes) -> String?
+        private def self.hyphenated: (String bytes) -> String?
+        private def self.error: (String input) -> String
+        private def self.group_length: (Array[Integer] hyphens, Integer offset, String input) -> String
+      end
+    end
+  end
+end

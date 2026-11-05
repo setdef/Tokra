@@ -4,7 +4,7 @@
 module Tokra
   module Native
     class EventLoop
-      def self.new: () -> EventLoop
+      def self.new: (String? app_id) -> EventLoop
       def self.gvl_handoff_counts: () -> Hash[String, Integer]
       def create_proxy: () -> Proxy
       def run: (^(native_event) -> void) -> bot

@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      module BundleResources
+        class List < Data
+          attr_reader paths: Array[String]
+          def self.new: (Array[String] paths) -> List
+                      | (paths: Array[String]) -> List
+        end
+
+        class Map < Data
+          attr_reader paths: Hash[String, String]
+          def self.new: (Hash[String, String] paths) -> Map
+                      | (paths: Hash[String, String]) -> Map
+        end
+
+        def self.deserialize: (json_value value) -> bundle_resources
+      end
+
+      type bundle_resources = BundleResources::List | BundleResources::Map
+    end
+  end
+end

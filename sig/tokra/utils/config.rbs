@@ -28,6 +28,10 @@ module Tokra
       def self.path: (json_value value) -> Pathname
       def self.sequence: [T] (json_value value) { (json_value item) -> T } -> Array[T]
       def self.map: [T] (json_value value) { (json_value item) -> T } -> Hash[String, T]
+      def self.path_map: (json_value value) -> Hash[Pathname, Pathname]
+      def self.read_variant: (json_value rest, String name, Array[Field] fields) -> Hash[Symbol, top]
+      def self.read_unit_variant: (json_value rest) -> void
+      private def self.elements: (Integer count) -> String
       def self.url: (json_value value) -> Ferro::Url::Url
     end
   end

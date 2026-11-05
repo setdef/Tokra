@@ -1,0 +1,73 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      class Position < Data
+        FIELDS: Array[Field]
+
+        attr_reader x: Integer
+        attr_reader y: Integer
+
+        def self.new: (Integer x, Integer y) -> Position
+                    | (x: Integer, y: Integer) -> Position
+        def self.deserialize: (json_value value) -> Position
+      end
+
+      class Size < Data
+        FIELDS: Array[Field]
+
+        attr_reader width: Integer
+        attr_reader height: Integer
+
+        def self.new: (Integer width, Integer height) -> Size
+                    | (width: Integer, height: Integer) -> Size
+        def self.deserialize: (json_value value) -> Size
+      end
+
+      class DmgConfig < Data
+        POSITION: reader
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader background: Pathname?
+        attr_reader window_position: Position?
+        attr_reader window_size: Size
+        attr_reader app_position: Position
+        attr_reader application_folder_position: Position
+
+        def self.new: (?background: Pathname?, ?window_position: Position?, ?window_size: Size,
+                       ?app_position: Position, ?application_folder_position: Position) -> DmgConfig
+        def self.deserialize: (json_value value) -> DmgConfig
+      end
+
+      class MacConfig < Data
+        STRING: reader
+        MINIMUM_SYSTEM_VERSION: String
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader frameworks: Array[String]?
+        attr_reader files: Hash[Pathname, Pathname]
+        attr_reader bundle_version: String?
+        attr_reader bundle_name: String?
+        attr_reader minimum_system_version: String?
+        attr_reader exception_domain: String?
+        attr_reader signing_identity: String?
+        attr_reader hardened_runtime: bool
+        attr_reader provider_short_name: String?
+        attr_reader entitlements: String?
+        attr_reader info_plist: Pathname?
+        attr_reader dmg: DmgConfig
+
+        def self.new: (?frameworks: Array[String]?, ?files: Hash[Pathname, Pathname], ?bundle_version: String?,
+                       ?bundle_name: String?, ?minimum_system_version: String?, ?exception_domain: String?,
+                       ?signing_identity: String?, ?hardened_runtime: bool, ?provider_short_name: String?,
+                       ?entitlements: String?, ?info_plist: Pathname?, ?dmg: DmgConfig) -> MacConfig
+        def self.deserialize: (json_value value) -> MacConfig
+        def self.de_macos_minimum_system_version: (json_value value) -> String?
+      end
+    end
+  end
+end

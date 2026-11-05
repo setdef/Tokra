@@ -267,7 +267,9 @@ module Tokra
       # Build the event loop first, as Tauri's runtime exists before its
       # setup hook runs, so the hook can ask for monitors and the cursor
       # (plan 041, decision 1).
-      event_loop = @event_loop_class.new
+      # The GTK application id goes to the loop's builder, as Tauri's
+      # Builder::build hands it to the runtime it creates (app.rs:2122-2133).
+      event_loop = @event_loop_class.new(App.gtk_app_id(config))
       @runtime_context.window_target = event_loop
       # The loop's proxy next, so windows can be built from here on: each
       # webview's handlers send through it, and the runtime context sends
@@ -560,6 +562,30 @@ module Tokra
     private def os_name
       App.os_name
     end
+
+    #--
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: adapted from tauri src/app.rs:2122-2133 at vendor/tauri 9f0306fbc
+    #++
+
+    # The GTK application id the event loop registers the app under: the
+    # config's identifier when <tt>app.enableGTKAppId</tt> is on and
+    # +target+ is Linux, which covers the BSDs, and +nil+ otherwise, as
+    # Tauri's Builder::build reads it only on those platforms
+    # (app.rs:2122-2133). Without an id, tao notes, GTK disables some of
+    # its features, most notably application uniqueness (tao
+    # platform/unix.rs:49-52).
+    def self.gtk_app_id(config, target = Utils::Platform::Target.current) # :nodoc:
+      return unless target == Utils::Platform::Target::Linux && config.app.enable_gtk_app_id
+
+      config.identifier
+    end
+
+    #--
+    # SPDX-SnippetEnd
+    #++
 
     # The operating system this process runs on, as Tauri names it
     # (std::env::consts::OS values): the one place Tokra reads it, which

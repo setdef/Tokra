@@ -119,6 +119,65 @@ module Tokra
         value.transform_values(&)
       end
 
+      # +value+ as a Rust <tt>HashMap<PathBuf, PathBuf></tt>: each key and
+      # value a Pathname. A JSON object's keys are strings, which a path
+      # always takes.
+      def self.path_map(value) # :nodoc:
+        raise Ipc::CommandItem::Mismatch.invalid_type(value, "a map") unless value.is_a?(Hash)
+
+        value.to_h { |key, item| [Pathname.new(key), path(item)] }
+      end
+
+      # The values of +fields+ that +rest+ holds, by member, for the struct
+      # variant +name+ (<tt>"Enum::Variant"</tt>) of an internally tagged
+      # enum, where +rest+ is what Ipc::Serde.internally_tagged left of the
+      # value.
+      #
+      # serde buffers the value as its Content and reads the variant from
+      # it (serde_derive de/enum_internally.rs:20-62): a map as a struct is
+      # read, and a sequence element by element as serde_derive's
+      # +visit_seq+ reads one, failing where it runs out on a field without
+      # a default, and then as serde's SeqDeserializer ends, refusing
+      # elements left over (serde private/de.rs, ContentDeserializer;
+      # serde_core de/value.rs, SeqDeserializer::end and ExpectedInSeq).
+      def self.read_variant(rest, name, fields) # :nodoc:
+        return read_struct(rest, name, fields) if rest.is_a?(Hash)
+
+        seq = rest #: Array[json_value]
+        expecting = "struct variant #{name} with #{elements(fields.size)}"
+        values = fields.each_with_index.to_h do |field, index|
+          if index >= seq.size
+            raise Ipc::CommandItem::Mismatch, "invalid length #{index}, expected #{expecting}" unless field.default?
+
+            next [field.member, field.default]
+          end
+          raw = seq.fetch(index)
+          [field.member, (raw.nil? && field.option) ? nil : field.reader.call(raw)]
+        end
+        if seq.size > fields.size
+          raise Ipc::CommandItem::Mismatch, "invalid length #{seq.size}, expected #{elements(fields.size)} in sequence"
+        end
+
+        values
+      end
+
+      # Checks +rest+ for a unit variant of an internally tagged enum, as
+      # serde's InternallyTaggedUnitVisitor reads it (serde
+      # private/de.rs:2956-2996): a map's other keys are stepped over, even
+      # where the enum denies unknown fields, and a sequence must hold
+      # nothing past the tag.
+      def self.read_unit_variant(rest) # :nodoc:
+        return unless rest.is_a?(Array) && !rest.empty?
+
+        raise Ipc::CommandItem::Mismatch, "invalid length #{rest.size}, expected 0 elements in sequence"
+      end
+
+      # +count+ elements, as serde words a length.
+      def self.elements(count)
+        (count == 1) ? "1 element" : "#{count} elements"
+      end
+      private_class_method :elements
+
       # +value+ as a Rust <tt>url::Url</tt>: a Ferro::Url::Url, which
       # ferro-url parses with the url crate itself, frozen. A string url
       # refuses fails with url 2.5.4's words, <tt>"{error}: {input:?}"</tt>
@@ -159,6 +218,16 @@ require_relative "config/frontend_dist"
 require_relative "config/hook_command"
 require_relative "config/runner_config"
 require_relative "config/build_config"
+require_relative "config/uuid"
+require_relative "config/bundle_target"
+require_relative "config/updater"
+require_relative "config/bundle_resources"
+require_relative "config/file_association"
+require_relative "config/windows_config"
+require_relative "config/linux_config"
+require_relative "config/mac_config"
+require_relative "config/ios_config"
+require_relative "config/android_config"
 require_relative "config/bundle_config"
 require_relative "config/config"
 require_relative "config/parse"

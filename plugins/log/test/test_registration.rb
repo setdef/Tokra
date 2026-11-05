@@ -19,6 +19,7 @@ class TestLogRegistration < Minitest::Test
     end
 
     class EventLoop
+      def initialize(_app_id) = nil
       def create_proxy = Proxy.new
       def run(callback) = callback.call(Tokra::Native::LoopDestroyedEvent.new)
     end

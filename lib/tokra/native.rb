@@ -32,7 +32,7 @@ module Tokra
   # Proxy can be shared with Worker Ractors.
   #
   # @example Basic usage
-  #   event_loop = Tokra::Native::EventLoop.new
+  #   event_loop = Tokra::Native::EventLoop.new(nil)
   #   proxy = event_loop.create_proxy
   #
   #   window = Tokra::Native::Window.new(event_loop, "main")
@@ -71,7 +71,9 @@ module Tokra
     # A label holding NUL raises ArgumentError.
     #
     # - EventLoop: Main thread event loop
-    #   - .new -> EventLoop
+    #   - .new(app_id) -> EventLoop; +app_id+ is the GTK application id,
+    #     or +nil+, read only on Linux and the BSDs, where an id GLib
+    #     refuses raises ArgumentError
     #   - #create_proxy -> Proxy (must call before #run)
     #   - #run(callback) -> never returns; raises SystemExit with the
     #     loop's exit code when the loop ends

@@ -1,0 +1,4 @@
+{
+  "identifier": "com.tokra.fixture",
+  "bundle": { "linux": { "rpm": { "compression": { "type": "zstd", "level": 1, "threads": 4 } } } }
+}

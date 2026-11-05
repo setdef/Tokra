@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Config
+      class AndroidConfig < Data
+        U32: reader
+        FIELDS: Array[Field]
+        DEFAULTS: Hash[Symbol, top]
+
+        attr_reader min_sdk_version: Integer
+        attr_reader version_code: Integer?
+        attr_reader auto_increment_version_code: bool
+
+        def self.new: (?min_sdk_version: Integer, ?version_code: Integer?, ?auto_increment_version_code: bool) -> AndroidConfig
+        def self.deserialize: (json_value value) -> AndroidConfig
+      end
+    end
+  end
+end
