@@ -60,6 +60,9 @@
 //! and Ractors by design.
 // SPDX-SnippetEnd
 
+#[cfg(target_os = "macos")]
+mod app_icon;
+mod cached_icon;
 mod cookie;
 mod event_loop;
 mod event_loop_target;
@@ -149,6 +152,13 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
 
     // File reading (thin wrapper around std::fs::read)
     fs::define_functions(ruby, native)?;
+
+    // The config's icons, decoded as Tauri's codegen decodes them
+    cached_icon::define_functions(ruby, native)?;
+
+    // The app's icon on NSApp in development, on macOS
+    #[cfg(target_os = "macos")]
+    app_icon::define_functions(ruby, native)?;
 
     // Note: Event classes (IpcEvent, WakeUpEvent, etc.) are now defined in Ruby
     // using Data.define in lib/tokra/native/events.rb

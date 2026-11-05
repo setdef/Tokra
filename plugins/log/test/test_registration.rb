@@ -53,6 +53,9 @@ class TestLogRegistration < Minitest::Test
         # The README example, with the config written here and .run given
         # a native stand-in.
         File.write("tokra.conf.json", JSON.generate({ "identifier" => "com.tokra.log-readme" }))
+        # The icons/icon.png beside the config that every app has, here
+        # the core suite's.
+        FileUtils.cp_r(File.expand_path("../../../test/fixtures/test_app/icons", __dir__), dir)
         built = Tokra::Builder.default
           .setup(&Ractor.shareable_proc { |app|
             log = Tokra::Plugins::Log::Builder.new

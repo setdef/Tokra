@@ -145,6 +145,18 @@ module Tokra
       @handle.cursor_position
     end
 
+    # The icon a window takes when its builder gives it none, as
+    # AppHandle#default_window_icon answers it.
+    #
+    # Mirrors Tauri's App::default_window_icon (app.rs:871-874).
+    #
+    # === Example
+    #
+    #   app.default_window_icon&.width  #=> 32
+    def default_window_icon
+      @handle.default_window_icon
+    end
+
     # Shows the whole app in +theme+, as AppHandle#set_theme does.
     #
     # Mirrors Tauri's App::set_theme (app.rs:842-869).
@@ -167,7 +179,9 @@ module Tokra
       raise TypeError, "wrong argument type #{context.class} (expected Tokra::Context)" unless context.is_a?(Context)
 
       @manager = AppManager.new(config: context.config, package_info: context.package_info, pattern: context.pattern,
-        dev: context.dev, webviews: {}, windows: {})
+        dev: context.dev, default_window_icon: context.default_window_icon, app_icon: context.app_icon, webviews: {},
+        windows: {})
+      @native = native
       # The thread that builds the app is its main thread until App#run
       # attaches the event loop, which makes the running thread the main one.
       @runtime_context = RuntimeContext.new(native:)
@@ -281,7 +295,9 @@ module Tokra
       activation_policy = @activation_policy
       event_loop.set_activation_policy(activation_policy.name) if activation_policy
 
-      # Emit Ready event
+      # The app icon in development on macOS, as Tauri's runtime turns
+      # its Ready into the app's (app.rs:2413-2429), then Ready itself.
+      set_app_icon_in_development
       emit_run_event(RunEvent::Ready.new, callback)
 
       # Run the event loop, dispatching events. It never returns: when the
@@ -453,6 +469,31 @@ module Tokra
         listener.call(tray, event) if tray
       end
       emit_run_event(RunEvent::TrayIconEvent.new(event:), callback)
+    end
+
+    # SPDX-SnippetEnd
+
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: adapted from tauri/crates/tauri/src/app.rs:2413-2429
+
+    # Puts the context's app icon on NSApp, so the Dock shows it while the
+    # app runs from its sources, which have no bundle to give it one. Only
+    # in development, only on macOS, where the native function exists, and
+    # only when the context has the icon, which codegen reads only then.
+    # The native raises RuntimeError "creating icon" when AppKit cannot
+    # read the bytes, where Tauri panics.
+    #
+    # Until plan 054a-5 reads how an app is built, Tokra.generate_context
+    # makes every context with +dev+ true, so a packaged macOS app sets
+    # its Dock icon here too.
+    private def set_app_icon_in_development
+      icon = @manager.app_icon
+      return unless @manager.dev && icon && @native.respond_to?(:set_app_icon_for_nsapp)
+
+      app = @native #: singleton(Native)
+      app.set_app_icon_for_nsapp(icon)
     end
 
     # SPDX-SnippetEnd

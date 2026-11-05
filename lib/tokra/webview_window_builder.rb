@@ -958,6 +958,11 @@ module Tokra
     # The #on_menu_event block becomes the window's, and the #effects
     # apply just before <tt>tauri://window-created</tt>.
     #
+    # A builder given no #icon gives the window the app's default window
+    # icon, AppHandle#default_window_icon, when it has one. A default whose
+    # bytes do not fill its width and height, such as a 16-bit PNG's,
+    # raises Error::Runtime "invalid icon: ..." here, as #icon would.
+    #
     # If the platform refuses to make the window, the failure is warned on
     # $stderr, not raised, as Tauri logs it: "failed to create window", or
     # "failed to create webview: ..." with the platform's reason. The
@@ -1003,6 +1008,9 @@ module Tokra
       scripts.concat(@webview_builder.initialization_scripts)
       raise Error::WindowLabelAlreadyExists, @label if handle.windows.key?(@label)
 
+      # A window without an icon takes the app's default (manager/window.rs:70-74).
+      default_icon = handle.default_window_icon
+      @window_builder.icon(default_icon) if default_icon && !@window_builder.has_icon?
       menu = @window_builder.window_menu(handle)
       native_window, native_webview = handle.runtime_context.create_window(@label,
         window_attributes: @window_builder.native_attributes, webview_attributes: @webview_builder.native_attributes,

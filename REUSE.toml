@@ -50,6 +50,16 @@ SPDX-FileCopyrightText = "2026 Kerrick Long <me@kerricklong.com>"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 [[annotations]]
+path = 'examples/verify_ping_pong/icons/icon.png'
+SPDX-FileCopyrightText = "2026 Kerrick Long <me@kerricklong.com>"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = ['test/integration/fixtures/*/icons/icon.png', 'plugins/*/test/integration/fixtures/*/icons/icon.png']
+SPDX-FileCopyrightText = "2026 Kerrick Long <me@kerricklong.com>"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
 path = ['test/integration/fixtures/*/tokra.conf.json', 'plugins/*/test/integration/fixtures/*/tokra.conf.json']
 SPDX-FileCopyrightText = "2026 Kerrick Long <me@kerricklong.com>"
 SPDX-License-Identifier = "CC0-1.0"

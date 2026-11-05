@@ -155,6 +155,18 @@ module Tokra
       @manager.package_info
     end
 
+    # The icon a window takes when its builder gives it none: the
+    # Context's default window icon, a Tokra::Image, or +nil+.
+    #
+    # Mirrors Tauri's AppHandle::default_window_icon (app.rs:871-874).
+    #
+    # === Example
+    #
+    #   handle.default_window_icon&.height  #=> 32
+    def default_window_icon
+      @manager.default_window_icon
+    end
+
     # Returns all managed webviews.
     def webviews
       @manager.webviews

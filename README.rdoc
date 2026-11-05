@@ -28,6 +28,9 @@ documents them:
     "app": { "windows": [{ "title": "Hello", "width": 480, "height": 320 }] }
   }
 
+Beside it, put the window icon at <tt>icons/icon.png</tt>, an RGBA PNG, as
+a Tauri app has one; the app does not start without it.
+
 Then serve your Rack app in the windows it lists:
 
   require "tokra"

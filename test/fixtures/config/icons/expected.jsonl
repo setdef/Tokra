@@ -1,0 +1,23 @@
+{"build":"json","call":"new","case":"icons","name":"bad_entry.ico","panic":"failed to decode icon {dir}/bad_entry.ico: Malformed PNG data: unexpected end of file"}
+{"build":"json","call":"new","case":"icons","name":"bmp.ico","ok":{"bytes":"000b17ff09305efe1255a5fd1b7aecfc249f33fb2dc47afa","height":3,"width":2}}
+{"build":"json","call":"new","case":"icons","name":"bmp1.ico","ok":{"bytes":"00000000f08010fff08010ff000000ff","height":2,"width":2}}
+{"build":"json","call":"new","case":"icons","name":"empty.ico","panic":"index out of bounds: the len is 0 but the index is 0"}
+{"build":"json","call":"new","case":"icons","name":"empty_entry_past_the_end.ico","panic":"failed to decode icon {dir}/empty_entry_past_the_end.ico: failed to fill whole buffer"}
+{"build":"json","call":"new","case":"icons","error":"invalid extension `icns` used for image {dir}/icon.icns, must be `ico` or `png`","name":"icon.icns"}
+{"build":"json","call":"new_raw","case":"icons","name":"icon.icns","ok":{"bytes":"69636e7300000008"}}
+{"build":"json","call":"new","case":"icons","name":"icon.ico","ok":{"bytes":"000b17ff09305efe1255a5fd1b7aecfc249f33fb2dc47afa","height":2,"width":3}}
+{"build":"json","call":"new","case":"icons","error":"invalid extension `jpg` used for image {dir}/icon.jpg, must be `ico` or `png`","name":"icon.jpg"}
+{"build":"json","call":"new","case":"icons","error":"invalid extension `icns` used for image {dir}/missing.icns, must be `ico` or `png`","name":"missing.icns"}
+{"build":"json","call":"new_raw","case":"icons","name":"missing.icns","panic":"failed to open icon {dir}/missing.icns: No such file or directory (os error 2)"}
+{"build":"json","call":"new","case":"icons","name":"missing.png","panic":"failed to open icon {dir}/missing.png: No such file or directory (os error 2)"}
+{"build":"json","call":"new","case":"icons","name":"not_a.png","panic":"failed to read icon {dir}/not_a.png: Invalid PNG signature."}
+{"build":"json","call":"new","case":"icons","name":"not_an.ico","panic":"failed to parse icon {dir}/not_an.ico: Invalid reserved field value in ICONDIR (was 26740, but must be 0)"}
+{"build":"json","call":"new","case":"icons","name":"past_the_end.ico","panic":"failed to parse icon {dir}/past_the_end.ico: failed to fill whole buffer"}
+{"build":"json","call":"new","case":"icons","name":"rgb.png","panic":"icon {dir}/rgb.png is not RGBA"}
+{"build":"json","call":"new","case":"icons","name":"rgba.png","ok":{"bytes":"000b17ff09305efe1255a5fd1b7aecfc249f33fb2dc47afa","height":2,"width":3}}
+{"build":"json","call":"new_raw","case":"icons","name":"rgba.png","ok":{"bytes":"89504e470d0a1a0a0000000d49484452000000030000000208060000009d74661a0000002349444154789c6360e016ffcf6910f74f2874e95f06e9aa377f54e61bffd63d52f50b007d890b9349b5a70d0000000049454e44ae426082"}}
+{"build":"json","call":"new","case":"icons","name":"rgba16.png","ok":{"bytes":"00ff0bf417e8ff0009f630cf5ea1fe0112ed55aaa55afd021be47a85ec13fc03","height":2,"width":2}}
+{"build":"json","call":"new","case":"icons","name":"rgba_interlaced.png","ok":{"bytes":"000b17ff249f33fbb4efa3ebd883bfe71255a5fdc63931e95a7dddf56cc76bf37e11f9f109305efe1b7aecfc63a224f475ecb2f2bd14eaeacf5e78e82dc47afa36e9c1f93f0e08f848334ff7515896f6873640f0905b87ef9980ceeea2a515edabca5cec","height":5,"width":5}}
+{"build":"json","call":"new","case":"icons","name":"rgba_truncated.png","ok":{"bytes":"000b17ff09305efe1255a5fd1b7aecfc249f33fb2dc47afa36e9c1f93f0e08f8","height":4,"width":4}}
+{"build":"json","call":"new","case":"icons","name":"rgba_without_iend.png","ok":{"bytes":"000b17ff09305efe1255a5fd1b7aecfc249f33fb2dc47afa36e9c1f93f0e08f848334ff7515896f65a7dddf563a224f46cc76bf375ecb2f27e11f9f1873640f0","height":4,"width":4}}
+{"build":"json","call":"new","case":"icons","name":"short_bmp.ico","panic":"failed to decode icon {dir}/short_bmp.ico: failed to fill whole buffer"}

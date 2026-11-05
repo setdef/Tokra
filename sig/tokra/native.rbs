@@ -247,5 +247,8 @@ module Tokra
     def self.image_from_bytes: (String bytes) -> [String, Integer, Integer]
 
     def self.fs_read: (String path) -> String
+
+    def self.cached_icon_png: (String path, String bytes) -> [String, Integer, Integer]
+    def self.cached_icon_ico: (String path, String bytes) -> [String, Integer, Integer]
   end
 end

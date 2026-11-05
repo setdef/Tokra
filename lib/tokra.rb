@@ -186,9 +186,21 @@ module Tokra
   # <tt>tokra.conf.json5</tt>) is read, with the platform's file merged
   # over it (Tokra::Codegen.get_config).
   #
+  # It reads the app's icons too, as Tauri embeds them: the window icon
+  # is the first <tt>.png</tt> the config's <tt>bundle.icon</tt> lists,
+  # else <tt>icons/icon.png</tt> beside the config, which must exist, as
+  # a Tauri app without it fails to compile (Tokra::Codegen.context_codegen).
+  #
   # Raises Tokra::Utils::Config::Parse::ConfigError when the files
   # cannot be read, and Tokra::Codegen::CodegenConfigError::Json when
-  # they do not fit Tauri's schema. Reads no environment variable: Tauri's
+  # they do not fit Tauri's schema. Raises RuntimeError in codegen's words
+  # when an icon cannot be read or decoded: "failed to open icon {path}:
+  # {e}", "failed to read icon {path}: {e}", "failed to parse icon
+  # {path}: {e}", "failed to decode icon {path}: {e}", or "icon {path} is
+  # not RGBA" (Tokra::Codegen::CachedIcon). An icon that is neither PNG
+  # nor ICO raises Tokra::Codegen::EmbeddedAssetsError::InvalidImageExtension,
+  # which only the tray icon can reach, since the window icon is found by
+  # its extension. Reads no environment variable: Tauri's
   # <tt>TAURI_CONFIG</tt> belongs to its CLI (ADR 014 §6).
   #
   # Mirrors Tauri's <tt>generate_context!</tt> (tauri-macros

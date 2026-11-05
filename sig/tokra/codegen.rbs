@@ -20,5 +20,8 @@ module Tokra
     def self.get_config: (String | Pathname path) -> [Utils::Config::Config, String]
     private def self.config_from: (json_value raw, String parent) -> Utils::Config::Config
     def self.context_codegen: (ContextData data) -> Context
+    def self.default_window_icon: (Utils::Config::Config config, String config_parent, Utils::Platform::Target target) -> Image
+    def self.app_icon: (Utils::Config::Config config, String config_parent, Utils::Platform::Target target, bool dev) -> String?
+    private def self.find_icon: (Utils::Config::Config config, String config_parent, String default) { (String) -> bool } -> String
   end
 end

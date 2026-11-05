@@ -7,6 +7,7 @@ module Tokra
     def self.remove_menu_for_nsapp: (Menu menu) -> nil
     def self.set_windows_menu_for_nsapp: (Submenu submenu) -> nil
     def self.set_help_menu_for_nsapp: (Submenu submenu) -> nil
+    def self.set_app_icon_for_nsapp: (String bytes) -> nil
   end
 
   module Menu

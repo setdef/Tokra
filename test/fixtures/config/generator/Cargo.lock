@@ -1779,6 +1779,8 @@ name = "tokra-config-fixtures"
 version = "0.0.0"
 dependencies = [
  "json5",
+ "proc-macro2",
+ "quote",
  "serde",
  "serde_json",
  "tauri-codegen",

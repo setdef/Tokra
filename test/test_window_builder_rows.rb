@@ -89,7 +89,11 @@ class TestWindowBuilderRows < Minitest::Test
   # with the handle and a log; +events+ and then +tasks+ TaskEvents follow.
   def run_app(tasks: 0, events: [], &on_ready)
     log = []
-    app = build_test_app
+    # Without a default window icon, as Tauri's mock context has none
+    # (test/mod.rs:130), so the icon row keeps tao's default.
+    context = build_test_context
+    context.set_default_window_icon(nil)
+    app = Tokra::Builder.default.build(context, native: StubNative)
     StubNative.inject_event(events + Array.new(tasks) { Tokra::Native::TaskEvent.new })
     app.run { |handle, event| on_ready&.call(handle, log) if event.is_a?(Tokra::RunEvent::Ready) }
     log

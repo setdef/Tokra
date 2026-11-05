@@ -7,13 +7,19 @@ module Tokra
     @package_info: Utils::PackageInfo
     @pattern: pattern
     @dev: bool
+    @default_window_icon: Image?
+    @app_icon: String?
 
     attr_reader config: Utils::Config::Config
     attr_reader package_info: Utils::PackageInfo
     attr_reader pattern: pattern
     attr_accessor dev: bool
+    attr_reader default_window_icon: Image?
+    attr_reader app_icon: String?
 
-    def initialize: (config: Utils::Config::Config, package_info: Utils::PackageInfo, pattern: pattern) -> void
+    def initialize: (config: Utils::Config::Config, default_window_icon: Image?, app_icon: String?,
+                     package_info: Utils::PackageInfo, pattern: pattern) -> void
+    def set_default_window_icon: (Image? icon) -> nil
     def config=: (Utils::Config::Config config) -> Utils::Config::Config
     def package_info=: (Utils::PackageInfo package_info) -> Utils::PackageInfo
   end

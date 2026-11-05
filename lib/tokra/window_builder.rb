@@ -306,6 +306,12 @@ module Tokra
       set(:icon, native)
     end
 
+    # Whether #icon gave the window an icon, tauri-runtime-wry's
+    # WindowBuilderWrapper::has_icon (lib.rs:1240-1242).
+    def has_icon?
+      !@attributes[:icon].nil?
+    end
+
     # Tauri's WindowBuilder::skip_taskbar; macOS has no taskbar
     # (window/mod.rs:689-692; lib.rs:1209-1225).
     def skip_taskbar(skip)

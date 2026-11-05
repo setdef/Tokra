@@ -687,6 +687,7 @@ class TestRackHandler < Minitest::Test
     dir = Dir.mktmpdir("config", root)
     config = { "identifier" => "com.tokra.rack", "app" => { "windows" => [{ "title" => title }], **app } }
     File.write(File.join(dir, "tokra.conf.json"), JSON.generate(config))
+    FileUtils.cp_r(File.join(TestApp::CONFIG_PARENT, "icons"), dir)
     dir
   end
 

@@ -26,6 +26,7 @@ module StubNative
     Thread.current[:stub_native_event_loop_calls] = nil
     Thread.current[:stub_native_exit_code] = nil
     Thread.current[:stub_native_nsapp_calls] = nil
+    Thread.current[:stub_native_app_icons] = nil
     Thread.current[:stub_native_trays] = nil
     Thread.current[:stub_native_tray_failure] = nil
     Thread.current[:stub_native_open_failure] = nil
@@ -120,6 +121,21 @@ module StubNative
 
     def self.set_help_menu_for_nsapp(submenu)
       nsapp_calls << [:set_help_menu_for_nsapp, submenu.id]
+      nil
+    end
+  end
+
+  # The icons the app set on NSApp, each as its bytes, in order; apart
+  # from #nsapp_calls, which the menu tests read whole.
+  def self.app_icons
+    Thread.current[:stub_native_app_icons] ||= []
+  end
+
+  # Records the app icon instead of setting it, on macOS only, where the
+  # native defines it.
+  if Tokra::Native.respond_to?(:set_app_icon_for_nsapp)
+    def self.set_app_icon_for_nsapp(bytes)
+      app_icons << bytes
       nil
     end
   end

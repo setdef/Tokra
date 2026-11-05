@@ -37,6 +37,12 @@ muda = { version = "=0.17.1", default-features = false, features = ["gtk", "libx
 # crates/tauri/Cargo.toml:93-95 and :199 enable but serde (Ruby owns the
 # event's wire format) and common-controls-v6 (decision 2 of plan 042).
 tray-icon = { version = "=0.21.0", default-features = false, features = ["libxdo"] }
+# The config's icons (plan 054, decision 19): the versions Tauri's lock
+# pins for tauri-codegen, which decodes a PNG icon with png and an ICO
+# icon's first entry with ico (crates/tauri-codegen/Cargo.toml:33-34,
+# src/image.rs:50-99).
+png = "=0.17.16"
+ico = "=0.5.0"
 
 # A window's -[NSWindow windowNumber], for its AppKit handle (raw_handle.rs,
 # plan 035); -[NSWindow center], a screen's visible frame, and a webview's
@@ -47,7 +53,11 @@ tray-icon = { version = "=0.21.0", default-features = false, features = ["libxdo
 # feature it does not enable.
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6.3"
-objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "block2", "objc2-core-foundation", "NSApplication", "NSGraphics", "NSResponder", "NSScreen", "NSView", "NSWindow"] }
+# NSImage and NSData give NSApp the app's icon in development
+# (app_icon.rs, plan 054, phase 3), as tauri enables them
+# (crates/tauri/Cargo.toml:110-123) for app.rs:2413-2429.
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "block2", "objc2-core-foundation", "NSApplication", "NSGraphics", "NSImage", "NSResponder", "NSScreen", "NSView", "NSWindow"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSData"] }
 # Window effects (plan 045): the version Tauri locks (vendor/tauri
 # Cargo.lock), which crates/tauri/Cargo.toml:129 and :134 add on macOS and
 # Windows, the two platforms its vibrancy module applies effects on.

@@ -44,7 +44,8 @@ class TestContext < Minitest::Test
   def test_new_checks_its_pattern
     context = context_for({ "identifier" => "a" })
     error = assert_raises(TypeError) do
-      Tokra::Context.new(config: context.config, package_info: context.package_info, pattern: :brownfield)
+      Tokra::Context.new(config: context.config, default_window_icon: nil, app_icon: nil,
+        package_info: context.package_info, pattern: :brownfield)
     end
     assert_equal "wrong argument type Symbol (expected Tokra::Pattern)", error.message
   end
@@ -96,7 +97,8 @@ class TestContext < Minitest::Test
 
   def test_context_data_carries_dev_to_the_context
     config = C::Config.new(identifier: "a")
-    context = Tokra::Codegen.context_codegen(Tokra::Codegen::ContextData.new(dev: false, config:, config_parent: "/"))
+    context = Tokra::Codegen.context_codegen(Tokra::Codegen::ContextData.new(dev: false, config:,
+      config_parent: TestApp::CONFIG_PARENT))
     refute context.dev
   end
 
@@ -125,7 +127,8 @@ class TestContext < Minitest::Test
   end
 
   private def context_for(json)
-    config = C::Config.deserialize(json, Dir.pwd)
-    Tokra::Codegen.context_codegen(Tokra::Codegen::ContextData.new(dev: true, config:, config_parent: Dir.pwd))
+    config = C::Config.deserialize(json, TestApp::CONFIG_PARENT)
+    Tokra::Codegen.context_codegen(Tokra::Codegen::ContextData.new(dev: true, config:,
+      config_parent: TestApp::CONFIG_PARENT))
   end
 end

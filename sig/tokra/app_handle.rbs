@@ -48,6 +48,7 @@ module Tokra
     def run_on_main_thread: () { () -> void } -> nil
     def app_handle: -> AppHandle
     def config: -> Config
+    def default_window_icon: () -> Image?
     def package_info: -> PackageInfo
     def webviews: -> Hash[String, Webview]
     def windows: -> Hash[String, Window]

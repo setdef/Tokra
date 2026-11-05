@@ -14,20 +14,21 @@ module Tokra
   # Internal manager for application state (minimal MVP subset of Tauri's AppManager).
   #
   # See tauri/src/manager/mod.rs AppManager
-  class AppManager < Data.define(:config, :package_info, :pattern, :dev, :webviews, :windows, :plugins, :invoke_key,
-    :listeners)
+  class AppManager < Data.define(:config, :package_info, :pattern, :dev, :default_window_icon, :app_icon, :webviews,
+    :windows, :plugins, :invoke_key, :listeners)
     # Creates a new AppManager.
     #
-    # +config+, +package_info+, +pattern+, and +dev+ are the Context's, as
-    # Tauri's AppManager takes them from its context
-    # (manager/mod.rs:249-322). +plugins+ defaults to an empty PluginStore,
+    # +config+, +package_info+, +pattern+, +dev+, +default_window_icon+,
+    # and +app_icon+ are the Context's, as Tauri's AppManager takes them
+    # from its context (manager/mod.rs:249-322); Tauri's window manager
+    # holds the default window icon (manager/window.rs:43, :280). +plugins+ defaults to an empty PluginStore,
     # mirroring Tauri's AppManager which always owns its plugin store. +invoke_key+
     # defaults to a fresh per-app key (Tokra.generate_invoke_key),
     # mirroring the invoke_key member Tauri's AppManager holds
     # (manager/mod.rs). +listeners+ is the app's event registry, an
     # Event::Listeners.
-    def self.new(config:, package_info:, pattern:, dev:, webviews:, windows:, plugins: PluginStore.new,
-      invoke_key: Tokra.generate_invoke_key, listeners: Event::Listeners.new
+    def self.new(config:, package_info:, pattern:, dev:, webviews:, windows:, default_window_icon: nil, app_icon: nil,
+      plugins: PluginStore.new, invoke_key: Tokra.generate_invoke_key, listeners: Event::Listeners.new
     )
       super
     end

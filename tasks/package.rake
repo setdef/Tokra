@@ -7,6 +7,17 @@
 
 require_relative "package_check"
 
+# Smoke-script lines that make a directory, +config_dir+, holding the
+# icons/icon.png every app's config needs beside it: a 2x1 RGBA PNG, which
+# the extension's png decoder reads as Tauri's codegen does (plan 054,
+# phase 3).
+SMOKE_CONFIG_DIR = <<~RUBY
+  require "tmpdir"
+  config_dir = Dir.mktmpdir
+  Dir.mkdir(File.join(config_dir, "icons"))
+  File.binwrite(File.join(config_dir, "icons", "icon.png"), ["89504e470d0a1a0a0000000d4948445200000002000000010806000000f4227f8a0000000e49444154789c63f8cfc00042ff010ff903fd851199760000000049454e44ae426082"].pack("H*"))
+RUBY
+
 # The gems this repository publishes, in dependency order. Each packaged
 # list matches its gemspec's; a new top-level path belongs in both.
 PACKAGES = [
@@ -23,9 +34,12 @@ PACKAGES = [
       # An app built from a config file, as an app is, whose
       # withGlobalTauri adds the API bundle; then every script App#run
       # injects, each from a packaged template (Native.load_js_template).
-      config = File.join(Dir.mktmpdir, "tokra.conf.json")
+      #{SMOKE_CONFIG_DIR.chomp}
+      config = File.join(config_dir, "tokra.conf.json")
       File.write(config, '{ "identifier": "com.tokra.smoke", "app": { "withGlobalTauri": true } }')
-      app = Tokra::Builder.default.build(Tokra.generate_context(config))
+      context = Tokra.generate_context(config)
+      abort "the default window icon did not decode" unless context.default_window_icon&.width == 2
+      app = Tokra::Builder.default.build(context)
       scripts = app.handle.webview_manager.initialization_scripts("main", "main")
       # The event scripts a listen and an emit render (plan 047).
       Tokra::Event.listen_js_script("o", '{"kind":"Any"}', "tokra://smoke", 0, 1)
@@ -67,8 +81,9 @@ PACKAGES = [
       # init script is a packaged file the plugin reads at load.
       script = Tokra::Plugins::Dialog::Plugin::INIT_SCRIPT
       abort "the init script lost alert" unless script.include?("plugin:dialog|message")
+      #{SMOKE_CONFIG_DIR.chomp}
       config = Tokra::Config.new(identifier: "com.tokra.smoke")
-      context = Tokra::Codegen.context_codegen(Tokra::Codegen::ContextData.new(dev: true, config:, config_parent: Dir.pwd))
+      context = Tokra::Codegen.context_codegen(Tokra::Codegen::ContextData.new(dev: true, config:, config_parent: config_dir))
       handle = Tokra::Builder.default.build(context).handle
       builder = Tokra::Plugins::Dialog::Dialog.new(handle).file.set_title("smoke")
       abort "ferro-rfd lost the title" unless builder.to_async_file_dialog.inspect.include?(%(title: Some("smoke")))
@@ -90,8 +105,9 @@ PACKAGES = [
       script = Tokra::Plugins::Notification::Plugin::INIT_SCRIPT
       abort "the init script lost notify" unless script.include?("plugin:notification|notify")
       abort "the init script kept its template" if script.include?("__TEMPLATE_windows__")
+      #{SMOKE_CONFIG_DIR.chomp}
       config = Tokra::Config.new(identifier: "com.tokra.smoke")
-      context = Tokra::Codegen.context_codegen(Tokra::Codegen::ContextData.new(dev: true, config:, config_parent: Dir.pwd))
+      context = Tokra::Codegen.context_codegen(Tokra::Codegen::ContextData.new(dev: true, config:, config_parent: config_dir))
       handle = Tokra::Builder.default.build(context).handle
       builder = Tokra::Plugins::Notification::Notification.new(handle).builder.title("smoke")
       notification = builder.__send__(:desktop_notification).to_notify_rust

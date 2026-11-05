@@ -1,0 +1,53 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Codegen
+    class EmbeddedAssetsError < Tokra::Error
+      class InvalidImageExtension < EmbeddedAssetsError
+        @extension: String
+        @path: String
+
+        attr_reader extension: String
+        attr_reader path: String
+
+        def initialize: (String extension, String path) -> void
+      end
+    end
+
+    class CachedIcon
+      module IconFormat
+        class Raw < Data
+          def self.new: () -> Raw
+        end
+
+        class Image < Data
+          attr_reader width: Integer
+          attr_reader height: Integer
+
+          def self.new: (Integer width, Integer height) -> Image
+                      | (width: Integer, height: Integer) -> Image
+        end
+      end
+
+      type format = IconFormat::Raw | IconFormat::Image
+
+      @cache: String
+      @format: format
+
+      attr_reader cache: String
+      attr_reader format: format
+
+      def self.new: (String icon) -> CachedIcon
+      def self.new_raw: (String icon) -> CachedIcon
+      def self.new_ico: (String icon) -> CachedIcon
+      def self.new_png: (String icon) -> CachedIcon
+      private def self.cached: (String cache, format format) -> CachedIcon
+      private def self.read: (String path) -> String
+      private def self.extension: (String path) -> String?
+
+      def initialize: (String cache, format format) -> void
+      def value: () -> (Tokra::Image | String)
+    end
+  end
+end

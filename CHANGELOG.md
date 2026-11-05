@@ -481,6 +481,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `Tokra::Codegen`, `Tokra::Pattern`, and `Tokra::Utils::Platform::Target`
 - Dependency: ferro-url 0.1.0.pre.1 (url 2.5.8), for every URL Tauri types as
   `url::Url`
+- The default window icon: `Tokra.generate_context` decodes `icons/icon.png`
+  beside the config (or the first `.png` in `bundle.icon`; on Windows an
+  `.ico` first) as Tauri's codegen does, into
+  `Context#default_window_icon`, which `#set_default_window_icon` replaces;
+  every window built without an icon takes it, and `App#default_window_icon`
+  and `AppHandle#default_window_icon` answer it
+- On macOS in development, the app's `.icns` (or `.png`) icon is set on the
+  Dock when the app is ready
+- `Tokra::Codegen::CachedIcon` and
+  `Tokra::Codegen::EmbeddedAssetsError::InvalidImageExtension`
+- Dependency: ico 0.5.0 and png 0.17.16, the versions Tauri's codegen
+  decodes icons with
 
 ### Changed
 
@@ -490,6 +502,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - An app opens the windows its config's `app.windows` lists, and none if it
   lists none, instead of always opening `main` (breaking)
 - An app needs a config file with an `identifier` (breaking)
+- An app needs an RGBA PNG at `icons/icon.png` beside its config, or one
+  `bundle.icon` names; without it `Tokra.generate_context` raises "failed to
+  open icon {path}: {e}", as a Tauri app fails to compile (breaking)
 - A window's default title is "Tokra App", as Tauri's is "Tauri App"
 - The default menu's About item, the Linux desktop file, and a dialog
   plugin message's title name the app by `package_info.name`, and the About

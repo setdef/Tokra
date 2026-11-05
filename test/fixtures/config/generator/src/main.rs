@@ -26,6 +26,11 @@
 //!   with `config-json5` alone: `json5::from_str` into a `Value`, as
 //!   tauri-utils reads a JSON5 config, giving the value or the error's
 //!   `Display` and location.
+//! - `icons/`: icon files, each handed to tauri-codegen's `CachedIcon`
+//!   (`new`, and `new_raw` for the raw cases), answered by the JSON build.
+//!   The answer is the icon's width, height, and bytes in hex, read back
+//!   from the file codegen caches in `OUT_DIR`, or codegen's error
+//!   `Display`, or the message codegen panics with.
 //!
 //! Every string in an answer has the case's directory as `{dir}` (with
 //! `{dir}/` for the directory and a separator), and Tauri's brand as
@@ -98,6 +103,7 @@ fn main() {
     // JSON build gives them.
     if BUILD == "json" {
         from_value_cases(&root.join("from_value"));
+        icon_cases(&root.join("icons"));
     }
     #[cfg(feature = "config-json5")]
     json5_cases(&root.join("json5"));
@@ -176,6 +182,128 @@ fn json5_cases(dir: &Path) {
         }
         println!("{answer}");
     }
+}
+
+/// The icon files a case names that do not exist, so codegen's open fails.
+const MISSING_ICONS: [&str; 2] = ["missing.png", "missing.icns"];
+
+/// The icons `CachedIcon::new_raw` reads too, as codegen reads the macOS
+/// app icon (tauri-codegen context.rs:248-268).
+const RAW_ICONS: [&str; 3] = ["icon.icns", "rgba.png", "missing.icns"];
+
+/// Each file under `icons/` handed to tauri-codegen's `CachedIcon::new`,
+/// and the raw ones to `CachedIcon::new_raw` too (image.rs:28-104).
+fn icon_cases(dir: &Path) {
+    let dir = dir.canonicalize().expect("the icons directory");
+    let mut names: Vec<String> = sorted_entries(&dir)
+        .iter()
+        .map(|path| {
+            path.file_name()
+                .expect("a file name")
+                .to_string_lossy()
+                .into_owned()
+        })
+        .filter(|name| name != "expected.jsonl")
+        .collect();
+    names.extend(MISSING_ICONS.iter().map(|name| (*name).to_owned()));
+    names.sort();
+    // codegen panics on a bad icon; the answer records the message, and
+    // the default hook would only print it again.
+    std::panic::set_hook(Box::new(|_| {}));
+    for name in names {
+        let path = dir.join(&name);
+        let mut calls = vec!["new"];
+        if RAW_ICONS.contains(&name.as_str()) {
+            calls.push("new_raw");
+        }
+        for call in calls {
+            let mut answer = json!({ "case": "icons", "name": name, "build": BUILD, "call": call });
+            match cached_icon(&path, call) {
+                Ok(ok) => answer["ok"] = ok,
+                Err(Failure::Error(error)) => answer["error"] = Value::String(error),
+                Err(Failure::Panic(message)) => answer["panic"] = Value::String(message),
+            }
+            println!("{}", placeholders(&answer, &dir));
+        }
+    }
+    let _ = std::panic::take_hook();
+}
+
+/// How codegen refused an icon: an error it returns, or a panic.
+enum Failure {
+    Error(String),
+    Panic(String),
+}
+
+/// `call` on the icon at `path`, with `OUT_DIR` a fresh directory, so the
+/// one file codegen caches there is the icon's bytes. The answer has
+/// `width` and `height` for an RGBA image, and `bytes` in hex either way.
+fn cached_icon(path: &Path, call: &str) -> Result<Value, Failure> {
+    use quote::ToTokens;
+    use std::fmt::Write;
+    use tauri_codegen::image::CachedIcon;
+
+    let out_dir = scratch_dir();
+    env::set_var("OUT_DIR", &out_dir);
+    let root: proc_macro2::TokenStream = "::tauri".parse().expect("a crate path");
+    let built = std::panic::catch_unwind(|| match call {
+        "new" => CachedIcon::new(&root, path),
+        _ => CachedIcon::new_raw(&root, path),
+    });
+    let result = match built {
+        Err(payload) => Err(Failure::Panic(panic_message(payload.as_ref()))),
+        Ok(Err(error)) => Err(Failure::Error(error.to_string())),
+        Ok(Ok(icon)) => {
+            let tokens = icon.to_token_stream().to_string();
+            let cached = sorted_entries(&out_dir);
+            let [file] = cached.as_slice() else {
+                panic!("one cached file for {}", path.display());
+            };
+            let bytes = fs::read(file).expect("the cached icon");
+            let hex = bytes.iter().fold(String::new(), |mut hex, byte| {
+                write!(hex, "{byte:02x}").expect("a write to a String");
+                hex
+            });
+            let mut ok = json!({ "bytes": hex });
+            if let Some((width, height)) = image_size(&tokens) {
+                ok["width"] = json!(width);
+                ok["height"] = json!(height);
+            }
+            Ok(ok)
+        }
+    };
+    fs::remove_dir_all(&out_dir).expect("the scratch directory removed");
+    result
+}
+
+/// The width and height in `Image::new(bytes, width, height)`, the code
+/// an RGBA icon becomes (image.rs:113-115); `None` for a raw icon.
+fn image_size(tokens: &str) -> Option<(u32, u32)> {
+    if !tokens.contains("Image :: new") {
+        return None;
+    }
+    let numbers: Vec<u32> = tokens
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .filter_map(|word| word.strip_suffix("u32"))
+        .map(|digits| digits.parse().expect("a u32 literal"))
+        .collect();
+    let [width, height] = numbers.as_slice() else {
+        panic!("two u32 literals in {tokens}");
+    };
+    Some((*width, *height))
+}
+
+/// The message a panic carried, as Rust prints it.
+fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
+    payload
+        .downcast_ref::<String>()
+        .cloned()
+        .or_else(|| {
+            payload
+                .downcast_ref::<&str>()
+                .map(|text| (*text).to_owned())
+        })
+        .expect("a panic with a message")
 }
 
 /// `value` read into `T` as Tauri's codegen reads its config
