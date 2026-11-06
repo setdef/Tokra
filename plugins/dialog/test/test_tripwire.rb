@@ -36,7 +36,15 @@ class TestTripwire < Minitest::Test
 
   def test_each_terminal_name_is_a_method_of_some_guarded_dialog
     present = DialogTest::GUARDED.flat_map { |dialog| dialog.public_instance_methods(false) }
+    expected = (DialogTest::PLATFORM == :macos) ? DialogTest::TERMINAL : DialogTest::TERMINAL - DialogTest::MACOS_TERMINAL
 
-    assert_empty DialogTest::TERMINAL - present, "DialogTest::TERMINAL names a method no guarded dialog has"
+    assert_empty expected - present, "DialogTest::TERMINAL names a method no guarded dialog has"
+  end
+
+  def test_the_macos_only_terminal_names_exist_only_on_macos
+    present = DialogTest::GUARDED.flat_map { |dialog| dialog.public_instance_methods(false) }
+    expected = (DialogTest::PLATFORM == :macos) ? DialogTest::MACOS_TERMINAL : []
+
+    assert_equal expected, DialogTest::MACOS_TERMINAL & present
   end
 end

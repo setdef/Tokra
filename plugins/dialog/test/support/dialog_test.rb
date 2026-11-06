@@ -39,6 +39,9 @@ module DialogTest
   # The methods that show a ferro-rfd dialog.
   TERMINAL = %i[pick_file pick_files pick_folder pick_folders save_file pick_file_or_folder pick_files_or_folders show].freeze
 
+  # The TERMINAL methods ferro-rfd defines on macOS alone, as rfd does.
+  MACOS_TERMINAL = %i[pick_file_or_folder pick_files_or_folders].freeze
+
   # The methods of a ferro-rfd dialog that show nothing: its setters and
   # its Debug text. TestTripwire fails for any other public method that is
   # not in TERMINAL, so a showing method ferro-rfd adds is not missed.
