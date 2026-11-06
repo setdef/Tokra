@@ -8,7 +8,7 @@ gem "propshaft"
 gem "sqlite3", ">= 2.1"
 # tokra.rb loads Tokra from this checkout, and Tokra reads its URLs with
 # ferro-url.
-gem "ferro-url", git: "https://github.com/setdef/Ferro", tag: "ferro-url/v0.1.0.pre.1", glob: "gems/url/*.gemspec"
+gem "ferro-url", git: "https://github.com/setdef/Ferro", tag: "ferro-url/v0.1.0", glob: "gems/url/*.gemspec"
 # Use the Puma web server [https://github.com/puma/puma]
 gem "puma", ">= 5.0"
 # Use JavaScript with ESM import maps [https://github.com/rails/importmap-rails]

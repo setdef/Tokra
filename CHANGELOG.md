@@ -238,7 +238,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `write_html`, `clear`); every failure raises or rejects with
   `Error::Clipboard` or Tauri's argument error, and `read_text` raises on an
   empty clipboard; it is pure Ruby and depends on `ferro-arboard`
-  0.1.0.pre.2 (arboard 3.7.0, Wayland included), which apps take from its
+  0.1.0 (arboard 3.7.0, Wayland included), which apps take from its
   git tag until it is on RubyGems.org
 - `tokra-dialog` gem: `Tokra::Plugins::Dialog::Plugin.new(app)` manages a
   `Tokra::Plugins::Dialog::Dialog` (reachable as `app.dialog`) with Tauri's
@@ -251,7 +251,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   to the calling window as Tauri does, except on Wayland (ferro-rfd binds
   no Wayland handle), so on macOS each is a sheet on that window; picked
   paths join no scope; it is pure Ruby and depends on `ferro-rfd`
-  0.1.0.pre.3 (rfd 0.17.2), which apps take from its git tag until it is
+  0.1.0 (rfd 0.17.2), which apps take from its git tag until it is
   on RubyGems.org
 - `tokra-notification` gem: `Tokra::Plugins::Notification::Plugin.new(app)`
   manages a `Tokra::Plugins::Notification::Notification` (reachable as
@@ -264,8 +264,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   macOS names the app by its identifier, Windows names none; an
   `Attachment` holds its URL as a `Ferro::Url::Url`, and `Schedule::At`
   its date as a `Ferro::Time::OffsetDateTime`; it is pure Ruby and
-  depends on `ferro-notify-rust` 0.1.0.pre.4 (notify-rust 4.18.2),
-  `ferro-url` 0.1.0.pre.1 (url 2.5.8), and `ferro-time` 0.1.0.pre.4 (time
+  depends on `ferro-notify-rust` 0.1.0 (notify-rust 4.18.2),
+  `ferro-url` 0.1.0 (url 2.5.8), and `ferro-time` 0.1.0 (time
   0.3.55), which apps take from their git tags until they are on
   RubyGems.org
 - `Tokra::PermissionState` (`Granted`, `Denied`, `Prompt`,
@@ -278,7 +278,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `unregister_all`, and `is_registered`, and serves Tauri's commands for
   `@tauri-apps/plugin-global-shortcut`, sending each press through the
   page's Channel; handlers run on a thread of their own; it is pure Ruby and
-  depends on `ferro-global-hotkey` 0.1.0.pre.1 (global-hotkey 0.9.0), which
+  depends on `ferro-global-hotkey` 0.1.0 (global-hotkey 0.9.0), which
   apps take from Ferro's git repository until it is on RubyGems.org
 - `Tokra::Ipc::Channel` and `Tokra::Ipc::JavaScriptChannelId`, Tauri's
   `ipc::Channel`: read a page's Channel argument with
@@ -486,7 +486,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Tokra::Config` is Tauri's whole config, `Tokra::Utils::Config::Config`
 - `Tokra::Utils::Config` (Tauri's config types) and its `Parse`,
   `Tokra::Codegen`, `Tokra::Pattern`, and `Tokra::Utils::Platform::Target`
-- Dependency: ferro-url 0.1.0.pre.1 (url 2.5.8), for every URL Tauri types as
+- Dependency: ferro-url 0.1.0 (url 2.5.8), for every URL Tauri types as
   `url::Url`
 - The default window icon: `Tokra.generate_context` decodes `icons/icon.png`
   beside the config (or the first `.png` in `bundle.icon`; on Windows an
@@ -535,6 +535,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - An app needs an RGBA PNG at `icons/icon.png` beside its config, or one
   `bundle.icon` names; without it `Tokra.generate_context` raises "failed to
   open icon {path}: {e}", as a Tauri app fails to compile (breaking)
+- `tokra-dialog`'s `FileDialogBuilder#set_can_create_directories` raises
+  `TypeError` at the setter for anything but `true` or `false`, as Tauri's
+  `bool` parameter allows nothing else (breaking)
 - A window's default title is "Tokra App", as Tauri's is "Tauri App"
 - The default menu's About item, the Linux desktop file, and a dialog
   plugin message's title name the app by `package_info.name`, and the About

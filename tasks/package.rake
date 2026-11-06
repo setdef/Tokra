@@ -92,7 +92,7 @@ PACKAGES = [
       context = Tokra::Codegen.context_codegen(Tokra::Codegen::ContextData.new(dev: true, config:, config_parent: config_dir))
       handle = Tokra::Builder.default.build(context).handle
       builder = Tokra::Plugins::Dialog::Dialog.new(handle).file.set_title("smoke")
-      abort "ferro-rfd lost the title" unless builder.to_async_file_dialog.inspect.include?(%(title: Some("smoke")))
+      abort "ferro-rfd lost the title" unless builder.to_async_file_dialog.debug.include?(%(title: Some("smoke")))
       puts "tokra-dialog \#{Tokra::Plugins::Dialog::VERSION} builds an rfd dialog through ferro-rfd"
     RUBY
   PackageCheck::Target.new(

@@ -89,7 +89,7 @@ module Tokra
         #
         # === Example
         #
-        #   builder.with_handler { |_app, shortcut, event| puts "#{shortcut} #{event.state.inspect}" }
+        #   builder.with_handler { |_app, shortcut, event| puts "#{shortcut} #{event.state.debug}" }
         def with_handler(&handler)
           raise ArgumentError, "with_handler needs a block" unless handler
 

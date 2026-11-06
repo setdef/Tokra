@@ -20,7 +20,7 @@ wider one lets Bundler take other Ferro gems from this tag instead of
 their own:
 
   gem "ferro-arboard", git: "https://github.com/setdef/Ferro",
-    tag: "ferro-arboard/v0.1.0.pre.2", glob: "gems/arboard/*.gemspec"
+    tag: "ferro-arboard/v0.1.0", glob: "gems/arboard/*.gemspec"
   gem "tokra-clipboard"
 
 == Usage

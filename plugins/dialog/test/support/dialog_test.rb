@@ -33,6 +33,45 @@ module DialogTest
   # How long a child may run before it is killed, in seconds.
   CHILD_LIMIT = 30
 
+  # Raised in place of showing a dialog in the test process.
+  class WouldShow < StandardError; end
+
+  # The methods that show a ferro-rfd dialog.
+  TERMINAL = %i[pick_file pick_files pick_folder pick_folders save_file pick_file_or_folder pick_files_or_folders show].freeze
+
+  # The methods of a ferro-rfd dialog that show nothing: its setters and
+  # its Debug text. TestTripwire fails for any other public method that is
+  # not in TERMINAL, so a showing method ferro-rfd adds is not missed.
+  NON_SHOWING = %i[
+    add_filter
+    set_directory
+    set_file_name
+    set_title
+    set_parent
+    set_can_create_directories
+    set_level
+    set_description
+    set_buttons
+    debug
+  ].freeze
+
+  # The ferro-rfd dialogs the tripwire guards.
+  GUARDED = [Ferro::Rfd::FileDialog, Ferro::Rfd::AsyncFileDialog, Ferro::Rfd::MessageDialog, Ferro::Rfd::AsyncMessageDialog].freeze
+
+  # Keeps every ferro-rfd dialog in this process from showing: each
+  # terminal method raises WouldShow instead. A test here reaches rfd only
+  # through a refusal or the dialog's Debug text, and if a refusal ever
+  # stops happening, the test fails rather than leave a real panel on the
+  # screen. The tests that do show dialogs run them in a child Ruby or a
+  # RealApp, which never loads this file.
+  GUARDED.each do |dialog|
+    dialog.prepend(Module.new do
+      (TERMINAL & dialog.public_instance_methods).each do |name|
+        define_method(name) { raise WouldShow, "#{dialog}##{name} would show a dialog in the test process" }
+      end
+    end)
+  end
+
   private def skip_unless_platform(platform)
     skip "#{platform} only; ferro-rfd was built for #{PLATFORM}" unless PLATFORM == platform
   end
@@ -71,13 +110,14 @@ module DialogTest
   end
 
   # An invoke whose answers land in the returned Queue as
-  # <tt>[success, value]</tt>.
-  private def build_invoke(handle, command, payload = {})
+  # <tt>[success, value]</tt>, from a window that answers +handles+ as
+  # #stub_webview takes them.
+  private def build_invoke(handle, command, payload = {}, **handles)
     answers = Thread::Queue.new
     invoke = Tokra::Ipc::Invoke.new(
       command:,
       payload:,
-      webview: stub_webview(handle),
+      webview: stub_webview(handle, **handles),
       responder: -> (success, json) { answers << [success, JSON.parse(json)] }
     )
     [invoke, answers]
@@ -96,11 +136,12 @@ module DialogTest
 
   # Runs +command+ through the plugin while this thread plays the event
   # loop for RuntimeContext, running each task the command sends to the
-  # main thread, and returns the answer, or +nil+ after five seconds.
-  private def pumped_answer(command, payload)
+  # main thread, and returns the answer, or +nil+ after five seconds. The
+  # calling window answers +handles+ as #stub_webview takes them.
+  private def pumped_answer(command, payload, **handles)
     app = build_app
     plugin = build_plugin(app)
-    invoke, answers = build_invoke(app.handle, command, payload)
+    invoke, answers = build_invoke(app.handle, command, payload, **handles)
     plugin.extend_api(invoke)
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
     until Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline

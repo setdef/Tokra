@@ -32,11 +32,11 @@ class TestLinuxEvents < Minitest::Test
     heard, = in_display_child(PRELUDE + <<~RUBY)
       heard = Thread::Queue.new
       plugin = G::Builder.new
-        .with_handler { |_app, shortcut, event| heard << [:global, shortcut.to_s, event.state.inspect] }
+        .with_handler { |_app, shortcut, event| heard << [:global, shortcut.to_s, event.state.debug] }
         .build(HANDLE)
       HANDLE.plugin(plugin)
       HANDLE.global_shortcut.on_shortcut("ctrl+alt+shift+F24") do |app, shortcut, event|
-        heard << [:own, shortcut.to_s, event.state.inspect, app.equal?(HANDLE), Thread.current == Thread.main]
+        heard << [:own, shortcut.to_s, event.state.debug, app.equal?(HANDLE), Thread.current == Thread.main]
       end
       press("ctrl+alt+shift+F24")
       events = Array.new(4) { heard.pop(timeout: 10) }
@@ -44,8 +44,8 @@ class TestLinuxEvents < Minitest::Test
       events
     RUBY
 
-    pressed = "Ferro::GlobalHotkey::HotKeyState::Pressed"
-    released = "Ferro::GlobalHotkey::HotKeyState::Released"
+    pressed = "Pressed"
+    released = "Released"
     assert_equal [
       [:own, "shift+control+alt+F24", pressed, true, false],
       [:global, "shift+control+alt+F24", pressed],

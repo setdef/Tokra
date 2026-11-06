@@ -30,9 +30,9 @@ class TestWindowsNotifications < Minitest::Test
   def test_a_toast_names_no_app
     handle = configured_handle(identifier: "app.tokra.windows-test")
     builder = Notification::Notification.new(handle).builder.title(TITLE)
-    debug = builder.__send__(:desktop_notification).to_notify_rust.inspect
+    debug = builder.__send__(:desktop_notification).to_notify_rust.debug
     assert_includes debug, "app_id: None"
-    assert_includes Ferro::NotifyRust::Notification.new.app_id("x").inspect, 'app_id: Some("x")'
+    assert_includes Ferro::NotifyRust::Notification.new.app_id("x").debug, 'app_id: Some("x")'
   end
 
   def test_notify_resolves_and_its_send_ends

@@ -181,7 +181,7 @@ module Tokra
       # +value+ as a Rust <tt>url::Url</tt>: a Ferro::Url::Url, which
       # ferro-url parses with the url crate itself, frozen. A string url
       # refuses fails with url 2.5.4's words, <tt>"{error}: {input:?}"</tt>
-      # (url src/lib.rs:2886-2912). ferro-url 0.1.0.pre.1 binds url 2.5.8,
+      # (url src/lib.rs:2886-2912). ferro-url 0.1.0 binds url 2.5.8,
       # whose parser differs from 2.5.4's only in refactors (plan 054,
       # decision 25). The one difference left unverified is Unicode data:
       # ferro-url's idna_adapter 1.2.2 reads ICU4X 2.4's, where Tauri's

@@ -12,11 +12,11 @@ gemspec
 gem "tokra", path: "../.."
 # tokra reads its config's URLs with ferro-url, which is not on
 # RubyGems.org yet, so Bundler takes it from its release tag (ADR 011).
-gem "ferro-url", git: "https://github.com/setdef/Ferro", tag: "ferro-url/v0.1.0.pre.1", glob: "gems/url/*.gemspec"
+gem "ferro-url", git: "https://github.com/setdef/Ferro", tag: "ferro-url/v0.1.0", glob: "gems/url/*.gemspec"
 
 # ferro-rfd is not on RubyGems.org yet, so Bundler takes it from Ferro's
 # repository (ADR 011).
-gem "ferro-rfd", git: "https://github.com/setdef/Ferro", tag: "ferro-rfd/v0.1.0.pre.3", glob: "gems/rfd/*.gemspec"
+gem "ferro-rfd", git: "https://github.com/setdef/Ferro", tag: "ferro-rfd/v0.1.0", glob: "gems/rfd/*.gemspec"
 
 group :development, :test do
   # The macOS dialog tests press a sheet's buttons through AppKit.

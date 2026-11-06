@@ -82,8 +82,8 @@ class TestBuilder < Minitest::Test
     assert_equal "Saved", notification.summary
     assert_equal "Your draft is safe.", notification.body
     assert_equal "document-save", notification.icon
-    assert_includes notification.inspect, '"Ping"'
-    refute_includes notification.inspect, "ignored"
+    assert_includes notification.debug, '"Ping"'
+    refute_includes notification.debug, "ignored"
     assert_equal "com.example.app", desktop(builder).identifier
   end
 

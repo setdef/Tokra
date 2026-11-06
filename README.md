@@ -189,7 +189,7 @@ source "https://rubygems.org"
 
 gem "tokra", path: "../Tokra"
 gem "ferro-url", git: "https://github.com/setdef/Ferro",
-  tag: "ferro-url/v0.1.0.pre.1", glob: "gems/url/*.gemspec"
+  tag: "ferro-url/v0.1.0", glob: "gems/url/*.gemspec"
 ```
 <!-- SPDX-SnippetEnd -->
 

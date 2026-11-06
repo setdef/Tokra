@@ -26,7 +26,7 @@ class TestDefaultPath < Minitest::Test
   # [starting_directory, file_name] as rfd's Debug text shows them.
   private def start_for(default_path)
     builder = Dialog::Commands.set_default_path(new_dialog.file, default_path)
-    debug = builder.to_async_file_dialog.inspect
+    debug = builder.to_async_file_dialog.debug
     [debug[/starting_directory: (None|Some\("[^"]*"\))/, 1], debug[/file_name: (None|Some\("[^"]*"\))/, 1]]
   end
 

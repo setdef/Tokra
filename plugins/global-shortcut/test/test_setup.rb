@@ -31,7 +31,7 @@ class TestSetup < Minitest::Test
       builder = G::Builder.new
         .with_shortcut(#{child_unusual('F17').dump})
         .with_shortcuts([#{child_unusual('F18').dump}])
-        .with_handler { |app, shortcut, event| heard << [app.equal?(HANDLE), shortcut.to_s, event.state.inspect] }
+        .with_handler { |app, shortcut, event| heard << [app.equal?(HANDLE), shortcut.to_s, event.state.debug] }
       plugin = builder.build(HANDLE)
       HANDLE.plugin(plugin)
       shortcuts = HANDLE.global_shortcut
@@ -45,7 +45,7 @@ class TestSetup < Minitest::Test
     assert_equal [true, true], registered
     assert_equal "global-shortcut", name
     assert_equal "Tokra::Plugins::GlobalShortcut::GlobalShortcut", managed
-    assert_equal [[true, "control+alt+meta+F18", "Ferro::GlobalHotkey::HotKeyState::Pressed"]], heard
+    assert_equal [[true, "control+alt+meta+F18", "Pressed"]], heard
   end
 
   def test_a_shortcut_that_does_not_parse_fails_the_builder

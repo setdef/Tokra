@@ -14,22 +14,22 @@ gemspec
 # tokra-clipboard builds on ferro-arboard (ADR 011). Ferro releases are
 # tags on its repository; Tokra depends only on released versions, never a
 # path source, so a contributor needs only this clone.
-gem "ferro-arboard", git: "https://github.com/setdef/Ferro", tag: "ferro-arboard/v0.1.0.pre.2", glob: "gems/*/*.gemspec"
+gem "ferro-arboard", git: "https://github.com/setdef/Ferro", tag: "ferro-arboard/v0.1.0", glob: "gems/arboard/*.gemspec"
 # tokra-dialog builds on ferro-rfd (Plan 023). Its glob names only ferro-rfd,
 # so ferro-arboard still comes from its own tag.
-gem "ferro-rfd", git: "https://github.com/setdef/Ferro", tag: "ferro-rfd/v0.1.0.pre.3", glob: "gems/rfd/*.gemspec"
+gem "ferro-rfd", git: "https://github.com/setdef/Ferro", tag: "ferro-rfd/v0.1.0", glob: "gems/rfd/*.gemspec"
 # tokra-notification builds on ferro-notify-rust (Plan 024). Its glob names
 # only ferro-notify-rust, so the other Ferro gems keep their own tags.
-gem "ferro-notify-rust", git: "https://github.com/setdef/Ferro", tag: "ferro-notify-rust/v0.1.0.pre.4",
+gem "ferro-notify-rust", git: "https://github.com/setdef/Ferro", tag: "ferro-notify-rust/v0.1.0",
   glob: "gems/notify-rust/*.gemspec"
 # Tokra reads its URLs with ferro-url (Plans 054 and 055), and
 # tokra-notification its attachment URLs (Plan 030).
-gem "ferro-url", git: "https://github.com/setdef/Ferro", tag: "ferro-url/v0.1.0.pre.1", glob: "gems/url/*.gemspec"
+gem "ferro-url", git: "https://github.com/setdef/Ferro", tag: "ferro-url/v0.1.0", glob: "gems/url/*.gemspec"
 # tokra-notification reads a scheduled date with ferro-time (Plans 031 and 048).
-gem "ferro-time", git: "https://github.com/setdef/Ferro", tag: "ferro-time/v0.1.0.pre.4", glob: "gems/time/*.gemspec"
+gem "ferro-time", git: "https://github.com/setdef/Ferro", tag: "ferro-time/v0.1.0", glob: "gems/time/*.gemspec"
 # tokra-global-shortcut builds on ferro-global-hotkey (Plan 025). Its glob
 # names only ferro-global-hotkey, so the other Ferro gems keep their own tags.
-gem "ferro-global-hotkey", git: "https://github.com/setdef/Ferro", tag: "ferro-global-hotkey/v0.1.0.pre.1",
+gem "ferro-global-hotkey", git: "https://github.com/setdef/Ferro", tag: "ferro-global-hotkey/v0.1.0",
   glob: "gems/global-hotkey/*.gemspec"
 
 # The keyboard-taking tests share one lock with other projects' tests on

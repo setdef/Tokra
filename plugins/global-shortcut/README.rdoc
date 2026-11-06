@@ -23,7 +23,7 @@ ferro-global-hotkey's own folder: a wider one lets Bundler take other Ferro
 gems, such as ferro-arboard, from this source instead of their own:
 
   gem "ferro-global-hotkey", git: "https://github.com/setdef/Ferro",
-    tag: "ferro-global-hotkey/v0.1.0.pre.1", glob: "gems/global-hotkey/*.gemspec"
+    tag: "ferro-global-hotkey/v0.1.0", glob: "gems/global-hotkey/*.gemspec"
   gem "tokra-global-shortcut"
 
 On Linux the shortcuts are X11 key grabs, so they work under X11 and

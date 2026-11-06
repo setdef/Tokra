@@ -111,7 +111,7 @@ module Tokra
         # === Example
         #
         #   handle.global_shortcut.on_shortcut("CmdOrCtrl+Shift+K") do |app, shortcut, event|
-        #     puts "#{shortcut} #{event.state.inspect}"
+        #     puts "#{shortcut} #{event.state.debug}"
         #   end
         def on_shortcut(shortcut, &handler)
           raise ArgumentError, "on_shortcut needs a block for the handler" unless handler

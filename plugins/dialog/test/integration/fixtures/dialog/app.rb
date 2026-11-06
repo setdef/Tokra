@@ -120,9 +120,9 @@ module DialogFixture
     # thread's run loop. The thread is not joined: the main thread has to
     # keep running its loop for that lookup to end.
     private def print_parents(app, window)
-      main = app.dialog.file.set_parent(window).to_async_file_dialog.inspect
+      main = app.dialog.file.set_parent(window).to_async_file_dialog.debug
       Thread.new do
-        thread = app.dialog.message("m").parent(window).to_async_message_dialog.inspect
+        thread = app.dialog.message("m").parent(window).to_async_message_dialog.debug
         puts "PARENT #{JSON.generate(main:, thread:)}"
       rescue => e
         puts "PARENT #{JSON.generate(main:, thread: "#{e.class}: #{e.message}")}"

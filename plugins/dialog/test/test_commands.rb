@@ -115,13 +115,34 @@ class TestCommands < Minitest::Test
     assert_equal "a bug", assert_raises(ArgumentError) { plugin.extend_api(invoke) }.message
   end
 
-  # A failure after the arguments, here ferro-rfd refusing a filter name
-  # with a NUL byte as the main thread builds the dialog, still settles the
-  # invoke: the worker rejects with the message (plan 023, decision 2).
+  # A failure after the arguments still settles the invoke: the worker
+  # rejects with the message (plan 023, decision 2). Here ferro-rfd refuses
+  # what rfd would panic on as the worker builds the dialog: on Linux a
+  # filter name with a NUL byte, which rfd's portal backend unwraps
+  # (rfd 0.17.2 src/backend/xdg_desktop_portal.rs:47-65); on macOS and
+  # Windows a parent window of another platform's kind (rfd's
+  # unreachable! for an unsupported window handle). The refusal comes
+  # before the start, so no dialog opens, and DialogTest's terminal
+  # methods raise WouldShow should a refusal ever stop.
   def test_a_failure_opening_the_dialog_rejects
-    options = { "filters" => [{ "name" => "a\u0000b", "extensions" => ["txt"] }] }
-    assert_equal [false, "string contains null byte"], pumped_answer("open", { "options" => options })
-    assert_equal [false, "string contains null byte"], pumped_answer("save", { "options" => options })
+    unsupported = "internal error: entered unreachable code: unsupported window handle, expected: "
+    case PLATFORM
+    when :linux
+      options = { "filters" => [{ "name" => "a\u0000b", "extensions" => ["txt"] }] }
+      handles = {}
+      message = "called `Result::unwrap()` on an `Err` value: NulError(1, [97, 0, 98])"
+    when :macos
+      options = {}
+      handles = { window_handle: [:Win32, 7, 9], display_handle: [:Windows] }
+      message = "#{unsupported}MacOS"
+    else
+      options = {}
+      handles = { window_handle: [:Xlib, 0x3A00007, 0], display_handle: [:Xlib, 0x9000, 0] }
+      message = "#{unsupported}Windows"
+    end
+    %w[open save].each do |command|
+      assert_equal [false, message], pumped_answer(command, { "options" => options }, **handles), command
+    end
   end
 
   # A command that cannot reach the main thread, because the event loop has

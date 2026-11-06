@@ -33,8 +33,8 @@ Gem::Specification.new do |spec|
   end
   spec.require_paths = ["lib"]
 
-  # An exact pin: a prerelease promises no API between prereleases, and
-  # RubyGems considers prereleases only for a requirement that names one.
-  spec.add_dependency "ferro-rfd", "= 0.1.0.pre.3"
+  # An exact pin: Tokra moves to a new Ferro release deliberately, in step
+  # with the Gemfile's tag for it, not whenever RubyGems has a newer one.
+  spec.add_dependency "ferro-rfd", "= 0.1.0"
   spec.add_dependency "tokra", "~> 0.0"
 end

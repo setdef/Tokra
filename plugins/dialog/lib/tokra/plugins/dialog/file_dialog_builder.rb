@@ -144,10 +144,19 @@ module Tokra
         # Sets whether the user may create folders in the dialog. Enabled
         # by default. macOS only. Returns the builder.
         #
+        # Tauri's setter takes a Rust +bool+ (lib.rs:503-507), so anything
+        # but +true+ or +false+ raises TypeError, as ferro-rfd's own setter
+        # does, here and now rather than when the dialog is built.
+        #
         # === Example
         #
         #   builder.set_can_create_directories(false)
         def set_can_create_directories(can)
+          unless can == true || can == false
+            named = can.nil? ? "nil" : can.class
+            raise TypeError, "no implicit conversion of #{named} into true or false"
+          end
+
           @can_create_directories = can
           self
         end

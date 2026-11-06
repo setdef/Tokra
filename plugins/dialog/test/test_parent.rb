@@ -53,8 +53,8 @@ class TestParent < Minitest::Test
   def test_a_window_without_handles_is_no_parent
     parent = window([:Unavailable], [:Unavailable])
 
-    assert_includes @dialog.file.set_parent(parent).to_async_file_dialog.inspect, "parent: None"
-    assert_includes @dialog.message("m").parent(parent).to_async_message_dialog.inspect, "parent: None"
+    assert_includes @dialog.file.set_parent(parent).to_async_file_dialog.debug, "parent: None"
+    assert_includes @dialog.message("m").parent(parent).to_async_message_dialog.debug, "parent: None"
   end
 
   # Tauri replaces the parent only when both handles are Ok, so a failed
@@ -72,21 +72,22 @@ class TestParent < Minitest::Test
   def test_an_x11_window_parents_the_dialog_on_linux
     skip_unless_platform(:linux)
 
-    assert_includes @dialog.file.set_parent(platform_window).to_async_file_dialog.inspect, XLIB_PARENT
-    assert_includes @dialog.message("m").parent(platform_window).to_async_message_dialog.inspect, XLIB_PARENT
+    assert_includes @dialog.file.set_parent(platform_window).to_async_file_dialog.debug, XLIB_PARENT
+    assert_includes @dialog.message("m").parent(platform_window).to_async_message_dialog.debug, XLIB_PARENT
   end
 
   def test_a_win32_window_parents_the_dialog_on_windows
     skip_unless_platform(:windows)
 
-    assert_includes @dialog.file.set_parent(platform_window).to_async_file_dialog.inspect, WIN32_PARENT
-    assert_includes @dialog.message("m").parent(platform_window).to_async_message_dialog.inspect, WIN32_PARENT
+    assert_includes @dialog.file.set_parent(platform_window).to_async_file_dialog.debug, WIN32_PARENT
+    assert_includes @dialog.message("m").parent(platform_window).to_async_message_dialog.debug, WIN32_PARENT
   end
 
   # ferro-rfd reads Tokra's AppKit handle by its window number and asks
-  # AppKit for that window when the dialog runs, or here when inspect
-  # describes it. No window of this test has the stand-in's number, so
-  # ferro-rfd refuses it: the number reached the lookup.
+  # AppKit for that window when the dialog runs, or here when its Debug
+  # text describes it, which shows nothing. No window of this test has the
+  # stand-in's number, so ferro-rfd refuses it as a wrong argument: the
+  # number reached the lookup.
   def test_an_appkit_window_reaches_ferro_rfds_window_lookup_on_macos
     skip_unless_platform(:macos)
 
@@ -94,7 +95,7 @@ class TestParent < Minitest::Test
       -> { @dialog.file.set_parent(platform_window).to_async_file_dialog },
       -> { @dialog.message("m").parent(platform_window).to_async_message_dialog },
     ].each do |build|
-      error = assert_raises(Ferro::Rfd::Error) { build.call.inspect }
+      error = assert_raises(ArgumentError) { build.call.debug }
       assert_equal "no window of this app has window number 4242", error.message
     end
   end

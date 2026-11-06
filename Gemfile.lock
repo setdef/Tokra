@@ -7,63 +7,63 @@ GIT
 
 GIT
   remote: https://github.com/setdef/Ferro
-  revision: b0a7c78387a981b60ab483d92134f188195fc629
-  tag: ferro-arboard/v0.1.0.pre.2
-  glob: gems/*/*.gemspec
+  revision: cd85a6bfbb74a4488088248f50f15e679e7389cb
+  tag: ferro-arboard/v0.1.0
+  glob: gems/arboard/*.gemspec
   specs:
-    ferro-arboard (0.1.0.pre.2)
+    ferro-arboard (0.1.0)
       rb_sys (~> 0.9.129)
 
 GIT
   remote: https://github.com/setdef/Ferro
-  revision: 40a8d9fe0f561d4975fd1ea3c947180ab5f2813b
-  tag: ferro-global-hotkey/v0.1.0.pre.1
+  revision: 9dc41368d4b12e8d07a612eee90352e8f38d4a44
+  tag: ferro-global-hotkey/v0.1.0
   glob: gems/global-hotkey/*.gemspec
   specs:
-    ferro-global-hotkey (0.1.0.pre.1)
+    ferro-global-hotkey (0.1.0)
       rb_sys (~> 0.9.129)
 
 GIT
   remote: https://github.com/setdef/Ferro
-  revision: e21d037a4ff0e06f3f8472620fabbfddce220160
-  tag: ferro-notify-rust/v0.1.0.pre.4
+  revision: fb73bbb3f3d5eecc8b7b75649f5cc9c9a90cdcdc
+  tag: ferro-notify-rust/v0.1.0
   glob: gems/notify-rust/*.gemspec
   specs:
-    ferro-notify-rust (0.1.0.pre.4)
+    ferro-notify-rust (0.1.0)
       rb_sys (~> 0.9.129)
 
 GIT
   remote: https://github.com/setdef/Ferro
-  revision: bb0f3be7c175692d702a7052f1806db07f599146
-  tag: ferro-rfd/v0.1.0.pre.3
+  revision: 7ffb0a7aaec647e5da6e143cbf53709fab79bdd2
+  tag: ferro-rfd/v0.1.0
   glob: gems/rfd/*.gemspec
   specs:
-    ferro-rfd (0.1.0.pre.3)
+    ferro-rfd (0.1.0)
       rb_sys (~> 0.9.129)
 
 GIT
   remote: https://github.com/setdef/Ferro
-  revision: f2a85ebe080ceb75835d38cd1ce1c2792310853d
-  tag: ferro-time/v0.1.0.pre.4
+  revision: 56da631b846015643a3a73bc3889d5cc2afe9078
+  tag: ferro-time/v0.1.0
   glob: gems/time/*.gemspec
   specs:
-    ferro-time (0.1.0.pre.4)
+    ferro-time (0.1.0)
       rb_sys (~> 0.9.129)
 
 GIT
   remote: https://github.com/setdef/Ferro
-  revision: 549a9d4f8b5d07bf997058f3702f713500d4478e
-  tag: ferro-url/v0.1.0.pre.1
+  revision: 2d15b6bc9bcc94149bc1abe59a14fd70e5cb106b
+  tag: ferro-url/v0.1.0
   glob: gems/url/*.gemspec
   specs:
-    ferro-url (0.1.0.pre.1)
+    ferro-url (0.1.0)
       rb_sys (~> 0.9.129)
 
 PATH
   remote: .
   specs:
     tokra (0.0.1.pre.2)
-      ferro-url (= 0.1.0.pre.1)
+      ferro-url (= 0.1.0)
       rb_sys (~> 0.9.129)
 
 GEM
@@ -393,12 +393,12 @@ CHECKSUMS
   dry-types (1.9.0) sha256=7b656fe0a78d2432500ae1f29fefd6762f5a032ca7000e4f36bc111453d45d4d
   erb (6.0.1) sha256=28ecdd99c5472aebd5674d6061e3c6b0a45c049578b071e5a52c2a7f13c197e5
   erubi (1.13.1) sha256=a082103b0885dbc5ecf1172fede897f9ebdb745a4b97a5e8dc63953db1ee4ad9
-  ferro-arboard (0.1.0.pre.2)
-  ferro-global-hotkey (0.1.0.pre.1)
-  ferro-notify-rust (0.1.0.pre.4)
-  ferro-rfd (0.1.0.pre.3)
-  ferro-time (0.1.0.pre.4)
-  ferro-url (0.1.0.pre.1)
+  ferro-arboard (0.1.0)
+  ferro-global-hotkey (0.1.0)
+  ferro-notify-rust (0.1.0)
+  ferro-rfd (0.1.0)
+  ferro-time (0.1.0)
+  ferro-url (0.1.0)
   ffi (1.17.3) sha256=0e9f39f7bb3934f77ad6feab49662be77e87eedcdeb2a3f5c0234c2938563d4c
   ffi (1.17.3-aarch64-linux-gnu) sha256=28ad573df26560f0aedd8a90c3371279a0b2bd0b4e834b16a2baa10bd7a97068
   ffi (1.17.3-aarch64-linux-musl) sha256=020b33b76775b1abacc3b7d86b287cef3251f66d747092deec592c7f5df764b2

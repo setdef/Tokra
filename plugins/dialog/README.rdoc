@@ -22,7 +22,7 @@ one lets Bundler take other Ferro gems, such as ferro-arboard, from this
 tag instead of their own:
 
   gem "ferro-rfd", git: "https://github.com/setdef/Ferro",
-    tag: "ferro-rfd/v0.1.0.pre.2", glob: "gems/rfd/*.gemspec"
+    tag: "ferro-rfd/v0.1.0", glob: "gems/rfd/*.gemspec"
   gem "tokra-dialog"
 
 On Linux, the dialogs come from the XDG desktop portal, and message dialogs

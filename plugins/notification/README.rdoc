@@ -23,11 +23,11 @@ each glob to its gem's own folder: a wider one lets Bundler take other
 Ferro gems, such as ferro-arboard, from that source instead of their own:
 
   gem "ferro-notify-rust", git: "https://github.com/setdef/Ferro",
-    tag: "ferro-notify-rust/v0.1.0.pre.4", glob: "gems/notify-rust/*.gemspec"
+    tag: "ferro-notify-rust/v0.1.0", glob: "gems/notify-rust/*.gemspec"
   gem "ferro-url", git: "https://github.com/setdef/Ferro",
-    tag: "ferro-url/v0.1.0.pre.1", glob: "gems/url/*.gemspec"
+    tag: "ferro-url/v0.1.0", glob: "gems/url/*.gemspec"
   gem "ferro-time", git: "https://github.com/setdef/Ferro",
-    tag: "ferro-time/v0.1.0.pre.4", glob: "gems/time/*.gemspec"
+    tag: "ferro-time/v0.1.0", glob: "gems/time/*.gemspec"
   gem "tokra-notification"
 
 On Linux and the BSDs, notifications travel over D-Bus to the desktop's

@@ -49,7 +49,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "rb_sys", "~> 0.9.129"
   # Tokra reads its URLs with ferro-url, Ferro's binding of the url crate
   # whose url::Url Tauri uses (ADR 011; Plans 054 and 055).
-  spec.add_dependency "ferro-url", "= 0.1.0.pre.1"
+  spec.add_dependency "ferro-url", "= 0.1.0"
 
   # Development dependencies
 

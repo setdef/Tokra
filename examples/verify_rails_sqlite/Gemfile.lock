@@ -1,10 +1,10 @@
 GIT
   remote: https://github.com/setdef/Ferro
-  revision: 549a9d4f8b5d07bf997058f3702f713500d4478e
-  tag: ferro-url/v0.1.0.pre.1
+  revision: 2d15b6bc9bcc94149bc1abe59a14fd70e5cb106b
+  tag: ferro-url/v0.1.0
   glob: gems/url/*.gemspec
   specs:
-    ferro-url (0.1.0.pre.1)
+    ferro-url (0.1.0)
       rb_sys (~> 0.9.129)
 
 GEM
@@ -425,7 +425,7 @@ CHECKSUMS
   erb (6.0.1) sha256=28ecdd99c5472aebd5674d6061e3c6b0a45c049578b071e5a52c2a7f13c197e5
   erubi (1.13.1) sha256=a082103b0885dbc5ecf1172fede897f9ebdb745a4b97a5e8dc63953db1ee4ad9
   et-orbi (1.4.0) sha256=6c7e3c90779821f9e3b324c5e96fda9767f72995d6ae435b96678a4f3e2de8bc
-  ferro-url (0.1.0.pre.1)
+  ferro-url (0.1.0)
   ffi (1.17.3-aarch64-linux-gnu) sha256=28ad573df26560f0aedd8a90c3371279a0b2bd0b4e834b16a2baa10bd7a97068
   ffi (1.17.3-aarch64-linux-musl) sha256=020b33b76775b1abacc3b7d86b287cef3251f66d747092deec592c7f5df764b2
   ffi (1.17.3-arm-linux-gnu) sha256=5bd4cea83b68b5ec0037f99c57d5ce2dd5aa438f35decc5ef68a7d085c785668

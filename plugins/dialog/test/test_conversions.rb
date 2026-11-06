@@ -109,7 +109,7 @@ class TestConversions < Minitest::Test
   def test_a_message_dialog_carries_title_text_kind_and_buttons_to_rfd
     builder = dialog.message("Disk almost full").title("Careful").kind(Kind::Warning)
       .buttons(Buttons::OkCancelCustom.new(ok: "Clean up", cancel: "Later"))
-    debug = builder.to_async_message_dialog.inspect
+    debug = builder.to_async_message_dialog.debug
 
     assert_includes debug, 'title: "Careful"'
     assert_includes debug, 'description: "Disk almost full"'
@@ -122,20 +122,20 @@ class TestConversions < Minitest::Test
   # the config's productName, or the entry script's name without one.
   def test_a_message_dialog_is_titled_with_the_package_name
     builder = dialog.message("Hi")
-    assert_equal TestApp::PRODUCT_NAME, builder.to_async_message_dialog.inspect[/title: "([^"]*)"/, 1]
+    assert_equal TestApp::PRODUCT_NAME, builder.to_async_message_dialog.debug[/title: "([^"]*)"/, 1]
     assert_same Kind::Info, builder.instance_variable_get(:@kind)
     assert_same Buttons::Ok, builder.instance_variable_get(:@buttons)
 
     unnamed = build_test_app(config: { "productName" => nil })
     build_plugin(unnamed)
     assert_equal Tokra.script_name,
-      unnamed.handle.dialog.message("Hi").to_async_message_dialog.inspect[/title: "([^"]*)"/, 1]
+      unnamed.handle.dialog.message("Hi").to_async_message_dialog.debug[/title: "([^"]*)"/, 1]
   end
 
   def test_a_file_dialog_carries_every_option_to_rfd
     builder = dialog.file.set_title("Pick one").set_directory("/tmp").set_file_name("notes.txt")
       .add_filter("Text", ["txt", "md"]).add_filter("All", ["*"]).set_can_create_directories(false)
-    debug = builder.to_async_file_dialog.inspect
+    debug = builder.to_async_file_dialog.debug
 
     assert_includes debug, 'title: Some("Pick one")'
     assert_includes debug, 'starting_directory: Some("/tmp")'
@@ -146,10 +146,22 @@ class TestConversions < Minitest::Test
 
   # Tauri always sets it, defaulting to true (desktop.rs:104).
   def test_a_file_dialog_may_create_directories_unless_told_otherwise
-    debug = dialog.file.to_async_file_dialog.inspect
+    debug = dialog.file.to_async_file_dialog.debug
     assert_includes debug, "can_create_directories: Some(true)"
     assert_includes debug, "title: None"
     assert_includes debug, "filters: []"
+  end
+
+  # Tauri's setter takes a bool (lib.rs:503-507), so a Ruby value that is
+  # not one is refused when set, not when the dialog is built.
+  def test_can_create_directories_takes_only_a_boolean
+    [nil, 1, "false", :true, [], Object.new].each do |value|
+      builder = dialog.file
+      error = assert_raises(TypeError, value.inspect) { builder.set_can_create_directories(value) }
+      assert_match(/\Ano implicit conversion of .+ into true or false\z/, error.message)
+      assert_includes builder.to_async_file_dialog.debug, "can_create_directories: Some(true)", value.inspect
+    end
+    assert_includes dialog.file.set_can_create_directories(true).to_async_file_dialog.debug, "can_create_directories: Some(true)"
   end
 
   # Tauri keeps a parent only when it has both handles (lib.rs:287-302).
@@ -159,7 +171,7 @@ class TestConversions < Minitest::Test
     display = Rfd::XlibDisplayHandle.new(display: nil, screen: 0)
 
     half = dialog.file.set_parent(parent.new(window, nil))
-    assert_includes half.to_async_file_dialog.inspect, "parent: None"
+    assert_includes half.to_async_file_dialog.debug, "parent: None"
     assert_nil dialog.message("x").parent(parent.new(nil, display)).instance_variable_get(:@parent)
 
     whole = dialog.file.set_parent(parent.new(window, display))

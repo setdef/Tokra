@@ -123,9 +123,12 @@ module Tokra
 
         # Writes a Tokra::Image to the clipboard (desktop.rs:44-59).
         #
-        # An image with a zero width or height, or with a byte count other
-        # than <tt>width * height * 4</tt>, raises Error::Clipboard with
-        # arboard's ConversionFailure message.
+        # An image with a zero width or height raises Error::Clipboard with
+        # arboard's ConversionFailure message, as does a byte count other
+        # than <tt>width * height * 4</tt>, except on macOS, where
+        # ferro-arboard hands arboard a longer buffer and arboard draws its
+        # first <tt>width * height * 4</tt> bytes. A shorter or empty buffer,
+        # or a size that overflows, still raises there.
         #
         # === Example
         #
