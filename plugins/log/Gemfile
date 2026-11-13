@@ -10,9 +10,11 @@ source "https://rubygems.org"
 gemspec
 
 gem "tokra", path: "../.."
-# tokra reads its config's URLs with ferro-url, which is not on
-# RubyGems.org yet, so Bundler takes it from its release tag (ADR 011).
+# tokra reads its config's URLs with ferro-url, and tokra-log formats its
+# timestamps with ferro-time. Neither is on RubyGems.org yet, so Bundler
+# takes each from its release tag (ADR 011, Plan 065).
 gem "ferro-url", git: "https://github.com/setdef/Ferro", tag: "ferro-url/v0.1.0", glob: "gems/url/*.gemspec"
+gem "ferro-time", git: "https://github.com/setdef/Ferro", tag: "ferro-time/v0.1.0", glob: "gems/time/*.gemspec"
 
 group :development, :test do
   gem "minitest"

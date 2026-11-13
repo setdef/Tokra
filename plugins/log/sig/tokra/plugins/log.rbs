@@ -188,11 +188,13 @@ module Tokra
       module TimezoneStrategy
         class UseUtc < Data
           def self.new: () -> UseUtc
+          def get_now: () -> Ferro::Time::OffsetDateTime
           def format_time: (Time time) -> Time
         end
 
         class UseLocal < Data
           def self.new: () -> UseLocal
+          def get_now: () -> Ferro::Time::OffsetDateTime
           def format_time: (Time time) -> Time
         end
       end

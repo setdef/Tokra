@@ -34,5 +34,8 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_dependency "logger"
+  # Timestamps and archive names are formatted by the time crate, through
+  # ferro-time, as Tauri's log plugin formats them (Plan 065, ADR 011).
+  spec.add_dependency "ferro-time", "= 0.1.0"
   spec.add_dependency "tokra", "~> 0.0"
 end
