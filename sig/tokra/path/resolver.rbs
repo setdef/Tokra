@@ -1,32 +1,66 @@
 # SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
-#
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 module Tokra
-  # Path resolution utilities for cross-platform directory access.
   module Path
-    # Interface for directory provider (Tokra::Native or test stubs).
-    interface _DirsProvider
-      def home_dir: () -> String
-      def data_local_dir: () -> String
+    interface _Configured
+      def config: () -> Config
     end
 
-    # Resolves application-specific paths in a cross-platform manner.
-    class Resolver
-      @identifier: String
-      @platform: String
-      @native: _DirsProvider
+    interface _Env
+      def []: (String name) -> String?
+      def key?: (String name) -> bool
+    end
 
-      # Creates a new Resolver with the given configuration.
-      def initialize: (Config config, ?platform: String, ?native: _DirsProvider) -> void
+    class PathResolver
+      @app: _Configured
+      @dirs: Object
+      @target: Utils::Platform::Target
+      @env: _Env
 
-      # Returns the path to the suggested directory for your app's log files.
+      attr_reader target: Utils::Platform::Target
+
+      def initialize: (_Configured app, ?dirs: Object, ?target: Utils::Platform::Target, ?env: _Env) -> void
+      def file_name: (String | _ToPath path) -> String?
+      def audio_dir: () -> Pathname
+      def cache_dir: () -> Pathname
+      def config_dir: () -> Pathname
+      def data_dir: () -> Pathname
+      def local_data_dir: () -> Pathname
+      def desktop_dir: () -> Pathname
+      def document_dir: () -> Pathname
+      def download_dir: () -> Pathname
+      def executable_dir: () -> Pathname
+      def font_dir: () -> Pathname
+      def home_dir: () -> Pathname
+      def picture_dir: () -> Pathname
+      def public_dir: () -> Pathname
+      def runtime_dir: () -> Pathname
+      def template_dir: () -> Pathname
+      def video_dir: () -> Pathname
+      def resource_dir: () -> Pathname
+      def app_config_dir: () -> Pathname
+      def app_data_dir: () -> Pathname
+      def app_local_data_dir: () -> Pathname
+      def app_cache_dir: () -> Pathname
       def app_log_dir: () -> Pathname
+      def temp_dir: () -> Pathname
+      def resolve: (String | _ToPath path, BaseDirectory base_directory) -> Pathname
+      def parse: (String | _ToPath path) -> Pathname
+      def resolve_path: (BaseDirectory directory, ?String? path) -> Pathname
 
       private
 
-      def macos?: () -> bool
+      def directory_for: (BaseDirectory directory) -> Pathname
+      def resource_path: (String path) -> String
+      def dir: (Symbol function) -> Pathname
+      def join: (Pathname base, String name) -> Pathname
+      def identifier: () -> String
+      def std: () -> Std
+      def unix_temp_dir: () -> String
+      def windows_temp_dir: () -> String
     end
+
+    class Resolver = PathResolver
   end
 end
-

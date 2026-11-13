@@ -202,8 +202,8 @@ module Tokra
       @restart_pending = false
 
       # Register core plugins, mirroring Tauri app.rs (App::build,
-      # register_core_plugins at app.rs:1122-1135); Tokra has no path
-      # plugin, so the event plugin comes first.
+      # register_core_plugins at app.rs:1122-1135).
+      @handle.plugin(Path::Plugin.new(@handle))
       @handle.plugin(Event::Plugin.new(@handle))
       @handle.plugin(Resources::Plugin.new(@handle))
       @handle.plugin(Image::Plugin.new(@handle))

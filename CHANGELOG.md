@@ -467,6 +467,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `app.enableGTKAppId`: on Linux the app registers with GTK under its
   identifier, as Tauri's does, and `Native::EventLoop.new` raises
   `ArgumentError` for an identifier GLib refuses as an application id
+- `path` on `App`, `AppHandle`, `Window`, and `Webview` returns the app's
+  `Tokra::Path::PathResolver`, Tauri's `PathResolver`, with its desktop
+  directory methods, `resolve`, `parse`, and `file_name`; `home_dir`,
+  `local_data_dir`, `app_local_data_dir`, `app_log_dir`, and `temp_dir`
+  answer now, the others raise `NotImplementedError` until Tokra binds the
+  rest of the dirs crate, and `resource_dir` until Tokra packages resources
+- `Tokra::Path::BaseDirectory`, `Tokra::Path::SafePathBuf`, and
+  `Error::UnknownPath`, `NoParent`, `NoExtension`, `NoBasename`, and
+  `CurrentDir`
+- The `path` core plugin, so `@tauri-apps/api/path`'s `sep`, `delimiter`,
+  `resolve`, `normalize`, `join`, `dirname`, `extname`, `basename`,
+  `isAbsolute`, and its directory functions answer as Tauri's do
 
 ### Changed
 

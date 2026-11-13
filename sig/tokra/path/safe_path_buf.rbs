@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Path
+    class SafePathBuf < ::Data
+      MESSAGE: String
+
+      attr_reader path: String
+
+      def self.new: (String | _ToPath path) -> SafePathBuf
+                  | (path: String | _ToPath) -> SafePathBuf
+      def self.traverses?: (String path, Std std) -> bool
+      def self.deserialize: (json_value value) -> SafePathBuf
+      def display: () -> String
+      def to_path: () -> String
+      def to_s: () -> String
+    end
+  end
+end

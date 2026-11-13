@@ -41,7 +41,7 @@ class TestBuilderInitializationScripts < Minitest::Test
     app = build_test_app
     scripts = scripts_for(app)
 
-    assert_equal 5, scripts.size, "bootstrap, invoke transport, metadata, init.js, the event plugin's"
+    assert_equal 6, scripts.size, "bootstrap, invoke transport, metadata, init.js, the path and event plugins'"
     assert_includes scripts[0], "Object.defineProperty(window, 'isTauri'"
     assert_includes scripts[0], "Object.defineProperty(window, '__TAURI_INTERNALS__'"
     assert_includes scripts[1], "Object.defineProperty(window.__TAURI_INTERNALS__, 'postMessage'"
@@ -81,22 +81,26 @@ class TestBuilderInitializationScripts < Minitest::Test
     app.handle.plugin(ScriptPlugin.new(app.handle, "second", "window.second = 2"))
     scripts = scripts_for(app)
 
-    assert_equal 8, scripts.size, "four core scripts, the event plugin's, two plugin scripts, the API bundle"
+    assert_equal 9, scripts.size, "four core scripts, the path and event plugins', two plugin scripts, the API bundle"
     assert_includes scripts[3], "Object.defineProperty(window.__TAURI_INTERNALS__, 'invoke'", "init.js precedes plugin scripts"
-    assert_includes scripts[4], "__TAURI_EVENT_PLUGIN_INTERNALS__", "the event core plugin registers first"
-    assert_equal "(function () { window.first = 1 })();", scripts[5]
-    assert_equal "(function () { window.second = 2 })();", scripts[6],
+    assert_includes scripts[4], "Object.defineProperty(window.__TAURI_INTERNALS__.plugins, 'path'",
+      "the path core plugin registers first"
+    assert_includes scripts[5], "__TAURI_EVENT_PLUGIN_INTERNALS__", "the event core plugin registers next"
+    assert_equal "(function () { window.first = 1 })();", scripts[6]
+    assert_equal "(function () { window.second = 2 })();", scripts[7],
       "plugins contribute in registration order and nil contributes nothing"
-    assert_includes scripts[7], "__TAURI_IIFE__", "the API bundle comes last"
+    assert_includes scripts[8], "__TAURI_IIFE__", "the API bundle comes last"
   end
 
-  # Of Tauri's core plugins only the event plugin has a js_init_script
-  # (event/plugin.rs:60-81).
-  def test_only_the_event_plugin_among_the_core_plugins_contributes_a_script
+  # Of Tauri's core plugins only the path and event plugins have a
+  # js_init_script (path/plugin.rs:235, event/plugin.rs:60-81), in the
+  # order register_core_plugins registers them (app.rs:1122-1135).
+  def test_only_the_path_and_event_plugins_among_the_core_plugins_contribute_a_script
     app = build_test_app
     scripts = app.handle.manager.plugins.initialization_script
 
-    assert_equal 1, scripts.size
-    assert_includes scripts.first, "Object.defineProperty(window, '__TAURI_EVENT_PLUGIN_INTERNALS__'"
+    assert_equal 2, scripts.size
+    assert_includes scripts.first, "Object.defineProperty(window.__TAURI_INTERNALS__.plugins, 'path'"
+    assert_includes scripts.last, "Object.defineProperty(window, '__TAURI_EVENT_PLUGIN_INTERNALS__'"
   end
 end

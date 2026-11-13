@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class Error < StandardError
+    class NoParent < Error
+      def initialize: (?String message) -> void
+    end
+
+    class NoExtension < Error
+      def initialize: (?String message) -> void
+    end
+
+    class NoBasename < Error
+      def initialize: (?String message) -> void
+    end
+
+    class CurrentDir < Error
+      def initialize: (String io_error) -> void
+    end
+
+    class UnknownPath < Error
+      def initialize: (?String message) -> void
+    end
+  end
+end

@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Path
+    class Plugin < Tokra::Plugin
+      INIT_SCRIPT: String
+
+      @target: Utils::Platform::Target
+
+      def initialize: (AppHandle app, ?Hash[Symbol, String | Integer | Float | bool] config, ?target: Utils::Platform::Target) -> void
+      def name: () -> String
+      def initialization_script: () -> String
+      def extend_api: (Ipc::Invoke invoke) -> bool
+      def self.resolve: (Std std, Array[String] paths, String current_dir) -> String
+      def self.normalize: (Std std, String path) -> String
+      def self.join: (Std std, Array[String] paths) -> String
+      def self.dirname: (Std std, String path) -> String
+      def self.extname: (Std std, String path) -> String
+      def self.basename: (Std std, String path, String? ext) -> String
+      def self.is_absolute: (Std std, String path) -> bool
+      def self.normalize_path: (Std std, String path) -> String
+      def self.normalize_path_no_absolute: (Std std, String path) -> String
+      def self.javascript_string: (String text) -> String
+
+      private
+
+      def resolve_directory: (Ipc::Invoke invoke) -> void
+      def basename: (Ipc::Invoke invoke) -> void
+      def current_dir: () -> String
+      def path_string: (json_value value) -> String
+      def borrowed_string: (json_value value) -> String
+      def item: (Ipc::Invoke invoke, String key) -> Ipc::CommandItem
+      def std: () -> Std
+    end
+  end
+end

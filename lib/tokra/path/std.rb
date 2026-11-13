@@ -32,7 +32,7 @@ module Tokra
     # PathBuf::_push, parent, file_name, extension, file_stem;
     # <tt>sys/path/windows_prefix.rs</tt>: parse_prefix) and dunce 1.0.5's
     # simplified, which Tauri calls on every path it returns.
-    class Std # :nodoc: internal; Rust's standard library has no Ruby API
+    class Std # :nodoc: all
       # A component of a path, as Rust's Component names it: +kind+ is
       # one of <tt>:prefix</tt>, <tt>:root_dir</tt>, <tt>:cur_dir</tt>,
       # <tt>:parent_dir</tt>, and <tt>:normal</tt>; +as_os_str+ is its

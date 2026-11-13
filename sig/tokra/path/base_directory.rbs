@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Path
+    class BaseDirectory < ::Data
+      extend ClosedEnum
+      include ClosedEnum::With
+
+      attr_reader name: String
+      attr_reader value: Integer
+      attr_reader variable: String
+
+      private def self.new: (name: String, value: Integer, variable: String) -> BaseDirectory
+      def self.from_variable: (String variable) -> BaseDirectory?
+      def self.variants: () -> Array[BaseDirectory]
+      def self.deserialize: (json_value value) -> BaseDirectory
+
+      U16: Range[Integer]
+
+      Audio: BaseDirectory
+      Cache: BaseDirectory
+      Config: BaseDirectory
+      Data: BaseDirectory
+      LocalData: BaseDirectory
+      Document: BaseDirectory
+      Download: BaseDirectory
+      Picture: BaseDirectory
+      Public: BaseDirectory
+      Video: BaseDirectory
+      Resource: BaseDirectory
+      Temp: BaseDirectory
+      AppConfig: BaseDirectory
+      AppData: BaseDirectory
+      AppLocalData: BaseDirectory
+      AppCache: BaseDirectory
+      AppLog: BaseDirectory
+      Desktop: BaseDirectory
+      Executable: BaseDirectory
+      Font: BaseDirectory
+      Home: BaseDirectory
+      Runtime: BaseDirectory
+      Template: BaseDirectory
+    end
+  end
+end

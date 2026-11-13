@@ -10,6 +10,7 @@ module Tokra
     def state: (Class klass) -> managed_state
     def try_state: (Class klass) -> managed_state?
     def env: -> Env
+    def path: -> Path::PathResolver
     def get_window: (String label) -> Window?
     def get_webview: (String label) -> Webview?
     def get_focused_window: -> Window?

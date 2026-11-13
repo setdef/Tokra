@@ -13,7 +13,6 @@ module Tokra
     @restart_on_exit: bool
     @loop_theme: [String?]?
     @loop_theme_mutex: Thread::Mutex
-    @path: Path::Resolver?
     @resources_table: ResourceTable?
 
     @menu_manager: MenuManager
@@ -72,7 +71,6 @@ module Tokra
     def restart: () -> bot
     def request_restart: () -> nil
     def restart_on_exit?: () -> bool
-    def path: -> Path::Resolver
 
     private
 

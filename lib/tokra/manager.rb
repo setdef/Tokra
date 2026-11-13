@@ -128,6 +128,20 @@ module Tokra
       state(Env) #: Env
     end
 
+    # The app's Path::PathResolver, which answers where the user's and
+    # the app's directories are.
+    #
+    # Mirrors Tauri's <tt>Manager::path</tt> (lib.rs:771-774): the
+    # resolver the path core plugin manages when the app is built
+    # (path/plugin.rs:236-249).
+    #
+    # === Example
+    #
+    #   window.path.app_data_dir.join("notes.md")
+    def path
+      state(Path::PathResolver) #: Path::PathResolver
+    end
+
     # Fetches a single window from the manager, or +nil+.
     #
     # === Example

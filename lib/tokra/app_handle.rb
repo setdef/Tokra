@@ -409,14 +409,6 @@ module Tokra
       @manager.plugins.unregister(name)
     end
 
-    # Returns the path resolver for app directories.
-    #
-    # Provides cross-platform access to app-specific directories like
-    # log directories, config directories, etc.
-    def path
-      @path ||= Path::Resolver.new(config)
-    end
-
     # SPDX-SnippetBegin
     # SPDX-License-Identifier: Apache-2.0 OR MIT
     # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
