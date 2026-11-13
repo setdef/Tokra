@@ -30,7 +30,7 @@ stores a Tokra::Plugins::Clipboard::Clipboard in managed state, reachable
 from any manager as +clipboard+:
 
   Tokra::Builder.new
-    .setup { |app| app.handle.plugin(Tokra::Plugins::Clipboard::Plugin.new(app.handle)) }
+    .setup(&Ractor.shareable_proc { |app| app.handle.plugin(Tokra::Plugins::Clipboard::Plugin.new(app.handle)) })
     .run(Tokra.generate_context)
 
   # Later, with the handle:
