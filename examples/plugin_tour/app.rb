@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: MIT-0
 #++
 
-# The plugin tour: one window that puts each first-party plugin to work,
+# The plugin tour: one window that puts five first-party plugins to work,
 # from a page that calls Tauri's own JavaScript API. README.md beside this
 # file says what each control shows and how to run it.
 

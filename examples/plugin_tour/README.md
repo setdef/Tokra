@@ -6,9 +6,11 @@ SPDX-License-Identifier: MIT-0
 
 # The plugin tour
 
-One window that puts each of Tokra's first-party plugins to work, and
+One window that puts five of Tokra's first-party plugins to work, and
 the [Ferro](https://github.com/setdef/Ferro) gem under each. The page
 calls Tauri's own JavaScript API, so it reads as a Tauri page would.
+tokra-process is left out: its two commands end the app or start it
+again, which would end the tour.
 
 | Control | The page calls | Plugin | Ferro gem |
 |---|---|---|---|
