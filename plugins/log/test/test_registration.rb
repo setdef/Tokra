@@ -7,10 +7,13 @@
 
 require_relative "test_helper"
 require "tmpdir"
+require "digest"
+require "fileutils"
 
 # The registration path the README and the Plugin RDoc show: build the
-# plugin with Log::Builder and register it on the app handle from the setup
-# hook. Runs a real Tokra::App with the window and event loop replaced.
+# plugin with Log::Builder and register it on the app's builder, as Tauri's
+# is (plan 064). Runs a real Tokra::App with the window and event loop
+# replaced.
 class TestLogRegistration < Minitest::Test
   # Stands in for tao and wry: the loop delivers nothing but its end.
   module NoWindow
@@ -51,7 +54,7 @@ class TestLogRegistration < Minitest::Test
     MenuIcon = Tokra::Native::MenuIcon
   end
 
-  def test_the_readme_example_registers_the_plugin_from_the_setup_hook
+  def test_the_readme_example_registers_the_plugin_on_the_builder
     Dir.mktmpdir do |dir|
       Dir.chdir(dir) do
         events = []
@@ -61,21 +64,43 @@ class TestLogRegistration < Minitest::Test
         # The icons/icon.png beside the config that every app has, here
         # the core suite's.
         FileUtils.cp_r(File.expand_path("../../../test/fixtures/test_app/icons", __dir__), dir)
-        built = Tokra::Builder.default
-          .setup(&Ractor.shareable_proc { |app|
-            log = Tokra::Plugins::Log::Builder.new
-              .level(:info)
-              .targets([Tokra::Plugins::Log::Target.new(Pathname("app.log"))])
-              .build
-            app.handle.plugin(log)
-          })
+        log = Tokra::Plugins::Log::Builder.new
+          .level(:info)
+          .targets([Tokra::Plugins::Log::Target.new(Pathname("app.log"))])
+          .build
+        built = Tokra::Builder.default.plugin(log)
           .build(Tokra.generate_context(File.join(dir, "tokra.conf.json")), native: NoWindow)
         built.run { |_handle, event| events << event.class }
 
         assert_equal [Tokra::RunEvent::Ready, Tokra::RunEvent::Exit], events
-        assert built.handle.remove_plugin("log"), "the setup hook should have registered the log plugin"
+        assert built.handle.remove_plugin("log"), "Builder#plugin should have registered the log plugin"
         assert_path_exists File.join(dir, "app.log")
       end
     end
+  end
+
+  def test_a_log_config_is_refused_as_tauris_unit_config_is
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "tokra.conf.json"),
+        JSON.generate({ "identifier" => "com.tokra.log-config", "plugins" => { "log" => { "level" => "info" } } }))
+      FileUtils.cp_r(File.expand_path("../../../test/fixtures/test_app/icons", __dir__), dir)
+      built = Tokra::Builder.default.plugin(Tokra::Plugins::Log::Builder.new.targets([]).build)
+        .build(Tokra.generate_context(File.join(dir, "tokra.conf.json")), native: NoWindow)
+
+      error = assert_raises(Tokra::Error::PluginInitialization) { built.run }
+
+      assert_equal "failed to initialize plugin `log`: Error deserializing 'plugins.log' within your Tokra " \
+        "configuration: invalid type: map, expected unit", error.message
+    end
+  end
+
+  # SHA-256 of plugins/log/api-iife.js at plugins-workspace d4613ff0.
+  UPSTREAM_API_SCRIPT_SHA256 = "447a5072363e1b8d4ca171e32d5c2ffbf743efb018be21b8a0b27f50aac13c9f"
+
+  def test_the_gem_names_tauris_global_api_script
+    path = File.expand_path("../lib/tokra/plugins/log/api-iife.js", __dir__)
+
+    assert_includes Tokra::Utils::Plugin.global_api_script_paths, File.realpath(path)
+    assert_equal UPSTREAM_API_SCRIPT_SHA256, Digest::SHA256.file(path).hexdigest, "upstream's file, unchanged"
   end
 end

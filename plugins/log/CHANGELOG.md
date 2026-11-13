@@ -14,6 +14,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - `tokra-log` gem: `Tokra::Plugins::Log::Builder` builds a logging plugin
   with Tauri's log targets (standard output, files, the app log directory,
-  the webview), rotation and timezone strategies, and RBS signatures
+  the webview), rotation and timezone strategies, and RBS signatures;
+  register what `build` returns with `Builder#plugin`; like Tauri's, the
+  plugin takes no config, and a page with `withGlobalTauri` gets
+  `window.__TAURI__.log` from Tauri's own `api-iife.js`, which the gem ships
 
 [Unreleased]: https://github.com/setdef/Tokra/commits/trunk/plugins/log

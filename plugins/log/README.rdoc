@@ -11,21 +11,23 @@ Tokra's plugin lifecycle.
 == Usage
 
 Build the plugin with Tokra::Plugins::Log::Builder and register it on the
-app handle from the setup hook, before the window opens:
+app's builder, as a Tauri app does:
 
   require "pathname"
   require "tokra"
   require "tokra-log"
 
-  Tokra::Builder.default
-    .setup(&Ractor.shareable_proc { |app|
-      log = Tokra::Plugins::Log::Builder.new
-        .level(:info)
-        .targets([Tokra::Plugins::Log::Target.new(Pathname("app.log"))])
-        .build
-      app.handle.plugin(log)
-    })
-    .run(Tokra.generate_context)
+  log = Tokra::Plugins::Log::Builder.new
+    .level(:info)
+    .targets([Tokra::Plugins::Log::Target.new(Pathname("app.log"))])
+    .build
+  Tokra::Builder.default.plugin(log).run(Tokra.generate_context)
+
+The plugin takes no config. A +log+ entry under +plugins+ in your
+<tt>tokra.conf.json</tt> fails the app, as it fails a Tauri app. With
+<tt>"withGlobalTauri": true</tt> under +app+, a page finds Tauri's
+frontend API on <tt>window.__TAURI__.log</tt>, from the script the gem
+ships.
 
 == Configuration
 

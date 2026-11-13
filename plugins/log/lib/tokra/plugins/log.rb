@@ -30,10 +30,14 @@ module Tokra
       # == Example
       #
       #   Tokra::Builder.default
-      #     .setup(&Ractor.shareable_proc { |app|
-      #       app.handle.plugin(Tokra::Plugins::Log::Builder.new.level(:info).build)
-      #     })
+      #     .plugin(Tokra::Plugins::Log::Builder.new.level(:info).build)
       #     .run(Tokra.generate_context)
+      #
+      # The plugin takes no config: a non-null <tt>plugins.log</tt> in your
+      # config fails the app with Error::PluginInitialization, as Tauri's
+      # does. With <tt>app.withGlobalTauri</tt>, a page finds Tauri's
+      # frontend API on <tt>window.__TAURI__.log</tt>, from the
+      # <tt>api-iife.js</tt> the gem ships.
       #
       class Plugin < Tokra::Plugin
         # Returns the unique plugin identifier.
@@ -48,6 +52,19 @@ module Tokra
           @progname = builder.configured_progname
           @datetime_format = builder.configured_datetime_format
           @loggers = build_loggers(builder)
+        end
+
+        # Initializes the plugin with +app+ and +config+, its slice of the
+        # app config's +plugins+, which must be null: Tauri's log plugin
+        # takes no config, and its setup fails the app with "Error
+        # deserializing 'plugins.log' within your Tauri configuration:
+        # ..." (lib.rs:691-708; plugin.rs:793-806). Tokra's message names
+        # the Tokra configuration (ADR 014 §3).
+        def initialize_plugin(app, config)
+          Tokra::Plugin::Builder::Unit.deserialize(config)
+          super
+        rescue Tokra::Ipc::CommandItem::Mismatch => e
+          raise Tokra::Error, "Error deserializing 'plugins.log' within your Tokra configuration: #{e.message}"
         end
 
         # :call-seq:
@@ -170,3 +187,8 @@ module Tokra
     end
   end
 end
+
+# Tauri's own global API script for the plugin, which defines
+# window.__TAURI__.log in a page with withGlobalTauri (build.rs; api-iife.js
+# at plugins-workspace d4613ff0, unchanged).
+Tokra::Utils::Plugin.define_global_api_script_path(File.expand_path("log/api-iife.js", __dir__))

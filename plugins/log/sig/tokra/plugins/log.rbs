@@ -21,6 +21,7 @@ module Tokra
 
         def name: () -> String
         def initialize: (Builder builder) -> void
+        def initialize_plugin: (Tokra::AppHandle app, Tokra::json_value config) -> nil
         def level_for: (String module_name, level level) -> bot
         def trace: (String message) -> void
         def debug: (String message) -> void
