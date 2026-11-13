@@ -28,7 +28,6 @@ PATH
   specs:
     tokra-log (0.0.1.pre.1)
       ferro-time (= 0.1.0)
-      logger
       tokra (~> 0.0)
 
 GEM
@@ -52,6 +51,7 @@ PLATFORMS
 DEPENDENCIES
   ferro-time!
   ferro-url!
+  logger
   minitest
   minitest-mock
   rake

@@ -15,18 +15,23 @@ require "ferro/time"
 module Tokra
   module Plugins
     module Log
-      # Controls timestamp timezone in log entries (Tauri API parity).
+      # The clock a log line's timestamp and a rotated file's name read.
       #
-      # Plugin-level setting passed to formatters.
+      # Logs from a user's machine are easiest to line up with a server's
+      # in UTC; logs you read at your own desk are easiest in local time.
+      # The plugin stamps lines and names rotated files in UTC unless the
+      # builder is given UseLocal. Builder#timezone_strategy also replaces
+      # the line format with one in the chosen clock.
       #
-      # == Usage
+      # Mirrors Tauri's +TimezoneStrategy+ (lib.rs:132-147). Rust cannot
+      # always determine the local offset; UseLocal then falls back to UTC.
       #
-      #   Builder.new.timezone_strategy(TimezoneStrategy::UseUtc.new)
+      # === Examples
       #
+      #   Builder.new.timezone_strategy(TimezoneStrategy::UseLocal.new)
+      #   TimezoneStrategy::UseUtc.new.get_now.format(LOG_DATE_FORMAT)  #=> "2026-11-13_22-41-07"
       module TimezoneStrategy
-        # Use UTC for all timestamps.
-        #
-        # Converts local time to UTC.
+        # Reads the clock in UTC.
         class UseUtc < Data.define
           # The current date and time in UTC, from the time crate
           # (lib.rs:141).
@@ -37,17 +42,9 @@ module Tokra
           def get_now
             Ferro::Time::OffsetDateTime.now_utc
           end
-
-          ##
-          # Formats the time in UTC.
-          def format_time(time)
-            time.utc
-          end
         end
 
-        # Use local timezone for timestamps (Ruby default).
-        #
-        # Pass-through, no conversion.
+        # Reads the clock in the system's local offset.
         class UseLocal < Data.define
           # The current date and time in the system's local offset, or in
           # UTC when the time crate cannot determine the offset, as
@@ -60,12 +57,6 @@ module Tokra
             Ferro::Time::OffsetDateTime.now_local
           rescue Ferro::Time::Error::IndeterminateOffset
             Ferro::Time::OffsetDateTime.now_utc
-          end
-
-          ##
-          # Returns time unchanged (already local).
-          def format_time(time)
-            time
           end
         end
       end
