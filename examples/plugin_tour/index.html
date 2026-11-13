@@ -1,0 +1,160 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+
+SPDX-License-Identifier: MIT-0
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="color-scheme" content="light dark">
+  <title>Tokra Plugin Tour</title>
+  <!-- Each plugin's global API, as Tauri puts it on window.__TAURI__. -->
+  <script src="/vendor/clipboard-manager.js"></script>
+  <script src="/vendor/dialog.js"></script>
+  <script src="/vendor/global-shortcut.js"></script>
+  <script src="/vendor/notification.js"></script>
+  <style>
+    body { font: 15px/1.4 system-ui, sans-serif; margin: 0 auto; max-width: 34rem; padding: 0.5rem 1rem; }
+    section { border-top: 1px solid color-mix(in srgb, currentColor 20%, transparent); padding: 0.25rem 0 0.75rem; }
+    h2 { font-size: 1rem; margin: 0.5rem 0; }
+    p { margin: 0.25rem 0; }
+    output, code { font-family: ui-monospace, monospace; font-size: 0.9em; overflow-wrap: anywhere; }
+    output { display: block; min-height: 1.4em; }
+    ol { font-family: ui-monospace, monospace; font-size: 0.9em; margin: 0.25rem 0; max-height: 7rem; overflow-y: auto; }
+  </style>
+</head>
+<body>
+  <h1>Tokra Plugin Tour</h1>
+
+  <section>
+    <h2>Clipboard</h2>
+    <p><input id="clip-text" value="Copied by the Tokra plugin tour" aria-label="Text to copy" size="32">
+      <button id="copy">Copy</button> <button id="paste">Paste</button></p>
+    <output id="clip-out"></output>
+  </section>
+
+  <section>
+    <h2>Dialogs</h2>
+    <p><button id="open">Open a file…</button> <button id="save">Save as…</button>
+      The tour shows the path you choose and touches no file.</p>
+    <output id="dialog-out"></output>
+  </section>
+
+  <section>
+    <h2>Notification</h2>
+    <p><button id="notify">Notify me</button></p>
+    <output id="notify-out"></output>
+  </section>
+
+  <section>
+    <h2>Global shortcut</h2>
+    <p><button id="shortcut" aria-pressed="false">Register</button>
+      <kbd id="shortcut-keys"></kbd>, then press it from any app.</p>
+    <output id="shortcut-out"></output>
+  </section>
+
+  <section>
+    <h2>Log</h2>
+    <p><button id="log">Write a log line</button>
+      The terminal shows it with its time; the page hears it here.</p>
+    <ol id="log-lines" role="log"></ol>
+    <output id="log-out"></output>
+  </section>
+
+  <section>
+    <h2>URL</h2>
+    <p><button id="url">Read this page's URL</button></p>
+    <output id="url-out"></output>
+  </section>
+
+  <script>
+    const { invoke } = window.__TAURI__.core;
+    const { listen } = window.__TAURI__.event;
+    const { writeText, readText } = window.__TAURI__.clipboardManager;
+    const { open, save } = window.__TAURI__.dialog;
+    const { register, unregister, isRegistered } = window.__TAURI__.globalShortcut;
+    const { isPermissionGranted, requestPermission, sendNotification } = window.__TAURI__.notification;
+
+    const show = (id, text) => { document.getElementById(id).textContent = text; };
+    const on = (id, action, out) => document.getElementById(id).addEventListener('click', async () => {
+      try {
+        await action();
+      } catch (error) {
+        show(out, `Error: ${error}`);
+      }
+    });
+
+    // Clipboard: tokra-clipboard, through ferro-arboard.
+    on('copy', async () => {
+      const text = document.getElementById('clip-text').value;
+      await writeText(text);
+      show('clip-out', `Copied: ${text}`);
+    }, 'clip-out');
+    on('paste', async () => show('clip-out', `Pasted: ${await readText()}`), 'clip-out');
+
+    // Dialogs: tokra-dialog, through ferro-rfd.
+    on('open', async () => {
+      const path = await open({ title: 'Pick any file' });
+      show('dialog-out', path === null ? 'Cancelled' : `Opened: ${path}`);
+    }, 'dialog-out');
+    on('save', async () => {
+      const path = await save({ defaultPath: 'tour.txt', filters: [{ name: 'Text', extensions: ['txt'] }] });
+      show('dialog-out', path === null ? 'Cancelled' : `Would save to: ${path}`);
+    }, 'dialog-out');
+
+    // Notification: tokra-notification, through ferro-notify-rust.
+    on('notify', async () => {
+      let granted = await isPermissionGranted();
+      if (!granted) granted = (await requestPermission()) === 'granted';
+      if (!granted) return show('notify-out', 'Permission denied');
+      sendNotification({ title: 'Tokra Plugin Tour', body: `Sent at ${new Date().toLocaleTimeString()}` });
+      show('notify-out', 'Sent');
+    }, 'notify-out');
+
+    // Global shortcut: tokra-global-shortcut, through ferro-global-hotkey.
+    const keys = 'CommandOrControl+Alt+K';
+    const button = document.getElementById('shortcut');
+    document.getElementById('shortcut-keys').textContent = keys;
+    let presses = 0;
+    on('shortcut', async () => {
+      if (button.getAttribute('aria-pressed') === 'true') {
+        await unregister(keys);
+        button.setAttribute('aria-pressed', 'false');
+        button.textContent = 'Register';
+        return show('shortcut-out', 'Unregistered');
+      }
+      // A reload leaves the last page's registration in place.
+      if (await isRegistered(keys)) await unregister(keys);
+      await register(keys, (event) => {
+        if (event.state !== 'Pressed') return;
+        presses += 1;
+        show('shortcut-out', `${event.shortcut} pressed ${presses} time${presses === 1 ? '' : 's'}`);
+      });
+      button.setAttribute('aria-pressed', 'true');
+      button.textContent = 'Unregister';
+      show('shortcut-out', 'Registered; press it');
+    }, 'shortcut-out');
+
+    // Log: tokra-log. The page listens for log://log, as the log plugin's
+    // attachLogger does.
+    const levels = { 1: 'TRACE', 2: 'DEBUG', 3: 'INFO', 4: 'WARN', 5: 'ERROR' };
+    listen('log://log', ({ payload }) => {
+      const line = document.createElement('li');
+      line.textContent = `[${levels[payload.level]}] ${payload.message}`;
+      document.getElementById('log-lines').append(line);
+    });
+    let lines = 0;
+    on('log', async () => {
+      lines += 1;
+      await invoke('log_message', { message: `Line ${lines} from the page` });
+    }, 'log-out');
+
+    // URL: Tokra reads the webview's address with ferro-url.
+    on('url', async () => {
+      const { href, scheme, host, path } = await invoke('page_url');
+      show('url-out', `${href}  scheme ${scheme}, host ${host}, path ${path}`);
+    }, 'url-out');
+  </script>
+</body>
+</html>

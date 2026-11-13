@@ -1,0 +1,14 @@
+{
+  "identifier": "com.tokra.examples.plugin-tour",
+  "productName": "Tokra Plugin Tour",
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Tokra Plugin Tour",
+        "width": 560,
+        "height": 760
+      }
+    ]
+  }
+}
