@@ -210,7 +210,7 @@ class TestWebviewDataDirectory < Minitest::Test
   end
 
   def test_https_is_core_js_protocol_scheme
-    core = -> (https) { manager("windows").initialization_scripts("side", "side", https:)[3] }
+    core = -> (https) { manager("windows").initialization_scripts("side", "side", https:)[3].first }
 
     assert_includes core.call(true), 'const protocolScheme = "https"'
     assert_includes core.call(false), 'const protocolScheme = "http"'

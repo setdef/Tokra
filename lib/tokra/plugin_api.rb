@@ -5,21 +5,47 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
+# SPDX-SnippetBegin
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+# SPDX-SnippetComment: PluginApi adapted from tauri/crates/tauri/src/plugin.rs:147-179
+
 module Tokra
-  # Api exposed to plugins during initialization.
+  # What a plugin's setup block gets beside the app handle.
   #
-  # Wraps the app handle and plugin-specific configuration.
-  # Mirrors Tauri's PluginApi<R, C> struct.
+  # A plugin is configured in the app's config, under its own name in
+  # +plugins+, and its setup runs once the app exists. Setup wants that
+  # slice already read into the plugin's own config type, not raw JSON
+  # to pick apart.
   #
-  # == Example
+  # The app hands a Plugin::Builder's setup block one of these: the
+  # handle, the plugin's name, and the slice, read by the config type
+  # the builder was given (+nil+ for a plugin that takes none).
   #
-  #   def setup(api)
-  #     @app = api.app
-  #     @logger = Logger.new(api.config[:path])
-  #   end
+  # Use it to read your plugin's settings while it sets up.
   #
-  # == Future
+  # Mirrors Tauri's <tt>PluginApi<R, C></tt> (plugin.rs:147-179). Its
+  # +scope+, the ACL's global scope, waits for capabilities.
   #
-  # May include permission scopes when implemented.
-  PluginApi = Data.define(:app, :config, :name)
+  # === Example
+  #
+  #   Tokra::Plugin::Builder.new("store", config: StoreConfig)
+  #     .setup { |app, api| app.manage(Store.new(api.config.path)) }
+  #     .build
+  class PluginApi < Data.define(:app, :config, :name)
+    ##
+    # :attr_reader: app
+    # The AppHandle of the app the plugin joins (plugin.rs:163-166).
+
+    ##
+    # :attr_reader: config
+    # The plugin's config, read from its slice of the app config's
+    # +plugins+ (plugin.rs:158-161).
+
+    ##
+    # :attr_reader: name
+    # The plugin's name, the key of its slice.
+  end
 end
+
+# SPDX-SnippetEnd

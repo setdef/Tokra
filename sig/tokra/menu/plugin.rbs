@@ -100,7 +100,7 @@ module Tokra
       end
 
       def name: () -> String
-      def initialize: (AppHandle app, ?Hash[Symbol, String | Integer | Float | bool] config) -> void
+      def initialize: (AppHandle app, ?json_value config) -> void
       def on_event: (AppHandle app, run_event event) -> nil
       def extend_api: (Ipc::Invoke invoke) -> bool
 

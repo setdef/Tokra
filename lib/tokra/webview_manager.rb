@@ -165,7 +165,8 @@ module Tokra
     # SPDX-SnippetComment: Initialization script assembly adapted from
     # tauri/crates/tauri/src/manager/webview.rs and app.rs
 
-    # Assembles the webview initialization scripts in Tauri's injection
+    # Assembles the webview initialization scripts, each as
+    # <tt>[script, for_main_frame_only]</tt>, in Tauri's injection
     # order (manager/webview.rs:160-192): the __TAURI_INTERNALS__
     # bootstrap, the invoke transport, webview metadata, and the init.js
     # bundle (pattern, ipc router, core, events). Each registered plugin's
@@ -186,9 +187,9 @@ module Tokra
         invoke_initialization_script,
         metadata_script(window_label, webview_label),
         init_script(https),
-      ]
+      ].map { |script| [script, true] } #: Array[[String, bool]]
       scripts.concat(@manager.plugins.initialization_script)
-      scripts << global_api_script if @manager.config.app.with_global_tauri
+      scripts << [global_api_script, true] if @manager.config.app.with_global_tauri
       scripts
     end
 

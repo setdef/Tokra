@@ -4,36 +4,45 @@
 module Tokra
   interface _Plugin
     def name: () -> String
-    def initialize: (AppHandle app, ?Hash[Symbol, String | Integer | Float | bool] config) -> void
+    def initialize_plugin: (AppHandle app, json_value config) -> nil
     def initialization_script: () -> String?
+    def initialization_script_2: () -> [String, bool]?
     def window_created: (Window window) -> void
     def webview_created: (Webview webview) -> void
-    def on_navigation: (Native::WebView webview, Ferro::Url::Url url) -> bool
+    def on_navigation: (Webview webview, Ferro::Url::Url url) -> bool
     def on_page_load: (Webview webview, PageLoadPayload payload) -> void
     def on_event: (AppHandle app, run_event event) -> void
     def extend_api: (Ipc::Invoke invoke) -> bool
+    def drop: () -> nil
   end
 
   class Plugin
     include _Plugin
 
     @app: AppHandle
-    @config: Hash[Symbol, String | Integer | Float | bool]
+    @config: json_value
+
+    def initialize: (?AppHandle? app, ?json_value config) -> void
 
     def app: () -> AppHandle
-    def config: () -> Hash[Symbol, String | Integer | Float | bool]
+    def config: () -> json_value
   end
 
   class PluginStore
     @store: Array[_Plugin]
+    @initialized: Hash[_Plugin, true]
 
     def register: (_Plugin plugin) -> bool
     def unregister: (String name) -> bool
+    def initialize_plugin: (_Plugin plugin, AppHandle app, Hash[String, json_value] config) -> nil
+    def initialize_all: (AppHandle app, Hash[String, json_value] config) -> nil
     def extend_api: (String name, Ipc::Invoke invoke) -> bool
-    def initialization_script: () -> Array[String]
+    def initialization_script: () -> Array[[String, bool]]
     def on_event: (AppHandle app, run_event event) -> void
     def on_page_load: (Webview webview, PageLoadPayload payload) -> nil
     def window_created: (Window window) -> nil
     def webview_created: (Webview webview) -> nil
+
+    private def take: (String name) -> Array[_Plugin]
   end
 end

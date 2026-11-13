@@ -21,6 +21,7 @@ module Tokra
                                        ?unit: Array[String], ?deny_unknown: bool) { (String variant, json_value raw) -> T }
                                   -> [String, T?]
       def self.tuple: [T] (json_value value, Integer size, ?expecting: String) { (Integer index, json_value raw) -> T } -> Array[T]
+      def self.unit: (json_value value) -> nil
       def self.string: (json_value value) -> String
       def self.borrowed_str: (json_value value) -> String
       def self.boolean: (json_value value) -> bool

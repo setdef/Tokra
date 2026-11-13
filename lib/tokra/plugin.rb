@@ -6,42 +6,93 @@
 #++
 
 module Tokra
-  # Base class for Tokra plugins.
+  # The hooks a plugin answers as the app runs.
   #
-  # Mirrors Tauri's Plugin trait, providing lifecycle hooks for desktop
-  # application integration.
+  # A desktop app grows past what its framework gives it: a clipboard, a
+  # logger, global hotkeys, commands of your own. Each of those wants to
+  # join the app the same way, hearing its windows and pages, answering
+  # its own <tt>plugin:NAME|command</tt> invokes, and setting itself up
+  # once the app exists.
   #
-  # == Implementing a Plugin
+  # This class is the plugin's side of that contract: every hook has a
+  # default, so a plugin overrides only the ones it needs and #name.
+  # Register a plugin with Builder#plugin before the app is built, or
+  # with AppHandle#plugin once it runs. Most plugins need no subclass:
+  # Plugin::Builder makes one from blocks, as Tauri's plugins are made.
   #
-  # Subclass this and override the lifecycle methods:
+  # Use it to write a plugin whose state lives on the object itself.
   #
-  #   class MyPlugin < Tokra::Plugin
+  # Mirrors Tauri's Plugin trait (plugin.rs:37-112). The trait's
+  # +initialize+ is #initialize_plugin here, since Ruby's +initialize+ is
+  # the constructor (plan 064, decision 1).
+  #
+  # === Examples
+  #
+  #   class Counter < Tokra::Plugin
   #     def name
-  #       "my_plugin"
+  #       "counter"
   #     end
   #
-  #     def initialize(app, config = {})
-  #       # Setup logic
+  #     def initialize_plugin(app, config)
+  #       super
+  #       @count = config ? config.fetch("start") : 0
   #     end
   #
-  #     def on_event(app, event)
-  #       # Handle run loop events
+  #     def extend_api(invoke)
+  #       return false unless invoke.command == "next"
+  #
+  #       invoke.resolve(@count += 1)
+  #       true
   #     end
   #   end
   #
+  #   Tokra::Builder.default.plugin(Counter.new).run(Tokra.generate_context)
+  #
+  #   # A plugin made with the app's handle, as the core plugins are:
+  #   app.handle.plugin(Counter.new(app.handle))
   class Plugin
     # Returns the unique plugin identifier.
     def name
       raise NotImplementedError
     end
 
-    # Initializes the plugin with app handle and configuration.
+    # Makes the plugin. A plugin needs no app to be made: Builder#plugin
+    # takes one before the app exists, and #initialize_plugin hands it the
+    # app later.
     #
-    # Subclasses should call +super+ to store the app handle and config,
-    # then perform their own setup.
-    def initialize(app, config = {})
+    # [app] the AppHandle, or +nil+ until the plugin is initialized.
+    # [config] the plugin's config, readable by subclasses as +config+.
+    def initialize(app = nil, config = {})
+      @app = app if app
+      @config = config
+    end
+
+    # Initializes the plugin with +app+, the AppHandle, and +config+, the
+    # plugin's slice of the app config's +plugins+: the JSON under its
+    # #name, or +nil+ when the config has none. The app calls it once, as
+    # it registers the plugin: at once for AppHandle#plugin, and for
+    # Builder#plugin in App#run, before the windows the config lists.
+    #
+    # Raise to fail. The app reports the failure as
+    # Error::PluginInitialization, with the plugin's name and your
+    # error's message, and does not register the plugin.
+    #
+    # Records +app+ and +config+ for the +app+ and +config+ readers, and
+    # returns +nil+. Tauri's default does nothing; the readers are Tokra's,
+    # so a subclass that overrides this calls +super+ to keep them.
+    #
+    # Mirrors the Plugin trait's +initialize+ (plugin.rs:41-49).
+    #
+    # === Example
+    #
+    #   def initialize_plugin(app, config)
+    #     super
+    #     app.manage(Store.new(config))
+    #   end
+    public def initialize_plugin(app, config)
       @app = app
       @config = config
+      nil
     end
 
     protected
@@ -49,7 +100,7 @@ module Tokra
     # The application handle. Available to subclasses.
     attr_reader :app
 
-    # The plugin configuration hash. Available to subclasses.
+    # The plugin's config. Available to subclasses.
     attr_reader :config
 
     # Called with the app handle for every run loop event.
@@ -70,7 +121,9 @@ module Tokra
     # *Not yet called*: nothing in Tokra calls this hook, so no navigation
     # reaches it and its return value changes nothing. It is here for the
     # Plugin trait's shape. When it is wired, +true+ will allow the
-    # navigation and +false+ will block it, as in Tauri.
+    # navigation and +false+ will block it, as in Tauri. Tauri calls it
+    # from the webview's navigation handler, which Tokra's webview
+    # registers once plan 052e-4 ports it (plan 064, decision 9).
     # Returns +true+ by default.
     public def on_navigation(webview, url)
       true
@@ -93,11 +146,47 @@ module Tokra
     # it in every page after Tauri's own init scripts, wrapped in an IIFE
     # so its top-level names stay private (PluginStore#initialization_script).
     # A webview takes the scripts of the plugins registered when it is
-    # made, as Tauri's does. The app makes the windows its config lists
-    # before its setup hook, so register the plugin before App#run for
-    # their pages to run it.
+    # made, as Tauri's does, so register the plugin with Builder#plugin
+    # for the pages of the windows the config lists to run it.
     # Returns +nil+ by default (no script injection).
     public def initialization_script
+      nil
+    end
+
+    # The #initialization_script with the frames it runs in, as
+    # <tt>[script, for_main_frame_only]</tt>, or +nil+. By default the
+    # script runs in the main frame only. Override it to run a script in
+    # every frame, as Plugin::Builder#js_init_script_on_all_frames does.
+    #
+    # Mirrors the Plugin trait's +initialization_script_2+
+    # (plugin.rs:73-83), Tauri's name until its version 3 renames it.
+    #
+    # === Example
+    #
+    #   def initialization_script_2
+    #     ["window.__IN_EVERY_FRAME__ = true", false]
+    #   end
+    public def initialization_script_2
+      script = initialization_script
+      [script, true] if script
+    end
+
+    # Called when the app lets go of the plugin, and returns +nil+.
+    #
+    # Rust runs a type's +Drop+ when its last owner lets go. Ruby frees an
+    # object when it chooses and tells nobody, so the plugin store calls
+    # this at the moments Tauri's drops a plugin: when AppHandle#remove_plugin
+    # removes it, when a plugin of the same name replaces it, and when
+    # AppHandle#plugin fails to initialize it (plugin.rs:880-893;
+    # app.rs:494-498). Does nothing by default.
+    #
+    # === Example
+    #
+    #   def drop
+    #     @socket&.close
+    #     nil
+    #   end
+    public def drop
       nil
     end
 
@@ -106,8 +195,9 @@ module Tokra
     # Override this to perform window-specific setup. It runs on the main
     # thread, once the window has joined the app, so +get_window+ finds
     # it. A window made on another thread is built first, and then this
-    # runs. Register the plugin before App#run to hear the config's
-    # windows, which the app makes before its setup hook. Named without an +on_+ prefix to
+    # runs. Register the plugin with Builder#plugin to hear the config's
+    # windows, which the app makes after it initializes the builder's
+    # plugins and before its setup hook. Named without an +on_+ prefix to
     # mirror the Plugin trait's +window_created+ (plugin.rs:85-87,
     # manager/window.rs:112-121).
     # Returns +nil+ by default (no-op).
@@ -166,25 +256,67 @@ module Tokra
     # Creates an empty store.
     def initialize
       @store = []
+      # The plugins #initialize_plugin has initialized, by identity.
+      initialized = {} #: Hash[_Plugin, true]
+      @initialized = initialized.compare_by_identity
     end
 
-    # Adds a plugin to the store, replacing any same-named plugin.
+    # Adds a plugin to the store, replacing any same-named plugin, which
+    # it drops (Plugin#drop).
     #
     # Returns +true+ if an existing plugin was replaced, +false+ otherwise.
     def register(plugin)
-      length_before = @store.length
-      @store.reject! { |p| p.name == plugin.name }
+      replaced = take(plugin.name)
       @store.push(plugin)
-      length_before != @store.length - 1
+      !replaced.empty?
     end
 
-    # Removes the plugin with the given name from the store.
+    # Removes the plugin with the given name from the store, and drops it
+    # (Plugin#drop).
     #
     # Returns +true+ if a plugin was removed, +false+ otherwise.
     def unregister(name)
-      length_before = @store.length
-      @store.reject! { |p| p.name == name }
-      length_before != @store.length
+      !take(name).empty?
+    end
+
+    # Initializes +plugin+ with +app+ and its slice of +config+, the app
+    # config's +plugins+ Hash: the value under the plugin's name, or +nil+.
+    # A StandardError the plugin raises becomes
+    # Error::PluginInitialization with the plugin's name and the error's
+    # message. Returns +nil+.
+    #
+    # Mirrors Tauri's PluginStore#initialize and its +initialize+ function
+    # (plugin.rs:895-903, 998-1010), named for Plugin#initialize_plugin.
+    #
+    # === Example
+    #
+    #   store.initialize_plugin(plugin, handle, handle.config.plugins)
+    def initialize_plugin(plugin, app, config)
+      begin
+        plugin.initialize_plugin(app, config[plugin.name])
+      rescue => e
+        raise Error::PluginInitialization.new(plugin.name, e.message)
+      end
+      @initialized[plugin] = true
+      nil
+    end
+
+    # Initializes every plugin in the store not yet initialized, in
+    # store order, as #initialize_plugin does, stopping at the first that
+    # fails. Returns +nil+.
+    #
+    # Tauri's initializes every plugin, and the core plugins it has
+    # initialized already do nothing the second time; Tokra skips them
+    # instead, which also keeps a plugin the app added between Builder#build
+    # and App#run from initializing twice (plugin.rs:905-915; plan 064,
+    # decision 5).
+    #
+    # === Example
+    #
+    #   store.initialize_all(handle, handle.config.plugins)
+    def initialize_all(app, config)
+      @store.each { |plugin| initialize_plugin(plugin, app, config) unless @initialized.key?(plugin) }
+      nil
     end
 
     # Routes an invoke to the named plugin's extend_api hook.
@@ -201,21 +333,24 @@ module Tokra
       true
     end
 
-    # Collects every plugin's initialization script, in registration order.
+    # Collects every plugin's initialization script, in registration order,
+    # each as <tt>[script, for_main_frame_only]</tt> (Plugin#initialization_script_2).
     #
     # Each script is wrapped as <tt>(function () { SCRIPT })();</tt> so its
     # top-level names stay private to the plugin. Plugins whose
-    # initialization_script returns +nil+ contribute nothing. Mirrors
+    # initialization_script_2 returns +nil+ contribute nothing. Mirrors
     # Tauri's PluginStore#initialization_script (plugin.rs:918-933).
     #
     # === Example
     #
     #   store.initialization_script
-    #   #=> ["(function () { console.log('ready') })();"]
+    #   #=> [["(function () { console.log('ready') })();", true]]
     def initialization_script
       @store.filter_map do |plugin|
-        script = plugin.initialization_script
-        "(function () { #{script} })();" if script
+        pair = plugin.initialization_script_2
+        next unless pair
+
+        ["(function () { #{pair[0]} })();", pair[1]]
       end
     end
 
@@ -265,6 +400,17 @@ module Tokra
     def on_page_load(webview, payload)
       @store.each { |plugin| plugin.on_page_load(webview, payload) }
       nil
+    end
+
+    # Removes the plugins named +name+ and drops each, as Rust's +retain+
+    # drops what it removes. Answers what it removed.
+    private def take(name)
+      taken, @store = @store.partition { |plugin| plugin.name == name }
+      taken.each do |plugin|
+        @initialized.delete(plugin)
+        plugin.drop
+      end
+      taken
     end
   end
 

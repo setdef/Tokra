@@ -150,7 +150,31 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   the window and webview lookups reach the app from whichever handle you hold; `Window#webviews` answers that window's
   own webviews as an Array, as Tauri's does
 - `Tokra::PluginStore` routes `plugin:NAME|command` invokes to the named plugin
-- `AppHandle#plugin(plugin)` registers a plugin for IPC dispatch
+- `Builder#plugin(plugin)` adds a plugin before the app exists, as Tauri's
+  does: the app's store holds it before the core plugins, and `App#run`
+  initializes it after the app menu and the config's tray, before the
+  config's windows and the setup hook, raising
+  `Error::PluginInitialization` when it fails
+- `AppHandle#plugin(plugin)` initializes a plugin at once and registers it
+  for IPC dispatch, returning `nil`; a plugin that fails to initialize
+  raises `Error::PluginInitialization` and is not registered
+- Each plugin gets its slice of the config's `plugins`, the JSON under its
+  name or `nil`, through `Plugin#initialize_plugin(app, config)`, Tauri's
+  `Plugin::initialize`; the default keeps the plugin's `app` and `config`
+- `Tokra::Plugin::Builder`, Tauri's `plugin::Builder`: `new(name, config:)`,
+  `invoke_handler`, `js_init_script`, `js_init_script_on_all_frames`,
+  `setup` (with the handle and a `Tokra::PluginApi` whose `config` the
+  `config:` type read), `on_navigation`, `on_page_load`, `on_window_ready`,
+  `on_webview_ready`, `on_event`, `on_drop`, `try_build`, and `build`,
+  which make a `Tokra::Plugin::TauriPlugin`; a plugin with no `config:`
+  refuses a non-null config with "Error deserializing 'plugins.NAME'
+  within your Tokra configuration: invalid type: map, expected unit", and
+  the names `core` and `tauri` raise
+  `Tokra::Plugin::BuilderError::ReservedName`
+- `Plugin#initialization_script_2` (a script and whether it runs in the
+  main frame only) and `Plugin#drop`, which the store calls when it lets a
+  plugin go: on `AppHandle#remove_plugin`, when a same-named plugin
+  replaces it, and when its initialization fails
 - `AppHandle#remove_plugin(name)` unregisters a plugin by name
 - Plugin `extend_api` receives the bare command name (prefix stripped)
 - Unhandled IPC commands are rejected with `Command <name> not found`
@@ -220,9 +244,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `window.__TAURI__.core.invoke(...)` directly, as in Tauri
 - `Plugin#initialization_script` is injected into every page after Tauri's
   init scripts, wrapped in an IIFE, in each webview made after the plugin
-  is registered, so register a plugin before `App#run` for the config's
-  windows;
-  `PluginStore#initialization_script` collects them
+  is registered, so register a plugin with `Builder#plugin` for the
+  config's windows; `PluginStore#initialization_script` collects them,
+  each with whether it runs in the main frame only
 - `AppHandle#manage(state)` stores managed state and returns whether it did
 - `Native::Proxy#drop_response(request_id)` closes a pending protocol request
   without a reply

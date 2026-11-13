@@ -8,7 +8,7 @@ module Tokra
 
       @target: Utils::Platform::Target
 
-      def initialize: (AppHandle app, ?Hash[Symbol, String | Integer | Float | bool] config, ?target: Utils::Platform::Target) -> void
+      def initialize: (AppHandle app, ?json_value config, ?target: Utils::Platform::Target) -> void
       def name: () -> String
       def initialization_script: () -> String
       def extend_api: (Ipc::Invoke invoke) -> bool

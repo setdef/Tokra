@@ -152,8 +152,92 @@ class TestPluginStore < Minitest::Test
     store.register(ScriptPlugin.new("none", nil))
     store.register(ScriptPlugin.new("b", "let x = 2"))
 
-    assert_equal ["(function () { let x = 1 })();", "(function () { let x = 2 })();"],
+    assert_equal [["(function () { let x = 1 })();", true], ["(function () { let x = 2 })();", true]],
       store.initialization_script, "plugin.rs:918-933 formats each script, skipping None"
+  end
+
+  def test_initialization_script_keeps_each_scripts_frames
+    store = Tokra::PluginStore.new
+    store.register(Tokra::Plugin::Builder.new("all").js_init_script_on_all_frames("let y = 1").build)
+
+    assert_equal [["(function () { let y = 1 })();", false]], store.initialization_script
+  end
+
+  # Records initialize_plugin and drop, and fails its initialization when
+  # told to.
+  class LifecyclePlugin < Tokra::Plugin
+    attr_reader :log
+
+    def initialize(name, log, fails: false)
+      super()
+      @plugin_name = name
+      @log = log
+      @fails = fails
+    end
+
+    def name = @plugin_name
+
+    def initialize_plugin(app, config)
+      @log << [:initialize, name, config]
+      raise "#{name} failed" if @fails
+
+      super
+    end
+
+    def drop
+      @log << [:drop, name]
+    end
+  end
+
+  def test_initialize_plugin_wraps_an_error_in_plugin_initialization
+    store = Tokra::PluginStore.new
+    log = []
+
+    error = assert_raises(Tokra::Error::PluginInitialization) do
+      store.initialize_plugin(LifecyclePlugin.new("bad", log, fails: true), :app, { "bad" => 1 })
+    end
+
+    assert_equal "failed to initialize plugin `bad`: bad failed", error.message, "plugin.rs:1004-1009"
+    assert_equal [[:initialize, "bad", 1]], log, "the plugin gets its own slice"
+  end
+
+  def test_initialize_all_initializes_in_store_order_and_stops_at_the_first_error
+    store = Tokra::PluginStore.new
+    log = []
+    store.register(LifecyclePlugin.new("a", log))
+    store.register(LifecyclePlugin.new("b", log, fails: true))
+    store.register(LifecyclePlugin.new("c", log))
+
+    assert_raises(Tokra::Error::PluginInitialization) { store.initialize_all(:app, {}) }
+
+    assert_equal [[:initialize, "a", nil], [:initialize, "b", nil]], log, "try_for_each (plugin.rs:906-915)"
+  end
+
+  def test_initialize_all_skips_plugins_already_initialized
+    store = Tokra::PluginStore.new
+    log = []
+    first = LifecyclePlugin.new("a", log)
+    store.initialize_plugin(first, :app, {})
+    store.register(first)
+    store.register(LifecyclePlugin.new("b", log))
+
+    store.initialize_all(:app, {})
+    store.initialize_all(:app, {})
+
+    assert_equal [[:initialize, "a", nil], [:initialize, "b", nil]], log
+  end
+
+  def test_unregister_and_replace_drop_the_plugin_they_let_go
+    store = Tokra::PluginStore.new
+    log = []
+    store.register(LifecyclePlugin.new("a", log))
+    store.register(LifecyclePlugin.new("b", log))
+
+    store.register(LifecyclePlugin.new("a", log))
+    store.unregister("b")
+    store.unregister("missing")
+
+    assert_equal [[:drop, "a"], [:drop, "b"]], log, "retain drops what it removes (plugin.rs:880-893)"
   end
 
   # Logs each created hook into a shared log, by its own name.

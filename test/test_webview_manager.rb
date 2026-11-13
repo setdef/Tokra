@@ -22,14 +22,14 @@ class TestWebviewManager < Minitest::Test
 
   def test_with_global_tauri_in_the_config_adds_the_api_bundle_last
     scripts = manager_for(build_test_context(config: { "app" => { "withGlobalTauri" => true } }))
-      .initialization_scripts("main", "main")
+      .initialization_scripts("main", "main").map(&:first)
 
     assert_includes scripts.last, "__TAURI_IIFE__"
     assert_equal 1, scripts.count { |script| script.include?("__TAURI_IIFE__") }
   end
 
   def test_without_with_global_tauri_the_api_bundle_is_left_out
-    scripts = manager_for(build_test_context).initialization_scripts("main", "main")
+    scripts = manager_for(build_test_context).initialization_scripts("main", "main").map(&:first)
 
     refute(scripts.any? { |script| script.include?("__TAURI_IIFE__") })
   end
@@ -37,7 +37,7 @@ class TestWebviewManager < Minitest::Test
   # PatternObject serializes with its tag, "pattern", and the variant in
   # lowercase (pattern.rs:40-45).
   def test_the_pattern_script_is_the_contexts_pattern
-    init = manager_for(build_test_context).initialization_scripts("main", "main")[3]
+    init = manager_for(build_test_context).initialization_scripts("main", "main")[3].first
 
     assert_includes init, JSON.generate({ "pattern" => "brownfield" })
   end

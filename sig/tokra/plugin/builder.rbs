@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class Plugin
+    interface _ConfigType[C]
+      def deserialize: (json_value value) -> C
+    end
+
+    class BuilderError < Error
+      class ReservedName < BuilderError
+        attr_reader name: String
+
+        def initialize: (String name) -> void
+      end
+    end
+
+    class Builder[C]
+      RESERVED_PLUGIN_NAMES: Array[String]
+
+      module Unit
+        def self.deserialize: (json_value value) -> nil
+      end
+
+      @name: String
+      @config_type: _ConfigType[C]
+      @invoke_handler: ^(Ipc::Invoke) -> bool
+      @setup: (^(AppHandle, PluginApi[C]) -> void)?
+      @js_init_script: [String, bool]?
+      @on_navigation: ^(Webview, Ferro::Url::Url) -> bool
+      @on_page_load: ^(Webview, PageLoadPayload) -> void
+      @on_window_ready: ^(Window) -> void
+      @on_webview_ready: ^(Webview) -> void
+      @on_event: ^(AppHandle, run_event) -> void
+      @on_drop: (^(AppHandle) -> void)?
+
+      def initialize: (String name, ?config: _ConfigType[C]) -> void
+      def invoke_handler: () { (Ipc::Invoke) -> bool } -> self
+      def js_init_script: (String js_init_script) -> self
+      def js_init_script_on_all_frames: (String js_init_script) -> self
+      def setup: () { (AppHandle, PluginApi[C]) -> void } -> self
+      def on_navigation: () { (Webview, Ferro::Url::Url) -> bool } -> self
+      def on_page_load: () { (Webview, PageLoadPayload) -> void } -> self
+      def on_window_ready: () { (Window) -> void } -> self
+      def on_webview_ready: () { (Webview) -> void } -> self
+      def on_event: () { (AppHandle, run_event) -> void } -> self
+      def on_drop: () { (AppHandle) -> void } -> self
+      def try_build: () -> TauriPlugin[C]
+      def build: () -> TauriPlugin[C]
+
+      private def required: [T] (T? block, Symbol? method) -> T
+    end
+  end
+end

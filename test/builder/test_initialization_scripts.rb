@@ -97,7 +97,7 @@ class TestBuilderInitializationScripts < Minitest::Test
   # order register_core_plugins registers them (app.rs:1122-1135).
   def test_only_the_path_and_event_plugins_among_the_core_plugins_contribute_a_script
     app = build_test_app
-    scripts = app.handle.manager.plugins.initialization_script
+    scripts = app.handle.manager.plugins.initialization_script.map(&:first)
 
     assert_equal 2, scripts.size
     assert_includes scripts.first, "Object.defineProperty(window.__TAURI_INTERNALS__.plugins, 'path'"

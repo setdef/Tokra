@@ -1073,7 +1073,7 @@ module Tokra
       url = webviews.webview_url(@webview_builder.url, https:)
       # Tauri's own scripts, each for the main frame, and then the
       # builder's (manager/webview.rs:152-218).
-      scripts = webviews.initialization_scripts(@label, @label, https:).map { |script| [script, true] } #: Array[[String, bool]]
+      scripts = webviews.initialization_scripts(@label, @label, https:)
       scripts.concat(@webview_builder.initialization_scripts)
       # prepare_webview makes the data directory before prepare_window
       # checks the window's label (webview/mod.rs:779-782; window/mod.rs:333, 361).

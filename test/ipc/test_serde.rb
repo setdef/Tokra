@@ -27,6 +27,18 @@ class TestIpcSerde < Minitest::Test
     assert_mismatch("unknown variant `x`, there are no variants") { S.known_variant("x", []) }
   end
 
+  # --- unit: serde_core de/impls.rs:14-21, serde_json value/de.rs:426-434 ---
+
+  def test_unit_reads_null
+    assert_nil S.unit(nil)
+  end
+
+  def test_unit_refuses_anything_else_in_serdes_words
+    assert_mismatch("invalid type: map, expected unit") { S.unit({}) }
+    assert_mismatch("invalid type: sequence, expected unit") { S.unit([]) }
+    assert_mismatch("invalid type: boolean `false`, expected unit") { S.unit(false) }
+  end
+
   # --- unit_variant and enum_variant: serde_json value/de.rs:234-265,
   # 328-347, 556-574 ---
 

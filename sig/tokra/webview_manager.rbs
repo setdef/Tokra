@@ -21,7 +21,7 @@ module Tokra
     def webview_url: (webview_url url, ?https: bool) -> String
     def data_directory: (String? data_directory) -> String?
     def attach_webview: (Webview webview) -> Webview
-    def initialization_scripts: (String window_label, String webview_label, ?https: bool) -> Array[String]
+    def initialization_scripts: (String window_label, String webview_label, ?https: bool) -> Array[[String, bool]]
     def metadata_script: (String window_label, String webview_label) -> String
 
     private

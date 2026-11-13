@@ -201,6 +201,12 @@ module Tokra
       # Set when a requested restart ends the loop (#exit_requested).
       @restart_pending = false
 
+      # The builder's plugins come first in the store, not yet
+      # initialized, as Tauri's AppManager takes the builder's store
+      # (app.rs:2101-2104); App#run initializes them (plan 064, decision 5).
+      plugins = @manager.plugins
+      builder.__send__(:plugins).each { |plugin| plugins.register(plugin) }
+
       # Register core plugins, mirroring Tauri app.rs (App::build,
       # register_core_plugins at app.rs:1122-1135).
       @handle.plugin(Path::Plugin.new(@handle))
@@ -297,6 +303,11 @@ module Tokra
       # setup and the setup hook, where Tauri's Builder::build builds it
       # (app.rs:2265-2289; plan 049, decision 9). Its error ends run.
       create_config_tray
+
+      # Then the plugins Builder#plugin gave, each with its slice of the
+      # config's plugins, last in Tauri's Builder::build (app.rs:2289;
+      # manager/mod.rs:481-487), so a failure ends run before any window.
+      @manager.plugins.initialize_all(@handle, config.plugins)
 
       # If a Rack app was configured, build the adapter that serves it
       # over tokra:// (Builder aggregates the app, App instantiates the

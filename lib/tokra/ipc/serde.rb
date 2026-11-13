@@ -264,6 +264,14 @@ module Tokra
         elements
       end
 
+      # +value+ as Rust's unit, <tt>()</tt>: +nil+ for null, and serde's
+      # error for anything else, since serde_json's Value hands only Null
+      # to the unit visitor (serde_core de/impls.rs:14-21, UnitVisitor;
+      # serde_json value/de.rs:426-434).
+      def self.unit(value)
+        value.nil? ? nil : raise(CommandItem::Mismatch.invalid_type(value, "unit"))
+      end
+
       # +value+ as a Rust +String+ (serde_core de/impls.rs, StringVisitor).
       def self.string(value)
         value.is_a?(String) ? value : raise(CommandItem::Mismatch.invalid_type(value, "a string"))

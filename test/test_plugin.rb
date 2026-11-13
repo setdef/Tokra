@@ -59,4 +59,30 @@ class TestPlugin < Minitest::Test
     # False means "not handled, pass to next handler"
     assert_equal false, plugin.extend_api(:invoke)
   end
+
+  def test_a_plugin_needs_no_app_to_be_made
+    subclass = Class.new(Tokra::Plugin) { define_method(:read) { [app, config] } }
+
+    assert_equal [nil, {}], subclass.new.read, "Builder#plugin takes a plugin made before the app exists"
+  end
+
+  def test_initialize_plugin_records_the_app_and_config_for_subclasses
+    subclass = Class.new(Tokra::Plugin) { define_method(:read) { [app, config] } }
+    plugin = subclass.new
+    handle = Object.new
+
+    assert_nil plugin.initialize_plugin(handle, { "level" => "info" })
+    assert_equal [handle, { "level" => "info" }], plugin.read
+  end
+
+  def test_initialization_script_2_is_the_script_for_the_main_frame
+    script_plugin = Class.new(Tokra::Plugin) { define_method(:initialization_script) { "window.a = 1" } }.new
+
+    assert_equal ["window.a = 1", true], script_plugin.initialization_script_2, "plugin.rs:73-83"
+    assert_nil Tokra::Plugin.new.initialization_script_2
+  end
+
+  def test_drop_does_nothing_by_default
+    assert_nil Tokra::Plugin.new.drop
+  end
 end

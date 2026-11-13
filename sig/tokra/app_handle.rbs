@@ -62,7 +62,7 @@ module Tokra
     def available_monitors: () -> Array[Monitor]
     def cursor_position: () -> PhysicalPosition
     def resources_table: -> ResourceTable
-    def plugin: (_Plugin plugin) -> bool
+    def plugin: (_Plugin plugin) -> nil
     def remove_plugin: (String name) -> bool
     def listen: (String event) { (Event) -> void } -> Integer
     def once: (String event) { (Event) -> void } -> Integer

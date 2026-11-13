@@ -381,20 +381,34 @@ module Tokra
       @resources_table ||= ResourceTable.new
     end
 
-    # Adds a plugin to the application.
+    # Adds a Tokra application plugin to the running app, and returns
+    # +nil+. Use it for a plugin loaded dynamically, after a login, say;
+    # for a plugin the app starts with, prefer Builder#plugin, whose
+    # plugins every window hears.
     #
-    # The plugin's extend_api hook receives IPC commands invoked as
-    # <tt>plugin:NAME|command</tt>, where NAME is the plugin's name.
-    # Registering a plugin with an existing name replaces it.
+    # The plugin is initialized at once with its slice of the config's
+    # +plugins+ (Plugin#initialize_plugin), then registered: its
+    # extend_api hook receives IPC commands invoked as
+    # <tt>plugin:NAME|command</tt>, where NAME is the plugin's name, and
+    # it replaces a registered plugin of the same name, which drops. A
+    # plugin whose initialization fails raises
+    # Error::PluginInitialization, is never registered, and drops.
     #
-    # Returns +true+ if a same-named plugin was replaced, +false+ otherwise.
-    # Mirrors Tauri's AppHandle::plugin (app.rs).
+    # Mirrors Tauri's AppHandle::plugin (app.rs:460-498).
     #
     # === Example
     #
-    #   handle.plugin(MyPlugin.new(handle))
+    #   handle.plugin(Tokra::Plugin::Builder.new("dummy").build)
     def plugin(plugin)
-      @manager.plugins.register(plugin)
+      store = @manager.plugins
+      begin
+        store.initialize_plugin(plugin, self, config.plugins)
+      rescue Error::PluginInitialization
+        plugin.drop
+        raise
+      end
+      store.register(plugin)
+      nil
     end
 
     # Removes the plugin with the given name from the application.

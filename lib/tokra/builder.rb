@@ -33,7 +33,44 @@ module Tokra
       @enable_macos_default_menu = true
       @state_manager = StateManager.new
       @rack_app = nil
+      @plugins = [] #: Array[Plugin]
     end
+
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: plugin adapted from tauri/crates/tauri/src/app.rs:1659-1713
+
+    # Adds a Tokra application plugin, and returns the builder.
+    #
+    # A plugin is made with Plugin::Builder, usually through a plugin
+    # gem's +init+, or is a Plugin subclass. The app puts it in its plugin
+    # store before its core plugins, and App#run initializes it with its
+    # slice of the config's +plugins+ once the app menu and the config's
+    # tray exist, before the windows the config lists and the setup hook,
+    # so its script reaches every page and it hears every window. A setup
+    # that fails ends App#run with Error::PluginInitialization.
+    #
+    # A plugin with the name of one added earlier replaces it, and one
+    # with the name of a core plugin, such as +event+, is replaced by it,
+    # as Tauri's store keeps one plugin per name.
+    #
+    # Mirrors Tauri's <tt>Builder::plugin</tt> (app.rs:1659-1713).
+    #
+    # === Example
+    #
+    #   Tokra::Builder.default
+    #     .plugin(Tokra::Plugins::Dialog.init)
+    #     .plugin(Tokra::Plugin::Builder.new("window").on_event { |_app, event| p event }.build)
+    #     .run(Tokra.generate_context)
+    def plugin(plugin)
+      # App.new registers them in order, so the store keeps the last of a
+      # name and drops the rest, as the builder's store does (plugin.rs:880-886).
+      @plugins << plugin
+      self
+    end
+
+    # SPDX-SnippetEnd
 
     # Sets the Rack application served over the <tt>tokra://</tt> protocol.
     #
@@ -373,7 +410,7 @@ module Tokra
     private attr_reader :state_manager, :invoke_handler_hook, :uri_scheme_protocols, # :nodoc:
       :setup_hook, :on_page_load_hook,
       :window_event_listeners, :webview_event_listeners, :rack_app, :menu_hook,
-      :menu_event_listeners, :tray_icon_event_listeners
+      :menu_event_listeners, :tray_icon_event_listeners, :plugins
 
     # Whether an app with no menu gets the default one on macOS (friendly
     # reader; a predicate so it does not collide with the setter).

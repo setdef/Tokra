@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  class Plugin
+    class TauriPlugin[C] < Plugin
+      @name: String
+      @config_type: _ConfigType[C]
+      @invoke_handler: ^(Ipc::Invoke) -> bool
+      @setup: (^(AppHandle, PluginApi[C]) -> void)?
+      @js_init_script: [String, bool]?
+      @on_navigation: ^(Webview, Ferro::Url::Url) -> bool
+      @on_page_load: ^(Webview, PageLoadPayload) -> void
+      @on_window_ready: ^(Window) -> void
+      @on_webview_ready: ^(Webview) -> void
+      @on_event: ^(AppHandle, run_event) -> void
+      @on_drop: (^(AppHandle) -> void)?
+
+      def initialize: (name: String, config_type: _ConfigType[C], invoke_handler: ^(Ipc::Invoke) -> bool,
+                       setup: (^(AppHandle, PluginApi[C]) -> void)?, js_init_script: [String, bool]?,
+                       on_navigation: ^(Webview, Ferro::Url::Url) -> bool, on_page_load: ^(Webview, PageLoadPayload) -> void,
+                       on_window_ready: ^(Window) -> void, on_webview_ready: ^(Webview) -> void,
+                       on_event: ^(AppHandle, run_event) -> void, on_drop: (^(AppHandle) -> void)?) -> void
+
+      def name: () -> String
+      def initialize_plugin: (AppHandle app, json_value config) -> nil
+      def initialization_script: () -> String?
+      def initialization_script_2: () -> [String, bool]?
+      def window_created: (Window window) -> nil
+      def webview_created: (Webview webview) -> nil
+      def on_navigation: (Webview webview, Ferro::Url::Url url) -> bool
+      def on_page_load: (Webview webview, PageLoadPayload payload) -> nil
+      def on_event: (AppHandle app, run_event event) -> nil
+      def extend_api: (Ipc::Invoke invoke) -> bool
+      def drop: () -> nil
+
+      private def read_config: (json_value config) -> C
+    end
+  end
+end

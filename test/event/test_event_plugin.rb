@@ -26,7 +26,7 @@ class TestEventPlugin < Minitest::Test
   end
 
   def test_the_plugin_is_a_core_plugin_with_tauris_init_script
-    script = @handle.manager.plugins.initialization_script.find { |s| s.include?("__TAURI_EVENT_PLUGIN_INTERNALS__") }
+    script, = @handle.manager.plugins.initialization_script.find { |s, _| s.include?("__TAURI_EVENT_PLUGIN_INTERNALS__") }
 
     refute_nil script
     assert_includes script, "unregisterListener: (event, eventId) => (function () {\n"
