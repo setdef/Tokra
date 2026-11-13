@@ -161,6 +161,27 @@ PACKAGES = [
       abort "builder lost its level" unless builder.configured_level == :info
       puts "tokra-log \#{Tokra::Plugins::Log::VERSION} loads"
     RUBY
+  PackageCheck::Target.new(
+    name: "tokra-process",
+    dir: "plugins/process",
+    packaged: %w[lib sig README.rdoc CHANGELOG.md],
+    generated: [],
+    crate: nil,
+    extension: nil,
+    smoke: <<~RUBY),
+      require "tokra-process"
+      require "tokra/plugins/process/version"
+      # Nothing exits or restarts: the plugin is registered on a built
+      # app's handle, and only its name and commands are read.
+      #{SMOKE_CONFIG_DIR.chomp}
+      config = Tokra::Config.new(identifier: "com.tokra.smoke")
+      context = Tokra::Codegen.context_codegen(Tokra::Codegen::ContextData.new(dev: true, config:, config_parent: config_dir))
+      handle = Tokra::Builder.default.build(context).handle
+      handle.plugin(Tokra::Plugins::Process::Plugin.new(handle))
+      abort "the plugin did not register as process" unless handle.remove_plugin("process")
+      abort "the plugin lost its commands" unless Tokra::Plugins::Process::Plugin::COMMANDS == %w[exit restart]
+      puts "tokra-process \#{Tokra::Plugins::Process::VERSION} registers its exit and restart commands"
+    RUBY
 ].freeze
 
 namespace :package do
