@@ -17,6 +17,7 @@ class TestSetup < Minitest::Test
   ROOT = File.expand_path("../..", __dir__)
   SETUP = File.join(ROOT, "bin/setup")
   REUSE = "reuse[charset-normalizer]==6.2.0"
+  LIBCLANG = "libclang==18.1.1"
   MARKER = "# tokra pre-push stub, written by bin/setup"
 
   # A mise that logs its arguments, one line a call, and runs nothing.
@@ -53,7 +54,7 @@ class TestSetup < Minitest::Test
   ).freeze
 
   def setup
-    skip "bin/setup is a bash script; Windows has no setup script yet" if Gem.win_platform?
+    skip "Ruby on Windows cannot run bin/setup or its stand-ins as commands; OS=Windows_NT tests its Windows branch elsewhere" if Gem.win_platform?
 
     @dir = File.realpath(Dir.mktmpdir("setup"))
     @bin = File.join(@dir, "bin")
@@ -76,7 +77,7 @@ class TestSetup < Minitest::Test
   end
 
   private def env(extra = {})
-    GIT_ALONE.merge("PATH" => "#{@bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}", "CI" => nil).merge(extra)
+    GIT_ALONE.merge("PATH" => "#{@bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}", "CI" => nil, "OS" => nil).merge(extra)
   end
 
   private def git(*, chdir: @repo)
@@ -137,6 +138,62 @@ class TestSetup < Minitest::Test
     assert_includes said, "core.hooksPath is set, so git runs the hooks in #{File.join(@dir, 'my-hooks')}, not this clone's:"
     assert_includes said, "git push runs .githooks/pre-push only if the pre-push hook there runs #{@stub},"
     assert_includes said, "and pre-commit's hook is not installed."
+  end
+
+  # Windows sets OS for every process, which MSYS2's bash passes on. A
+  # repository of Windows' gets the pins bin/setup reads.
+  WINDOWS = { "OS" => "Windows_NT" }.freeze
+
+  private def as_windows
+    File.write(File.join(@repo, "mise.toml"), %([tools]\nruby = "4.0.9"\nrust = "1.2.3"\n))
+    git("add", "mise.toml")
+    git("commit", "--quiet", "--message", "the pins")
+  end
+
+  # On Windows, Rust's GNU host toolchain for RubyInstaller's MinGW Ruby,
+  # with CI's components, and libclang for bindgen; the bundle installs
+  # with what bin/windows-env sets, and there is no commit hook, since
+  # mise installs pre-commit there only through pipx.
+  def test_on_windows_it_adds_the_gnu_toolchain_and_libclang_and_installs_the_bundle_through_windows_env
+    as_windows
+    output, status = run_setup(WINDOWS)
+
+    assert_predicate status, :success?, output
+    assert_equal [
+      "mise install",
+      "mise x -- rustup toolchain install 1.2.3-x86_64-pc-windows-gnu --profile minimal --component clippy --component rustfmt",
+      "mise x -- python -m pip install --quiet #{REUSE}",
+      "mise x -- python -m pip install --quiet #{LIBCLANG}",
+      "mise x -- sh bin/windows-env bundle install",
+      "mise x -- bundle exec rake rdoc",
+    ], calls
+  end
+
+  def test_on_windows_a_ci_runner_installs_the_bundle_as_ci_does_through_windows_env
+    as_windows
+    output, status = run_setup(WINDOWS.merge("CI" => "true"))
+
+    assert_predicate status, :success?, output
+    assert_equal [
+      "mise install",
+      "mise x -- rustup toolchain install 1.2.3-x86_64-pc-windows-gnu --profile minimal --component clippy --component rustfmt",
+      "mise x -- python -m pip install --quiet #{REUSE}",
+      "mise x -- python -m pip install --quiet #{LIBCLANG}",
+      "mise x -- bundle config set --local path vendor/bundle",
+      "mise x -- bundle config set --local frozen true",
+      "mise x -- sh bin/windows-env bundle install",
+    ], calls
+  end
+
+  # ci.yml's toolchain step installs these components on every system.
+  def test_the_gnu_toolchain_gets_ci_s_components
+    workflow = YAML.safe_load_file(File.join(ROOT, ".github/workflows/ci.yml"))
+    step = workflow.fetch("jobs").values.flat_map { |job| job.fetch("steps") }
+      .find { |each| each["uses"].to_s.start_with?("dtolnay/rust-toolchain@") }
+    components = step.fetch("with").fetch("components").split(/,\s*/)
+
+    assert_equal %w[clippy rustfmt], components
+    assert_includes File.read(SETUP), components.map { |component| "--component #{component}" }.join(" ")
   end
 
   def test_the_reuse_tool_is_ci_s
@@ -269,5 +326,14 @@ class TestSetup < Minitest::Test
     assert_predicate status, :success?, output
     assert_equal own, File.read(@stub)
     assert_includes output, "#{@stub} exists and is not Tokra's; leaving it, so git push will not run .githooks/pre-push."
+  end
+
+  # A runner that checks Tokra out runs bin/setup.ps1 before the hook on
+  # Windows only if git recorded it as executable, as it does bin/setup.
+  def test_both_setup_scripts_are_tracked_as_executable
+    listed, status = Open3.capture2(GIT_PLACE, "git", "ls-files", "--stage", "--", "bin/setup", "bin/setup.ps1", chdir: ROOT)
+
+    assert_predicate status, :success?
+    assert_equal %w[100755 100755], listed.lines.map { |line| line.split.first }
   end
 end

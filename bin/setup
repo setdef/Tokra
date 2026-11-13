@@ -7,7 +7,8 @@
 # safe to run again. It asks nothing and never runs sudo. On Linux, the
 # packages CI installs (.github/workflows/ci.yml, "Install GTK, WebKitGTK,
 # and a display server") come from bin/linux-env where Debian or Ubuntu
-# lacks them (Plan 068); on another system, install them first.
+# lacks them (Plan 068); on another system, install them first. On
+# Windows, run bin/setup.ps1, which runs this in the bash of Ruby's MSYS2.
 
 set -euo pipefail
 IFS=$'\n\t'
@@ -18,12 +19,29 @@ if ! command -v mise >/dev/null 2>&1; then
   exit 1
 fi
 
+# Windows sets OS for every process, and MSYS2's bash passes it on.
+windows=false
+[ "${OS:-}" = Windows_NT ] && windows=true
+
 # vendor/tauri, which rake sync:tauri reads Tauri's JavaScript from
 git submodule update --init
 # Ruby, Rust, and Python, pinned in mise.toml
 mise install
+# On Windows, mise's Ruby is RubyInstaller's, a MinGW build, which rb-sys
+# builds only with Rust's GNU target, so Cargo runs the GNU host toolchain
+# of mise.toml's Rust, with CI's components (ci.yml, "Read the toolchain
+# pins"). bin/windows-env selects it.
+if [ "$windows" = true ]; then
+  rust=$(sed -n 's/^rust = "\(.*\)"$/\1/p' "$(git rev-parse --show-toplevel)/mise.toml")
+  mise x -- rustup toolchain install "$rust-x86_64-pc-windows-gnu" --profile minimal --component clippy --component rustfmt
+fi
 # the REUSE tool, at CI's version
 mise x -- python -m pip install --quiet "reuse[charset-normalizer]==6.2.0"
+# On Windows, libclang for bindgen, which reads Ruby's headers: LLVM's own
+# build, from PyPI's libclang wheel, where CI takes the runner's LLVM.
+if [ "$windows" = true ]; then
+  mise x -- python -m pip install --quiet "libclang==18.1.1"
+fi
 # A CI runner (CI=true) installs the bundle as ci.yml does: frozen to
 # Gemfile.lock, in vendor/bundle, which a runner that keeps its checkout
 # or caches that folder has from its last run.
@@ -31,8 +49,13 @@ if [ "${CI:-}" = true ]; then
   mise x -- bundle config set --local path vendor/bundle
   mise x -- bundle config set --local frozen true
 fi
-# The bundle compiles Rust gems that link the Linux packages.
-mise x -- bin/linux-env bundle install
+# The bundle compiles Rust gems, which on Linux link the Linux packages
+# and on Windows build with what bin/windows-env sets.
+if [ "$windows" = true ]; then
+  mise x -- sh bin/windows-env bundle install
+else
+  mise x -- bin/linux-env bundle install
+fi
 
 # The pre-push hook, .githooks/pre-push, runs the gate on the commit you
 # push. The clone's shared hooks folder gets a stub that hands off to it, so
@@ -60,13 +83,14 @@ fi
 # Where core.hooksPath is set, git runs the hooks in that folder and never
 # this clone's, so the stub above runs only if the pre-push hook there
 # hands off to it, and pre-commit refuses to install its own. A CI runner
-# commits nothing and reads no documentation.
+# commits nothing and reads no documentation. mise.toml leaves pre-commit
+# off Windows, where mise installs it only through pipx.
 hooks_path="$(git config --get core.hooksPath || true)"
 if [ -n "$hooks_path" ]; then
   echo "core.hooksPath is set, so git runs the hooks in $hooks_path, not this clone's:" >&2
   echo "git push runs .githooks/pre-push only if the pre-push hook there runs $stub," >&2
   echo "and pre-commit's hook is not installed." >&2
-elif [ "${CI:-}" != true ]; then
+elif [ "${CI:-}" != true ] && [ "$windows" != true ]; then
   mise x -- pre-commit install
 fi
 if [ "${CI:-}" != true ]; then
