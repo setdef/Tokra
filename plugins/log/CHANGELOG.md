@@ -13,7 +13,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added
 
 - `tokra-log` gem: `Tokra::Plugins::Log::Builder` builds Tauri's log
-  plugin, writing `[date][time][target][LEVEL] message` lines in UTC to
+  plugin, which serves the `log` command `@tauri-apps/plugin-log` invokes
+  (records targeted `webview:<location>`, Tauri's argument rejections),
+  writing `[date][time][target][LEVEL] message` lines in UTC to
   Tauri's default targets (standard output and the app's log directory)
   or to `TargetKind::Stdout`, `Stderr`, `Folder`, `LogDir`, `Webview` (a
   `log://log` event with the formatted line and its `LogLevel`), and
