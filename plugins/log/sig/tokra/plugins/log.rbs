@@ -28,6 +28,7 @@ module Tokra
       class Plugin < Tokra::Plugin
         SEVERITY_LEVELS: Hash[Integer, level]
         LEVEL_FILTERS: Array[level_filter]
+        U16: Range[Integer]
 
         @max_level: Integer
         @filters: Array[filter]
@@ -45,8 +46,14 @@ module Tokra
         def error: (?Object? progname) ?{ () -> Object } -> true
         def fatal: (?Object? progname) ?{ () -> Object } -> true
         def add: (Integer? severity, ?Object? message, ?Object? progname) ?{ () -> Object } -> true
+        def extend_api: (Tokra::Ipc::Invoke invoke) -> bool
 
         private
+
+        def argument: (Tokra::Ipc::Invoke invoke, String key) -> Tokra::Ipc::CommandItem
+        def log_level_arg: (Tokra::Ipc::Invoke invoke) -> level
+        def optional_str_arg: (Tokra::Ipc::Invoke invoke, String key) -> String?
+        def key_values_arg: (Tokra::Ipc::Invoke invoke) -> Hash[String, String]?
 
         def dispatch: (Record record) -> void
         def finish: (Record record, format? format) -> Record

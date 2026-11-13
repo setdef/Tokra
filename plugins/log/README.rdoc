@@ -5,10 +5,12 @@
 
 Logging for Tokra desktop applications, ported from Tauri's log plugin.
 
-tokra-log sends your app's log lines to the terminal, a log file, a
-Logger of your own, or the page's console, in Tauri's format:
+Your app logs from Ruby and from its pages. tokra-log sends both to the
+same places, the terminal, a log file, a Logger of your own, the page's
+console, in Tauri's format:
 
   [2026-11-13][09:41:07][my-app][INFO] window opened
+  [2026-11-13][09:41:08][webview:onClick@http://localhost/main.js:12:3][WARN] slow paint
 
 == Usage
 
@@ -44,9 +46,16 @@ Log from Ruby with +trace+, +debug+, +info+, +warn+, +error+, and
 Logger a library asks for: <tt>log.warn("db") { "slow query" }</tt> logs
 "slow query" with the target +db+.
 
-A Webview target sends each line to the page as a <tt>log://log</tt>
-event, which <tt>attachConsole</tt> from <tt>@tauri-apps/plugin-log</tt>
-prints in the page's console.
+Log from the page with <tt>@tauri-apps/plugin-log</tt>. Its +trace+
+through +error+ invoke the plugin's <tt>log</tt> command, which logs the
+message with the target <tt>webview:<caller></tt>. A Webview target sends
+each line back to the page as a <tt>log://log</tt> event, which
++attachConsole+ prints in the page's console:
+
+  import { warn, attachConsole } from "@tauri-apps/plugin-log";
+
+  await attachConsole();
+  await warn("slow paint");
 
 == Configuration
 
