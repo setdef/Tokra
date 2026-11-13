@@ -2,17 +2,60 @@
 # SPDX-FileCopyrightText: 2025 Kerrick Long <me@kerricklong.com>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+# Tokra's development tools, from the pins in mise.toml, and its git hooks.
+# Every step does nothing when it is already satisfied, so it is quick and
+# safe to run again. It asks nothing and never runs sudo. On Linux, install
+# the packages CI installs first (.github/workflows/ci.yml, "Install GTK,
+# WebKitGTK, and a display server").
+
 set -euo pipefail
 IFS=$'\n\t'
 set -vx
 
-if command -v mise >/dev/null 2>&1; then
-  mise install
-  mise x -- pip install reuse
-  mise x -- bundle install
-  pre-commit install
-  bundle exec rake rdoc
-else
+if ! command -v mise >/dev/null 2>&1; then
   echo "mise isn't installed. Please install it to continue." >&2
   exit 1
+fi
+
+# vendor/tauri, which rake sync:tauri reads Tauri's JavaScript from
+git submodule update --init
+# Ruby, Rust, and Python, pinned in mise.toml
+mise install
+# the REUSE tool, at CI's version
+mise x -- python -m pip install --quiet "reuse[charset-normalizer]==6.2.0"
+# A CI runner (CI=true) installs the bundle as ci.yml does: frozen to
+# Gemfile.lock, in vendor/bundle, which a runner keeps between runs.
+if [ "${CI:-}" = true ]; then
+  mise x -- bundle config set --local path vendor/bundle
+  mise x -- bundle config set --local frozen true
+fi
+mise x -- bundle install
+
+# The pre-push hook, .githooks/pre-push, runs the gate on the commit you
+# push. The clone's shared hooks folder gets a stub that hands off to it, so
+# every worktree has the hook, and pre-commit (which refuses to install
+# under core.hooksPath) and a global hook that dispatches to .git/hooks keep
+# working. Writing the stub again changes nothing, and a hook of your own
+# there is left alone.
+hooks="$(git rev-parse --path-format=absolute --git-common-dir)/hooks"
+stub="$hooks/pre-push"
+marker="# tokra pre-push stub, written by bin/setup"
+if [ -e "$stub" ] && ! grep -qxF "$marker" "$stub"; then
+  echo "$stub exists and is not Tokra's; leaving it, so git push will not run .githooks/pre-push." >&2
+else
+  mkdir -p "$hooks"
+  cat > "$stub" <<STUB
+#!/bin/sh
+$marker
+hook="\$(git rev-parse --show-toplevel)/.githooks/pre-push"
+[ -x "\$hook" ] || exit 0
+exec "\$hook" "\$@"
+STUB
+  chmod +x "$stub"
+fi
+
+# A CI runner commits nothing and reads no documentation.
+if [ "${CI:-}" != true ]; then
+  mise x -- pre-commit install
+  mise x -- bundle exec rake rdoc
 fi

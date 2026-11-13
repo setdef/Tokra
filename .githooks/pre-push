@@ -1,0 +1,45 @@
+#!/bin/sh
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Runs the gate, bundle exec rake, before a push that changes a branch, so
+# a commit that would turn CI red stops here. bin/setup writes a stub into
+# the clone's hooks folder that runs this file. git passes the remote's
+# name and URL as arguments and one line for each ref on standard input.
+#
+# The gate tests the working tree, so the push is refused unless that is
+# the commit being pushed, with nothing uncommitted. On Linux the gate runs
+# as CI runs it (.github/workflows/ci.yml), under Xvfb and a D-Bus session
+# of its own, so its windows open on no one's desktop.
+root=$(git rev-parse --show-toplevel) || exit 1
+cd "$root" || exit 1
+
+zero=0000000000000000000000000000000000000000
+head=$(git rev-parse HEAD) || exit 1
+gate=no
+while read -r _local_ref local_sha remote_ref _remote_sha; do
+  # Only a branch that moves needs the gate: not a tag, and not a deletion.
+  case "$remote_ref" in
+    refs/heads/*) ;;
+    *) continue ;;
+  esac
+  [ "$local_sha" = "$zero" ] && continue
+  if [ "$local_sha" != "$head" ]; then
+    echo "pre-push: $remote_ref would get $local_sha, but the working tree is at $head." >&2
+    echo "pre-push: the gate tests the working tree, so check out the commit you push." >&2
+    exit 1
+  fi
+  gate=yes
+done
+[ "$gate" = yes ] || exit 0
+
+if ! git diff --quiet HEAD --; then
+  echo "pre-push: the working tree has uncommitted changes, which the gate would test in place of" >&2
+  echo "pre-push: the commit you push. Commit or stash them, then push again." >&2
+  exit 1
+fi
+
+case "$(uname -s)" in
+  Linux) exec xvfb-run --auto-servernum dbus-run-session -- bundle exec rake ;;
+  *) exec bundle exec rake ;;
+esac
