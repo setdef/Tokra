@@ -52,7 +52,7 @@ The authority is the pinned submodule `vendor/tauri` (`git submodule update --in
 
 ## Committing
 
-- Work on `trunk`, never on a branch, in small steps: sync with `origin/trunk`, make one complete change that keeps the gate green, and commit it with any plan or ADR it produced. Your unpushed commits are your branch, and it lives for minutes, not days.
+- Work on `trunk`, never on a branch, in small steps: sync with `origin/trunk`, make one complete change that keeps the gate green, and commit it with any plan or ADR it produced. Your unpushed commits are your branch, and it lives for minutes, not days. A worktree's branch is only a name for its unpushed commits: push it as `HEAD:trunk`.
 - The gate runs before a push, on exactly the commit you push. Push `trunk` once it passes, and never to find out whether CI will: CI is for the systems your machine is not. A red `trunk` comes before any other work: fix it or revert the commit at once.
 - Never force-push, tag, or release. Tags and releases are the maintainer's.
 - Never commit session transcripts; `doc/contributors/chats/` is a closed archive.

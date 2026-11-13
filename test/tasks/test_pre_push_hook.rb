@@ -20,12 +20,13 @@ class TestPrePushHook < Minitest::Test
   HOOK = File.join(ROOT, ".githooks/pre-push")
   ZERO = "0" * 40
 
-  # A command that logs its name and arguments, one line a call, and keeps
-  # the environment it was given.
+  # A command that logs its name and arguments, one line a call, keeps the
+  # environment it was given, and exits with GATE_STATUS, or 0.
   LOGGER = <<~'SH'
     #!/bin/sh
     { printf '%s' "$(basename "$0")"; for a in "$@"; do printf ' %s' "$a"; done; printf '\n'; } >> "$(dirname "$0")/log"
     env > "$(dirname "$0")/env"
+    exit "${GATE_STATUS:-0}"
   SH
 
   # The variables a git hook passes on, which would point the git commands
@@ -107,6 +108,14 @@ class TestPrePushHook < Minitest::Test
     output, status = push("refs/heads/trunk #{@first} refs/heads/trunk #{ZERO}")
 
     assert_predicate status, :success?, output
+    assert_equal gate, calls
+  end
+
+  # The hook exists to stop a push whose gate fails.
+  def test_a_gate_that_fails_refuses_the_push_with_its_status
+    output, status = push("refs/heads/trunk #{@first} refs/heads/trunk #{ZERO}", extra: { "GATE_STATUS" => "7" })
+
+    assert_equal 7, status.exitstatus, output
     assert_equal gate, calls
   end
 

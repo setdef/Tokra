@@ -25,6 +25,13 @@ class TestSetup < Minitest::Test
     { printf '%s' mise; for a in "$@"; do printf ' %s' "$a"; done; printf '\n'; } >> "$(dirname "$0")/log"
   SH
 
+  # The real hook, and the gate a stand-in for bundle or xvfb-run logs.
+  REAL_HOOK = File.join(ROOT, ".githooks/pre-push")
+  GATE = <<~'SH'
+    #!/bin/sh
+    { printf '%s' "$(basename "$0")"; for a in "$@"; do printf ' %s' "$a"; done; printf '\n'; } >> "$(dirname "$0")/log"
+  SH
+
   # A hook that records the folder it ran in and its arguments.
   HOOK = <<~'SH'
     #!/bin/sh
@@ -82,7 +89,7 @@ class TestSetup < Minitest::Test
 
   # Runs bin/setup in the repository, and returns what it printed and its
   # status.
-  private def run_setup(extra = {}) = Open3.capture2e(env(extra), SETUP, chdir: @repo)
+  private def run_setup(extra = {}, chdir: @repo) = Open3.capture2e(env(extra), SETUP, chdir:)
 
   # What mise was called with, one line a call.
   private def calls = File.readlines(File.join(@bin, "log"), chomp: true)
@@ -103,7 +110,7 @@ class TestSetup < Minitest::Test
   # A runner keeps vendor/bundle between runs, commits nothing, and reads
   # no documentation.
   def test_for_a_ci_runner_it_installs_the_bundle_as_ci_does_and_skips_the_commit_hook_and_the_docs
-    output, status = run_setup("CI" => "true")
+    output, status = run_setup({ "CI" => "true" })
 
     assert_predicate status, :success?, output
     assert_equal [
@@ -119,13 +126,17 @@ class TestSetup < Minitest::Test
   # script there, before the docs.
   def test_where_core_hooks_path_is_set_it_leaves_the_commit_hook_and_says_so
     output, status = run_setup(
-      "GIT_CONFIG_COUNT" => "2", "GIT_CONFIG_KEY_1" => "core.hooksPath", "GIT_CONFIG_VALUE_1" => File.join(@dir, "my-hooks")
+      { "GIT_CONFIG_COUNT" => "2", "GIT_CONFIG_KEY_1" => "core.hooksPath", "GIT_CONFIG_VALUE_1" => File.join(@dir, "my-hooks") }
     )
 
     assert_predicate status, :success?, output
     refute_includes calls, "mise x -- pre-commit install"
     assert_equal "mise x -- bundle exec rake rdoc", calls.last
-    assert_includes output, "core.hooksPath is set, so pre-commit's hook is not installed; run pre-commit from your own hook."
+    said = output.lines(chomp: true)
+
+    assert_includes said, "core.hooksPath is set, so git runs the hooks in #{File.join(@dir, 'my-hooks')}, not this clone's:"
+    assert_includes said, "git push runs .githooks/pre-push only if the pre-push hook there runs #{@stub},"
+    assert_includes said, "and pre-commit's hook is not installed."
   end
 
   def test_the_reuse_tool_is_ci_s
@@ -170,6 +181,40 @@ class TestSetup < Minitest::Test
     end
   end
 
+  # Run from a worktree, it still writes the one stub every worktree's
+  # push finds: git reads hooks from the clone's shared folder only.
+  def test_run_from_a_worktree_it_writes_the_stub_into_the_clones_shared_hooks
+    worktree = File.join(@dir, "worktree")
+    git("worktree", "add", "--quiet", worktree)
+    output, status = run_setup(chdir: worktree)
+
+    assert_predicate status, :success?, output
+    assert_predicate File.stat(@stub), :executable?
+    assert_empty Dir.glob(File.join(@repo, ".git/worktrees/*/hooks/*"))
+  end
+
+  # The whole path, for real: bin/setup's stub, the hook this repository
+  # ships, and a git push, which hands the hook its refs on standard input.
+  # Without them the hook sees nothing to gate and lets the push through.
+  def test_a_real_push_through_its_stub_runs_the_shipped_hook_and_the_gate
+    %w[bundle xvfb-run].each do |name|
+      File.write(File.join(@bin, name), GATE)
+      File.chmod(0o755, File.join(@bin, name))
+    end
+    File.write(File.join(@repo, ".githooks/pre-push"), File.read(REAL_HOOK))
+    git("commit", "--quiet", "--all", "--message", "the shipped hook")
+    remote = File.join(@dir, "remote.git")
+    git("init", "--quiet", "--bare", remote, chdir: @dir)
+    run_setup
+    git("push", "--quiet", remote, "HEAD:refs/heads/trunk")
+
+    gate = calls.reject { |call| call.start_with?("mise") }
+
+    assert_equal 1, gate.size, calls.inspect
+    assert_match(/\A(xvfb-run .* )?bundle exec rake\z/, gate.first)
+    assert_equal git("rev-parse", "HEAD"), git("rev-parse", "refs/heads/trunk", chdir: remote)
+  end
+
   def test_the_stub_passes_a_push_from_a_commit_that_has_no_hook
     run_setup
     File.delete(File.join(@repo, ".githooks/pre-push"))
@@ -212,7 +257,7 @@ class TestSetup < Minitest::Test
 
   # Someone's own hook there, whatever it mentions, is theirs to keep.
   def test_a_hook_that_is_not_its_own_is_left_alone_and_said_so
-    own = "#!/bin/sh\n# my own hook, which once read: tokra pre-push stub, written by bin/setup\nexit 0\n"
+    own = "#!/bin/sh\necho '#{MARKER}' # this line only quotes the marker\nexit 0\n"
     File.write(@stub, own)
     output, status = run_setup
 
