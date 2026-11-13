@@ -1,0 +1,14 @@
+{
+  "identifier": "com.tokra.integration.path-plugin",
+  "app": {
+    "windows": [
+      {
+        "title": "Tokra integration: path plugin",
+        "width": 480,
+        "height": 360,
+        "backgroundThrottling": "disabled"
+      }
+    ],
+    "withGlobalTauri": true
+  }
+}

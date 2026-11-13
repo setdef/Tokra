@@ -1,0 +1,71 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>path plugin</title>
+  <script src="/harness.js"></script>
+</head>
+<body>
+  <ol id="checks"></ol>
+  <script>
+    const path = window.__TAURI__.path;
+    const { check, finish } = window.fixture;
+
+    async function rejection(promise) {
+      try {
+        return { resolved: await promise };
+      } catch (error) {
+        return { rejected: error };
+      }
+    }
+
+    (async () => {
+      await check('separator and delimiter', async () => ({
+        pass: true,
+        detail: { sep: path.sep(), delimiter: path.delimiter() }
+      }));
+
+      await check('directories', async () => ({
+        pass: true,
+        detail: {
+          home: await path.homeDir(),
+          localData: await path.localDataDir(),
+          appLocalData: await path.appLocalDataDir(),
+          appLog: await path.appLogDir(),
+          temp: await path.tempDir(),
+          appData: await rejection(path.appDataDir()),
+          resource: await rejection(path.resourceDir())
+        }
+      }));
+
+      await check('path functions', async () => ({
+        pass: true,
+        detail: {
+          join: await path.join('a', 'b', '../c'),
+          normalize: await path.normalize('/a/./b/../c/'),
+          dirname: await path.dirname('/a/b.json'),
+          extname: await path.extname('/a/b.json'),
+          basename: await path.basename('/a/b.json', '.json'),
+          isAbsolute: await path.isAbsolute('/a'),
+          resolve: await path.resolve('/a', 'b')
+        }
+      }));
+
+      await check('rejections', async () => ({
+        pass: true,
+        detail: {
+          dirname: await rejection(path.dirname('/')),
+          extname: await rejection(path.extname('a'))
+        }
+      }));
+
+      await finish();
+    })();
+  </script>
+</body>
+</html>
