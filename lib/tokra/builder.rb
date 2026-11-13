@@ -130,7 +130,7 @@ module Tokra
     #
     # === Example
     #
-    #   Tokra::Builder.default.menu(Ractor.shareable_proc { |app| Tokra::Menu::Menu.default(app) })
+    #   Tokra::Builder.default.menu(&Ractor.shareable_proc { |app| Tokra::Menu::Menu.default(app) })
     def menu(&block)
       require_shareable!(block, "menu")
       @menu_hook = block
