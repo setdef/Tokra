@@ -17,6 +17,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   the webview), rotation and timezone strategies, and RBS signatures;
   register what `build` returns with `Builder#plugin`; like Tauri's, the
   plugin takes no config, and a page with `withGlobalTauri` gets
-  `window.__TAURI__.log` from Tauri's own `api-iife.js`, which the gem ships
+  `window.__TAURI__.log` from Tauri's own `api-iife.js`, which the gem ships;
+  `TimezoneStrategy#get_now` reads the time crate's now through
+  `ferro-time` 0.1.0, falling back to UTC where the local offset is unknown
 
 [Unreleased]: https://github.com/setdef/Tokra/commits/trunk/plugins/log
