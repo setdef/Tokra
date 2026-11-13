@@ -13,30 +13,13 @@ require "support/real_windows_run"
 require "support/native_event_loop"
 require "integration/support/real_app"
 
-# Tests which tests open real windows, and where they run (Plan 056).
+# Tests which tests open real windows, and the tasks that run them (Plans
+# 056, 057, and 061).
 class TestRealWindows < Minitest::Test
-  MAC = "darwin25"
-
   # The marker's names, spelled so this file does not carry them itself
   # and so count as a real-window test.
   REAL_APP = %w[Real App].join
   EVENT_LOOP = %w[Native Event Loop].join
-
-  def test_on_a_mac_outside_ci_they_run_hidden
-    assert_equal :hidden, RealWindows.where({}, MAC)
-  end
-
-  def test_on_ci_they_run_here
-    assert_equal :local, RealWindows.where({ "CI" => "true" }, MAC)
-    assert_equal :local, RealWindows.where({ "CI" => "true" }, "linux-gnu")
-    assert_equal :local, RealWindows.where({ "CI" => "true" }, "mingw32")
-  end
-
-  def test_only_ci_true_as_github_sets_it_counts_as_ci
-    ["", "0", "false", "1", "yes"].each do |value|
-      assert_equal :hidden, RealWindows.where({ "CI" => value }, MAC), "CI=#{value.inspect}"
-    end
-  end
 
   def test_a_real_window_process_may_open_windows_and_any_other_may_not
     assert_equal({ "TOKRA_REAL_WINDOWS_RUN" => "1" }, RealWindows.run_env(true))
@@ -77,28 +60,6 @@ class TestRealWindows < Minitest::Test
     end
   end
 
-  def test_off_macos_they_run_here
-    assert_equal :local, RealWindows.where({}, "linux-gnu")
-  end
-
-  def test_local_opts_in_to_running_them_here_on_a_mac
-    assert_equal :local, RealWindows.where({ "TOKRA_REAL_WINDOWS" => "local" }, MAC)
-  end
-
-  def test_hidden_sends_them_away_even_on_ci
-    assert_equal :hidden, RealWindows.where({ "TOKRA_REAL_WINDOWS" => "hidden", "CI" => "true" }, "linux-gnu")
-  end
-
-  def test_an_empty_choice_is_no_choice
-    assert_equal :hidden, RealWindows.where({ "TOKRA_REAL_WINDOWS" => "" }, MAC)
-  end
-
-  def test_any_other_choice_is_refused
-    error = assert_raises(ArgumentError) { RealWindows.where({ "TOKRA_REAL_WINDOWS" => "yes" }, MAC) }
-
-    assert_equal 'TOKRA_REAL_WINDOWS is local or hidden, not "yes"', error.message
-  end
-
   def test_every_integration_test_opens_real_windows
     assert RealWindows.test_file?("test/integration/keyboard_notice_test.rb", "")
   end
@@ -135,8 +96,9 @@ class TestRealWindows < Minitest::Test
   end
 
   # Every clipboard test writes the system clipboard, so a new file there
-  # must be named, or it would run in plugins:test, on the maintainer's.
-  def test_every_clipboard_test_runs_with_the_real_window_ones_so_never_on_the_maintainers_clipboard
+  # must be named, or it would run in plugins:test, which touches nothing
+  # of the session's.
+  def test_every_clipboard_test_runs_with_the_real_window_ones_so_plugins_test_writes_no_clipboard
     files = Dir["plugins/clipboard/test/**/test_*.rb"]
 
     refute_empty files
@@ -147,8 +109,8 @@ class TestRealWindows < Minitest::Test
 
   # A global-shortcut test that uses the shared plugin or a child of its
   # own registers hotkeys that on macOS and Windows belong to the whole
-  # desktop, so it must be named, or it would run in plugins:test, in the
-  # maintainer's session. Only a Linux-only file, which registers on the
+  # desktop, so it must be named, or it would run in plugins:test, which
+  # touches nothing of the session's. Only a Linux-only file, which registers on the
   # suite's private Xvfb, may stay.
   def test_every_global_shortcut_test_that_registers_runs_with_the_real_window_ones
     files = Dir["plugins/global-shortcut/test/test_*.rb"]
@@ -166,15 +128,6 @@ class TestRealWindows < Minitest::Test
   # runs with the real-window tests.
   def test_the_windows_notification_sends_run_with_the_real_window_ones
     assert_includes RealWindows.plugin_tests("plugins/notification", windows: true), "test/test_windows_notifications.rb"
-  end
-
-  HIDDEN_JOB = { "TOKRA_HIDDEN_JOB" => "1" }.freeze
-
-  def test_only_a_set_variable_makes_the_hidden_job
-    assert RealWindows.hidden_job?(HIDDEN_JOB)
-    refute RealWindows.hidden_job?({})
-    refute RealWindows.hidden_job?({ "TOKRA_HIDDEN_JOB" => "" })
-    assert_equal "TOKRA_HIDDEN_JOB", RealWindows::HIDDEN_JOB
   end
 
   def test_the_console_tests_are_real_window_tests_that_exist
@@ -202,9 +155,9 @@ class TestRealWindows < Minitest::Test
     assert(RealWindows.console_tests.none? { |path| path.start_with?("plugins/") })
   end
 
-  # Only test:console runs the console tests, in every mode, so that they
-  # run once, inside its spoken span.
-  def test_the_real_window_tests_leave_the_console_tests_out_in_every_mode
+  # Only test:console runs the console tests, so that they run once,
+  # inside its spoken span.
+  def test_the_real_window_tests_leave_the_console_tests_out
     console = RealWindows::CONSOLE
     paths = ["test/native/test_menu.rb", *console, "test/test_window.rb"]
 
@@ -234,59 +187,41 @@ class TestRealWindows < Minitest::Test
       (windows + rest + console).sort
   end
 
-  # The gate's own tasks, in a child rake, with the hidden session's
-  # scripts somewhere they are not, so no job can start.
-  private def rake(*tasks)
-    Dir.mktmpdir("no_hidden_session") do |nowhere|
-      env = { "TOKRA_REAL_WINDOWS" => "hidden", "TOKRA_HIDDEN_SESSION" => nowhere }
-      Open3.capture2e(env, RbConfig.ruby, "-S", "rake", *tasks, chdir: File.expand_path("../..", __dir__))
-    end
-  end
-
-  def test_each_task_that_opens_windows_here_refuses_when_they_belong_hidden
-    %w[test:keyboard test:real_windows test:real_windows:plugins test:replay].each do |task|
-      output, status = rake(task)
-
-      refute_predicate status, :success?, task
-      assert_includes output, "Set TOKRA_REAL_WINDOWS=local to open them here.", task
-      refute_includes output, "# Running:", task
-    end
-  end
-
-  # What test:gui invokes where TOKRA_REAL_WINDOWS says +where+, with
-  # every task it might invoke replaced by one that only says its name.
-  private def gui_runs(where)
+  # What test:gui invokes, with every task it might invoke replaced by one
+  # that only says its name. A variable an earlier Tokra read to send the
+  # tests elsewhere changes nothing.
+  private def gui_runs(env = {})
     stub = <<~RUBY
       require "rake"
       Rake.application.init("rake", [])
       Rake.application.load_rakefile
-      %w[test:keyboard test:real_windows test:real_windows:plugins test:hidden test:console].each do |name|
-        Rake::Task[name].clear
+      Rake::Task.tasks.select { |task| task.name.start_with?("test:") && task.name != "test:gui" }.each do |task|
+        name = task.name
+        task.clear
         Rake::Task.define_task(name) { puts "ran \#{name}" }
       end
       Rake::Task["test:gui"].invoke
     RUBY
-    output, status = Open3.capture2e({ "TOKRA_REAL_WINDOWS" => where }, RbConfig.ruby, "-e", stub,
-      chdir: File.expand_path("../..", __dir__))
+    output, status = Open3.capture2e(env, RbConfig.ruby, "-e", stub, chdir: File.expand_path("../..", __dir__))
 
     assert_predicate status, :success?, output
     output.lines(chomp: true).grep(/\Aran /)
   end
 
-  def test_locally_the_gui_task_runs_the_keyboard_tests_then_the_other_core_ones_then_the_plugins_then_the_console
-    assert_equal ["ran test:keyboard", "ran test:real_windows", "ran test:real_windows:plugins", "ran test:console"],
-      gui_runs("local")
+  # Every real-window test runs in the session that runs the gate, on
+  # every system, so a contributor's gate runs what CI's does (Plan 061).
+  def test_the_gui_task_runs_the_keyboard_tests_then_the_other_core_ones_then_the_plugins_then_the_console
+    here = ["ran test:keyboard", "ran test:real_windows", "ran test:real_windows:plugins", "ran test:console"]
+
+    assert_equal here, gui_runs
+    assert_equal here, gui_runs({ "CI" => nil, "TOKRA_REAL_WINDOWS" => "hidden" })
   end
 
-  def test_hidden_the_gui_task_runs_the_hidden_job_then_the_console_tests_here
-    assert_equal ["ran test:hidden", "ran test:console"], gui_runs("hidden")
-  end
-
-  # What test:console does where TOKRA_REAL_WINDOWS says +where+, with RealWindows::CONSOLE
-  # replaced by +console+ if given, before the Rakefile loads. The compile,
-  # each plugin's install and tests, and the core batch's command only say
-  # what they were given, and whether the desktop input lock was held.
-  private def console_runs(console = nil, where: "hidden")
+  # What test:console does, with RealWindows::CONSOLE replaced by +console+
+  # if given, before the Rakefile loads. The compile, each plugin's install
+  # and tests, and the core batch's command only say what they were given,
+  # and whether the desktop input lock was held.
+  private def console_runs(console = nil)
     stub = <<~RUBY
       require "rake"
       require_relative "tasks/real_windows"
@@ -323,7 +258,6 @@ class TestRealWindows < Minitest::Test
     output = nil
     Dir.mktmpdir("console_lock") do |dir|
       env = {
-"TOKRA_REAL_WINDOWS" => where,
 "DESKTOP_INPUT_LOCK" => File.join(dir, "desktop-input.lock"),
 "TOKRA_QUIET" => "1",
 "CI" => nil,
@@ -346,24 +280,15 @@ class TestRealWindows < Minitest::Test
     end
   end
 
-  def test_the_console_tests_run_here_where_the_rest_run_hidden_holding_the_lock_on_a_mac
+  # The console tests run only in test:console's span, so a run on a Mac
+  # speaks for them once, after the compile and the bundle installs.
+  def test_the_console_tests_run_in_one_spoken_span_holding_the_lock_on_a_mac
     assert_equal [
       "said compile, unlocked",
       "said bundle plugins/dialog, unlocked",
       "said notice speak=true",
       *plugin_lines(%w[test/test_dialog_window.rb]),
 ], console_runs
-  end
-
-  # Where every real-window test runs here, the console ones still run
-  # only in test:console's span, so a local run on a Mac speaks for them.
-  def test_locally_the_console_tests_run_in_the_same_span
-    assert_equal [
-      "said compile, unlocked",
-      "said bundle plugins/dialog, unlocked",
-      "said notice speak=true",
-      *plugin_lines(%w[test/test_dialog_window.rb]),
-], console_runs(where: "local")
   end
 
   def test_the_core_console_tests_run_in_one_batch_that_may_open_windows_holding_the_lock
@@ -378,13 +303,5 @@ class TestRealWindows < Minitest::Test
       *plugin_lines(%w[test/test_dialog_window.rb]),
 ],
       console_runs([core, "plugins/dialog/test/test_dialog_window.rb"])
-  end
-
-  def test_the_gate_fails_rather_than_open_windows_here_when_the_hidden_session_cannot_run_them
-    output, status = rake("test:gui")
-
-    refute_predicate status, :success?
-    assert_match(/^test:hidden failed: .*TOKRA_REAL_WINDOWS=local/, output)
-    refute_includes output, "# Running:"
   end
 end

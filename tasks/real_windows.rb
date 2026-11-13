@@ -5,17 +5,13 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
-require "rbconfig"
-
-# Which tests open real windows, and where they run (Plans 056 and 057).
+# Which tests open real windows (Plans 056, 057, and 061).
 #
 # A real-window test opens tao windows, menus, trays, file panels, or
-# notifications, or uses the session's clipboard. On the maintainer's Mac
-# those run in the hidden +tokratest+ session (HiddenJob), so none opens
-# in the maintainer's own, except the few CONSOLE names, which run here
-# (test:console); on CI and off macOS they all run here, as always. In
-# every mode the CONSOLE tests run only in test:console, once, inside its
-# spoken span.
+# notifications, or uses the session's clipboard. They run apart from the
+# rest, in test:gui, in the session that runs the gate, so test:core and
+# plugins:test open nothing. The few CONSOLE names run only in
+# test:console, once, inside its spoken span.
 module RealWindows
   # The tests that take the keyboard and mouse on macOS, which run first.
   KEYBOARD = "test/integration/keyboard/**/*_test.rb"
@@ -41,13 +37,11 @@ module RealWindows
     plugins/notification/test/test_windows_notifications.rb
   ].freeze
 
-  # The real-window tests that need the console. They run only in
-  # test:console, which holds the desktop input lock around them, with
-  # its spoken notice, on a Mac outside CI; the other real-window tasks
-  # leave them out everywhere. On the maintainer's Mac that keeps them in
-  # the maintainer's session where the rest run hidden. Off the console,
-  # macOS lowers WebKit's page process to background priority, and under
-  # load these tests' pages starve past their bounds (Plan 057).
+  # The plugins' real-window tests that a person's click could fail: each
+  # ends a dialog sheet, which a click on it would end first. They run
+  # only in test:console, which holds the desktop input lock around them,
+  # with its spoken notice, on a Mac outside CI; the other real-window
+  # tasks leave them out (Plan 057's amendment).
   CONSOLE = %w[
     plugins/dialog/test/test_dialog_window.rb
   ].freeze
@@ -59,29 +53,7 @@ module RealWindows
   # tests' tripwire reads.
   RUN = "TOKRA_REAL_WINDOWS_RUN"
 
-  # What HiddenJob sets for the tasks it runs in tokratest.
-  HIDDEN_JOB = "TOKRA_HIDDEN_JOB"
-
-  # The values TOKRA_REAL_WINDOWS takes.
-  PLACES = { "local" => :local, "hidden" => :hidden }.freeze
-
   class << self
-    # Where the real-window tests run: +:local+ (this session) or
-    # +:hidden+ (tokratest's). TOKRA_REAL_WINDOWS says so when set; else
-    # they run here on CI (CI=true, as GitHub sets it) and off macOS, and
-    # hidden on a Mac.
-    def where(env = ENV, host_os = RbConfig::CONFIG["host_os"])
-      chosen = env["TOKRA_REAL_WINDOWS"].to_s
-      unless chosen.empty?
-        return PLACES.fetch(chosen) do
-          raise ArgumentError, "TOKRA_REAL_WINDOWS is local or hidden, not #{chosen.inspect}"
-        end
-      end
-      return :local if env["CI"] == "true" || !host_os.include?("darwin")
-
-      :hidden
-    end
-
     # The environment for a test process: TOKRA_REAL_WINDOWS_RUN=1 lets it
     # open real windows (test/support/real_windows_run.rb) if +windows+,
     # and is unset otherwise, whatever the shell exported.
@@ -92,9 +64,6 @@ module RealWindows
     def test_file?(path, source = File.read(File.join(ROOT, path)))
       path.start_with?(INTEGRATION) || NAMED.include?(path) || source.match?(MARKER)
     end
-
-    # Whether +env+ is the hidden job's.
-    def hidden_job?(env = ENV) = !env[HIDDEN_JOB].to_s.empty?
 
     # The test files among +paths+ that open real windows, except the
     # CONSOLE tests, which test:console runs, and the rest.

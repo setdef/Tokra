@@ -10,7 +10,6 @@ require "minitest/test_task"
 require "shellwords"
 require_relative "test_order"
 require_relative "real_windows"
-require_relative "hidden_job"
 require_relative "linux_gate"
 
 # Clear the default test task created by Minitest::TestTask if it exists
@@ -25,9 +24,9 @@ task test: %w[test:gui test:rust test:ruby plugins:test]
 KEYBOARD_TESTS = RealWindows::KEYBOARD
 
 # Every test file that opens a real window, the keyboard ones included,
-# and the rest. The first run in test:gui, wherever RealWindows.where
-# says, and never in test:core (Plan 056); they leave out the ones that
-# need the console, which only test:console runs (Plan 057).
+# and the rest. The first run in test:gui, and never in test:core (Plan
+# 056); they leave out the console set, which only test:console runs
+# (Plan 057).
 WINDOW_TESTS, CORE_TESTS = RealWindows.split(Dir["test/**/test_*.rb", "test/**/*_test.rb"])
 
 namespace :test do
@@ -88,8 +87,8 @@ namespace :test do
   # debugger also gets Windows' debug heap, which fills freed blocks, so a
   # read of freed memory faults there instead of reading stale data.
   desc "Replay the core test orders recorded from crashed runs"
-  # The orders hold real-window tests, so they replay only where those run.
-  task replay: %w[here compile package:fetch] do
+  # The orders hold real-window tests, so the replay may open real windows.
+  task replay: %w[compile package:fetch] do
     FileUtils.mkdir_p("tmp/replay")
     extra = Shellwords.split(ENV.fetch("A", ""))
     runs = Dir["test/fixtures/test_orders/*.txt"].map do |path|
@@ -128,24 +127,20 @@ namespace :test do
   desc "Run all Ruby tests (real-window, core, plugins)"
   task ruby: ["test:gui", "test:core", "plugins:test"]
 
-  desc "Run every real-window test: hidden in tokratest on a Mac except test:console's, here on CI or with " \
-    "TOKRA_REAL_WINDOWS=local"
-  task :gui do
-    rest = (RealWindows.where == :local) ? %w[test:keyboard test:real_windows test:real_windows:plugins] : %w[test:hidden]
-    [*rest, "test:console"].each { |name| Rake::Task[name].invoke }
-  end
+  desc "Run every real-window test, in this session: the keyboard ones, the other core ones, the plugins', " \
+    "then the console set"
+  task gui: %w[test:keyboard test:real_windows test:real_windows:plugins test:console]
 
-  # The real-window tests that need the console run only here, in every
-  # mode, and in this session even where the rest run hidden. On a Mac
-  # outside CI they hold the desktop input lock that other projects'
-  # tests take before they take the keyboard (Plans 046, 057), so no
-  # one's synthetic input lands in their windows; on CI and off macOS
-  # the span takes no lock. A click that lands on one of their dialog
-  # sheets would end it, so the span speaks and shows its banner, once,
-  # around only these tests: compiling and the plugins' bundle installs
-  # happen before it. A console test that took the lock in its own
-  # process would wait on its parent forever.
-  desc "Run the real-window tests that need the console (RealWindows::CONSOLE) in this session"
+  # The console set runs only here. On a Mac outside CI its tests hold
+  # the desktop input lock that other projects' tests take before they
+  # take the keyboard (Plans 046, 057), so no one's synthetic input lands
+  # in their windows; on CI and off macOS the span takes no lock. A click
+  # that lands on one of their dialog sheets would end it, so the span
+  # speaks and shows its banner, once, around only these tests: compiling
+  # and the plugins' bundle installs happen before it. A console test
+  # that took the lock in its own process would wait on its parent
+  # forever.
+  desc "Run the real-window tests a click could fail (RealWindows::CONSOLE), holding the desktop input lock"
   task console: :compile do
     require_relative "../test/integration/support/keyboard_notice"
     Rake::Task["test:console:bundles"].invoke
@@ -161,20 +156,6 @@ namespace :test do
 
   task "console:plugins" => "console:bundles" do
     PLUGINS.each { |plugin| run_plugin_tests(plugin, RealWindows.console_tests(plugin), windows: true, install: false) }
-  end
-
-  desc "Run the real-window tests except test:console's in tokratest's hidden session, through hidden-run (Plan 056)"
-  task :hidden do
-    HiddenJob.new(checkout: Dir.pwd).run
-  rescue HiddenJob::Failure => e
-    abort "test:hidden failed: #{e.message}"
-  end
-
-  desc "Remove the hidden session's copies and mirrors of checkouts that are gone (Plan 056)"
-  task "hidden:prune" do
-    HiddenJob.new(checkout: Dir.pwd).prune
-  rescue HiddenJob::Failure => e
-    abort "test:hidden:prune failed: #{e.message}"
   end
 
   # CI's Linux job, in Docker, to run before a push; not in the gate, since
@@ -195,23 +176,15 @@ namespace :test do
     abort "test:linux:prune failed: #{e.message}"
   end
 
-  # The tasks that open real windows in this session refuse to where the
-  # real-window tests belong in the hidden one, and never fall back.
-  task :here do
-    next if RealWindows.where == :local
-
-    abort "The real-window tests run in tokratest's hidden session on this Mac (rake test:gui or " \
-      "test:hidden), so that no window opens in yours. Set TOKRA_REAL_WINDOWS=local to open them here."
-  end
-  Rake::Task["test:keyboard"].comment = "Run the keyboard-taking real-window tests in this session"
-  Rake::Task["test:real_windows"].comment = "Run the other core real-window tests in this session"
+  Rake::Task["test:keyboard"].comment = "Run the keyboard-taking real-window tests"
+  Rake::Task["test:real_windows"].comment = "Run the other core real-window tests"
   # test:console runs the console tests; only it shows in rake -T.
   Rake::Task.tasks.select { |task| task.name.start_with?("test:console:core") }.each(&:clear_comments)
-  task keyboard: %w[here compile]
-  task real_windows: %w[here compile]
+  task keyboard: :compile
+  task real_windows: :compile
 
-  desc "Run the plugins' real-window tests in this session"
-  task "real_windows:plugins": :here do
+  desc "Run the plugins' real-window tests"
+  task "real_windows:plugins" do
     PLUGINS.each { |plugin| run_plugin_tests(plugin, RealWindows.plugin_tests(plugin, windows: true), windows: true) }
   end
 end

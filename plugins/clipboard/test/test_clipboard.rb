@@ -21,9 +21,9 @@ require "support/real_windows_run"
 # Tests for Tokra::Plugins::Clipboard::Plugin.
 #
 # Every test drives the real system clipboard through ferro-arboard. It is
-# the session's own, so on the maintainer's Mac these tests run in the
-# hidden tokratest session, whose clipboard is its own, and never write
-# the maintainer's (Plan 057).
+# the session's own, so these tests run with the real-window ones
+# (tasks/real_windows.rb), and plugins:test and this plugin's own rake test
+# never write your clipboard (Plan 057).
 #
 # The construction-error arm (arboard failing in Clipboard.new, e.g. on a
 # clipboard-less system) is not testable on a machine with a working

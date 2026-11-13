@@ -38,14 +38,12 @@ PLUGINS = Dir["plugins/*"].select { |f| File.directory?(f) }
 # Rakefile, which runs those TOKRA_TESTS names (Plan 056), letting them
 # open real windows if +windows+. Each plugin has its own Gemfile.
 # Without an unbundled environment, the inherited BUNDLE_GEMFILE would
-# run the plugin under the root bundle. In a hidden job the gems are
-# shared and read-only, so Bundler installs there only what is missing.
-# With <tt>install: false</tt> the caller installed the bundle already
-# (install_plugin_bundle).
+# run the plugin under the root bundle. With <tt>install: false</tt> the
+# caller installed the bundle already (install_plugin_bundle).
 def run_plugin_tests(plugin, files, windows:, install: true)
   return if files.empty?
 
-  steps = [*(plugin_bundle_install if install), "bundle exec rake test"]
+  steps = [*("bundle install --quiet" if install), "bundle exec rake test"]
   Bundler.with_unbundled_env do
     sh({ "TOKRA_TESTS" => files.join(",") }.merge(RealWindows.run_env(windows)), "cd #{plugin} && #{steps.join(' && ')}")
   end
@@ -54,13 +52,7 @@ end
 # Installs +plugin+'s own bundle, as run_plugin_tests does before its
 # tests.
 def install_plugin_bundle(plugin)
-  Bundler.with_unbundled_env { sh "cd #{plugin} && #{plugin_bundle_install}" }
-end
-
-# The command that installs a plugin's bundle: in a hidden job, whose gems
-# are shared and read-only, only when something is missing.
-def plugin_bundle_install
-  RealWindows.hidden_job? ? "(bundle check > #{File::NULL} || bundle install --quiet)" : "bundle install --quiet"
+  Bundler.with_unbundled_env { sh "cd #{plugin} && bundle install --quiet" }
 end
 
 # Plugin tasks that delegate to each plugin's Rakefile
@@ -95,6 +87,5 @@ end
 # Import all tasks from the tasks/ directory
 Dir.glob("tasks/*.rake").each { |r| import r }
 
-# The real-window tests run first, hidden on the maintainer's Mac and
-# here on CI (test:gui, Plan 056).
+# The real-window tests run first (test:gui, Plan 056).
 task default: %w[compile:strict test:gui lint:fix test lint steep lint:rust package:check]

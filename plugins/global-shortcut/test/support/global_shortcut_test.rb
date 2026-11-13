@@ -25,10 +25,9 @@ require "support/real_windows_run"
 # both:
 #
 # - The files that register, or set up a plugin of their own, run only
-#   with the real-window tests (tasks/real_windows.rb), which on the
-#   maintainer's Mac run in the hidden tokratest session, so a hotkey is
-#   never taken from the maintainer's desktop. Each checks the tripwire
-#   (RealWindowsRun) before it touches the system.
+#   with the real-window tests (tasks/real_windows.rb), so plugins:test
+#   and this plugin's own rake test take no hotkey from your desktop. Each
+#   checks the tripwire (RealWindowsRun) before it touches the system.
 # - They register only combinations nobody uses, Control, Alt (Option),
 #   Shift, and Meta (Command, Windows) with F17 to F19 or F24, and always
 #   unregister them.

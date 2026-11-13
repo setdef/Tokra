@@ -5,27 +5,27 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
+require "digest"
 require "fileutils"
 require "json"
 require "open3"
 require "shellwords"
 require "yaml"
-require_relative "hidden_job"
 
 # Runs CI's Linux job in a Docker container on this machine, before a
 # push (Plan 058).
 #
-# The maintainer's gate runs on a Mac, where the tests that skip off
-# Linux never run. This builds an image like CI's runner from
+# A gate on a Mac or on Windows never runs the tests that skip off
+# Linux. This builds an image like CI's runner from
 # tasks/linux/Dockerfile, mounts the checkout read-only, copies what git
 # tracks into the container (::snapshot), and runs there the steps
 # ci.yml's Linux job runs, read from ci.yml: the frozen bundle install and
 # the gate under Xvfb and D-Bus. Linux windows in the container never
-# reach the maintainer's session, so the real-window tests run there too.
+# reach your desktop, so the real-window tests run there too.
 #
 # Each checkout has its own image tag, container, and volumes, keyed by
-# HiddenJob.slug, so runs of several checkouts go at once and a second
-# run is warm. Each step's failure raises Failure.
+# ::slug, so runs of several checkouts go at once and a second run is
+# warm. Each step's failure raises Failure.
 #
 # === Example
 #
@@ -70,7 +70,7 @@ class LinuxGate
   SHM_SIZE = "1g"
 
   # The container's environment. GitHub Actions sets CI=true on every
-  # runner, not ci.yml, and RealWindows.where and KeyboardNotice read it.
+  # runner, not ci.yml, and KeyboardNotice reads it.
   # TOKRA_QUIET=1 is this task's own, which CI does not set: it silences
   # the console tests' notice, which on Linux says nothing anyway.
   ENVIRONMENT = { "CI" => "true", "TOKRA_QUIET" => "1" }.freeze
@@ -125,8 +125,14 @@ class LinuxGate
     @out = out
   end
 
+  # A name for the checkout at +path+, the same each time and unlike any
+  # other checkout's: its folder's name and a digest of its whole path.
+  def self.slug(path)
+    "#{File.basename(path).downcase.gsub(/[^a-z0-9_-]+/, '-')}-#{Digest::SHA256.hexdigest(path)[0, 8]}"
+  end
+
   # The checkout's name in every image, container, and volume name.
-  def slug = HiddenJob.slug(@checkout)
+  def slug = self.class.slug(@checkout)
 
   # The container's name, which is also each volume's prefix.
   def name = "#{PREFIX}-#{slug}"

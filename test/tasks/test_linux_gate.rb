@@ -106,8 +106,13 @@ class TestLinuxGate < Minitest::Test
     checkout
   end
 
-  def test_each_name_is_keyed_by_the_hidden_jobs_slug_of_the_checkout
-    slug = HiddenJob.slug("/x/tokra")
+  def test_a_slug_names_the_folder_and_digests_the_whole_path
+    assert_equal "agent-a7e-#{Digest::SHA256.hexdigest('/x/Agent.A7E')[0, 8]}", LinuxGate.slug("/x/Agent.A7E")
+    refute_equal LinuxGate.slug("/a/tokra"), LinuxGate.slug("/b/tokra")
+  end
+
+  def test_each_name_is_keyed_by_the_slug_of_the_checkout
+    slug = LinuxGate.slug("/x/tokra")
     one = LinuxGate.new(checkout: "/x/tokra")
 
     assert_equal "tokra-linux-#{slug}", one.name
