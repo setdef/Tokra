@@ -54,8 +54,14 @@ STUB
   chmod +x "$stub"
 fi
 
-# A CI runner commits nothing and reads no documentation.
+# A CI runner commits nothing and reads no documentation. pre-commit
+# refuses to install where core.hooksPath is set, so there the commit hook
+# is yours to wire up.
 if [ "${CI:-}" != true ]; then
-  mise x -- pre-commit install
+  if git config --get core.hooksPath >/dev/null; then
+    echo "core.hooksPath is set, so pre-commit's hook is not installed; run pre-commit from your own hook." >&2
+  else
+    mise x -- pre-commit install
+  fi
   mise x -- bundle exec rake rdoc
 fi

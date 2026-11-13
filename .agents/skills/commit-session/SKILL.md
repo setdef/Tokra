@@ -39,25 +39,29 @@ End with the AI footer exactly as `git log -n1` shows it.
 
 ## 3. Push through the gate
 
-```sh
-git fetch origin && git rebase origin/trunk
-git push origin trunk
-```
-
-The pre-push hook (`.githooks/pre-push`, which `bin/setup` installs) runs
-the gate, `bundle exec rake`, on the commit you push. It passes with zero
-errors and zero warnings, or nothing is pushed: fix the cause, commit, and
-push again. Never pass `--no-verify`. If a gemspec, a `Cargo.toml`, or an
-`extconf.rb` changed, run `bundle exec rake package:install` before the
-push too.
-
 For the clean build the definition of done asks for, remove build output
-before the push:
+first:
 
 ```sh
 rm -rf tmp plugins/*/tmp
 find lib/tokra plugins/*/lib -name '*.bundle' -delete
 ```
+
+Then sync and push the commit you have checked out, which is `trunk` in
+the main clone and a branch of its own in a worktree:
+
+```sh
+git fetch origin && git rebase origin/trunk
+git push origin HEAD:trunk
+```
+
+The pre-push hook (`.githooks/pre-push`, which `bin/setup` installs) runs
+the gate, `bundle exec rake`, on that commit. It refuses the push while
+anything is uncommitted or untracked, since the gate would test it. The
+gate passes with zero errors and zero warnings, or nothing is pushed: fix
+the cause, commit, and push again. Never pass `--no-verify`. If a gemspec,
+a `Cargo.toml`, or an `extconf.rb` changed, run `bundle exec rake
+package:install` before the push too.
 
 ## 4. Stop
 

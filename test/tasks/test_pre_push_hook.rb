@@ -12,27 +12,35 @@ require "yaml"
 
 # Tests .githooks/pre-push (Plan 061): which pushes run the gate, which it
 # refuses, and that it runs the gate as ci.yml does. Each test hands the
-# real hook the lines git would, in a real repository, with stand-ins for
-# bundle and xvfb-run that log their arguments.
+# real hook the lines git would, in a real repository, or pushes through
+# it with a real git push, with stand-ins for bundle and xvfb-run that log
+# their arguments and their environment.
 class TestPrePushHook < Minitest::Test
   ROOT = File.expand_path("../..", __dir__)
   HOOK = File.join(ROOT, ".githooks/pre-push")
   ZERO = "0" * 40
 
-  # A command that logs its name and arguments, one line a call.
+  # A command that logs its name and arguments, one line a call, and keeps
+  # the environment it was given.
   LOGGER = <<~'SH'
     #!/bin/sh
     { printf '%s' "$(basename "$0")"; for a in "$@"; do printf ' %s' "$a"; done; printf '\n'; } >> "$(dirname "$0")/log"
+    env > "$(dirname "$0")/env"
   SH
 
   # The variables a git hook passes on, which would point the git commands
   # here at the repository whose hook runs these tests.
-  GIT_PLACE = %w[GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX].to_h { |name| [name, nil] }.freeze
+  GIT_PLACE = %w[GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX GIT_COMMON_DIR].to_h { |name| [name, nil] }.freeze
+
+  # Git as these tests run it: no one's own configuration or hooks.
+  GIT_ALONE = GIT_PLACE.merge("GIT_CONFIG_GLOBAL" => File::NULL, "GIT_CONFIG_NOSYSTEM" => "1").freeze
+
+  LINUX = RbConfig::CONFIG["host_os"].include?("linux")
 
   def setup
-    skip "the hook is a POSIX shell script, and the Windows gate runs no hook yet" if Gem.win_platform?
+    skip "the hook is a POSIX shell script, untested on Windows" if Gem.win_platform?
 
-    @dir = Dir.mktmpdir("pre_push")
+    @dir = File.realpath(Dir.mktmpdir("pre_push"))
     @bin = File.join(@dir, "bin")
     Dir.mkdir(@bin)
     %w[bundle xvfb-run].each do |name|
@@ -49,10 +57,14 @@ class TestPrePushHook < Minitest::Test
     FileUtils.rm_rf(@dir) if @dir
   end
 
-  private def git(*)
-    settings = %w[user.name=tokra user.email=tokra@localhost commit.gpgSign=false core.hooksPath=/dev/null]
+  private def env(extra = {})
+    GIT_ALONE.merge("PATH" => "#{@bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}").merge(extra)
+  end
+
+  private def git(*, chdir: @repo, hooks: File::NULL)
+    settings = %W[user.name=tokra user.email=tokra@localhost commit.gpgSign=false core.hooksPath=#{hooks}]
       .flat_map { |setting| ["-c", setting] }
-    printed, status = Open3.capture2e(GIT_PLACE, "git", *settings, *, chdir: @repo)
+    printed, status = Open3.capture2e(env, "git", *settings, *, chdir:)
 
     assert_predicate status, :success?, printed
     printed.strip
@@ -69,9 +81,8 @@ class TestPrePushHook < Minitest::Test
   # Runs the hook as git does for a push of +refs+, each a line of
   # <tt>local_ref local_sha remote_ref remote_sha</tt>, and returns what it
   # printed and its status.
-  private def push(*refs)
-    env = GIT_PLACE.merge("PATH" => "#{@bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}")
-    Open3.capture2e(env, HOOK, "origin", "git@example.com:tokra.git", stdin_data: refs.map { |ref| "#{ref}\n" }.join, chdir: @repo)
+  private def push(*refs, extra: {})
+    Open3.capture2e(env(extra), HOOK, "origin", "git@example.com:tokra.git", stdin_data: refs.map { |ref| "#{ref}\n" }.join, chdir: @repo)
   end
 
   # What the stand-ins were called with, one line a call.
@@ -80,10 +91,12 @@ class TestPrePushHook < Minitest::Test
     File.exist?(log) ? File.readlines(log, chomp: true) : []
   end
 
-  private def gate
-    linux = RbConfig::CONFIG["host_os"].include?("linux")
-    linux ? ["xvfb-run --auto-servernum dbus-run-session -- bundle exec rake"] : ["bundle exec rake"]
+  # The environment the gate's command was given.
+  private def gate_env
+    File.readlines(File.join(@bin, "env"), chomp: true).to_h { |line| line.split("=", 2) }
   end
+
+  private def gate = LINUX ? ["xvfb-run --auto-servernum dbus-run-session -- bundle exec rake"] : ["bundle exec rake"]
 
   private def ci_step(name)
     workflow = YAML.safe_load_file(File.join(ROOT, ".github/workflows/ci.yml"))
@@ -109,8 +122,21 @@ class TestPrePushHook < Minitest::Test
   def test_the_hook_runs_the_gate_as_ci_runs_it_on_linux_and_elsewhere
     hook = File.read(HOOK)
 
-    assert_includes hook, "  Linux) exec #{ci_step('Run the gate under X11')} ;;\n"
+    assert_includes hook, "    exec #{ci_step('Run the gate under X11')} ;;\n"
     assert_includes hook, "  *) exec #{ci_step('Run the gate')} ;;\n"
+  end
+
+  # GTK takes a Wayland desktop before an X display, and connects to the
+  # desktop's default socket even with WAYLAND_DISPLAY unset, so on a
+  # Wayland desktop the gate's windows would open on it, not on Xvfb.
+  def test_on_linux_the_gate_is_kept_off_a_wayland_desktop
+    skip "the hook starts Xvfb only on Linux" unless LINUX
+
+    output, status = push("refs/heads/trunk #{@first} refs/heads/trunk #{ZERO}", extra: { "WAYLAND_DISPLAY" => "wayland-0" })
+
+    assert_predicate status, :success?, output
+    refute_includes gate_env.keys, "WAYLAND_DISPLAY"
+    assert_equal "x11", gate_env["GDK_BACKEND"]
   end
 
   def test_a_tag_a_deleted_branch_and_no_ref_at_all_run_no_gate
@@ -135,23 +161,75 @@ class TestPrePushHook < Minitest::Test
     assert_empty calls
   end
 
-  def test_uncommitted_changes_are_refused_before_the_gate
-    File.write(File.join(@repo, "file"), "edited, not committed")
-    output, status = push("refs/heads/trunk #{@first} refs/heads/trunk #{ZERO}")
+  # One push may move several branches; each has to be the commit the gate
+  # will test, the later ones too.
+  def test_every_branch_in_a_push_is_checked_not_only_the_first
+    second = commit("two")
+    output, status = push(
+      "refs/heads/trunk #{second} refs/heads/trunk #{@first}",
+      "refs/heads/other #{@first} refs/heads/other #{ZERO}"
+    )
 
     refute_predicate status, :success?
-    assert_includes output, "pre-push: the working tree has uncommitted changes"
+    assert_includes output, "pre-push: refs/heads/other would get #{@first}, but the working tree is at #{second}."
     assert_empty calls
   end
 
-  # A file git does not track is not part of the commit or of the gate,
-  # whose tasks read git ls-files.
-  def test_an_untracked_file_does_not_stop_the_push
-    File.write(File.join(@repo, "scratch"), "not tracked")
+  def test_uncommitted_changes_are_refused_before_the_gate_staged_or_not
+    [false, true].each do |staged|
+      File.write(File.join(@repo, "file"), "edited, not committed")
+      git("add", "file") if staged
+      output, status = push("refs/heads/trunk #{@first} refs/heads/trunk #{ZERO}")
+
+      refute_predicate status, :success?, "staged: #{staged}"
+      assert_includes output, "pre-push: the working tree has uncommitted changes"
+      assert_empty calls
+    end
+  end
+
+  # The tests and the compiler read files git does not track, so a file
+  # someone forgot to add would pass the gate here and be missing on CI.
+  def test_an_untracked_file_is_refused_before_the_gate_and_named
+    File.write(File.join(@repo, "forgotten.rb"), "not tracked")
     output, status = push("refs/heads/trunk #{@first} refs/heads/trunk #{ZERO}")
+
+    refute_predicate status, :success?
+    assert_includes output, "pre-push: the working tree has files git does not track"
+    assert_includes output.lines(chomp: true), "forgotten.rb"
+    assert_empty calls
+  end
+
+  def test_an_ignored_file_does_not_stop_the_push
+    File.write(File.join(@repo, ".gitignore"), "/tmp/\n")
+    git("add", ".gitignore")
+    git("commit", "--quiet", "--message", "ignore tmp")
+    head = git("rev-parse", "HEAD")
+    FileUtils.mkdir_p(File.join(@repo, "tmp"))
+    File.write(File.join(@repo, "tmp/built"), "build output")
+    output, status = push("refs/heads/trunk #{head} refs/heads/trunk #{@first}")
 
     assert_predicate status, :success?, output
     assert_equal gate, calls
+  end
+
+  # From a worktree git hands a hook GIT_DIR, and with it every git the
+  # gate runs would act on that worktree, whichever folder it ran in: the
+  # packaging tests make repositories of their own. This pushes for real,
+  # so the hook gets the environment git gives one.
+  def test_a_real_push_from_a_worktree_runs_the_gate_with_no_repository_named
+    remote = File.join(@dir, "remote.git")
+    git("init", "--quiet", "--bare", remote, chdir: @dir)
+    worktree = File.join(@dir, "worktree")
+    git("worktree", "add", "--quiet", worktree)
+    hooks = File.join(@dir, "hooks")
+    Dir.mkdir(hooks)
+    File.write(File.join(hooks, "pre-push"), "#!/bin/sh\nexec #{HOOK} \"$@\"\n")
+    File.chmod(0o755, File.join(hooks, "pre-push"))
+    git("push", "--quiet", remote, "HEAD:refs/heads/trunk", chdir: worktree, hooks:)
+
+    assert_equal gate, calls
+    assert_empty gate_env.keys & GIT_PLACE.keys
+    assert_equal @first, git("rev-parse", "refs/heads/trunk", chdir: remote)
   end
 
   # git runs a hook only if it is executable, and machines that run the

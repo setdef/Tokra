@@ -17,6 +17,7 @@ class TestSetup < Minitest::Test
   ROOT = File.expand_path("../..", __dir__)
   SETUP = File.join(ROOT, "bin/setup")
   REUSE = "reuse[charset-normalizer]==6.2.0"
+  MARKER = "# tokra pre-push stub, written by bin/setup"
 
   # A mise that logs its arguments, one line a call, and runs nothing.
   MISE = <<~'SH'
@@ -32,7 +33,17 @@ class TestSetup < Minitest::Test
 
   # The variables a git hook passes on, which would point the git commands
   # here at the repository whose hook runs these tests.
-  GIT_PLACE = %w[GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX].to_h { |name| [name, nil] }.freeze
+  GIT_PLACE = %w[GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX GIT_COMMON_DIR].to_h { |name| [name, nil] }.freeze
+
+  # Git as these tests run it: no one's own configuration or hooks, and
+  # submodules cloned from a folder, which git otherwise refuses.
+  GIT_ALONE = GIT_PLACE.merge(
+    "GIT_CONFIG_GLOBAL" => File::NULL,
+    "GIT_CONFIG_NOSYSTEM" => "1",
+    "GIT_CONFIG_COUNT" => "1",
+    "GIT_CONFIG_KEY_0" => "protocol.file.allow",
+    "GIT_CONFIG_VALUE_0" => "always"
+  ).freeze
 
   def setup
     skip "bin/setup is a bash script; Windows has no setup script yet" if Gem.win_platform?
@@ -57,14 +68,13 @@ class TestSetup < Minitest::Test
     FileUtils.rm_rf(@dir) if @dir
   end
 
-  private def env(ci: nil)
-    GIT_PLACE.merge("PATH" => "#{@bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}", "CI" => ci)
+  private def env(extra = {})
+    GIT_ALONE.merge("PATH" => "#{@bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}", "CI" => nil).merge(extra)
   end
 
   private def git(*, chdir: @repo)
-    settings = %w[user.name=tokra user.email=tokra@localhost commit.gpgSign=false core.hooksPath=/dev/null]
-      .flat_map { |setting| ["-c", setting] }
-    printed, status = Open3.capture2e(GIT_PLACE, "git", *settings, *, chdir:)
+    settings = %w[user.name=tokra user.email=tokra@localhost commit.gpgSign=false].flat_map { |setting| ["-c", setting] }
+    printed, status = Open3.capture2e(env, "git", *settings, *, chdir:)
 
     assert_predicate status, :success?, printed
     printed.strip
@@ -72,7 +82,7 @@ class TestSetup < Minitest::Test
 
   # Runs bin/setup in the repository, and returns what it printed and its
   # status.
-  private def run_setup(ci: nil) = Open3.capture2e(env(ci:), SETUP, chdir: @repo)
+  private def run_setup(extra = {}) = Open3.capture2e(env(extra), SETUP, chdir: @repo)
 
   # What mise was called with, one line a call.
   private def calls = File.readlines(File.join(@bin, "log"), chomp: true)
@@ -93,7 +103,7 @@ class TestSetup < Minitest::Test
   # A runner keeps vendor/bundle between runs, commits nothing, and reads
   # no documentation.
   def test_for_a_ci_runner_it_installs_the_bundle_as_ci_does_and_skips_the_commit_hook_and_the_docs
-    output, status = run_setup(ci: "true")
+    output, status = run_setup("CI" => "true")
 
     assert_predicate status, :success?, output
     assert_equal [
@@ -105,6 +115,19 @@ class TestSetup < Minitest::Test
     ], calls
   end
 
+  # pre-commit refuses to install under core.hooksPath and would end the
+  # script there, before the docs.
+  def test_where_core_hooks_path_is_set_it_leaves_the_commit_hook_and_says_so
+    output, status = run_setup(
+      "GIT_CONFIG_COUNT" => "2", "GIT_CONFIG_KEY_1" => "core.hooksPath", "GIT_CONFIG_VALUE_1" => File.join(@dir, "my-hooks")
+    )
+
+    assert_predicate status, :success?, output
+    refute_includes calls, "mise x -- pre-commit install"
+    assert_equal "mise x -- bundle exec rake rdoc", calls.last
+    assert_includes output, "core.hooksPath is set, so pre-commit's hook is not installed; run pre-commit from your own hook."
+  end
+
   def test_the_reuse_tool_is_ci_s
     workflow = YAML.safe_load_file(File.join(ROOT, ".github/workflows/ci.yml"))
     step = workflow.fetch("jobs").values.flat_map { |job| job.fetch("steps") }
@@ -112,6 +135,25 @@ class TestSetup < Minitest::Test
 
     assert_includes step.fetch("run"), %("#{REUSE}")
     assert_includes File.read(SETUP), %("#{REUSE}")
+  end
+
+  # rake sync:tauri reads vendor/tauri, which a plain clone leaves empty.
+  def test_it_checks_out_a_submodule_a_clone_left_empty
+    library = File.join(@dir, "library")
+    Dir.mkdir(library)
+    git("init", "--quiet", "--initial-branch", "trunk", chdir: library)
+    File.write(File.join(library, "inside"), "the submodule's file")
+    git("add", "inside", chdir: library)
+    git("commit", "--quiet", "--message", "inside", chdir: library)
+    git("submodule", "--quiet", "add", library, "vendor/library")
+    git("commit", "--quiet", "--message", "the submodule")
+    git("submodule", "--quiet", "deinit", "--force", "vendor/library")
+
+    refute_path_exists File.join(@repo, "vendor/library/inside")
+    output, status = run_setup
+
+    assert_predicate status, :success?, output
+    assert_equal "the submodule's file", File.read(File.join(@repo, "vendor/library/inside"))
   end
 
   def test_the_stub_it_writes_runs_the_hook_of_whichever_worktree_pushes
@@ -144,13 +186,33 @@ class TestSetup < Minitest::Test
 
     assert_predicate status, :success?, output
     assert_equal first, File.read(@stub)
-    assert_includes first.lines(chomp: true), "# tokra pre-push stub, written by bin/setup"
+    assert_includes first.lines(chomp: true), MARKER
+  end
+
+  # A later bin/setup may change the stub, and has to reach clones that
+  # hold an earlier one.
+  def test_a_stub_of_its_own_from_an_earlier_version_is_replaced
+    run_setup
+    current = File.read(@stub)
+    File.write(@stub, "#!/bin/sh\n#{MARKER}\nexit 0\n")
+    output, status = run_setup
+
+    assert_predicate status, :success?, output
+    assert_equal current, File.read(@stub)
+  end
+
+  # A clone made from an empty template has no hooks folder.
+  def test_a_clone_with_no_hooks_folder_gets_one
+    FileUtils.rm_rf(File.dirname(@stub))
+    output, status = run_setup
+
+    assert_predicate status, :success?, output
+    assert_predicate File.stat(@stub), :executable?
   end
 
   # Someone's own hook there, whatever it mentions, is theirs to keep.
   def test_a_hook_that_is_not_its_own_is_left_alone_and_said_so
     own = "#!/bin/sh\n# my own hook, which once read: tokra pre-push stub, written by bin/setup\nexit 0\n"
-    FileUtils.mkdir_p(File.dirname(@stub))
     File.write(@stub, own)
     output, status = run_setup
 
