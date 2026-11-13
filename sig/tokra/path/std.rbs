@@ -1,0 +1,108 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Path
+    class Std
+      type component_kind = :prefix | :root_dir | :cur_dir | :parent_dir | :normal
+      type prefix_kind = :verbatim | :verbatim_unc | :verbatim_disk | :device_ns | :unc | :disk
+
+      class Component < Data
+        attr_reader kind: component_kind
+        attr_reader as_os_str: String
+        attr_reader prefix: Prefix?
+
+        def self.new: (kind: component_kind, as_os_str: String, prefix: Prefix?) -> Component
+      end
+
+      class Prefix < Data
+        attr_reader kind: prefix_kind
+        attr_reader parts: Array[String]
+
+        def self.new: (kind: prefix_kind, parts: Array[String]) -> Prefix
+        def len: () -> Integer
+        def verbatim?: () -> bool
+        def drive?: () -> bool
+        def implicit_root?: () -> bool
+
+        private
+
+        def share_length: (String? share) -> Integer
+      end
+
+      STATES: Hash[Symbol, Integer]
+
+      class Components
+        @std: Std
+        @path: String
+        @prefix: Prefix?
+        @has_physical_root: bool
+        @front: Integer
+        @back: Integer
+
+        attr_reader path: String
+        attr_reader prefix: Prefix?
+
+        def initialize: (Std std, String path) -> void
+        def prefix_len: () -> Integer
+        def prefix_verbatim?: () -> bool
+        def prefix_remaining: () -> Integer
+        def has_root?: () -> bool
+        def to_a: () -> Array[Component]
+        def next: () -> Component?
+        def next_back: () -> Component?
+        def as_path: () -> String
+
+        def trim_left: () -> void
+        def trim_right: () -> void
+
+        private
+
+        def finished?: () -> bool
+        def len_before_body: () -> Integer
+        def separator?: (String char) -> bool
+        def include_cur_dir?: () -> bool
+        def parse_single_component: (String text) -> Component?
+        def parse_next_component: () -> [Integer, Component?]
+        def parse_next_component_back: () -> [Integer, Component?]
+        def component: (component_kind kind, String text, ?Prefix? prefix) -> Component
+      end
+
+      RESERVED_NAMES: Array[String]
+      UNIX: Std
+      WINDOWS: Std
+
+      @windows: bool
+
+      def initialize: (windows: bool) -> void
+      def windows?: () -> bool
+      def separator: () -> String
+      def separator?: (String char) -> bool
+      def components: (String path) -> Array[Component]
+      def has_root?: (String path) -> bool
+      def absolute?: (String path) -> bool
+      def parent: (String path) -> String?
+      def file_name: (String path) -> String?
+      def extension: (String path) -> String?
+      def file_stem: (String path) -> String?
+      def push: (String buf, String path) -> String
+      def simplified: (String path) -> String
+      def self.for: (Utils::Platform::Target target) -> Std
+      def parse_prefix: (String path) -> Prefix?
+      def physical_root?: (String path, Prefix? prefix) -> bool
+
+      private
+
+      def verbatim_prefix: (String head, String path) -> Prefix
+      def disk_prefix: (String path) -> Prefix?
+      def drive_letter: (String path) -> String?
+      def next_component: (String path, verbatim: bool) -> [String, String]
+      def push_verbatim: (Array[Component] components, String path) -> String
+      def rsplit_file_at_dot: (String name) -> [String?, String?]
+      def safe_to_strip_unc?: (String path) -> bool
+      def windows_char_len: (String text) -> Integer
+      def valid_filename?: (String name) -> bool
+      def reserved?: (String name) -> bool
+    end
+  end
+end

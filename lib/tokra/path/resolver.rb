@@ -5,6 +5,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
+require_relative "std"
+
 # SPDX-SnippetBegin
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
