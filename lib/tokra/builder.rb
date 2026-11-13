@@ -81,7 +81,12 @@ module Tokra
       self
     end
 
-    # Registers a URI scheme protocol available to all webviews.
+    # Registers a URI scheme protocol for the webviews' content.
+    #
+    # Only the +tokra+ scheme works today: the native layer registers no
+    # other custom scheme with a webview, and App dispatches only
+    # +"tokra"+ to a handler, so a handler for any other name is stored
+    # and never called.
     #
     # The block receives (ctx, request) and should return a response.
     # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
@@ -91,7 +96,10 @@ module Tokra
       self
     end
 
-    # Registers an async URI scheme protocol available to all webviews.
+    # Registers an async URI scheme protocol for the webviews' content.
+    #
+    # Only the +tokra+ scheme works today, as for
+    # #register_uri_scheme_protocol.
     #
     # The block receives (ctx, request, responder) and must call
     # +responder.respond(response)+ when complete.
