@@ -24,19 +24,20 @@ app, whether Rails, Roda, or a lambda, answers the window's requests for
 `tokra://` URLs inside the process. No web server runs, and no port opens.
 The page calls Ruby through Tauri's JavaScript API.
 
-Tokra mirrors Tauri 2.9.5 class for class: its names, its config file, its
-error messages, and its IPC wire format. The crates Tauri uses for
-windows and web views, [tao](https://github.com/tauri-apps/tao) and
+Tokra follows Tauri 2.9.5: its class and method names, its config file,
+its error messages, and its IPC wire format. Tauri's crates for windows
+and web views, [tao](https://github.com/tauri-apps/tao) and
 [wry](https://github.com/tauri-apps/wry), do the native work through a
 Rust extension that compiles when you install Tokra. Everything else,
 from the IPC router to the config reader, is Ruby.
 
 ## A first app
 
-This app is two files: a config that describes one window, and a script
-that serves a page and answers one command from it.
+This app is three files in one folder: a config that describes one
+window, an icon, and a script that serves a page and answers one command
+from it.
 
-`tokra.conf.json`, beside the script:
+`tokra.conf.json`:
 
 <!-- SPDX-SnippetBegin -->
 <!--
@@ -52,6 +53,20 @@ that serves a page and answers one command from it.
     "windows": [{ "title": "Hello", "width": 480, "height": 320 }]
   }
 }
+```
+<!-- SPDX-SnippetEnd -->
+
+`icons/icon.png` is the window's icon, as in a Tauri app. Any PNG with
+an alpha channel (RGBA) works. To borrow the one from Tokra's examples:
+
+<!-- SPDX-SnippetBegin -->
+<!--
+  SPDX-FileCopyrightText: 2026 Kerrick Long
+  SPDX-License-Identifier: MIT-0
+-->
+```sh
+curl -fsSL --create-dirs -o icons/icon.png \
+  https://raw.githubusercontent.com/setdef/Tokra/trunk/examples/verify_ping_pong/icons/icon.png
 ```
 <!-- SPDX-SnippetEnd -->
 
@@ -102,7 +117,7 @@ Close the window, and the process exits.
 runs until the last window closes. `withGlobalTauri` puts Tauri's
 JavaScript API on `window.__TAURI__`, so a page without a bundler can
 call it. The handler answers `true` for a command it took and `false`
-for one it didn't, and the page's promise then rejects with
+for one it didn't; for those, the page's promise rejects with
 `Command NAME not found`.
 
 ## Compatibility
@@ -114,7 +129,7 @@ for every change, on GitHub's `macos-latest` (Apple silicon),
 | | macOS | Windows | Linux |
 |---|---|---|---|
 | Ruby | 4.0.1 or newer | 4.0.1 or newer, from [RubyInstaller](https://rubyinstaller.org) | 4.0.1 or newer |
-| [Rust](https://www.rust-lang.org/tools/install) | 1.88 or newer; 1.99 or newer on macOS 27 | 1.88 or newer, GNU toolchain (`x86_64-pc-windows-gnu`) | 1.88 or newer |
+| [Rust](https://www.rust-lang.org/tools/install) | 1.88 or newer | 1.88 or newer, GNU toolchain (`x86_64-pc-windows-gnu`) | 1.88 or newer |
 | Web view | WKWebView | WebView2 | WebKitGTK 4.1, version 2.40 or newer |
 | To build | the Xcode Command Line Tools | libclang and RubyInstaller's MSYS2 tools | `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `libxdo-dev`, `libclang-dev`, `pkg-config` |
 | To run | nothing more | the WebView2 runtime | `libxdo3` for menus; `libayatana-appindicator3-1` for tray icons |
@@ -122,15 +137,16 @@ for every change, on GitHub's `macos-latest` (Apple silicon),
 The Linux package names are Debian's and Ubuntu's. On Arch, libxdo comes
 with `xdotool` and the tray library is `libayatana-appindicator`. Without
 an AppIndicator library, building a tray icon raises `Tokra::Error::Tray`.
-RubyInstaller's Ruby is a MinGW build, and rb-sys refuses to compile it
-with Rust's MSVC toolchain. The
+RubyInstaller's Ruby is a MinGW build, and rb-sys refuses to compile
+against it with Rust's MSVC toolchain. The
 [CI workflow](.github/workflows/ci.yml) shows a full Windows setup,
-including where clang finds Ruby's headers.
+including where clang finds Ruby's headers. Some plugins need more; see
+[Plugins](#plugins).
 
-Cargo builds exactly the Rust crate versions in Tokra's
-`Cargo.lock` and fails rather than resolve newer ones. To build against
-newer versions anyway, set `RB_SYS_EXTRA_CARGO_ARGS` (for example to an
-empty string); it replaces `--locked`.
+Cargo builds exactly the Rust crate versions in Tokra's `Cargo.lock` and
+fails rather than resolve newer ones. To build against newer versions
+anyway, set `RB_SYS_EXTRA_CARGO_ARGS` (for example to an empty string);
+it replaces `--locked`.
 
 Tokra ports Tauri piece by piece. These parts of Tauri are not available
 yet:
@@ -152,10 +168,12 @@ yet:
 
 ## Installation
 
-The `tokra` 0.0.1.pre.2 gem on RubyGems.org dates from January 2026 and
-predates the API in this README. Until the next release, use a clone of
-this repository. Install the build requirements from
-[Compatibility](#compatibility) first.
+Install the build requirements from [Compatibility](#compatibility)
+first.
+
+RubyGems.org has `tokra` 0.0.1.pre.2, from January 2026, which predates
+everything in this README. Until the next release, build Tokra from a
+clone of this repository:
 
 <!-- SPDX-SnippetBegin -->
 <!--
@@ -170,11 +188,11 @@ bundle exec rake compile
 ```
 <!-- SPDX-SnippetEnd -->
 
-`rake compile` builds the Rust extension and extracts Tauri's JavaScript
+`rake compile` builds the Rust extension and copies Tauri's JavaScript
 from the `vendor/tauri` submodule into `lib/tokra/js/`.
 
-Then point your app's `Gemfile` at the clone; this one assumes the
-clone sits beside your app's folder. Tokra reads URLs with
+Then point your app's `Gemfile` at the clone. This one assumes the clone
+sits beside your app's folder. Tokra reads URLs with
 [ferro-url](https://github.com/setdef/Ferro), a Ruby binding of the Rust
 `url` crate that Tauri uses. It is not on RubyGems.org yet, so take it
 from its release tag:
@@ -193,8 +211,8 @@ gem "ferro-url", git: "https://github.com/setdef/Ferro",
 ```
 <!-- SPDX-SnippetEnd -->
 
-Run `bundle install` in your app's folder. Bundler compiles
-ferro-url's Rust extension as it installs the gem.
+Run `bundle install` in your app's folder. Bundler compiles ferro-url's
+Rust extension as it installs the gem.
 
 ## Usage
 
@@ -210,16 +228,19 @@ raises ``missing field `identifier` `` before any window opens.
 Tokra looks for the file beside the script you run, even if the script
 changes directory later. A `tokra.macos.conf.json`,
 `tokra.windows.conf.json`, or `tokra.linux.conf.json` beside it is
-merged over it on that platform.
-If you prefer JSON5, with its comments and trailing commas, name the files
-`tokra.conf.json5` and `tokra.macos.conf.json5` instead; Tokra reads them
-the same way.
-To keep the config elsewhere, pass its path:
-`Tokra.generate_context("config/tokra.conf.json")`.
+merged over it on that platform. For JSON5, with its comments and
+trailing commas, name the files `tokra.conf.json5` and
+`tokra.macos.conf.json5` instead. To keep the config elsewhere, pass its
+path: `Tokra.generate_context("config/tokra.conf.json")`.
 
 The config's `app.windows` lists the windows the app opens at start, with
 any of Tauri's window keys (`title`, `width`, `height`, `resizable`,
 `decorations`, and the rest). A config that lists no windows opens none.
+
+The window icon is `icons/icon.png` beside the config, or the first PNG
+the config's `bundle.icon` lists. It must be an RGBA PNG. Without it,
+Tokra raises `failed to open icon PATH` before any window opens, where
+Tauri fails to compile.
 
 ### Rails and Roda
 
@@ -279,11 +300,11 @@ the setup hook, and runs the event loop. `Builder#run(context)` does
 both steps at once.
 
 Wrap each block you give the Builder, and the `invoke_handler`, in
-`Ractor.shareable_proc`. For a plain block, the Builder raises
+`Ractor.shareable_proc`. Given a plain block, the Builder raises
 `setup block must be Ractor-shareable (use Ractor.shareable_proc)`, and
-`Ractor.shareable_proc` itself raises `Ractor::IsolationError` for a
-block that refers to a mutable object outside it. Keep such objects in
-managed state: `Builder#manage(object)`, then `app.state(ObjectClass)`.
+`Ractor.shareable_proc` raises `Ractor::IsolationError` for a block that
+refers to a mutable object outside it. Keep such objects in managed
+state: `Builder#manage(object)`, then `app.state(ObjectClass)`.
 
 `App#run` never returns. When the app exits, it raises `SystemExit` with
 the exit code, so `ensure` clauses and `at_exit` hooks run, but code after
@@ -292,30 +313,48 @@ the call does not. Put shutdown work in a handler for
 
 ### Plugins
 
-Each of Tauri's official plugins that Tokra ports is a separate gem,
-in [plugins/](plugins). The ones with a frontend package serve Tauri's
-commands, so the package works unchanged.
+Each of Tauri's official plugins that Tokra ports is a separate gem, in
+[plugins/](plugins). The ones with a frontend package serve Tauri's
+commands, so the package works unchanged. Import a package through your
+bundler and serve the bundle from your Rack app; the plugins' APIs are
+not on `window.__TAURI__`.
 
-| Gem | Tauri plugin | Frontend package |
-|---|---|---|
-| [tokra-clipboard](plugins/clipboard/README.rdoc) | clipboard-manager | `@tauri-apps/plugin-clipboard-manager` |
-| [tokra-dialog](plugins/dialog/README.rdoc) | dialog | `@tauri-apps/plugin-dialog` |
-| [tokra-global-shortcut](plugins/global-shortcut/README.rdoc) | global-shortcut | `@tauri-apps/plugin-global-shortcut` |
-| [tokra-log](plugins/log/README.rdoc) | log | none yet; Ruby only |
-| [tokra-notification](plugins/notification/README.rdoc) | notification | `@tauri-apps/plugin-notification` |
+| Gem | Tauri plugin | Frontend package | Ferro gems it needs |
+|---|---|---|---|
+| [tokra-clipboard](plugins/clipboard/README.rdoc) | clipboard-manager | `@tauri-apps/plugin-clipboard-manager` | ferro-arboard |
+| [tokra-dialog](plugins/dialog/README.rdoc) | dialog | `@tauri-apps/plugin-dialog` | ferro-rfd |
+| [tokra-global-shortcut](plugins/global-shortcut/README.rdoc) | global-shortcut | `@tauri-apps/plugin-global-shortcut` | ferro-global-hotkey |
+| [tokra-log](plugins/log/README.rdoc) | log | none yet; Ruby only | none |
+| [tokra-notification](plugins/notification/README.rdoc) | notification | `@tauri-apps/plugin-notification` | ferro-notify-rust, ferro-url, ferro-time |
 
-The plugins are pure Ruby, but four of them build on
-[Ferro](https://github.com/setdef/Ferro) gems that compile Rust
-extensions and are not on RubyGems.org yet. Each plugin's README gives
-the Gemfile lines for its Ferro gems. Keep each line's `glob` to that
-gem's folder, as those READMEs show; with a wider glob, Bundler can take
-other Ferro gems from the wrong tag. Use the plugins from your clone as
-you use Tokra, with `path: "../Tokra/plugins/dialog"` and so on.
+The plugins are pure Ruby, but the [Ferro](https://github.com/setdef/Ferro)
+gems they build on compile Rust extensions. On Linux, ferro-rfd also
+needs `libwayland-dev` and `pkg-config` to build. Each plugin's README
+covers its install, its usage, and how it differs from Tauri's plugin.
+
+Neither the plugins nor the Ferro gems are on RubyGems.org yet. Take the
+plugins from your clone as you take Tokra, and each Ferro gem from its
+release tag. For the dialog plugin:
+
+<!-- SPDX-SnippetBegin -->
+<!--
+  SPDX-FileCopyrightText: 2026 Kerrick Long
+  SPDX-License-Identifier: MIT-0
+-->
+```ruby
+gem "tokra-dialog", path: "../Tokra/plugins/dialog"
+gem "ferro-rfd", git: "https://github.com/setdef/Ferro",
+  tag: "ferro-rfd/v0.1.0", glob: "gems/rfd/*.gemspec"
+```
+<!-- SPDX-SnippetEnd -->
+
+Keep each Ferro line's `glob` to that gem's folder. With a wider glob,
+Bundler can take other Ferro gems from the wrong tag.
 
 ### Shipping your app
 
-There is no `tokra` command yet, and packaging an app for people who
-don't have Ruby is planned through [Fledge](https://github.com/setdef/Fledge).
+There is no `tokra` command yet. Packaging an app for people who don't
+have Ruby is planned through [Fledge](https://github.com/setdef/Fledge).
 Today you run a Tokra app with `bundle exec ruby`.
 
 ## Documentation

@@ -9,86 +9,184 @@ Tokra is a port of {Tauri}[https://tauri.app] to Ruby. Your Ruby code runs
 in the app's process, and your HTML, CSS, and JavaScript run in the
 operating system's web view. Your Rack app, whether Rails, Roda, or a
 lambda, answers the window's requests for <tt>tokra://</tt> URLs inside
-the process, so no web server runs and no port opens. The page calls Ruby
-through Tauri's JavaScript API. Tokra mirrors Tauri 2.9.5: its names, its
-config file, its error messages, and its IPC wire format.
+the process. No web server runs, and no port opens. The page calls Ruby
+through Tauri's JavaScript API.
 
-The {README on GitHub}[https://github.com/setdef/Tokra#readme] walks
-through a first app, the config file, Rails, plugins, and what Tokra does
-not do yet.
+Tokra follows Tauri 2.9.5: its class and method names, its config file,
+its error messages, and its IPC wire format. Tauri's crates for windows
+and web views, tao and wry, do the native work through a Rust extension
+that compiles when you install Tokra. Everything else is Ruby.
 
-== Usage
+The {README on GitHub}[https://github.com/setdef/Tokra#readme] covers the
+same ground at more length: Rails, the Builder, plugins, and the parts of
+Tauri that Tokra does not port yet.
 
-Put a <tt>tokra.conf.json</tt> beside your script. Its keys are Tauri's,
-so {Tauri's configuration reference}[https://v2.tauri.app/reference/config/]
+== A first app
+
+This app is three files in one folder. <tt>tokra.conf.json</tt> describes
+the app and its window. Its keys are Tauri's, so
+{Tauri's configuration reference}[https://v2.tauri.app/reference/config/]
 documents them:
 
   {
     "identifier": "com.example.hello",
-    "app": { "windows": [{ "title": "Hello", "width": 480, "height": 320 }] }
+    "productName": "Hello",
+    "app": {
+      "withGlobalTauri": true,
+      "windows": [{ "title": "Hello", "width": 480, "height": 320 }]
+    }
   }
 
-Beside it, put the window icon at <tt>icons/icon.png</tt>, an RGBA PNG, as
-a Tauri app has one; the app does not start without it.
+<tt>icons/icon.png</tt> is the window's icon, as in a Tauri app: any PNG
+with an alpha channel (RGBA). Without it, Tokra.generate_context raises
+<tt>failed to open icon PATH</tt> and no window opens. To borrow the
+icon from Tokra's examples:
 
-Then serve your Rack app in the windows it lists:
+  curl -fsSL --create-dirs -o icons/icon.png \
+    https://raw.githubusercontent.com/setdef/Tokra/trunk/examples/verify_ping_pong/icons/icon.png
+
+<tt>app.rb</tt> serves a page and answers one command from it:
 
   require "tokra"
 
-  Rack::Handler::Tokra.run(->(_env) { [200, { "content-type" => "text/html" }, ["<h1>Hello</h1>"]] })
+  PAGE = <<~HTML
+    <h1>Hello from Tokra</h1>
+    <button onclick="greet()">Greet</button>
+    <p id="answer"></p>
+    <script>
+      async function greet() {
+        const answer = await window.__TAURI__.core.invoke("greet", { name: "Ada" });
+        document.getElementById("answer").textContent = answer;
+      }
+    </script>
+  HTML
 
-For a setup hook, menus, tray icons, or plugins, build the app with
-Tokra::Builder and Tokra.generate_context instead.
+  site = ->(_env) { [200, { "content-type" => "text/html" }, [PAGE]] }
 
-== Installation
+  Rack::Handler::Tokra.run(
+    site,
+    invoke_handler: Ractor.shareable_proc { |invoke|
+      next false unless invoke.command == "greet"
 
-tokra reads URLs with ferro-url, a Ruby binding of the Rust +url+ crate
-that Tauri uses. ferro-url is not on RubyGems.org yet, so name its release
-tag in your Gemfile beside tokra:
+      invoke.resolve("Hello, #{invoke.payload["name"]}!")
+      true
+    }
+  )
 
-  gem "ferro-url", git: "https://github.com/setdef/Ferro",
-    tag: "ferro-url/v0.1.0", glob: "gems/url/*.gemspec"
+Run it with <tt>bundle exec ruby app.rb</tt>, after the steps under
+Installation. A 480 by 320 window titled
+"Hello" opens. Click *Greet*, and "Hello, Ada!" appears under the button.
+Close the window, and the process exits.
 
-=== Building the Native Extension
+For a setup hook, menus, tray icons, event listeners, or plugins, build
+the app with Tokra::Builder and Tokra.generate_context instead, as a Tauri
+app's +main+ does.
 
-Installing tokra compiles a Rust extension, so the machine that installs
-the gem needs Rust and Cargo:
+== Compatibility
+
+Tokra runs on macOS, Windows, and Linux, and CI runs its tests on all
+three for every change. Installing tokra compiles a Rust extension, so
+the machine that installs it needs a Rust toolchain.
 
 * Ruby 4.0.1 or newer.
 * Rust 1.88 or newer, the highest +rust-version+ among the locked
-  dependencies. The gem ships a version 4 Cargo.lock, which Cargo reads from
-  1.78 on. On macOS 27, use Rust 1.99 or newer: earlier toolchains strip the
-  extension in a way the new loader rejects.
-* On Windows, RubyInstaller's Ruby, with Rust's GNU toolchain
-  (<tt>x86_64-pc-windows-gnu</tt>): RubyInstaller's Ruby is a MinGW build,
-  and rb-sys refuses to compile it with the MSVC toolchain.
-* The build runs <tt>cargo --locked</tt>, so it compiles exactly the
-  dependency versions this repository tested and fails rather than resolving
-  newer ones. To build against newer versions anyway, set
-  +RB_SYS_EXTRA_CARGO_ARGS+ (for example to an empty string); it replaces
-  <tt>--locked</tt>.
-* On Linux, the GTK 3 and WebKitGTK 4.1 development libraries, with
-  WebKitGTK 2.40 or newer: Tokra turns on wry's +linux-body+ feature, as
-  Tauri does, so request bodies reach Ruby. On Debian and Ubuntu, install
-  +libwebkit2gtk-4.1-dev+, +libgtk-3-dev+, +libclang-dev+, and
-  +pkg-config+.
-* On Linux, libxdo, which menus use for their Copy, Cut, Paste, and Select
-  All items, as Tauri's +linux-libxdo+ feature does: +libxdo-dev+ to build
-  on Debian and Ubuntu, and +libxdo3+ at run time (+xdotool+ on Arch).
-* On Linux, an AppIndicator library for tray icons, which tray-icon loads
-  at run time, so building needs nothing more: +libayatana-appindicator3-1+
-  on Debian and Ubuntu (+libayatana-appindicator+ on Arch), or the older
-  +libappindicator3-1+. Without one, building a tray raises
-  Tokra::Error::Tray. The icon shows where the desktop runs a
-  StatusNotifierItem host.
+  dependencies.
+* On macOS, the Xcode Command Line Tools.
+* On Windows, RubyInstaller's Ruby with its MSYS2 tools, libclang, and
+  Rust's GNU toolchain (<tt>x86_64-pc-windows-gnu</tt>). RubyInstaller's
+  Ruby is a MinGW build, and rb-sys refuses to compile against it with
+  the MSVC toolchain. Apps need the WebView2 runtime.
+* On Linux, WebKitGTK 4.1, version 2.40 or newer, and GTK 3. On Debian and
+  Ubuntu, install +libwebkit2gtk-4.1-dev+, +libgtk-3-dev+, +libxdo-dev+,
+  +libclang-dev+, and +pkg-config+ to build. At run time, menus need
+  +libxdo3+ (+xdotool+ on Arch), and tray icons need an AppIndicator
+  library, +libayatana-appindicator3-1+ (+libayatana-appindicator+ on
+  Arch); without one, building a tray icon raises Tokra::Error::Tray.
+
+The build runs <tt>cargo --locked</tt>, so it compiles exactly the crate
+versions in Tokra's +Cargo.lock+ and fails rather than resolve newer ones.
+To build against newer versions anyway, set +RB_SYS_EXTRA_CARGO_ARGS+
+(for example to an empty string); it replaces <tt>--locked</tt>.
+
+These parts of Tauri are not available yet: capabilities (pages your app
+serves can call every command, and pages from any other origin none);
+the JavaScript APIs for windows, web views, the app, and paths; loading
+pages from +devUrl+ or +frontendDist+; TOML configs; the command-line
+tool and app bundles; and iOS and Android.
+
+== Installation
+
+RubyGems.org has tokra 0.0.1.pre.2, from January 2026, which predates
+everything in this README. Until the next release, build Tokra from a
+clone of its repository:
+
+  git clone --recurse-submodules https://github.com/setdef/Tokra.git
+  cd Tokra
+  bundle install
+  bundle exec rake compile
+
+Then point your app's Gemfile at the clone, here beside your app's
+folder. tokra reads URLs with ferro-url, a Ruby binding of the Rust +url+
+crate that Tauri uses. ferro-url is not on RubyGems.org yet, so take it
+from its release tag:
+
+  gem "tokra", path: "../Tokra"
+  gem "ferro-url", git: "https://github.com/setdef/Ferro",
+    tag: "ferro-url/v0.1.0", glob: "gems/url/*.gemspec"
+
+Run <tt>bundle install</tt> in your app's folder. Bundler compiles
+ferro-url's Rust extension as it installs the gem.
 
 == Plugins
 
-Tauri's official plugins that Tokra ports are separate gems:
+Each of Tauri's official plugins that Tokra ports is a separate gem:
 tokra-clipboard, tokra-dialog, tokra-global-shortcut, tokra-log, and
-tokra-notification. Each README names the Ferro gems it builds on.
+tokra-notification. All but tokra-log serve their Tauri plugin's
+commands, so the frontend package, such as
+<tt>@tauri-apps/plugin-dialog</tt>, works unchanged; tokra-log is Ruby
+only. The plugins are pure Ruby, and all but tokra-log build on Ferro
+gems, which compile Rust extensions. Neither the plugins nor the Ferro
+gems are on RubyGems.org yet. Each plugin's README names its Ferro gems
+and says how the plugin differs from Tauri's.
+
+== Documentation
+
+* {Tauri's configuration reference}[https://v2.tauri.app/reference/config/]
+  documents every key of <tt>tokra.conf.json</tt>.
+* {Tauri's JavaScript API reference}[https://v2.tauri.app/reference/javascript/api/]
+  documents what your page calls. From the page, Tauri's +core+, +event+,
+  +menu+, +tray+, and +image+ APIs work.
+* {CHANGELOG.md}[https://github.com/setdef/Tokra/blob/trunk/CHANGELOG.md]
+  lists the changes since the last release, with breaking ones marked.
+* {The examples}[https://github.com/setdef/Tokra/tree/trunk/examples] are
+  a Roda app, a Rails app, and a static page.
+
+Report bugs and ask questions on the
+{setdef forum}[https://forum.setdef.com/tags/c/tokra/discussion] or as a
+{GitHub issue}[https://github.com/setdef/Tokra/issues]. To contribute,
+start with {AGENTS.md}[https://github.com/setdef/Tokra/blob/trunk/AGENTS.md].
 
 == License
 
-AGPL-3.0-or-later. Code adapted from Tauri keeps Tauri's Apache-2.0 OR MIT,
-and every file names its license.
+Tokra and its plugins are licensed under the GNU Affero General Public
+License, version 3 or later (AGPL-3.0-or-later). Code adapted from Tauri
+keeps Tauri's license, Apache-2.0 OR MIT. The documentation is
+CC-BY-SA-4.0. Every file names its license, and the texts are in
++LICENSES+.
+
+== How Tokra is made
+
+Tokra's maintainer describes the three ways code and prose come to exist
+like this:
+
+"I use three words for how code and prose comes to exist. Code or prose
+I wrote, I typed by hand, with nothing generated. Code or prose I
+wrought, an AI agent generated while I iterated with it, and I reviewed
+every change before committing it, so I take responsibility for every
+diff. Code or prose I requested, an agent built with little or no review
+from me, in the style of a "dark factory.""
+
+Tokra's early work was wrought; the rest is requested. AI agents generated
+its code, tests, and documentation, this README included. The
+{README on GitHub}[https://github.com/setdef/Tokra#how-tokra-is-made] says
+what stands in for the maintainer's review.
