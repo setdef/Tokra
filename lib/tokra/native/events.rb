@@ -122,7 +122,8 @@ module Tokra
     #   end
     ExitRequestedEvent = Data.define(:code)
 
-    # HTTP request from WebView via the <tt>tokra://</tt> custom protocol.
+    # HTTP request from WebView via a custom protocol: <tt>tokra://</tt>,
+    # <tt>ipc://</tt>, or a scheme the app registered.
     #
     # Contains all request data including a +request_id+ for correlating
     # the async response via +proxy.respond()+. +label+ is the label of the
@@ -130,14 +131,16 @@ module Tokra
     # (Tauri's protocol context reads it so, manager/webview.rs:229-233).
     # +headers+ is an array of [name, value] pairs with lowercase names,
     # and +body+ is a binary (ASCII-8BIT) String holding the exact request
-    # bytes.
+    # bytes. +scheme+ is the name the protocol was registered under, which
+    # App routes on, as each of Tauri's protocols is its own handler
+    # (manager/webview.rs:224-234); the +uri+ spells it as the page did.
     #
     #   case event
     #   when Tokra::Native::HttpRequestEvent
     #     # Build Rack response...
     #     proxy.respond(event.request_id, 200, headers, body)
     #   end
-    HttpRequestEvent = Data.define(:label, :request_id, :method, :uri, :headers, :body)
+    HttpRequestEvent = Data.define(:label, :request_id, :method, :uri, :headers, :body, :scheme)
 
     # Page load event (started or finished) in the webview labeled +label+.
     #

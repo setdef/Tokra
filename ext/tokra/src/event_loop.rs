@@ -623,6 +623,7 @@ impl Turn<'_> {
             }
             UserEvent::HttpRequest {
                 label,
+                scheme,
                 request_id,
                 method,
                 uri,
@@ -630,12 +631,12 @@ impl Turn<'_> {
                 body,
             } => {
                 // Data.define(:label, :request_id, :method, :uri, :headers,
-                // :body); the body arrives as a binary String holding the
-                // exact bytes.
+                // :body, :scheme); the body arrives as a binary String
+                // holding the exact bytes.
                 let body = Ruby::get_with(self.callback).str_from_slice(&body);
                 self.deliver(
                     "::Tokra::Native::HttpRequestEvent",
-                    (label, request_id, method, uri, headers, body),
+                    (label, request_id, method, uri, headers, body, scheme),
                 );
             }
             UserEvent::PageLoad { label, event, url } => {

@@ -5,13 +5,19 @@ module Tokra
   class WebviewManager
     WEBVIEW_CREATED_EVENT: String
 
+    type uri_scheme_protocol = ^(UriSchemeContext, Native::HttpRequestEvent, UriSchemeResponder) -> void
+
     @manager: AppManager
+    @uri_scheme_protocols: Hash[String, uri_scheme_protocol]
     @os_name: String
     @data_local_dir: ^() -> String?
 
     def self.tokra_protocol_url: (String os, ?https: bool) -> Ferro::Url::Url
     def self.push: (String base, String path) -> String
     def initialize: (AppManager manager, os_name: String, ?data_local_dir: ^() -> String?) -> void
+    attr_reader uri_scheme_protocols: Hash[String, uri_scheme_protocol]
+    def register_uri_scheme_protocol: (String uri_scheme, uri_scheme_protocol protocol) -> void
+    def registered_scheme_protocols: () -> Array[String]
     def webview_url: (webview_url url, ?https: bool) -> String
     def data_directory: (String? data_directory) -> String?
     def attach_webview: (Webview webview) -> Webview

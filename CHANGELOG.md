@@ -542,6 +542,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `WindowCloseEvent` and answers `true` to `WindowDestroyedEvent`)
 - A closed `Native::Window` ignores its setters and answers `nil` for its
   title and id, and a closed `Native::WebView` ignores `eval` (breaking)
+- Registering a URI scheme again replaces its handler whichever method
+  registered either, so a later asynchronous `tokra` handler now wins over
+  an earlier synchronous one; a registered `ipc` scheme replaces the invoke
+  transport, as in Tauri
+- `Native::HttpRequestEvent` has a seventh member, `scheme`, the name the
+  request's protocol was registered under; `Native::WebView#open` takes
+  `uri_scheme_protocols`, the schemes to register (breaking)
 
 ### Fixed
 
@@ -581,6 +588,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   found`): the build installs `WebView2Loader.dll`, which the extension
   imports, beside it, and `require "tokra"` adds that directory to Windows'
   DLL search path
+- A handler `Builder#register_uri_scheme_protocol` or
+  `#register_asynchronous_uri_scheme_protocol` took for any scheme but
+  `tokra` was never called; every webview now registers each scheme, and a
+  page served from one may invoke commands, as in Tauri
 
 ### Removed
 

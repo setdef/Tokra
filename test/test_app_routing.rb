@@ -381,10 +381,12 @@ class TestAppRouting < Minitest::Test
       ["tauri-invoke-key", key],
       ["origin", LocalOrigin.url("")],
     ]
-    N::HttpRequestEvent.new(label:, request_id: 7, method:, uri: "ipc://localhost/whoami", headers:, body: "{}")
+    N::HttpRequestEvent.new(label:, request_id: 7, method:, uri: "ipc://localhost/whoami", headers:, body: "{}",
+      scheme: "ipc")
   end
 
   private def tokra_request(label)
-    N::HttpRequestEvent.new(label:, request_id: 8, method: "GET", uri: "tokra://localhost/", headers: [], body: "")
+    N::HttpRequestEvent.new(label:, request_id: 8, method: "GET", uri: "tokra://localhost/", headers: [], body: "",
+      scheme: "tokra")
   end
 end

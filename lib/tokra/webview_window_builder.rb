@@ -1086,9 +1086,11 @@ module Tokra
       default_icon = handle.default_window_icon
       @window_builder.icon(default_icon) if default_icon && !@window_builder.has_icon?
       menu = @window_builder.window_menu(handle)
+      # Each held scheme, then tokra and ipc (manager/webview.rs:222-280).
       native_window, native_webview = handle.runtime_context.create_window(@label,
         window_attributes: @window_builder.native_attributes, webview_attributes:,
-        url:, initialization_scripts: scripts, menu: menu&.menu)
+        url:, initialization_scripts: scripts, uri_scheme_protocols: webviews.registered_scheme_protocols,
+        menu: menu&.menu)
       window = WindowManager.attach_window(Window.new(label: @label, native: native_window, app_handle: handle, menu:))
       webview = webviews.attach_webview(Webview.new(label: @label, native: native_webview, window:, app_handle: handle))
       handler = @window_builder.menu_event_handler

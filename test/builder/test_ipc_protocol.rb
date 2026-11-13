@@ -24,7 +24,7 @@ class TestBuilderIpcProtocol < Minitest::Test
   # +omit+ drops named headers to exercise the malformed paths.
   private def ipc_request(app, cmd:, method: "POST", body: "{}", callback: "100",
     error: "200", key: :app, content_type: "application/json",
-    origin: LocalOrigin.url("", app:), uri: nil, omit: [], lowercase: false
+    origin: LocalOrigin.url("", app:), uri: nil, omit: [], lowercase: false, scheme: "ipc"
   )
     headers = [] #: Array[[String, String]]
     headers << ["Content-Type", content_type] unless omit.include?(:content_type)
@@ -42,7 +42,8 @@ class TestBuilderIpcProtocol < Minitest::Test
       method:,
       uri: uri || "ipc://localhost/#{cmd}",
       headers:,
-      body:
+      body:,
+      scheme:
     )
   end
 
@@ -741,13 +742,15 @@ class TestBuilderIpcProtocol < Minitest::Test
     StubNative.clear_event
   end
 
-  # wry reverts WebView2's http://ipc.localhost/ before the handler runs,
-  # so that form never reaches Ruby and is not an ipc:// request.
-  def test_http_ipc_localhost_is_not_the_ipc_transport
+  # The transport is the ipc registration's, as Tauri's is the handler it
+  # registers for ipc (manager/webview.rs:273-280), so a request that came
+  # through another registration is no invoke, whatever its URI spells
+  # (plan 067, decision 2).
+  def test_only_a_request_through_the_ipc_registration_is_an_invoke
     app = build_test_app
-    run_with(app, ipc_request(app, cmd: "ping", uri: "http://ipc.localhost/ping"))
+    run_with(app, ipc_request(app, cmd: "ping", uri: "ipc://localhost/ping", scheme: "tokra"))
 
-    assert_empty StubNative.responses, "only ipc:// URIs are invokes"
+    assert_empty StubNative.responses, "only the ipc registration's requests are invokes"
   ensure
     StubNative.clear_event
   end

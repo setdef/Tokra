@@ -575,9 +575,10 @@ set_enabled: :is_enabled,
     end
 
     # The native window it was built in, the webview rows it was given,
-    # without the URL and scripts, and the scripts as #open took them, each
-    # <tt>[script, main_frame_only]</tt>. #url answers the URL it loaded.
-    attr_reader :window, :attributes, :initialization_script_pairs
+    # without the URL, scripts, and schemes, the scripts as #open took
+    # them, each <tt>[script, main_frame_only]</tt>, and the custom
+    # protocols it registered, by name. #url answers the URL it loaded.
+    attr_reader :window, :attributes, :initialization_script_pairs, :uri_scheme_protocols
 
     # Fills the empty webview, as Native::WebView#open builds the wry
     # webview in +window+, which must be open.
@@ -591,8 +592,9 @@ set_enabled: :is_enabled,
       @window = window
       @label = label
       @url = attributes.fetch(:url)
-      @attributes = attributes.except(:url, :initialization_scripts)
+      @attributes = attributes.except(:url, :initialization_scripts, :uri_scheme_protocols)
       @initialization_script_pairs = attributes.fetch(:initialization_scripts)
+      @uri_scheme_protocols = attributes.fetch(:uri_scheme_protocols)
       @initialization_scripts = @initialization_script_pairs.map(&:first)
       @closed = false
       nil
@@ -609,9 +611,12 @@ set_enabled: :is_enabled,
       Thread.current[:stub_native_webviews] ||= []
     end
 
+    # Built as new_with_protocol builds one, with the tokra and ipc
+    # protocols, until #open names its own.
     def initialize(scripts = [], label: "main")
       @label = label
       @initialization_scripts = scripts
+      @uri_scheme_protocols = %w[tokra ipc]
       @evals = []
       @background_colors = []
       @closed = false

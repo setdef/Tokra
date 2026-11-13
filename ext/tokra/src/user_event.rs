@@ -101,9 +101,13 @@ pub enum UserEvent {
     /// The `request_id` is used to correlate with the async response.
     /// `label` is the id wry hands the protocol handler, which is the
     /// webview's label (`with_id`), as Tauri reads it
-    /// (`manager/webview.rs:229-233`).
+    /// (`manager/webview.rs:229-233`). `scheme` is the name the protocol
+    /// was registered under: Tauri gives each scheme its own handler
+    /// (`manager/webview.rs:224-234`), so Ruby routes on the registration,
+    /// not on the URI's spelling of it.
     HttpRequest {
         label: String,
+        scheme: String,
         request_id: u64,
         method: String,
         uri: String,
@@ -256,6 +260,7 @@ mod tests {
         ];
         let event = UserEvent::HttpRequest {
             label: "main".to_string(),
+            scheme: "tokra".to_string(),
             request_id: 42,
             method: "POST".to_string(),
             uri: "tokra://localhost/api".to_string(),
@@ -362,6 +367,7 @@ mod tests {
     fn test_http_request_id_can_be_zero() {
         let event = UserEvent::HttpRequest {
             label: "main".to_string(),
+            scheme: "tokra".to_string(),
             request_id: 0,
             method: "GET".to_string(),
             uri: "tokra://test".to_string(),
@@ -379,6 +385,7 @@ mod tests {
     fn test_http_request_id_can_be_max_u64() {
         let event = UserEvent::HttpRequest {
             label: "main".to_string(),
+            scheme: "tokra".to_string(),
             request_id: u64::MAX,
             method: "GET".to_string(),
             uri: "tokra://test".to_string(),

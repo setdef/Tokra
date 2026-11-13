@@ -112,7 +112,7 @@ module Tokra
       def self.empty: (Proxy) -> WebView
       type script = [String, bool]
       type proxy = [String, String, String]
-      type attribute = String | bool | Array[script] | proxy | Array[Integer] | Window::rgba | Window::dimensions | nil
+      type attribute = String | bool | Array[script] | Array[String] | proxy | Array[Integer] | Window::rgba | Window::dimensions | nil
 
       def open: (Window, Proxy, String label, Hash[Symbol, attribute] attributes) -> nil
       def eval: (String) -> void
@@ -143,8 +143,9 @@ module Tokra
       def uri: () -> String
       def headers: () -> Array[[String, String]]
       def body: () -> String
-      def self.new: (String label, Integer request_id, String method, String uri, Array[[String, String]] headers, String body) -> HttpRequestEvent
-                  | (label: String, request_id: Integer, method: String, uri: String, headers: Array[[String, String]], body: String) -> HttpRequestEvent
+      def scheme: () -> String
+      def self.new: (String label, Integer request_id, String method, String uri, Array[[String, String]] headers, String body, String scheme) -> HttpRequestEvent
+                  | (label: String, request_id: Integer, method: String, uri: String, headers: Array[[String, String]], body: String, scheme: String) -> HttpRequestEvent
     end
 
     class IpcEvent < Data

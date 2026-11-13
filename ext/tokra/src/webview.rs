@@ -32,15 +32,19 @@ const CLASS: &str = "Tokra::Native::WebView";
 
 /// Forward one custom-protocol request to Ruby through the event loop.
 ///
-/// Both the `tokra://` content protocol and the `ipc://` transport share this
-/// path: store the wry responder by a fresh `request_id`, then send a
-/// `UserEvent::HttpRequest` carrying the request and `label`, the id wry
-/// hands the handler, which is the webview's label (`with_id`), as Tauri's
-/// protocol context reads it (`manager/webview.rs:229-233`). Ruby routes on the URI scheme
-/// and later replies (or drops) via the `Proxy` keyed by that `request_id`. wry
-/// registers each scheme independently, so both protocols reuse one handler.
+/// Every custom protocol shares this path, the `tokra://` content
+/// protocol, the `ipc://` transport, and each scheme the app registers:
+/// store the wry responder by a fresh `request_id`, then send a
+/// `UserEvent::HttpRequest` carrying the request, `scheme`, the name the
+/// protocol was registered under, and `label`, the id wry hands the
+/// handler, which is the webview's label (`with_id`), as Tauri's protocol
+/// context reads it (`manager/webview.rs:229-233`). Ruby routes on
+/// `scheme`, as Tauri's per-scheme handlers are routed by registration
+/// (`:224-234`), and later replies (or drops) via the `Proxy` keyed by
+/// that `request_id`.
 fn forward_request_to_ruby(
     proxy: &EventLoopProxy<UserEvent>,
+    scheme: &str,
     label: &str,
     request: &wry::http::Request<Vec<u8>>,
     responder: wry::RequestAsyncResponder,
@@ -53,7 +57,7 @@ fn forward_request_to_ruby(
         .unwrap()
         .insert(request_id, responder);
 
-    let _ = proxy.send_event(http_request_event(request_id, label, request));
+    let _ = proxy.send_event(http_request_event(request_id, scheme, label, request));
 }
 
 /// Build the `UserEvent::HttpRequest` Ruby receives for one protocol request.
@@ -68,6 +72,7 @@ fn forward_request_to_ruby(
 /// uploads.
 fn http_request_event(
     request_id: u64,
+    scheme: &str,
     label: &str,
     request: &wry::http::Request<Vec<u8>>,
 ) -> UserEvent {
@@ -84,6 +89,7 @@ fn http_request_event(
 
     UserEvent::HttpRequest {
         label: label.to_string(),
+        scheme: scheme.to_string(),
         request_id,
         method: request.method().to_string(),
         uri: request.uri().to_string(),
@@ -109,6 +115,45 @@ fn forward_ipc_message_to_ruby(
         url: msg.uri().to_string(),
         body: msg.body().clone(),
     });
+}
+
+// SPDX-SnippetEnd
+
+/// Why a scheme cannot cross into the native layer: wry's macOS backend
+/// names a class after each scheme through a C string it `unwrap`s
+/// (wry 0.54.1 `src/wkwebview/class/url_scheme_handler.rs:29-33`), and
+/// glib copies the name into one on Linux, so a NUL would panic inside
+/// webview creation, a fatal error Ruby cannot rescue. Any other name
+/// reaches wry, and the platform judges it.
+///
+/// # Errors
+///
+/// Answers the message for `ArgumentError` when `scheme` holds a NUL.
+fn refuse_nul_scheme(scheme: &str) -> Result<(), &'static str> {
+    if scheme.contains('\0') {
+        Err("scheme contains null byte")
+    } else {
+        Ok(())
+    }
+}
+
+// SPDX-SnippetBegin
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+// SPDX-SnippetComment: Registering once per web context adapted from tauri-runtime-wry/src/lib.rs create_webview
+
+/// The schemes of `schemes` a new webview registers, in order: each one
+/// `registers` says its web context still lacks. On Linux the custom
+/// protocols belong to the web context and wry refuses a scheme
+/// registered twice, so Tauri's runtime skips a scheme the context has
+/// (tauri-runtime-wry `src/lib.rs:4963-4981`); elsewhere `registers`
+/// answers `true` for each (`web_context.rs`).
+fn schemes_to_register(schemes: &[String], mut registers: impl FnMut(&str) -> bool) -> Vec<String> {
+    schemes
+        .iter()
+        .filter(|scheme| registers(scheme))
+        .cloned()
+        .collect()
 }
 
 // SPDX-SnippetEnd
@@ -518,10 +563,12 @@ fn drag_drop_handler(
 //                      Initial URL pattern adapted from tauri/manager/webview.rs WebviewUrl::App
 //                      Page load handler pattern adapted from tauri/webview/mod.rs on_page_load
 
-/// Build the webview labeled `label` into `window`, loading `url`, with the
-/// `tokra://` and `ipc://` protocols and the IPC, page-load, drag-drop, and
-/// (Windows) focus handlers, each naming `label` (see `new_with_protocol`),
-/// and the webview rows in `attributes`.
+/// Build the webview labeled `label` into `window`, loading `url`, with a
+/// custom protocol for each of `uri_scheme_protocols`, which Ruby lists
+/// as Tauri's `prepare_pending_webview` does (`manager/webview.rs:222-280`),
+/// and the IPC, page-load, drag-drop, and (Windows) focus handlers, each
+/// naming `label` (see `new_with_protocol`), and the webview rows in
+/// `attributes`.
 ///
 /// The webview is built with the web context of its data directory, as
 /// Tauri's `create_webview` builds every webview
@@ -545,19 +592,17 @@ fn build(
     label: &str,
     url: String,
     initialization_scripts: Vec<(String, bool)>,
+    uri_scheme_protocols: &[String],
     attributes: &Attributes,
 ) -> Result<Built, Error> {
     let proxy_clone = proxy.inner().clone();
     let label_for_ipc_message = label.to_string();
-    let proxy_for_protocol = proxy.inner().clone();
-    let proxy_for_ipc = proxy.inner().clone();
     let proxy_for_page_load = proxy.inner().clone();
     let label_for_page_load = label.to_string();
 
     let mut lent = Lent::take(attributes.data_directory.clone(), label)
         .map_err(|message| Error::new(runtime_error(), message))?;
-    let registers_tokra = lent.registers("tokra");
-    let registers_ipc = lent.registers("ipc");
+    let schemes = schemes_to_register(uri_scheme_protocols, |scheme| lent.registers(scheme));
     let mut builder =
         attributes.apply(WebViewBuilder::new_with_web_context(lent.context()).with_id(label));
     // Each script for the main frame only or every frame, in order, as
@@ -571,24 +616,17 @@ fn build(
     }
 
     builder = builder.with_url(url);
-    if registers_tokra {
-        // The tokra:// content protocol: Ruby serves HTML, assets, and Rack.
-        builder = builder.with_asynchronous_custom_protocol(
-            "tokra".into(),
-            move |id, request, responder| {
-                forward_request_to_ruby(&proxy_for_protocol, id, &request, responder);
-            },
-        );
-    }
-    if registers_ipc {
-        // The ipc:// transport: Tauri's desktop-default invoke channel. Same
-        // request shape, different scheme; Ruby dispatches on the URI scheme.
-        builder = builder.with_asynchronous_custom_protocol(
-            "ipc".into(),
-            move |id, request, responder| {
-                forward_request_to_ruby(&proxy_for_ipc, id, &request, responder);
-            },
-        );
+    // Each scheme forwards to Ruby with its own name, as each of Tauri's
+    // registered protocols is its own handler (tauri-runtime-wry
+    // `src/lib.rs:4983-4992`); Ruby serves tokra:// content, the ipc://
+    // transport, and the app's own schemes.
+    for scheme in schemes {
+        let proxy = proxy.inner().clone();
+        let name = scheme.clone();
+        builder =
+            builder.with_asynchronous_custom_protocol(scheme, move |id, request, responder| {
+                forward_request_to_ruby(&proxy, &name, id, &request, responder);
+            });
     }
     let builder = builder
         .with_on_page_load_handler(move |event, url| {
@@ -780,6 +818,7 @@ impl RbWebView {
                 .into_iter()
                 .map(|script| (script, true))
                 .collect(),
+            &["tokra".to_string(), "ipc".to_string()],
             &Attributes::default(),
         )?;
         Ok(Self {
@@ -841,6 +880,12 @@ impl RbWebView {
         let url: String = attributes.fetch(ruby.to_symbol("url"))?;
         let initialization_scripts: Vec<(String, bool)> =
             attributes.fetch(ruby.to_symbol("initialization_scripts"))?;
+        let uri_scheme_protocols: Vec<String> =
+            attributes.fetch(ruby.to_symbol("uri_scheme_protocols"))?;
+        for scheme in &uri_scheme_protocols {
+            refuse_nul_scheme(scheme)
+                .map_err(|message| Error::new(ruby.exception_arg_error(), message))?;
+        }
         let attributes = Attributes::read(ruby, attributes)?;
         {
             let inner = rb_self
@@ -860,6 +905,7 @@ impl RbWebView {
             &label,
             url,
             initialization_scripts,
+            &uri_scheme_protocols,
             &attributes,
         )?;
         rb_self
@@ -1334,8 +1380,8 @@ pub fn define_class(ruby: &Ruby, native: magnus::RModule) -> Result<(), Error> {
 #[cfg(test)]
 mod tests {
     use super::{
-        background_throttling, http_request_event, panic_message, proxy_config, Attributes,
-        UserEvent,
+        background_throttling, http_request_event, panic_message, proxy_config, refuse_nul_scheme,
+        schemes_to_register, Attributes, UserEvent,
     };
 
     #[test]
@@ -1489,9 +1535,10 @@ mod tests {
             .body(body.clone())
             .unwrap();
 
-        match http_request_event(7, "side", &request) {
+        match http_request_event(7, "ipc", "side", &request) {
             UserEvent::HttpRequest {
                 label,
+                scheme,
                 request_id,
                 method,
                 uri,
@@ -1499,6 +1546,7 @@ mod tests {
                 body: forwarded,
             } => {
                 assert_eq!(label, "side", "the event names the webview wry passed");
+                assert_eq!(scheme, "ipc");
                 assert_eq!(request_id, 7);
                 assert_eq!(method, "POST");
                 assert_eq!(uri, "ipc://localhost/upload");
@@ -1522,11 +1570,59 @@ mod tests {
             .body(Vec::new())
             .unwrap();
 
-        match http_request_event(1, "main", &request) {
+        match http_request_event(1, "ipc", "main", &request) {
             UserEvent::HttpRequest { headers, .. } => {
                 assert_eq!(headers, vec![("x-probe".to_string(), "café".to_string())]);
             }
             other => panic!("expected HttpRequest, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn http_request_event_names_the_scheme_its_protocol_was_registered_for() {
+        // The URI's scheme is the page's spelling; the event carries the
+        // registration's, as Tauri's per-scheme closure knows its own.
+        let request = wry::http::Request::builder()
+            .uri("second://localhost/index.html")
+            .body(Vec::new())
+            .unwrap();
+
+        match http_request_event(3, "Second", "main", &request) {
+            UserEvent::HttpRequest { scheme, uri, .. } => {
+                assert_eq!(scheme, "Second");
+                assert_eq!(uri, "second://localhost/index.html");
+            }
+            other => panic!("expected HttpRequest, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_scheme_holding_nul_is_refused_before_wry_sees_it() {
+        assert_eq!(refuse_nul_scheme("second"), Ok(()));
+        assert_eq!(
+            refuse_nul_scheme(""),
+            Ok(()),
+            "wry and the platform judge the rest"
+        );
+        assert_eq!(
+            refuse_nul_scheme("sec\0ond"),
+            Err("scheme contains null byte")
+        );
+    }
+
+    #[test]
+    fn each_scheme_the_context_lacks_is_registered_in_the_order_given() {
+        let schemes = ["second", "tokra", "ipc"].map(String::from);
+        let mut asked = Vec::new();
+        let registered = schemes_to_register(&schemes, |scheme| {
+            asked.push(scheme.to_string());
+            scheme != "tokra"
+        });
+
+        assert_eq!(registered, ["second", "ipc"]);
+        assert_eq!(
+            asked, schemes,
+            "every scheme is offered to the context once"
+        );
     }
 }

@@ -29,7 +29,8 @@ class TestBuilderIpcChannelFetch < Minitest::Test
     headers << ["Tauri-Channel-Id", channel_id] if channel_id
     Tokra::Native::HttpRequestEvent.new(
       label: "main",
-      request_id: 7, method: "POST", uri: "ipc://localhost/plugin%3A__TAURI_CHANNEL__%7Cfetch", headers:, body: "null"
+      request_id: 7, method: "POST", uri: "ipc://localhost/plugin%3A__TAURI_CHANNEL__%7Cfetch", headers:, body: "null",
+      scheme: "ipc"
     )
   end
 

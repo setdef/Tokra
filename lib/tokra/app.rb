@@ -190,6 +190,12 @@ module Tokra
         tray_icon_event_listeners: builder.__send__(:tray_icon_event_listeners), tray_icon: context.tray_icon,
         window_event_listeners: builder.__send__(:window_event_listeners), os_name:)
       @builder = builder
+      # The builder's custom protocols become the manager's, which every
+      # webview registers, as Builder::build hands them to the AppManager
+      # (app.rs:2102-2107; manager/mod.rs:254-287).
+      builder.__send__(:uri_scheme_protocols).each do |uri_scheme, protocol|
+        @handle.webview_manager.register_uri_scheme_protocol(uri_scheme, protocol)
+      end
       # Set by App#set_activation_policy, on macOS (activation_policy.rb).
       @activation_policy = nil
       # Set when a requested restart ends the loop (#exit_requested).
@@ -659,27 +665,21 @@ module Tokra
       nil
     end
 
+    # Answers a custom-protocol request on the protocol its scheme was
+    # registered for, as each of Tauri's protocols is its own handler
+    # (manager/webview.rs:222-280): a scheme the manager holds goes to its
+    # protocol, +tokra+ and +ipc+ included, with a context naming the
+    # webview by the id wry handed the handler, its label (:229-233);
+    # otherwise ipc:// is the invoke transport and tokra:// the Rack app,
+    # when there is one (Plan 015 D1/D3). A request no protocol answers
+    # stays pending, as one whose responder never answers does.
     private def dispatch_http_request(event, proxy)
-      # The ipc:// transport shares the HttpRequest event shape with the
-      # tokra:// content protocol; route on the URI scheme (Plan 015 D1/D3).
-      return dispatch_ipc_protocol(event, proxy) if ipc_protocol_request?(event.uri)
-
-      sync_protocols = @builder.__send__(:uri_scheme_protocols)
-      async_protocols = @builder.__send__(:async_uri_scheme_protocols)
-
-      # Try sync protocol first (for backwards compatibility)
-      # The context names the webview by the id wry handed the handler,
-      # its label (manager/webview.rs:229-233).
-      if sync_protocols && (handler = sync_protocols["tokra"])
+      if (protocol = @handle.webview_manager.uri_scheme_protocols[event.scheme])
         ctx = UriSchemeContext.new(app_handle: @handle, webview_label: event.label)
-        response = handler.call(ctx, event)
-        header_pairs = response.headers.map { |k, v| [k.to_s, v.to_s] } #: Array[[String, String]]
-        proxy.respond(event.request_id, response.status, header_pairs, response.body)
-      elsif async_protocols && (handler = async_protocols["tokra"])
-        ctx = UriSchemeContext.new(app_handle: @handle, webview_label: event.label)
-        responder = UriSchemeResponder.new(port: proxy, request_id: event.request_id)
-        handler.call(ctx, event, responder)
-      elsif (rack_handler = @rack_handler)
+        protocol.call(ctx, event, UriSchemeResponder.new(port: proxy, request_id: event.request_id))
+      elsif event.scheme == "ipc"
+        dispatch_ipc_protocol(event, proxy)
+      elsif event.scheme == "tokra" && (rack_handler = @rack_handler)
         # A configured Rack app is the tokra:// content server; the adapter
         # translates the request and responds through the proxy itself.
         rack_handler.call(event)
@@ -941,23 +941,43 @@ module Tokra
     end
 
     # Whether +url+, a String, belongs to the app: read by the url crate,
-    # as Tauri reads the origin (ipc/protocol.rs:302, 491-499), with the
-    # same scheme and domain as the URL Tokra serves its own pages from,
-    # the first arm of Tauri's is_local_url (webview/mod.rs:1680-1688). As
-    # there, that URL takes https when +url+ does, so on Windows the pages
-    # of a webview built with use_https_scheme, from
+    # as Tauri reads the origin (ipc/protocol.rs:302, 491-499), with
+    # Tauri's is_local_url (webview/mod.rs:1680-1722).
+    #
+    # Its first arm: the same scheme and domain as the URL Tokra serves
+    # its own pages from. That URL takes https when +url+ does, so on
+    # Windows the pages of a webview built with use_https_scheme, from
     # https://tokra.localhost, are the app's, as http://tokra.localhost's
-    # are. Tokra serves no devUrl and routes every registered protocol
-    # through tokra://, so the other arms do not apply. The domain is
-    # compared as the url crate holds it, case and all: the crate
-    # lowercases the scheme and an http host as it parses, but keeps a
-    # tokra:// host's case.
+    # are. The domain is compared as the url crate holds it, case and all:
+    # the crate lowercases the scheme and an http host as it parses, but
+    # keeps a tokra:// host's case.
+    #
+    # Its third arm: a page from a scheme the app registered (#held_scheme?).
+    # Tokra serves no devUrl, and its frontendDist is the tokra:// URL the
+    # first arm reads, so the second arm adds nothing.
     private def local_url?(url)
       parsed = Ferro::Url::Url.parse(url)
       protocol = WebviewManager.tokra_protocol_url(os_name, https: parsed.scheme == "https")
-      parsed.scheme == protocol.scheme && parsed.domain == protocol.domain
+      (parsed.scheme == protocol.scheme && parsed.domain == protocol.domain) || held_scheme?(parsed, protocol)
     rescue Ferro::Url::ParseError
       false
+    end
+
+    # Whether +url+, a parsed Ferro::Url::Url, is a page from a scheme the
+    # app's manager holds: on macOS and Linux its scheme is one; on
+    # Windows, where a custom protocol's pages come from
+    # <tt>http://<scheme>.localhost</tt>, its domain's first label is one
+    # and its scheme is +protocol+'s, the app's own http or https
+    # (webview/mod.rs:1696-1722).
+    private def held_scheme?(url, protocol)
+      protocols = @handle.webview_manager.uri_scheme_protocols
+      return protocols.key?(url.scheme) unless os_name == "windows"
+
+      # The label before the first dot, or "" without one, as
+      # <tt>split_once('.').unwrap_or_default().0</tt> reads it.
+      domain = url.domain.to_s
+      maybe_protocol = domain.include?(".") ? domain.split(".", 2).fetch(0) : ""
+      protocols.key?(maybe_protocol) && url.scheme == protocol.scheme
     end
 
     # Raised internally when an ipc:// request is malformed: a missing or
@@ -1189,14 +1209,6 @@ module Tokra
     private def respond_ipc_error(proxy, request_id, status, message)
       headers = [["Content-Type", "text/plain"]] #: Array[[String, String]]
       proxy.respond(request_id, status, headers + IPC_CORS_HEADERS, message)
-    end
-
-    # True when a forwarded HTTP request is an ipc:// invoke. On Windows
-    # the page fetches http://ipc.localhost/, but wry reverts that to
-    # ipc://localhost/ before calling the protocol handler (webview2
-    # prepare_request), so every platform arrives here as ipc://.
-    private def ipc_protocol_request?(uri)
-      uri.start_with?("ipc://")
     end
 
     # SPDX-SnippetEnd

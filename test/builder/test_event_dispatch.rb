@@ -19,7 +19,7 @@ class TestBuilderEventDispatch < Minitest::Test
     Thread.current[:received] = nil
     StubNative.inject_event(Tokra::Native::HttpRequestEvent.new(
       "main",
-      42, "GET", "tokra://test/", {}, ""
+      42, "GET", "tokra://test/", {}, "", "tokra"
     ))
     handler = Ractor.shareable_proc { |ctx, evt|
       Thread.current[:received] = [ctx.class, evt]
@@ -42,7 +42,7 @@ class TestBuilderEventDispatch < Minitest::Test
     Thread.current[:received] = nil
     StubNative.inject_event(Tokra::Native::HttpRequestEvent.new(
       "main",
-      42, "GET", "tokra://test/", {}, ""
+      42, "GET", "tokra://test/", {}, "", "tokra"
     ))
     handler = Ractor.shareable_proc { |ctx, evt, responder|
       Thread.current[:received] = [ctx.class, evt.class, responder.class]

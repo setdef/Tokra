@@ -245,8 +245,8 @@ impl<H: Home> Lent<H> {
     }
 
     /// Whether this webview registers `scheme` on its context: on Linux
-    /// only the context's first webview does; elsewhere each webview has
-    /// its own handlers, and every one does.
+    /// only the context's first webview to offer it does; elsewhere each
+    /// webview has its own handlers, and every one does.
     #[must_use]
     pub fn registers(&self, scheme: &str) -> bool {
         !cfg!(any(

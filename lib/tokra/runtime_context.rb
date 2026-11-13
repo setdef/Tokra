@@ -200,7 +200,8 @@ module Tokra
     # builds the platform window with +window_attributes+ (a
     # WindowBuilder's native attributes), puts +menu+ on it on Windows and
     # Linux, themed as the window is, and builds the webview loading +url+
-    # with +initialization_scripts+ and +webview_attributes+, goes through
+    # with +initialization_scripts+, a custom protocol for each name in
+    # +uri_scheme_protocols+, and +webview_attributes+, goes through
     # #run_on_main_thread: on the
     # main thread it is done before this returns, and from another thread
     # it is queued ahead of every later call (plan 052, decision 4).
@@ -217,7 +218,9 @@ module Tokra
     #
     # Mirrors Context::create_window, which sends Message::CreateWindow
     # through send_user_message and returns at once (lib.rs:299-362).
-    def create_window(label, window_attributes:, webview_attributes:, url:, initialization_scripts:, menu:) # :nodoc:
+    def create_window(label, window_attributes:, webview_attributes:, url:, initialization_scripts:, # :nodoc:
+      uri_scheme_protocols:, menu:
+    )
       proxy = @mutex.synchronize { @proxy }
       raise Error::Runtime, Error::Runtime::NO_EVENT_LOOP unless proxy
 
@@ -227,7 +230,8 @@ module Tokra
       native_webview = webview_class.empty(proxy)
       run_on_main_thread do
         open_window(native_window, label, window_attributes, menu) &&
-          open_webview(native_window, native_webview, proxy, label, url, initialization_scripts, webview_attributes)
+          open_webview(native_window, native_webview, proxy, label,
+            webview_attributes.merge(url:, initialization_scripts:, uri_scheme_protocols:))
       end
       [native_window, native_webview]
     end
@@ -262,7 +266,7 @@ module Tokra
     # reads fails the webview before it is built, warned with Tauri's
     # error, which its runtime logs bare (lib.rs:4301-4316, 4861-4865;
     # plan 052, decision e1-5).
-    private def open_webview(native_window, native_webview, proxy, label, url, initialization_scripts, attributes)
+    private def open_webview(native_window, native_webview, proxy, label, attributes)
       proxy_url = attributes[:proxy_url]
       scheme = proxy_url.first if proxy_url.is_a?(Array)
       if scheme.is_a?(String) && !PROXY_SCHEMES.include?(scheme)
@@ -270,7 +274,7 @@ module Tokra
         return warn(Error::Runtime::INVALID_PROXY_URL)
       end
 
-      native_webview.open(native_window, proxy, label, attributes.merge(url:, initialization_scripts:))
+      native_webview.open(native_window, proxy, label, attributes)
       @open_windows << label
     rescue RuntimeError => e
       native_window.discard

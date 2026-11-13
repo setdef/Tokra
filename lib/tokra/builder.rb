@@ -25,7 +25,6 @@ module Tokra
     # Initializes a new Builder with empty collections.
     def initialize
       @uri_scheme_protocols = {}
-      @async_uri_scheme_protocols = {}
       @window_event_listeners = []
       @webview_event_listeners = []
       @menu_event_listeners = []
@@ -81,34 +80,106 @@ module Tokra
       self
     end
 
-    # Registers a URI scheme protocol for the webviews' content.
+    # SPDX-SnippetBegin
+    # SPDX-License-Identifier: Apache-2.0 OR MIT
+    # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
+    # SPDX-SnippetComment: The URI scheme protocols adapted from tauri/crates/tauri/src/app.rs:1940-2066
+
+    # Registers a URI scheme protocol available to all webviews.
     #
-    # Only the +tokra+ scheme works today: the native layer registers no
-    # other custom scheme with a webview, and App dispatches only
-    # +"tokra"+ to a handler, so a handler for any other name is stored
-    # and never called.
+    # Your page can load more than the app's own <tt>tokra://</tt> pages:
+    # images from a cache, files from disk, data a background thread
+    # computes. Serving them as JSON over +invoke+ costs a round trip of
+    # encoding, and an <tt><img></tt> or a <tt><video></tt> cannot use it.
     #
-    # The block receives (ctx, request) and should return a response.
+    # A scheme of your own answers those requests the way a server would.
+    # Each webview the app builds registers +uri_scheme+, so the page asks
+    # for <tt>app-files://localhost/photo.png</tt> and the block answers
+    # it. The block receives a UriSchemeContext, which names the webview
+    # that asked, and the request, a Native::HttpRequestEvent, and returns
+    # a Response. It runs on the main thread; answer a slow request with
+    # #register_asynchronous_uri_scheme_protocol instead.
+    #
+    # Registering a scheme again replaces its handler, of either kind.
+    # Registering +tokra+ replaces the app's own content (a Rack app given
+    # to #app included), and registering +ipc+ replaces the transport
+    # +invoke+ uses, as registering +tauri+ or +ipc+ does in Tauri. A page
+    # served from a registered scheme is the app's own, so it may +invoke+
+    # commands.
+    #
+    # Pages loaded from a custom protocol have a different origin on each
+    # platform. A handler that answers a page from another origin, such as
+    # a fetch from <tt>tokra://localhost</tt> to <tt>app-files://</tt>, adds
+    # that origin, or <tt>*</tt>, to <tt>Access-Control-Allow-Origin</tt>:
+    #
+    # - macOS and Linux: <tt><scheme>://localhost/<path></tt>, such as
+    #   <tt>app-files://localhost/path/to/page</tt>.
+    # - Windows: <tt>http://<scheme>.localhost/<path></tt>, such as
+    #   <tt>http://app-files.localhost/path/to/page</tt>, or https for a
+    #   webview built with WebviewBuilder#use_https_scheme. The handler
+    #   still sees <tt>app-files://localhost/path/to/page</tt>.
+    #
     # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
+    #
+    # Mirrors Tauri's Builder::register_uri_scheme_protocol
+    # (app.rs:1940-2002) and its registration on each webview
+    # (manager/webview.rs:222-280).
+    #
+    # === Example
+    #
+    #   files = Ractor.shareable_proc do |_ctx, request|
+    #     path = File.join("/srv/files", File.basename(URI(request.uri).path))
+    #     if File.file?(path)
+    #       Tokra::Response.new(status: 200, headers: { "content-type" => "image/png" }, body: File.binread(path))
+    #     else
+    #       Tokra::Response.error(400, "failed to read file")
+    #     end
+    #   end
+    #   Tokra::Builder.default.register_uri_scheme_protocol("app-files", &files)
     def register_uri_scheme_protocol(uri_scheme, &handler)
       require_shareable!(handler, "register_uri_scheme_protocol")
+      @uri_scheme_protocols[uri_scheme] = responding_with(handler)
+      self
+    end
+
+    # Registers a URI scheme protocol whose block answers when it is ready,
+    # as #register_uri_scheme_protocol does otherwise.
+    #
+    # The block receives a UriSchemeContext, the request, and a
+    # UriSchemeResponder, and calls <tt>responder.respond(response)</tt>
+    # once, now or later, from any thread: process the request on a
+    # thread of your own and answer from there. A request whose responder
+    # never answers stays pending in the page. Origins, replacing a
+    # handler, and the +tokra+ and +ipc+ names work as they do for
+    # #register_uri_scheme_protocol.
+    #
+    # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
+    #
+    # Mirrors Tauri's Builder::register_asynchronous_uri_scheme_protocol
+    # (app.rs:2004-2066).
+    #
+    # === Example
+    #
+    #   files = Ractor.shareable_proc do |_ctx, request, responder|
+    #     path = File.join("/srv/files", File.basename(URI(request.uri).path))
+    #     Thread.new do
+    #       responder.respond(
+    #         if File.file?(path)
+    #           Tokra::Response.new(status: 200, headers: { "content-type" => "image/png" }, body: File.binread(path))
+    #         else
+    #           Tokra::Response.error(400, "failed to read file")
+    #         end
+    #       )
+    #     end
+    #   end
+    #   Tokra::Builder.default.register_asynchronous_uri_scheme_protocol("app-files", &files)
+    def register_asynchronous_uri_scheme_protocol(uri_scheme, &handler)
+      require_shareable!(handler, "register_asynchronous_uri_scheme_protocol")
       @uri_scheme_protocols[uri_scheme] = handler
       self
     end
 
-    # Registers an async URI scheme protocol for the webviews' content.
-    #
-    # Only the +tokra+ scheme works today, as for
-    # #register_uri_scheme_protocol.
-    #
-    # The block receives (ctx, request, responder) and must call
-    # +responder.respond(response)+ when complete.
-    # The block must be Ractor-shareable (use +Ractor.shareable_proc+).
-    def register_asynchronous_uri_scheme_protocol(uri_scheme, &handler)
-      require_shareable!(handler, "register_asynchronous_uri_scheme_protocol")
-      @async_uri_scheme_protocols[uri_scheme] = handler
-      self
-    end
+    # SPDX-SnippetEnd
 
     # Defines the setup hook.
     #
@@ -299,7 +370,7 @@ module Tokra
     # Consider these "friendly": private, so app code does not call them, and
     # read by App through __send__.
     private attr_reader :state_manager, :invoke_handler_hook, :uri_scheme_protocols, # :nodoc:
-      :async_uri_scheme_protocols, :setup_hook, :on_page_load_hook,
+      :setup_hook, :on_page_load_hook,
       :window_event_listeners, :webview_event_listeners, :rack_app, :menu_hook,
       :menu_event_listeners, :tray_icon_event_listeners
 
@@ -307,6 +378,16 @@ module Tokra
     # reader; a predicate so it does not collide with the setter).
     private def macos_default_menu? # :nodoc:
       @enable_macos_default_menu
+    end
+
+    # +handler+, which returns a Response, as a protocol that answers its
+    # responder with it, as Tauri stores a synchronous handler
+    # (app.rs:1993-2000). +handler+ arrives as an argument: a
+    # shareable proc does not see a method's block parameter.
+    private def responding_with(handler)
+      Ractor.shareable_proc do |ctx, request, responder|
+        responder.respond(handler.call(ctx, request))
+      end #: WebviewManager::uri_scheme_protocol
     end
 
     private def require_shareable!(block, method_name)

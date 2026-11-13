@@ -55,6 +55,30 @@ module Tokra
       @manager = manager
       @os_name = os_name
       @data_local_dir = data_local_dir
+      @uri_scheme_protocols = {}
+    end
+
+    # The custom protocols every webview the app builds registers, by
+    # scheme: each a block that takes a UriSchemeContext, the
+    # Native::HttpRequestEvent, and a UriSchemeResponder. The builder's
+    # come first, then any a plugin registers. Mirrors
+    # WebviewManager::uri_scheme_protocols (manager/webview.rs:74).
+    attr_reader :uri_scheme_protocols
+
+    # Holds +protocol+ for +uri_scheme+, replacing the protocol held for
+    # it, so each webview built from now on registers it, as
+    # register_uri_scheme_protocol does (manager/webview.rs:98-108).
+    def register_uri_scheme_protocol(uri_scheme, protocol)
+      @uri_scheme_protocols[uri_scheme] = protocol
+      nil
+    end
+
+    # The schemes a new webview registers: each held one, in the order it
+    # was first held, then +tokra+, Tokra's own content, and +ipc+, the
+    # invoke transport, each unless a held protocol took its name, as
+    # prepare_pending_webview lists them (manager/webview.rs:222-280).
+    def registered_scheme_protocols
+      @uri_scheme_protocols.keys | %w[tokra ipc]
     end
 
     # The address +url+, a WebviewUrl, names, as prepare_webview resolves
