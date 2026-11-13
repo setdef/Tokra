@@ -1,0 +1,23 @@
+# frozen_string_literal: true
+
+#--
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#++
+
+# Releases run from the root Rakefile, rake release:<plugin>:*, whose tags
+# name the gem; Bundler's gem_tasks would tag v0.1.0 for every plugin.
+require "rake/testtask"
+require_relative "../../tasks/real_windows"
+
+Rake::TestTask.new do |t|
+  t.libs << "lib"
+  # Tokra's Rakefile names the files to run in TOKRA_TESTS, comma-separated.
+  # Without it, the real-window tests stay out: they run in Tokra's
+  # test:gui, never in a plain test run (Plan 056).
+  plugin = "plugins/#{File.basename(__dir__)}"
+  t.test_files = ENV.fetch("TOKRA_TESTS") { RealWindows.plugin_tests(plugin, windows: false).join(",") }.split(",")
+  t.warning = true
+end
+
+task default: :test

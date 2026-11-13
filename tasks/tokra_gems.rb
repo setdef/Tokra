@@ -7,7 +7,7 @@
 
 # One gem this repository publishes, as the bump and release tasks see it.
 #
-# Tokra publishes six gems: tokra at the root, and a plugin gem in each
+# Tokra publishes seven gems: tokra at the root, and a plugin gem in each
 # folder under <tt>plugins/</tt>. Each has its own version.rb, gemspec,
 # Gemfile.lock, and CHANGELOG.md in its folder, and each releases on its
 # own, under a tag named for it (Plan 059). The tasks build every name they
@@ -103,5 +103,5 @@ TOKRA_GEMS = [
       ]
     end,
   ),
-  *%w[log clipboard dialog notification global-shortcut].map { |short_name| TokraGem.plugin(short_name) },
+  *%w[log clipboard dialog notification global-shortcut process].map { |short_name| TokraGem.plugin(short_name) },
 ].freeze

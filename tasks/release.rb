@@ -16,7 +16,7 @@ require_relative "gem_version"
 # Tags and publishes one gem.
 #
 # Bundler's release task tags each release <tt>v0.1.0</tt>, as tokra's
-# <tt>v0.0.1.pre.2</tt> was. In a repository of six gems, each with its own
+# <tt>v0.0.1.pre.2</tt> was. In a repository of seven gems, each with its own
 # version, those tags collide. This release names the tag for the gem,
 # <tt>tokra/v0.1.0</tt> or <tt>tokra-dialog/v0.1.0</tt> (Plan 059), and
 # otherwise does what Bundler's does: build the gem, push the branch, tag

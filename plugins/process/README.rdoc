@@ -1,0 +1,49 @@
+= tokra-process
+
+{rdoc-image:https://justin.searls.co/img/shovelware.svg}[https://justin.searls.co/shovelware/]
+{rdoc-image:https://github.com/setdef/Tokra/actions/workflows/ci.yml/badge.svg?branch=trunk}[https://github.com/setdef/Tokra/actions/workflows/ci.yml]
+
+Process plugin for Tokra desktop applications.
+
+Lets your page end the app, or start it over, and serves the commands of
+Tauri's process plugin, so the frontend uses
+<tt>@tauri-apps/plugin-process</tt> unchanged. To spawn child processes,
+use Ruby's own Process.spawn from your backend.
+
+== Installation
+
+tokra-process is pure Ruby and needs nothing but Tokra:
+
+  gem "tokra-process"
+
+== Usage
+
+Register the plugin on the app handle:
+
+  require "tokra"
+  require "tokra-process"
+
+  app = Tokra::Builder.default.build(Tokra.generate_context)
+  app.handle.plugin(Tokra::Plugins::Process::Plugin.new(app.handle))
+  app.run
+
+Then call it from the page:
+
+  import { exit, relaunch } from '@tauri-apps/plugin-process'
+  // exit the app with the given status code
+  await exit(0)
+  // restart the app
+  await relaunch()
+
++exit+ asks the app to exit, as AppHandle#exit does: your run callback and
+plugins hear RunEvent::ExitRequested with the code, and one that calls
+<tt>api.prevent_exit</tt> keeps the app running. +relaunch+ restarts it,
+as AppHandle#request_restart does: the app hears ExitRequested, which it
+cannot prevent, and RunEvent::Exit, and then Ruby runs your script again
+with the same arguments while this process ends. On macOS a Ruby reached
+through a symlink is refused, as Tauri refuses one by default, and the app
+then exits without starting again.
+
+Tauri also defines <tt>window.__TAURI__.process</tt> when the app sets
++withGlobalTauri+. Tokra has no plugin global scripts yet, so import the
+package through your bundler.

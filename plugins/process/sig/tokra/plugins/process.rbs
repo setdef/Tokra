@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Plugins
+  end
+end
+
+module Tokra::Plugins::Process
+  VERSION: String
+
+  module Commands
+    def self.exit: (Tokra::AppHandle app, Integer code) -> nil
+    def self.restart: (Tokra::AppHandle app) -> nil
+  end
+
+  class Plugin < Tokra::Plugin
+    COMMANDS: Array[String]
+
+    def name: () -> String
+    def extend_api: (Tokra::Ipc::Invoke invoke) -> bool
+
+    private
+
+    def exit_code: (Tokra::Ipc::Invoke invoke) -> Integer
+  end
+end
