@@ -111,8 +111,11 @@ PACKAGES = [
       # ferro-notify-rust comes from its own installed gem, extension and
       # all; the init script is a packaged file the plugin reads at load.
       # Nothing is sent: on macOS a send would name the app for good.
-      script = Tokra::Plugins::Notification::Plugin::INIT_SCRIPT
+      script = Tokra::Plugins::Notification::INIT_SCRIPT
       abort "the init script lost notify" unless script.include?("plugin:notification|notify")
+      # The global API script is a packaged file too, named as the gem loads.
+      api = Tokra::Utils::Plugin.global_api_script_paths.find { |path| path.end_with?("notification/api-iife.js") }
+      abort "the global API script is not packaged" unless api && File.read(api).include?("__TAURI_PLUGIN_NOTIFICATION__")
       abort "the init script kept its template" if script.include?("__TEMPLATE_windows__")
       #{SMOKE_CONFIG_DIR.chomp}
       config = Tokra::Config.new(identifier: "com.tokra.smoke")

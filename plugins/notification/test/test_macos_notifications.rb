@@ -79,7 +79,7 @@ class TestMacosNotifications < Minitest::Test
       Ferro::NotifyRust.set_application("com.apple.finder")
       app = TestApp.build_test_app
       handle = app.handle
-      plugin = Tokra::Plugins::Notification::Plugin.new(handle)
+      plugin = Tokra::Plugins::Notification.init
       handle.plugin(plugin)
       window = Tokra::Window.new(label: "main", native: Object.new, app_handle: handle)
       webview = Tokra::Webview.new(label: "main", native: Object.new, window:, app_handle: handle)

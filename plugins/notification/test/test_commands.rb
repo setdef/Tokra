@@ -155,6 +155,8 @@ class TestCommands < Minitest::Test
   end
 
   private def build_plugin_on(handle)
-    handle.plugin(Notification::Plugin.new(handle))
+    plugin = Notification.init
+    handle.plugin(plugin)
+    plugin
   end
 end

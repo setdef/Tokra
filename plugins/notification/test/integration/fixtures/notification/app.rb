@@ -26,8 +26,9 @@ require_relative "../../../../../../test/integration/support/fixture_app"
 require "tokra-notification"
 
 module NotificationFixture
-  # The page's facts: whether it may send, what has reached the test's
-  # server, and Tauri's api-iife.js.
+  # The page's facts: whether it may send, and what has reached the
+  # test's server. Tauri's api-iife.js comes from the plugin itself, which
+  # every page runs with withGlobalTauri (plan 064).
   ROUTES = {
     "/notification.json" => lambda { |_env|
       [200, { "content-type" => "application/json" }, [JSON.generate(sends: ENV.key?("FIXTURE_SERVER_LOG"))]]
@@ -35,13 +36,12 @@ module NotificationFixture
     "/server.log" => lambda { |_env|
       [200, { "content-type" => "text/plain; charset=utf-8" }, [File.read(ENV.fetch("FIXTURE_SERVER_LOG"))]]
     },
-    "/api-iife.js" => lambda { |_env|
-      [200, { "content-type" => "text/javascript" }, [File.read(File.join(__dir__, "api-iife.js"))]]
-    },
   }.freeze
 end
 
 options = FixtureApp.options(ARGV)
-FixtureApp.builder(FixtureApp::Site.new(__dir__, options, NotificationFixture::ROUTES),
-  plugins: [Tokra::Plugins::Notification::Plugin])
+# The notification plugin registers on the builder, as an app registers
+# it, so its init script and global API script reach main's page.
+FixtureApp.builder(FixtureApp::Site.new(__dir__, options, NotificationFixture::ROUTES))
+  .plugin(Tokra::Plugins::Notification.init)
   .run(Tokra.generate_context)

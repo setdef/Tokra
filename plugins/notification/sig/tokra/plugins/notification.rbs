@@ -229,15 +229,11 @@ module Tokra
         end
       end
 
-      class Plugin < Tokra::Plugin
-        INIT_SCRIPT: String
-        COMMANDS: Array[String]
+      INIT_SCRIPT: String
+      COMMANDS: Array[String]
 
-        def name: () -> String
-        def initialize: (Tokra::AppHandle app, ?Hash[Symbol, Object] config) -> void
-        def initialization_script: () -> String
-        def extend_api: (Tokra::Ipc::Invoke invoke) -> bool
-      end
+      def self.init: () -> Tokra::Plugin::TauriPlugin[nil]
+      private def self.handle_invoke: (Tokra::Ipc::Invoke invoke) -> bool
     end
   end
 end

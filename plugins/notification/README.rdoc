@@ -36,14 +36,25 @@ and mako do for the rest). Building needs no system libraries.
 
 == Usage
 
-Register the plugin on the app handle before App#run, so the pages of
-the windows your config lists run its script, which the app puts in each
-webview it makes from then on. It manages a Tokra::Plugins::Notification::Notification,
-reachable from any manager as +notification+:
+Register the plugin on the builder with +init+, as a Tauri app does, so
+every page runs its script. It manages a
+Tokra::Plugins::Notification::Notification, reachable from any manager as
++notification+:
 
-  app = Tokra::Builder.new.build(Tokra.generate_context)
-  app.handle.plugin(Tokra::Plugins::Notification::Plugin.new(app.handle))
-  app.run
+  require "tokra-notification"
+
+  Tokra::Builder.default
+    .plugin(Tokra::Plugins::Notification.init)
+    .run(Tokra.generate_context)
+
+The plugin takes no config. A +notification+ entry under +plugins+ in
+your <tt>tokra.conf.json</tt> fails the app, as it fails a Tauri app.
+
+With <tt>"withGlobalTauri": true</tt> under +app+ in your config, a page
+with no bundler finds the frontend functions on
+<tt>window.__TAURI__.notification</tt>, from Tauri's own script, which the
+plugin ships. Require the gem before you call
+<tt>Tokra.generate_context</tt>, which reads it.
 
 In the frontend:
 
@@ -112,8 +123,6 @@ registers a Tokra app yet.
   where Tauri refuses it; and a date that starts with "T" reads that as
   the start of the time, so its message differs from Tauri's
   "the 'year' component could not be parsed".
-- <tt>window.__TAURI__.notification</tt> is not defined; import the
-  package through your bundler.
 
 == Features
 

@@ -8,7 +8,7 @@
 module Tokra
   module Plugins
     # Notification is a module (not class) to allow VERSION in version.rb.
-    # The actual plugin is Notification::Plugin.
+    # Notification.init builds the plugin.
     module Notification
       # Version of the tokra-notification gem.
       VERSION = "0.0.1.pre.1"

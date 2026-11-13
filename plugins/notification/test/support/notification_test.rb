@@ -105,7 +105,7 @@ module NotificationTest
 
   # A registered plugin on a real handle.
   private def build_plugin(app = build_app)
-    plugin = Notification::Plugin.new(app.handle)
+    plugin = Notification.init
     app.handle.plugin(plugin)
     plugin
   end
