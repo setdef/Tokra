@@ -11,7 +11,8 @@
 # the commit being pushed, with nothing uncommitted and nothing untracked.
 # On Linux the gate runs as CI runs it (.github/workflows/ci.yml), under
 # Xvfb and a D-Bus session of its own, so its windows open on no one's
-# desktop.
+# desktop. On Windows it runs from MSYS2's bash, after bin/setup.ps1, and
+# runs the gate as CI's Windows job does.
 root=$(git rev-parse --show-toplevel) || exit 1
 cd "$root" || exit 1
 # git points a hook's commands at its own repository through these, from a
@@ -54,6 +55,16 @@ if [ -n "$untracked" ]; then
   exit 1
 fi
 
+# Windows sets OS for every process, and MSYS2's bash passes it on.
+# bin/windows-env sets what CI's earlier steps set for Rust and bindgen,
+# and A and RUST_BACKTRACE are the gate step's own on Windows: each test
+# prints its name, and a Rust panic its backtrace.
+if [ "${OS:-}" = Windows_NT ]; then
+  A=--verbose
+  RUST_BACKTRACE=1
+  export A RUST_BACKTRACE
+  exec sh bin/windows-env bundle exec rake
+fi
 case "$(uname -s)" in
   Linux)
     # GTK takes a Wayland desktop before the X display xvfb-run gives it.

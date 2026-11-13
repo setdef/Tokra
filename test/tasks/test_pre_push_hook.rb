@@ -46,7 +46,7 @@ class TestPrePushHook < Minitest::Test
   LINUX = RbConfig::CONFIG["host_os"].include?("linux")
 
   def setup
-    skip "the hook is a POSIX shell script, untested on Windows" if Gem.win_platform?
+    skip "Ruby on Windows cannot run the hook or its stand-ins as commands; OS=Windows_NT tests its Windows branch elsewhere" if Gem.win_platform?
 
     @dir = File.realpath(Dir.mktmpdir("pre_push"))
     @bin = File.join(@dir, "bin")
@@ -70,7 +70,7 @@ class TestPrePushHook < Minitest::Test
   end
 
   private def env(extra = {})
-    GIT_ALONE.merge("PATH" => "#{@bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}").merge(extra)
+    GIT_ALONE.merge("PATH" => "#{@bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}", "OS" => nil).merge(extra)
   end
 
   private def git(*, chdir: @repo, hooks: File::NULL)
@@ -115,6 +115,11 @@ class TestPrePushHook < Minitest::Test
     workflow.fetch("jobs").values.flat_map { |job| job.fetch("steps") }.find { |step| step["name"] == name }.fetch("run")
   end
 
+  private def ci_env(name)
+    workflow = YAML.safe_load_file(File.join(ROOT, ".github/workflows/ci.yml"))
+    workflow.fetch("jobs").values.flat_map { |job| job.fetch("steps") }.find { |step| step["name"] == name }.fetch("env")
+  end
+
   def test_a_push_that_moves_a_branch_to_the_checked_out_commit_runs_the_gate
     output, status = push("refs/heads/trunk #{@first} refs/heads/trunk #{ZERO}")
 
@@ -144,6 +149,26 @@ class TestPrePushHook < Minitest::Test
 
     assert_includes hook, "    exec bin/linux-env #{ci_step('Run the gate under X11')} ;;\n"
     assert_includes hook, "  *) exec #{ci_step('Run the gate')} ;;\n"
+  end
+
+  # Windows sets OS for every process, and MSYS2's bash passes it on. There
+  # the gate runs as ci.yml's Windows job runs it: through bin/windows-env,
+  # which sets what the job's earlier steps set for Rust and bindgen, with
+  # the step's own variables for Windows.
+  def test_on_windows_the_gate_runs_through_windows_env_with_ci_s_variables
+    FileUtils.mkdir_p(File.join(@repo, "bin"))
+    File.write(File.join(@repo, "bin/windows-env"), LOGGER.gsub('"$(dirname "$0")', "\"#{@bin}"))
+    git("add", "bin/windows-env")
+    git("commit", "--quiet", "--message", "windows-env")
+    head = git("rev-parse", "HEAD")
+    output, status = push("refs/heads/trunk #{head} refs/heads/trunk #{@first}", extra: { "OS" => "Windows_NT" })
+
+    assert_predicate status, :success?, output
+    assert_equal ["windows-env bundle exec rake"], calls
+    step = ci_env("Run the gate")
+
+    assert_equal step.fetch("A")[/'Windows' && '(.*?)'/, 1], gate_env["A"]
+    assert_equal step.fetch("RUST_BACKTRACE")[/'Windows' && '(.*?)'/, 1], gate_env["RUST_BACKTRACE"]
   end
 
   # GTK takes a Wayland desktop before an X display, and connects to the
