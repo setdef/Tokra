@@ -241,7 +241,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   reported with `console.error("JSON error: ...")` and not dispatched
 - The config's `app.withGlobalTauri` injects the vendored `@tauri-apps/api`
   bundle as `window.__TAURI__`, so a page with no frontend bundler calls
-  `window.__TAURI__.core.invoke(...)` directly, as in Tauri
+  `window.__TAURI__.core.invoke(...)` directly, as in Tauri, and then each
+  plugin's global API script, which a plugin gem names with
+  `Tokra::Utils::Plugin.define_global_api_script_path` when it is required;
+  `Tokra.generate_context` reads them into the context, so require plugins
+  before calling it, and a config changed after it neither adds nor drops
+  them
 - `Plugin#initialization_script` is injected into every page after Tauri's
   init scripts, wrapped in an IIFE, in each webview made after the plugin
   is registered, so register a plugin with `Builder#plugin` for the

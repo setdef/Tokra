@@ -16,7 +16,7 @@ require_relative "support/test_app"
 class TestWebviewManager < Minitest::Test
   private def manager_for(context, pattern: context.pattern)
     app_manager = Tokra::AppManager.new(config: context.config, package_info: context.package_info, pattern:,
-      dev: context.dev, webviews: {}, windows: {})
+      dev: context.dev, webviews: {}, windows: {}, plugin_global_api_scripts: context.plugin_global_api_scripts)
     Tokra::WebviewManager.new(app_manager, os_name: Tokra::App.os_name)
   end
 

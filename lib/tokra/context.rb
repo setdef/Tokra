@@ -100,6 +100,11 @@ module Tokra
     #            macOS's Dock in development, or +nil+.
     # [package_info] the app's Tokra::Utils::PackageInfo.
     # [pattern] the app's pattern, such as <tt>Tokra::Pattern::Brownfield.new</tt>.
+    # [plugin_global_api_scripts] the scripts a page runs when the config
+    #                             sets <tt>app.withGlobalTauri</tt>, an
+    #                             Array of Strings, or +nil+ for none.
+    #                             Tauri's Context::new requires it; +nil+
+    #                             is its +None+ (plan 064, decision 12).
     #
     # Each has to be its type; anything else raises TypeError.
     #
@@ -110,7 +115,7 @@ module Tokra
     #     crate_name: "app")
     #   Tokra::Context.new(config:, default_window_icon: nil, app_icon: nil, package_info: info,
     #     pattern: Tokra::Pattern::Brownfield.new)
-    def initialize(config:, default_window_icon:, app_icon:, package_info:, pattern:)
+    def initialize(config:, default_window_icon:, app_icon:, package_info:, pattern:, plugin_global_api_scripts: nil)
       self.config = config
       set_default_window_icon(default_window_icon)
       unless app_icon.nil? || app_icon.is_a?(String)
@@ -123,6 +128,7 @@ module Tokra
       raise TypeError, "wrong argument type #{pattern.class} (expected Tokra::Pattern)" unless pattern.is_a?(Pattern::Brownfield)
 
       @pattern = pattern
+      @plugin_global_api_scripts = plugin_global_api_scripts && Ractor.make_shareable(plugin_global_api_scripts.dup)
       @dev = true
     end
 
@@ -191,6 +197,12 @@ module Tokra
 
       @package_info = Ractor.make_shareable(package_info)
     end
+
+    # The global API scripts every page runs when the config sets
+    # <tt>app.withGlobalTauri</tt>, Tauri's bundle first and then each
+    # plugin's, a frozen Array of Strings, or +nil+ without it
+    # (Utils::Plugin.read_global_api_scripts).
+    attr_reader :plugin_global_api_scripts # :nodoc:
 
     # Sets whether the app runs in development (#dev).
     attr_writer :dev # :nodoc:

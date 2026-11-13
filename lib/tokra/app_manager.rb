@@ -15,7 +15,7 @@ module Tokra
   #
   # See tauri/src/manager/mod.rs AppManager
   class AppManager < Data.define(:config, :package_info, :pattern, :dev, :default_window_icon, :app_icon, :webviews,
-    :windows, :plugins, :invoke_key, :listeners)
+    :windows, :plugins, :invoke_key, :listeners, :plugin_global_api_scripts)
     # Creates a new AppManager.
     #
     # +config+, +package_info+, +pattern+, +dev+, +default_window_icon+,
@@ -26,9 +26,11 @@ module Tokra
     # defaults to a fresh per-app key (Tokra.generate_invoke_key),
     # mirroring the invoke_key member Tauri's AppManager holds
     # (manager/mod.rs). +listeners+ is the app's event registry, an
-    # Event::Listeners.
+    # Event::Listeners. +plugin_global_api_scripts+ is the Context's, the
+    # scripts each webview runs last (manager/mod.rs:205-206, 316).
     def self.new(config:, package_info:, pattern:, dev:, webviews:, windows:, default_window_icon: nil, app_icon: nil,
-      plugins: PluginStore.new, invoke_key: Tokra.generate_invoke_key, listeners: Event::Listeners.new
+      plugins: PluginStore.new, invoke_key: Tokra.generate_invoke_key, listeners: Event::Listeners.new,
+      plugin_global_api_scripts: nil
     )
       super
     end

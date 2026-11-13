@@ -180,7 +180,7 @@ module Tokra
 
       @manager = AppManager.new(config: context.config, package_info: context.package_info, pattern: context.pattern,
         dev: context.dev, default_window_icon: context.default_window_icon, app_icon: context.app_icon, webviews: {},
-        windows: {})
+        windows: {}, plugin_global_api_scripts: context.plugin_global_api_scripts)
       @native = native
       # The thread that builds the app is its main thread until App#run
       # attaches the event loop, which makes the running thread the main one.

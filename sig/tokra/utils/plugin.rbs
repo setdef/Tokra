@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+module Tokra
+  module Utils
+    module Plugin
+      self.@global_api_script_paths: Array[String]
+
+      def self.define_global_api_script_path: (String path) -> nil
+      def self.global_api_script_paths: () -> Array[String]
+      def self.read_global_api_scripts: () -> Array[String]
+
+      private def self.io_error: (SystemCallError error) -> String
+    end
+  end
+end

@@ -28,3 +28,4 @@ end
 require_relative "utils/platform"
 require_relative "utils/package_info"
 require_relative "utils/config"
+require_relative "utils/plugin"

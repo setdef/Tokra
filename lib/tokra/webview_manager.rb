@@ -173,14 +173,14 @@ module Tokra
     # initialization_script follows, wrapped in an IIFE
     # (manager/webview.rs:124-128, 194; plugin.rs:918-933).
     #
-    # When the config's <tt>app.withGlobalTauri</tt> is set, the vendored
-    # @tauri-apps/api bundle is appended last, exposing the whole API as
-    # window.__TAURI__ (manager/webview.rs:210-215). This is Tauri's own
-    # mechanism for running its API in a webview with no frontend bundler;
-    # codegen puts the bundle in the context only when the config sets it
-    # (tauri-codegen context.rs:430-440). Tauri's list also carries plugin
-    # global API scripts, which its build scripts collect at compile time;
-    # no Tokra plugin ships one yet (Plan 016; plan 054, decision 20).
+    # The global API scripts come last, each for the main frame: the
+    # vendored @tauri-apps/api bundle, exposing the whole API as
+    # window.__TAURI__, then each plugin's, adding its own member, such as
+    # window.__TAURI__.dialog (manager/webview.rs:210-215). This is Tauri's
+    # own mechanism for running its API in a webview with no frontend
+    # bundler. They are the context's, which codegen fills only when the
+    # config sets <tt>app.withGlobalTauri</tt> (tauri-codegen
+    # context.rs:430-439; Utils::Plugin).
     def initialization_scripts(window_label, webview_label, https: false)
       scripts = [
         bootstrap_script,
@@ -189,14 +189,8 @@ module Tokra
         init_script(https),
       ].map { |script| [script, true] } #: Array[[String, bool]]
       scripts.concat(@manager.plugins.initialization_script)
-      scripts << [global_api_script, true] if @manager.config.app.with_global_tauri
+      @manager.plugin_global_api_scripts&.each { |script| scripts << [script, true] }
       scripts
-    end
-
-    # The vendored @tauri-apps/api IIFE (bundle.global.js), synced from the
-    # submodule by rake sync:tauri. Injecting it defines window.__TAURI__.
-    private def global_api_script
-      Native.load_js_template("bundle.global.js")
     end
 
     # Defines window.isTauri and the bare __TAURI_INTERNALS__ object

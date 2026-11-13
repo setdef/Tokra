@@ -26,7 +26,6 @@ module Tokra
 
     private
 
-    def global_api_script: () -> String
     def bootstrap_script: () -> String
     def invoke_initialization_script: () -> String
     def create_dir_all: (String directory) -> nil

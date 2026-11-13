@@ -162,7 +162,11 @@ module Tokra
         authors: "", description: "", crate_name: script)
       # Brownfield, and isolation too until an isolation plan builds it
       # (context.rs:354-359; plan 054, decision 21).
-      context = Context.new(config:, default_window_icon:, app_icon:, package_info:, pattern: Pattern::Brownfield.new)
+      # The plugins' global API scripts, Tauri's first, only with
+      # withGlobalTauri (context.rs:430-439; plan 064, decision 7).
+      plugin_global_api_scripts = Utils::Plugin.read_global_api_scripts if config.app.with_global_tauri
+      context = Context.new(config:, default_window_icon:, app_icon:, package_info:, pattern: Pattern::Brownfield.new,
+        plugin_global_api_scripts:)
       context.set_tray_icon(tray_icon) if tray_icon
       context.dev = data.dev
       context

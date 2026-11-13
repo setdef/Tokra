@@ -17,10 +17,11 @@ module Tokra
     attr_accessor dev: bool
     attr_reader default_window_icon: Image?
     attr_reader app_icon: String?
+    attr_reader plugin_global_api_scripts: Array[String]?
     attr_reader tray_icon: Image?
 
     def initialize: (config: Utils::Config::Config, default_window_icon: Image?, app_icon: String?,
-                     package_info: Utils::PackageInfo, pattern: pattern) -> void
+                     package_info: Utils::PackageInfo, pattern: pattern, ?plugin_global_api_scripts: Array[String]?) -> void
     def set_default_window_icon: (Image? icon) -> nil
     def set_tray_icon: (Image? icon) -> nil
     def config=: (Utils::Config::Config config) -> Utils::Config::Config
