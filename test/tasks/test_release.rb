@@ -7,6 +7,7 @@
 
 require "test_helper"
 require "fileutils"
+require "rbconfig"
 require "tmpdir"
 require_relative "../../tasks/release"
 
@@ -452,9 +453,11 @@ class TestRelease < Minitest::Test
     with_origin do
       tag_release("0.1.0-pre.1")
 
-      pushing_release(prepare: [%w[mkdir js], %w[touch js/emit.js.erb]], generated: ["js/*"]).push!
+      make_dir = [RbConfig.ruby, "-e", "Dir.mkdir('js')"]
+      make_file = [RbConfig.ruby, "-e", "File.write('js/emit.js.erb', '')"]
+      pushing_release(prepare: [make_dir, make_file], generated: ["js/*"]).push!
 
-      assert_equal [%w[mkdir js], %w[touch js/emit.js.erb], %w[gem build], %w[gem push]], @ran.map { |command, _| command.first(2) }
+      assert_equal [make_dir, make_file, %w[gem build], %w[gem push]], @ran.map { |command, _| (command.first == "gem") ? command.first(2) : command }
       assert_equal 1, @ran.first(3).map(&:last).uniq.size
       refute_equal File.join(@root, "plugins/demo"), @ran.first.last
       assert_includes Gem::Package.new(File.join(@root, "pkg/tokra-demo-0.1.0.pre.pre.1.gem")).spec.files, "js/emit.js.erb"
@@ -477,10 +480,11 @@ class TestRelease < Minitest::Test
     with_origin do
       tag_release("0.1.0-pre.1")
 
-      error = assert_raises(Release::Failure) { pushing_release(prepare: [%w[false]]).push! }
+      fail_command = [RbConfig.ruby, "-e", "exit 1"]
+      error = assert_raises(Release::Failure) { pushing_release(prepare: [fail_command]).push! }
 
-      assert_equal "false failed", error.message
-      assert_equal [%w[false]], @ran.map(&:first)
+      assert_equal "#{fail_command.join(' ')} failed", error.message
+      assert_equal [fail_command], @ran.map(&:first)
       assert_empty Dir.glob(File.join(@root, "tmp/push/*"))
     end
   end
