@@ -1,0 +1,49 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>URI schemes</title>
+  <script src="/harness.js"></script>
+</head>
+<body>
+  <ol id="checks"></ol>
+  <script>
+    const internals = window.__TAURI_INTERNALS__;
+    const { check, finish } = window.fixture;
+
+    // Reads a response's status and JSON body, or its text when it is not
+    // JSON, so a failure shows what came back.
+    async function read(response) {
+      const text = await response.text();
+      let body;
+      try { body = JSON.parse(text); } catch (_error) { body = text; }
+      return { status: response.status, body };
+    }
+
+    (async () => {
+      await check('page from the second scheme', async () => {
+        const { status, body } = await read(await fetch('/whoami'));
+        return { pass: status === 200, detail: { page: window.location.href, status, seen: body } };
+      });
+
+      await check('fetch from the third scheme', async () => {
+        const url = internals.convertFileSrc('data.json', 'third');
+        const { status, body } = await read(await fetch(url));
+        return { pass: status === 200, detail: { url, status, seen: body } };
+      });
+
+      await check('invoke from the second scheme', async () => ({
+        pass: true,
+        detail: { reply: await internals.invoke('whereami') },
+      }));
+
+      await finish();
+    })();
+  </script>
+</body>
+</html>
