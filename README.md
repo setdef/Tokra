@@ -326,6 +326,7 @@ not on `window.__TAURI__`.
 | [tokra-global-shortcut](plugins/global-shortcut/README.rdoc) | global-shortcut | `@tauri-apps/plugin-global-shortcut` | ferro-global-hotkey |
 | [tokra-log](plugins/log/README.rdoc) | log | none yet; Ruby only | none |
 | [tokra-notification](plugins/notification/README.rdoc) | notification | `@tauri-apps/plugin-notification` | ferro-notify-rust, ferro-url, ferro-time |
+| [tokra-process](plugins/process/README.rdoc) | process | `@tauri-apps/plugin-process` | none |
 
 The plugins are pure Ruby, but the [Ferro](https://github.com/setdef/Ferro)
 gems they build on compile Rust extensions. On Linux, ferro-rfd also

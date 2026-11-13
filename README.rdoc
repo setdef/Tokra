@@ -140,14 +140,14 @@ ferro-url's Rust extension as it installs the gem.
 == Plugins
 
 Each of Tauri's official plugins that Tokra ports is a separate gem:
-tokra-clipboard, tokra-dialog, tokra-global-shortcut, tokra-log, and
-tokra-notification. All but tokra-log serve their Tauri plugin's
-commands, so the frontend package, such as
+tokra-clipboard, tokra-dialog, tokra-global-shortcut, tokra-log,
+tokra-notification, and tokra-process. All but tokra-log serve their
+Tauri plugin's commands, so the frontend package, such as
 <tt>@tauri-apps/plugin-dialog</tt>, works unchanged; tokra-log is Ruby
-only. The plugins are pure Ruby, and all but tokra-log build on Ferro
-gems, which compile Rust extensions. Neither the plugins nor the Ferro
-gems are on RubyGems.org yet. Each plugin's README names its Ferro gems
-and says how the plugin differs from Tauri's.
+only. The plugins are pure Ruby, and all but tokra-log and tokra-process
+build on Ferro gems, which compile Rust extensions. Neither the plugins
+nor the Ferro gems are on RubyGems.org yet. Each plugin's README names
+its Ferro gems and says how the plugin differs from Tauri's.
 
 == Documentation
 
