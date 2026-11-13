@@ -85,8 +85,11 @@ PACKAGES = [
       require "tokra/plugins/dialog/version"
       # ferro-rfd comes from its own installed gem, extension and all; the
       # init script is a packaged file the plugin reads at load.
-      script = Tokra::Plugins::Dialog::Plugin::INIT_SCRIPT
+      script = Tokra::Plugins::Dialog::INIT_SCRIPT
       abort "the init script lost alert" unless script.include?("plugin:dialog|message")
+      # The global API script is a packaged file too, named as the gem loads.
+      api = Tokra::Utils::Plugin.global_api_script_paths.find { |path| path.end_with?("dialog/api-iife.js") }
+      abort "the global API script is not packaged" unless api && File.read(api).include?("__TAURI_PLUGIN_DIALOG__")
       #{SMOKE_CONFIG_DIR.chomp}
       config = Tokra::Config.new(identifier: "com.tokra.smoke")
       context = Tokra::Codegen.context_codegen(Tokra::Codegen::ContextData.new(dev: true, config:, config_parent: config_dir))

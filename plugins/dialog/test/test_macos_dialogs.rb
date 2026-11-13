@@ -96,7 +96,7 @@ class TestMacosDialogs < Minitest::Test
       #{APPKIT}
       app = TestApp.build_test_app
       handle = app.handle
-      handle.plugin(Tokra::Plugins::Dialog::Plugin.new(handle))
+      handle.plugin(Tokra::Plugins::Dialog.init)
       answers = Thread::Queue.new
       done = false
       aborter = AppKit.abort_modal_until(-> { done })

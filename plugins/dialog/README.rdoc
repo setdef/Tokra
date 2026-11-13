@@ -31,18 +31,29 @@ install both; ship them with an app you package.
 
 == Usage
 
-Register the plugin on the app handle before App#run, so the pages of
-the windows your config lists run its script, which the app puts in each
-webview it makes from then on. It manages a Tokra::Plugins::Dialog::Dialog, reachable from
-any manager as +dialog+:
+Register the plugin on the builder with +init+, as a Tauri app does, so
+every page runs its script. It manages a Tokra::Plugins::Dialog::Dialog,
+reachable from any manager as +dialog+:
 
-  app = Tokra::Builder.new.build(Tokra.generate_context)
-  app.handle.plugin(Tokra::Plugins::Dialog::Plugin.new(app.handle))
-  app.run
+  require "tokra-dialog"
+
+  Tokra::Builder.default
+    .plugin(Tokra::Plugins::Dialog.init)
+    .run(Tokra.generate_context)
+
+The plugin takes no config. A +dialog+ entry under +plugins+ in your
+<tt>tokra.conf.json</tt> fails the app, as it fails a Tauri app.
 
 In the frontend:
 
   import { open, save, message, ask, confirm } from '@tauri-apps/plugin-dialog';
+
+With <tt>"withGlobalTauri": true</tt> under +app+ in your config, a page
+with no bundler finds the same functions on <tt>window.__TAURI__.dialog</tt>,
+from Tauri's own script, which the plugin ships. Require the gem before
+you call <tt>Tokra.generate_context</tt>, which reads it:
+
+  const { open } = window.__TAURI__.dialog;
 
   const file = await open({ filters: [{ name: 'Image', extensions: ['png', 'jpeg'] }] });
   const target = await save({ defaultPath: 'report.pdf' });
@@ -80,8 +91,6 @@ never return:
   custom button labels show the standard ones; the commands still answer
   with your labels.
 - A message dialog's default title is the app's product name, or empty.
-- <tt>window.__TAURI__.dialog</tt> is not defined; import the package
-  through your bundler.
 
 == Features
 

@@ -12,7 +12,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- `tokra-dialog` gem: `Tokra::Plugins::Dialog::Plugin.new(app)` manages a
+- `tokra-dialog` gem: `Tokra::Plugins::Dialog.init`, registered with
+  `Builder#plugin` and taking no config, manages a
   `Tokra::Plugins::Dialog::Dialog` (reachable as `app.dialog`) with Tauri's
   `MessageDialogBuilder` and `FileDialogBuilder`, serves Tauri's dialog
   commands (`open`, `save`, `message`, `ask`, `confirm`) for
@@ -22,7 +23,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   and `parent` take a `Tokra::Window`, and the commands parent each dialog
   to the calling window as Tauri does, except on Wayland (ferro-rfd binds
   no Wayland handle), so on macOS each is a sheet on that window; picked
-  paths join no scope; it is pure Ruby and depends on `ferro-rfd`
+  paths join no scope; a page with `withGlobalTauri` gets
+  `window.__TAURI__.dialog` from Tauri's own `api-iife.js`, which the gem
+  ships; it is pure Ruby and depends on `ferro-rfd`
   0.1.0 (rfd 0.17.2), which apps take from its git tag until it is
   on RubyGems.org
 

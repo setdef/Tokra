@@ -157,7 +157,7 @@ class TestLinuxDialogs < Minitest::Test
   CALLBACKS = <<~RUBY
     app = TestApp.build_test_app
     handle = app.handle
-    handle.plugin(Tokra::Plugins::Dialog::Plugin.new(handle))
+    handle.plugin(Tokra::Plugins::Dialog.init)
     buttons = Tokra::Plugins::Dialog::MessageDialogButtons::OkCancelCustom.new(ok: "Keep", cancel: "Drop")
     answers = Thread::Queue.new
   RUBY

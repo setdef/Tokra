@@ -86,7 +86,7 @@ module DialogTest
 
   # A registered plugin on a real handle.
   private def build_plugin(app = build_app)
-    plugin = Dialog::Plugin.new(app.handle)
+    plugin = Dialog.init
     app.handle.plugin(plugin)
     plugin
   end
@@ -197,7 +197,7 @@ module DialogTest
     def run_command(command, payload)
       app = TestApp.build_test_app
       handle = app.handle
-      plugin = Tokra::Plugins::Dialog::Plugin.new(handle)
+      plugin = Tokra::Plugins::Dialog.init
       handle.plugin(plugin)
       window = Tokra::Window.new(label: "main", native: StubNative::Window.new(nil, "main"), app_handle: handle)
       handle.windows["main"] = window

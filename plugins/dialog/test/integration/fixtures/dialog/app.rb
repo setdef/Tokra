@@ -199,13 +199,12 @@ module DialogFixture
       platform = RUBY_PLATFORM.include?("darwin") ? "macos" : "linux"
       [200, { "content-type" => "application/json" }, [JSON.generate(platform:, dir: DIR)]]
     },
-    "/api-iife.js" => lambda { |_env|
-      [200, { "content-type" => "text/javascript" }, [File.read(File.join(__dir__, "api-iife.js"))]]
-    },
   }.freeze
 end
 
 options = FixtureApp.options(ARGV)
-FixtureApp.builder(FixtureApp::Site.new(__dir__, options, DialogFixture::ROUTES),
-  plugins: [Tokra::Plugins::Dialog::Plugin, DialogFixture::Plugin])
+# The dialog plugin registers on the builder, as an app registers it, so
+# its init script and global API script reach main's page (plan 064).
+FixtureApp.builder(FixtureApp::Site.new(__dir__, options, DialogFixture::ROUTES), plugins: [DialogFixture::Plugin])
+  .plugin(Tokra::Plugins::Dialog.init)
   .run(Tokra.generate_context)

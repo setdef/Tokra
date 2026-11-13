@@ -286,9 +286,9 @@ require "tokra-dialog"
 
 app = Tokra::Builder.default
   .app(site)
+  .plugin(Tokra::Plugins::Dialog.init)
   .setup(&Ractor.shareable_proc { |app| puts "#{app.config.product_name} is running" })
   .build(Tokra.generate_context)
-app.handle.plugin(Tokra::Plugins::Dialog::Plugin.new(app.handle))
 app.run
 ```
 <!-- SPDX-SnippetEnd -->

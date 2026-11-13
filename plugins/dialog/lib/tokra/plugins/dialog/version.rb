@@ -8,7 +8,7 @@
 module Tokra
   module Plugins
     # Dialog is a module (not class) to allow VERSION in version.rb.
-    # The actual plugin is Dialog::Plugin.
+    # Dialog.init builds the plugin.
     module Dialog
       # Version of the tokra-dialog gem.
       VERSION = "0.0.1.pre.1"
