@@ -55,8 +55,9 @@ module Tokra
     # Called with the app handle for every run loop event.
     #
     # Override in subclasses to handle events. App delivers
-    # RunEvent::Ready, RunEvent::WindowEvent, and RunEvent::Exit, each
-    # before the run callback sees it. Mirrors the Plugin trait's
+    # RunEvent::Ready, RunEvent::WindowEvent, RunEvent::MenuEvent,
+    # RunEvent::TrayIconEvent, RunEvent::ExitRequested, and
+    # RunEvent::Exit, each before the run callback sees it. Mirrors the Plugin trait's
     # <tt>on_event(app, event)</tt> (plugin.rs).
     # Returns +nil+ by default.
     public def on_event(app, event)
@@ -66,12 +67,11 @@ module Tokra
     # Called when the webview navigates to +url+, a Ferro::Url::Url, the
     # url crate's URL, as Tauri's hook takes a Url (plugin.rs:93-97).
     #
-    # Return +true+ to allow navigation, +false+ to block it.
-    # Returns +true+ by default (allows all navigation).
-    #
-    # *Warning*: Returning +false+ blocks ALL navigation, which will
-    # likely break your application. Only return +false+ for specific
-    # URLs you want to prevent.
+    # *Not yet called*: nothing in Tokra calls this hook, so no navigation
+    # reaches it and its return value changes nothing. It is here for the
+    # Plugin trait's shape. When it is wired, +true+ will allow the
+    # navigation and +false+ will block it, as in Tauri.
+    # Returns +true+ by default.
     public def on_navigation(webview, url)
       true
     end
