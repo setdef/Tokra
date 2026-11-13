@@ -7,156 +7,95 @@
 
 require_relative "test_helper"
 
-# Tests for Log::Builder fluent API.
-#
-# TDD tests following Tarlinder-style: verify behavior, not implementation.
+# Builder's defaults, its chaining, and the methods Tokra declines
+# (lib.rs:395-565).
 class TestBuilder < Minitest::Test
-  def test_new_creates_builder
-    builder = Tokra::Plugins::Log::Builder.new
+  include LogTest
 
-    assert_kind_of Tokra::Plugins::Log::Builder, builder
+  # Builder::default (lib.rs:404-431).
+  def test_the_defaults_are_tauris
+    builder = Log::Builder.new
+
+    assert_equal Log::RotationStrategy::KeepOne.new, builder.configured_rotation_strategy
+    assert_equal Log::TimezoneStrategy::UseUtc.new, builder.configured_timezone_strategy
+    assert_equal 40_000, builder.configured_max_file_size
+    assert_equal :trace, builder.configured_level
   end
 
-  def test_targets_returns_self_for_chaining
-    builder = Tokra::Plugins::Log::Builder.new
-    target = Tokra::Plugins::Log::Target.new($stdout)
+  # Each setter returns the builder, as each Rust method returns Self.
+  def test_each_setter_returns_the_builder
+    builder = Log::Builder.new
+    format = Ractor.shareable_proc { |message, _record| message }
+    calls = [
+      -> { builder.rotation_strategy(Log::RotationStrategy::KeepAll.new) },
+      -> { builder.timezone_strategy(Log::TimezoneStrategy::UseLocal.new) },
+      -> { builder.max_file_size(10) },
+      -> { builder.clear_format },
+      -> { builder.format(format) },
+      -> { builder.level(:info) },
+      -> { builder.filter(-> (_metadata) { true }) },
+      -> { builder.clear_targets },
+      -> { builder.target(stdout_target) },
+      -> { builder.targets([stdout_target]) },
+    ]
 
-    result = builder.targets([target])
-
-    assert_same builder, result
+    calls.each { |call| assert_same builder, call.call }
   end
 
-  def test_target_returns_self_for_chaining
-    builder = Tokra::Plugins::Log::Builder.new
-    target = Tokra::Plugins::Log::Target.new($stdout)
+  def test_targets_replaces_and_target_adds
+    first = stdout_target
+    second = Log::Target.new(Log::TargetKind::Stderr.new)
+    builder = Log::Builder.new.targets([first]).target(second)
 
-    result = builder.target(target)
-
-    assert_same builder, result
+    assert_equal [first, second], builder.configured_targets
   end
 
-  def test_level_returns_self_for_chaining
-    builder = Tokra::Plugins::Log::Builder.new
+  # The builder keeps its own list, as Rust's targets collects the
+  # iterator it is given into a Vec of its own.
+  def test_targets_keeps_its_own_list
+    list = [stdout_target]
+    builder = Log::Builder.new.targets(list)
+    list << Log::Target.new(Log::TargetKind::Stderr.new)
 
-    result = builder.level(:debug)
-
-    assert_same builder, result
+    assert_equal 1, builder.configured_targets.size
   end
 
-  def test_rotation_strategy_returns_self_for_chaining
-    builder = Tokra::Plugins::Log::Builder.new
-    strategy = Tokra::Plugins::Log::RotationStrategy::KeepOne.new
-
-    result = builder.rotation_strategy(strategy)
-
-    assert_same builder, result
+  # Sizes above u64::MAX are clamped (lib.rs:459-466).
+  def test_max_file_size_is_clamped_to_u64
+    assert_equal (2 ** 64) - 1, Log::Builder.new.max_file_size(2 ** 70).configured_max_file_size
   end
 
-  def test_timezone_strategy_returns_self_for_chaining
-    builder = Tokra::Plugins::Log::Builder.new
-    strategy = Tokra::Plugins::Log::TimezoneStrategy::UseUtc.new
+  def test_build_returns_the_plugin_named_log
+    plugin = stdout_plugin
 
-    result = builder.timezone_strategy(strategy)
-
-    assert_same builder, result
+    assert_instance_of Log::Plugin, plugin
+    assert_equal "log", plugin.name
   end
 
-  def test_max_file_size_returns_self_for_chaining
-    builder = Tokra::Plugins::Log::Builder.new
+  # Tauri filters by Rust module path (lib.rs:488-491), which Ruby records
+  # do not carry.
+  def test_level_for_is_declined
+    error = assert_raises(NotImplementedError) { Log::Builder.new.level_for("hyper", :warn) }
 
-    result = builder.max_file_size(10_000_000)
-
-    assert_same builder, result
+    assert_match(/module path/, error.message)
+    assert_match(/Builder#filter/, error.message)
   end
 
-  def test_clear_targets_returns_self_for_chaining
-    builder = Tokra::Plugins::Log::Builder.new
+  # fern's colors feature (lib.rs:551-565).
+  def test_with_colors_is_declined
+    error = assert_raises(NotImplementedError) { Log::Builder.new.with_colors({}) }
 
-    result = builder.clear_targets
-
-    assert_same builder, result
+    assert_match(/Builder#format/, error.message)
   end
 
-  def test_skip_logger_returns_self_for_chaining
-    builder = Tokra::Plugins::Log::Builder.new
+  # Both exist to install or compose Rust's global logger
+  # (lib.rs:519-533, 670-719), which Ruby lacks.
+  def test_skip_logger_and_split_are_declined
+    [-> { Log::Builder.new.skip_logger }, -> { Log::Builder.new.split(app_handle) }].each do |call|
+      error = assert_raises(NotImplementedError) { call.call }
 
-    result = builder.skip_logger
-
-    assert_same builder, result
-  end
-
-  def test_build_returns_plugin
-    builder = Tokra::Plugins::Log::Builder.new
-      .targets([Tokra::Plugins::Log::Target.new($stdout)])
-      .level(:debug)
-
-    plugin = builder.build
-
-    assert_kind_of Tokra::Plugins::Log::Plugin, plugin
-  end
-
-  def test_progname_returns_self_for_chaining
-    builder = Tokra::Plugins::Log::Builder.new
-
-    result = builder.progname("my-app")
-
-    assert_same builder, result
-  end
-
-  def test_datetime_format_returns_self_for_chaining
-    builder = Tokra::Plugins::Log::Builder.new
-
-    result = builder.datetime_format("%Y-%m-%d %H:%M:%S")
-
-    assert_same builder, result
-  end
-
-  SIMPLE_FORMATTER = Ractor.make_shareable(
-    -> (sev, time, prog, msg) { "FORMATTED: #{msg}\n" }
-  )
-
-  def test_format_applies_formatter_to_built_plugin
-    output = StringIO.new
-    target = Tokra::Plugins::Log::Target.new(output)
-
-    plugin = Tokra::Plugins::Log::Builder.new
-      .targets([target])
-      .format(SIMPLE_FORMATTER)
-      .build
-
-    plugin.info("hello")
-
-    assert_equal "FORMATTED: hello\n", output.string
-  end
-
-  FILTER_REJECTS_SECRET = Ractor.make_shareable(
-    -> (msg) { !msg.include?("SECRET") }
-  )
-
-  def test_filter_rejects_matching_messages
-    output = StringIO.new
-    target = Tokra::Plugins::Log::Target.new(output)
-
-    plugin = Tokra::Plugins::Log::Builder.new
-      .targets([target])
-      .filter(FILTER_REJECTS_SECRET)
-      .build
-
-    plugin.info("public info")
-    plugin.info("SECRET data")
-    plugin.info("more public info")
-
-    assert_includes output.string, "public info", "non-matching messages should be logged"
-    assert_includes output.string, "more public info", "non-matching messages should be logged"
-    refute_includes output.string, "SECRET", "matching messages should be rejected"
-  end
-
-  def test_with_colors_raises_not_implemented_error
-    builder = Tokra::Plugins::Log::Builder.new
-
-    error = assert_raises(NotImplementedError) { builder.with_colors({}) }
-
-    assert_includes error.message, "Logger",
-      "error should explain Ruby's Logger is not color-aware"
+      assert_match(/global logger/, error.message)
+      assert_match(/TargetKind::Dispatch/, error.message)
+    end
   end
 end

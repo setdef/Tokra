@@ -4,184 +4,235 @@
 module Tokra
   module Plugins
     module Log
-      type level = Symbol | Integer
-      type formatter = ^(String severity, Time time, String? progname, String? message) -> String
-      type filter = ^(String? message) -> bool
-      type kind = IO | StringIO | Pathname | TargetKind::LogDir | TargetKind::Webview
+      type level = :error | :warn | :info | :debug | :trace
+      type level_filter = :off | level
+      type format = ^(String message, Record record) -> String?
+      type filter = ^(Metadata metadata) -> boolish
+      type kind = TargetKind::Stdout | TargetKind::Stderr | TargetKind::Folder | TargetKind::LogDir
+                | TargetKind::Webview | TargetKind::Dispatch
       type rotation = RotationStrategy::KeepAll | RotationStrategy::KeepOne | RotationStrategy::KeepSome
       type timezone = TimezoneStrategy::UseUtc | TimezoneStrategy::UseLocal
-      type logger = TracingLogger | WebviewLogger | FilteringLogger
+      type output = Output::Stream | Output::Writer | Output::Webview | Output::Dispatch
+
+      interface _Logger
+        def add: (Integer severity, String message, String progname) -> void
+      end
 
       TRACE: Integer
+      WEBVIEW_TARGET: String
+      DEFAULT_MAX_FILE_SIZE: Integer
+      DEFAULT_ROTATION_STRATEGY: RotationStrategy::KeepOne
+      DEFAULT_TIMEZONE_STRATEGY: TimezoneStrategy::UseUtc
+      LOG_DATE_FORMAT: Ferro::Time::FormatDescription::description
 
       class Plugin < Tokra::Plugin
-        @progname: String?
-        @datetime_format: String?
-        @loggers: Array[logger]
+        SEVERITY_LEVELS: Hash[Integer, level]
+        LEVEL_FILTERS: Array[level_filter]
+
+        @max_level: Integer
+        @filters: Array[filter]
+        @format: format?
+        @app_name: String
+        @targets: Array[[Array[filter], format?, output]]
 
         def name: () -> String
         def initialize: (Builder builder) -> void
         def initialize_plugin: (Tokra::AppHandle app, Tokra::json_value config) -> nil
-        def level_for: (String module_name, level level) -> bot
-        def trace: (String message) -> void
-        def debug: (String message) -> void
-        def info: (String message) -> void
-        def warn: (String message) -> void
-        def error: (String message) -> void
-        def fatal: (String message) -> void
-        def add: (Integer level, ?String? message, ?String? progname) -> void
-        def <<: (String message) -> void
-        def with_level: (level level) { () -> void } -> void
+        def trace: (?Object? progname) ?{ () -> Object } -> true
+        def debug: (?Object? progname) ?{ () -> Object } -> true
+        def info: (?Object? progname) ?{ () -> Object } -> true
+        def warn: (?Object? progname) ?{ () -> Object } -> true
+        def error: (?Object? progname) ?{ () -> Object } -> true
+        def fatal: (?Object? progname) ?{ () -> Object } -> true
+        def add: (Integer? severity, ?Object? message, ?Object? progname) ?{ () -> Object } -> true
 
         private
 
-        def log: (level level, String message) -> void
-        def build_loggers: (Builder builder) -> Array[logger]
+        def dispatch: (Record record) -> void
+        def finish: (Record record, format? format) -> Record
+        def level_of: (Integer? severity) -> level
+        def message_text: (Object? message) -> String
+        def output: (kind kind, Builder builder) -> output
+        def file_output: (String | Pathname dir, String? file_name, Builder builder) -> Output::Writer
+        def log_dir: (Builder builder) -> Pathname
+        def handle_for: (String kind, Builder builder) -> Tokra::AppHandle
       end
 
       class Builder
+        TIMESTAMP: Ferro::Time::FormatDescription::description
+        DEFAULT_FORMAT: format
+        MESSAGE_ONLY: format
+        LEVEL_FILTERS: Array[level_filter]
+        U64_MAX: Integer
+
         @_targets: Array[Target]
-        @_level: level?
-        @_progname: String?
-        @_datetime_format: String?
-        @_rotation_strategy: rotation?
-        @_timezone_strategy: timezone?
-        @_max_file_size: Integer?
-        @_skip_logger: bool?
+        @_format: format?
+        @_level: level_filter
+        @_filters: Array[filter]
+        @_rotation_strategy: rotation
+        @_timezone_strategy: timezone
+        @_max_file_size: Integer
         @_path_resolver: Tokra::Path::Resolver?
         @_app_handle: Tokra::AppHandle?
         @_app_name: String?
-        @_formatter: formatter?
-        @_filter: filter?
 
         def initialize: () -> void
-        def targets: (Array[Target] targets) -> self
-        def target: (Target target) -> self
-        def level: (level level) -> self
-        def progname: (String name) -> self
-        def datetime_format: (String format) -> self
-        def rotation_strategy: (rotation strategy) -> self
-        def timezone_strategy: (timezone strategy) -> self
-        def max_file_size: (Integer size) -> self
+        def rotation_strategy: (rotation rotation_strategy) -> self
+        def timezone_strategy: (timezone timezone_strategy) -> self
+        def max_file_size: (Integer max_file_size) -> self
+        def clear_format: () -> self
+        def format: (?format? formatter) ?{ (String message, Record record) -> String? } -> self
+        def level: (Symbol | String level_filter) -> self
+        def level_for: (String module_name, Symbol level) -> bot
+        def filter: (?filter? callable) ?{ (Metadata metadata) -> boolish } -> self
         def clear_targets: () -> self
-        def format: (formatter formatter) -> self
-        def filter: (filter callable) -> self
+        def target: (Target target) -> self
+        def targets: (Enumerable[Target] targets) -> self
+        def skip_logger: () -> bot
+        def split: (Tokra::AppHandle app_handle) -> bot
+        def with_colors: (Hash[Symbol, Symbol] colors) -> bot
         def path_resolver: (Tokra::Path::Resolver resolver) -> self
         def app_handle: (Tokra::AppHandle handle) -> self
         def app_name: (String name) -> self
-        def skip_logger: () -> self
-        def with_colors: (Hash[Symbol, Symbol] colors) -> bot
         def build: () -> Plugin
         def configured_targets: () -> Array[Target]
-        def configured_level: () -> level?
-        def configured_progname: () -> String?
-        def configured_datetime_format: () -> String?
-        def configured_rotation_strategy: () -> rotation?
-        def configured_timezone_strategy: () -> timezone?
-        def configured_max_file_size: () -> Integer?
-        def configured_skip_logger: () -> bool?
+        def configured_format: () -> format?
+        def configured_level: () -> level_filter
+        def configured_filters: () -> Array[filter]
+        def configured_rotation_strategy: () -> rotation
+        def configured_timezone_strategy: () -> timezone
+        def configured_max_file_size: () -> Integer
         def configured_path_resolver: () -> Tokra::Path::Resolver?
         def configured_app_handle: () -> Tokra::AppHandle?
         def configured_app_name: () -> String?
-        def configured_formatter: () -> formatter?
-        def configured_filter: () -> filter?
       end
 
       class Target
+        KINDS: Array[Class]
+
         @kind: kind
         @filters: Array[filter]
-        @formatter: formatter?
-        @rotation_strategy: rotation?
-        @timezone_strategy: timezone?
+        @formatter: format?
 
         attr_reader kind: kind
+        attr_reader filters: Array[filter]
+        attr_reader formatter: format?
 
         def initialize: (kind kind) -> void
-        def filter: (?filter? callback) ?{ (String? message) -> bool } -> self
-        def format: (?formatter? callback) ?{ (String severity, Time time, String? progname, String? message) -> String } -> self
-        def rotation_strategy: (rotation strategy) -> self
-        def timezone_strategy: (timezone strategy) -> self
-        def to_logger: (Builder builder) -> logger
+        def filter: (?filter? callback) ?{ (Metadata metadata) -> boolish } -> self
+        def format: (?format? callback) ?{ (String message, Record record) -> String? } -> self
 
         private
 
-        def create_base_logger: (Builder builder) -> logger
-        def create_log_dir_logger: (Builder builder, Integer | String shift_age, Integer shift_size) -> TracingLogger
-        def create_webview_logger: (Builder builder) -> WebviewLogger
-        def wrap_with_filters: (logger logger) -> logger
-        def validate_shareable!: (Proc? proc, String name) -> void
-        def wrap_formatter_with_timezone: (formatter formatter) -> formatter
+        def shareable!: (Proc? callable, String name) -> void
       end
 
-      class FilteringLogger
-        @logger: logger
-        @filter: filter
-
-        def initialize: (logger logger, filter filter) -> void
-        def add: (Integer severity, ?String? message, ?String? progname) -> void
-        def trace: (?String? message) ?{ () -> String } -> void
-        def debug: (?String? message) ?{ () -> String } -> void
-        def info: (?String? message) ?{ () -> String } -> void
-        def warn: (?String? message) ?{ () -> String } -> void
-        def error: (?String? message) ?{ () -> String } -> void
-        def fatal: (?String? message) ?{ () -> String } -> void
-        def <<: (String msg) -> void
-
-        private
-
-        def method_missing: (Symbol method, *Object args) ?{ (*Object) -> Object } -> Object
-        def respond_to_missing?: (Symbol method, ?bool include_private) -> bool
+      class Metadata < Data
+        attr_reader level: level
+        attr_reader target: String
+        def self.new: (level level, String target) -> Metadata
+                    | (level: level, target: String) -> Metadata
       end
 
-      class TracingLogger < ::Logger
-        def trace: (?String? progname) ?{ () -> String } -> bool
-        def trace?: () -> bool
-        def trace!: () -> Integer
-
-        private
-
-        def format_severity: (Integer severity) -> String
+      class Record < Data
+        attr_reader args: String
+        attr_reader level: level
+        attr_reader target: String
+        attr_reader file: String?
+        attr_reader line: Integer?
+        attr_reader key_values: Hash[String, String]
+        def self.new: (args: String, level: level, target: String, ?file: String?, ?line: Integer?,
+                       ?key_values: Hash[String, String]) -> Record
+        def metadata: () -> Metadata
       end
 
-      class WebviewLogger
+      module LogLevel
         TRACE: Integer
+        DEBUG: Integer
+        INFO: Integer
+        WARN: Integer
+        ERROR: Integer
+        LEVELS: Hash[Integer, level]
 
-        @app_handle: Tokra::AppHandle
-
-        attr_accessor level: Integer
-        attr_accessor formatter: formatter?
-
-        def initialize: (Tokra::AppHandle app_handle) -> void
-        def add: (Integer severity, ?String? message, ?String? progname) ?{ () -> String } -> true
-        def trace: (?String? message) ?{ () -> String } -> true
-        def debug: (?String? message) ?{ () -> String } -> true
-        def info: (?String? message) ?{ () -> String } -> true
-        def warn: (?String? message) ?{ () -> String } -> true
-        def error: (?String? message) ?{ () -> String } -> true
-        def fatal: (?String? message) ?{ () -> String } -> true
+        def self.from: (level level) -> Integer
+        def self.to_level: (Integer log_level) -> level
       end
 
-      module TauriLevel
-        def self.from_ruby: (Integer severity) -> Integer
-        def self.to_ruby: (Integer level) -> Integer
+      class RotatingFile
+        @dir: Pathname
+        @file_name: String
+        @path: Pathname
+        @max_size: Integer
+        @current_size: Integer
+        @rotation_strategy: rotation
+        @timezone_strategy: timezone
+        @inner: File?
+        @buffer: String
+
+        def initialize: (String | Pathname dir, String file_name, Integer max_size, rotation rotation_strategy,
+                         timezone timezone_strategy) -> void
+        def write: (String string) -> String
+        def flush: () -> void
+
+        private
+
+        def open_file: () -> File
+        def rotate: () -> File
+        def remove_old_files: (Integer keep_count) -> void
+        def rename_file_to_dated: () -> Integer
+      end
+
+      module Output
+        module Fallback
+          def self.on_error: (Record record) { () -> void } -> void
+        end
+
+        class Stream
+          @stream: :stdout | :stderr
+          @lock: Thread::Mutex
+
+          def initialize: (:stdout | :stderr stream) -> void
+          def log: (Record record) -> void
+        end
+
+        class Writer
+          @file: RotatingFile
+          @lock: Thread::Mutex
+
+          def initialize: (RotatingFile file) -> void
+          def log: (Record record) -> void
+        end
+
+        class Webview
+          @app_handle: Tokra::AppHandle
+
+          def initialize: (Tokra::AppHandle app_handle) -> void
+          def log: (Record record) -> void
+        end
+
+        class Dispatch
+          SEVERITIES: Hash[level, Integer]
+
+          @logger: _Logger
+
+          def initialize: (_Logger logger) -> void
+          def log: (Record record) -> void
+        end
       end
 
       module RotationStrategy
         class KeepAll < Data
           def self.new: () -> KeepAll
-          def to_shift_age: () -> String
         end
 
         class KeepOne < Data
           def self.new: () -> KeepOne
-          def to_shift_age: () -> Integer
         end
 
         class KeepSome < Data
           attr_reader count: Integer
           def self.new: (Integer count) -> KeepSome
                       | (count: Integer) -> KeepSome
-          def to_shift_age: () -> Integer
         end
       end
 
@@ -189,17 +240,29 @@ module Tokra
         class UseUtc < Data
           def self.new: () -> UseUtc
           def get_now: () -> Ferro::Time::OffsetDateTime
-          def format_time: (Time time) -> Time
         end
 
         class UseLocal < Data
           def self.new: () -> UseLocal
           def get_now: () -> Ferro::Time::OffsetDateTime
-          def format_time: (Time time) -> Time
         end
       end
 
       module TargetKind
+        class Stdout < Data
+          def self.new: () -> Stdout
+        end
+
+        class Stderr < Data
+          def self.new: () -> Stderr
+        end
+
+        class Folder < Data
+          attr_reader path: String | Pathname
+          attr_reader file_name: String?
+          def self.new: (path: String | Pathname, ?file_name: String?) -> Folder
+        end
+
         class LogDir < Data
           attr_reader file_name: String?
           def self.new: (?file_name: String?) -> LogDir
@@ -207,6 +270,12 @@ module Tokra
 
         class Webview < Data
           def self.new: () -> Webview
+        end
+
+        class Dispatch < Data
+          attr_reader logger: _Logger
+          def self.new: (_Logger logger) -> Dispatch
+                      | (logger: _Logger) -> Dispatch
         end
       end
     end

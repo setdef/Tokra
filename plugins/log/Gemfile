@@ -17,6 +17,8 @@ gem "ferro-url", git: "https://github.com/setdef/Ferro", tag: "ferro-url/v0.1.0"
 gem "ferro-time", git: "https://github.com/setdef/Ferro", tag: "ferro-time/v0.1.0", glob: "gems/time/*.gemspec"
 
 group :development, :test do
+  # The tests hand the plugin a Logger of their own (TargetKind::Dispatch).
+  gem "logger"
   gem "minitest"
   gem "minitest-mock"
   gem "rake"

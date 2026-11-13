@@ -11,9 +11,8 @@ require "digest"
 require "fileutils"
 
 # The registration path the README and the Plugin RDoc show: build the
-# plugin with Log::Builder and register it on the app's builder, as Tauri's
-# is (plan 064). Runs a real Tokra::App with the window and event loop
-# replaced.
+# plugin with Log::Builder and register it on the app handle from the setup
+# hook. Runs a real Tokra::App with the window and event loop replaced.
 class TestLogRegistration < Minitest::Test
   # Stands in for tao and wry: the loop delivers nothing but its end.
   module NoWindow
@@ -54,7 +53,7 @@ class TestLogRegistration < Minitest::Test
     MenuIcon = Tokra::Native::MenuIcon
   end
 
-  def test_the_readme_example_registers_the_plugin_on_the_builder
+  def test_the_readme_example_registers_the_plugin_from_the_setup_hook
     Dir.mktmpdir do |dir|
       Dir.chdir(dir) do
         events = []
@@ -64,17 +63,27 @@ class TestLogRegistration < Minitest::Test
         # The icons/icon.png beside the config that every app has, here
         # the core suite's.
         FileUtils.cp_r(File.expand_path("../../../test/fixtures/test_app/icons", __dir__), dir)
-        log = Tokra::Plugins::Log::Builder.new
-          .level(:info)
-          .targets([Tokra::Plugins::Log::Target.new(Pathname("app.log"))])
-          .build
-        built = Tokra::Builder.default.plugin(log)
+        built = Tokra::Builder.default
+          .setup(&Ractor.shareable_proc { |app|
+            log = Tokra::Plugins::Log::Builder.new
+              .app_handle(app.handle)
+              .level(:info)
+              .targets([
+                Tokra::Plugins::Log::Target.new(Tokra::Plugins::Log::TargetKind::Stdout.new),
+                Tokra::Plugins::Log::Target.new(Tokra::Plugins::Log::TargetKind::Folder.new(path: "logs")),
+              ])
+              .build
+            app.handle.plugin(log)
+            log.info("started")
+          })
           .build(Tokra.generate_context(File.join(dir, "tokra.conf.json")), native: NoWindow)
-        built.run { |_handle, event| events << event.class }
+        out, = capture_io { built.run { |_handle, event| events << event.class } }
 
         assert_equal [Tokra::RunEvent::Ready, Tokra::RunEvent::Exit], events
-        assert built.handle.remove_plugin("log"), "Builder#plugin should have registered the log plugin"
-        assert_path_exists File.join(dir, "app.log")
+        assert built.handle.remove_plugin("log"), "the setup hook should have registered the log plugin"
+        name = built.handle.package_info.name
+        assert_match(/\]\[#{Regexp.escape(name)}\]\[INFO\] started\n\z/, out)
+        assert_match(/\]\[INFO\] started\n\z/, File.read(File.join(dir, "logs", "#{name}.log")))
       end
     end
   end
