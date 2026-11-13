@@ -80,8 +80,9 @@ exactly that:
   `tokra-packaged/assets/` beside the staged config. A `frontendDist` URL
   ships nothing, as in Tauri.
 - **`bundle.resources`**, a list or a map, into
-  `tokra-packaged/resources/` by Tauri's rules. The path resolver, when it
-  is ported, answers that folder for `resource_dir` in a packaged app.
+  `tokra-packaged/resources/` by Tauri's rules. The path resolver's
+  `resource_dir`, which raises `NotImplementedError` until `tokra build`
+  exists, answers that folder in a packaged app.
 - **`bundle.externalBin`**, the host triple's file of each, into
   `tokra-packaged/bin/` with the suffix removed. The shell plugin's sidecar
   lookup, when it is ported, looks there in a packaged app. Fledge has not
