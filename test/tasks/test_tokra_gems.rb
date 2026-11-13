@@ -70,6 +70,28 @@ class TestTokraGems < Minitest::Test
     TOKRA_GEMS.reject(&:core?).each { |plugin| assert_empty plugin.prepare.call("/repo"), plugin.name }
   end
 
+  # A bump releases the gem's own CHANGELOG and moves its Unreleased link.
+  def test_each_gem_ships_a_changelog_of_its_own_that_a_bump_can_release
+    TOKRA_GEMS.each do |gem|
+      changelog = File.read(File.join(ROOT, gem.path(gem.changelog)))
+      spec = Gem::Specification.load(File.join(ROOT, gem.path(gem.gemspec)))
+
+      assert_match(/^## \[Unreleased\]$/, changelog, gem.name)
+      assert_match(Changelog::UNRELEASED_LINK, changelog, gem.name)
+      assert_includes spec.files, gem.changelog, gem.name
+      assert_equal "https://github.com/setdef/Tokra/blob/trunk/#{gem.path(gem.changelog)}", spec.metadata["changelog_uri"], gem.name
+    end
+  end
+
+  # https://tokra.app redirects to https://www.tokra.app.
+  def test_every_gem_names_the_same_homepage
+    TOKRA_GEMS.each do |gem|
+      spec = Gem::Specification.load(File.join(ROOT, gem.path(gem.gemspec)))
+
+      assert_equal "https://www.tokra.app", spec.homepage, gem.name
+    end
+  end
+
   # Bundler's release would tag v0.1.0 for every gem, so no Rakefile loads
   # it; tasks/releases.rake releases each gem under a tag named for it.
   def test_no_rakefile_loads_bundlers_gem_tasks

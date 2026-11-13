@@ -54,7 +54,7 @@ PACKAGES = [
   PackageCheck::Target.new(
     name: "tokra-clipboard",
     dir: "plugins/clipboard",
-    packaged: %w[lib sig README.rdoc],
+    packaged: %w[lib sig README.rdoc CHANGELOG.md],
     generated: [],
     crate: nil,
     extension: nil,
@@ -76,7 +76,7 @@ PACKAGES = [
   PackageCheck::Target.new(
     name: "tokra-dialog",
     dir: "plugins/dialog",
-    packaged: %w[lib sig README.rdoc],
+    packaged: %w[lib sig README.rdoc CHANGELOG.md],
     generated: [],
     crate: nil,
     extension: nil,
@@ -98,7 +98,7 @@ PACKAGES = [
   PackageCheck::Target.new(
     name: "tokra-notification",
     dir: "plugins/notification",
-    packaged: %w[lib sig README.rdoc],
+    packaged: %w[lib sig README.rdoc CHANGELOG.md],
     generated: [],
     crate: nil,
     extension: nil,
@@ -131,7 +131,7 @@ PACKAGES = [
   PackageCheck::Target.new(
     name: "tokra-global-shortcut",
     dir: "plugins/global-shortcut",
-    packaged: %w[lib sig README.rdoc],
+    packaged: %w[lib sig README.rdoc CHANGELOG.md],
     generated: [],
     crate: nil,
     extension: nil,
@@ -150,7 +150,7 @@ PACKAGES = [
   PackageCheck::Target.new(
     name: "tokra-log",
     dir: "plugins/log",
-    packaged: %w[lib sig README.rdoc],
+    packaged: %w[lib sig README.rdoc CHANGELOG.md],
     generated: [],
     crate: nil,
     extension: nil,

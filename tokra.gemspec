@@ -24,7 +24,7 @@ Gem::Specification.new do |spec|
   spec.metadata["allowed_push_host"] = "https://rubygems.org"
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = "https://github.com/setdef/Tokra"
-  # spec.metadata["changelog_uri"] = "https://github.com/setdef/Tokra/blob/stable/CHANGELOG.md"
+  spec.metadata["changelog_uri"] = "https://github.com/setdef/Tokra/blob/trunk/CHANGELOG.md"
   # spec.metadata["documentation_uri"] = "https://tokra.app/docs/"
   spec.metadata["funding_uri"] = "https://opencollective.com/tauri"
   spec.metadata["rubygems_mfa_required"] = "true"

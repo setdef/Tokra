@@ -231,55 +231,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   GVL to other Ruby threads, at the end of a turn and inside a Windows menu
 - `Native::IpcEvent#url`, the URL of the frame that posted the message
 - `Rack::Handler::Tokra.run` accepts `native:`, like `Builder#run`
-- `tokra-clipboard` gem: `Tokra::Plugins::Clipboard::Plugin.new(app)` manages
-  a `Tokra::Plugins::Clipboard::Clipboard` on the app handle (reachable as
-  `app.clipboard`, Ractor-shareable) and serves Tauri's `clipboard-manager`
-  commands (`read_text`, `write_text`, `read_image`, `write_image`,
-  `write_html`, `clear`); every failure raises or rejects with
-  `Error::Clipboard` or Tauri's argument error, and `read_text` raises on an
-  empty clipboard; it is pure Ruby and depends on `ferro-arboard`
-  0.1.0 (arboard 3.7.0, Wayland included), which apps take from its
-  git tag until it is on RubyGems.org
-- `tokra-dialog` gem: `Tokra::Plugins::Dialog::Plugin.new(app)` manages a
-  `Tokra::Plugins::Dialog::Dialog` (reachable as `app.dialog`) with Tauri's
-  `MessageDialogBuilder` and `FileDialogBuilder`, serves Tauri's dialog
-  commands (`open`, `save`, `message`, `ask`, `confirm`) for
-  `@tauri-apps/plugin-dialog`, and replaces the page's `window.alert` and
-  `window.confirm` with them; dialogs start on the main thread and are
-  awaited off it, so the window keeps running; the builders' `set_parent`
-  and `parent` take a `Tokra::Window`, and the commands parent each dialog
-  to the calling window as Tauri does, except on Wayland (ferro-rfd binds
-  no Wayland handle), so on macOS each is a sheet on that window; picked
-  paths join no scope; it is pure Ruby and depends on `ferro-rfd`
-  0.1.0 (rfd 0.17.2), which apps take from its git tag until it is
-  on RubyGems.org
-- `tokra-notification` gem: `Tokra::Plugins::Notification::Plugin.new(app)`
-  manages a `Tokra::Plugins::Notification::Notification` (reachable as
-  `app.notification`) with Tauri's `NotificationBuilder`, serves Tauri's
-  desktop notification commands (`notify`, `request_permission`,
-  `is_permission_granted`) for `@tauri-apps/plugin-notification` with
-  Tauri's argument errors, and backs the page's `window.Notification`;
-  permission is always granted, a notification shows its title (or the
-  product name), body, icon, and sound, and goes out on its own thread;
-  macOS names the app by its identifier, Windows names none; an
-  `Attachment` holds its URL as a `Ferro::Url::Url`, and `Schedule::At`
-  its date as a `Ferro::Time::OffsetDateTime`; it is pure Ruby and
-  depends on `ferro-notify-rust` 0.1.0 (notify-rust 4.18.2),
-  `ferro-url` 0.1.0 (url 2.5.8), and `ferro-time` 0.1.0 (time
-  0.3.55), which apps take from their git tags until they are on
-  RubyGems.org
 - `Tokra::PermissionState` (`Granted`, `Denied`, `Prompt`,
   `PromptWithRationale`), Tauri's `tauri::plugin::PermissionState`
-- `tokra-global-shortcut` gem: `Tokra::Plugins::GlobalShortcut::Plugin.new(app)`
-  (or `Builder` with `with_shortcut`, `with_shortcuts`, `with_handler`, and
-  `build(app)`) manages a `GlobalShortcut` (reachable as
-  `app.global_shortcut`) with Tauri's `register`, `on_shortcut`,
-  `register_multiple`, `on_shortcuts`, `unregister`, `unregister_multiple`,
-  `unregister_all`, and `is_registered`, and serves Tauri's commands for
-  `@tauri-apps/plugin-global-shortcut`, sending each press through the
-  page's Channel; handlers run on a thread of their own; it is pure Ruby and
-  depends on `ferro-global-hotkey` 0.1.0 (global-hotkey 0.9.0), which
-  apps take from Ferro's git repository until it is on RubyGems.org
 - `Tokra::Ipc::Channel` and `Tokra::Ipc::JavaScriptChannelId`, Tauri's
   `ipc::Channel`: read a page's Channel argument with
   `Channel.from_command(invoke, key)` and `send` it JSON values, or bytes in
@@ -302,9 +255,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   these and let any other `ArgumentError` reach the router
 - `Tokra::Error::PluginInitialization`, Tauri's `failed to initialize plugin`
   error
-- `tokra-log` gem: `Tokra::Plugins::Log::Builder` builds a logging plugin
-  with Tauri's log targets (standard output, files, the app log directory,
-  the webview), rotation and timezone strategies, and RBS signatures
 - `run_on_main_thread` on `AppHandle`, `App`, `Window`, and `Webview` runs a
   block on the main thread: at once there, or queued from any other thread
 - `Window#title`, answered on the main thread
@@ -535,9 +485,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - An app needs an RGBA PNG at `icons/icon.png` beside its config, or one
   `bundle.icon` names; without it `Tokra.generate_context` raises "failed to
   open icon {path}: {e}", as a Tauri app fails to compile (breaking)
-- `tokra-dialog`'s `FileDialogBuilder#set_can_create_directories` raises
-  `TypeError` at the setter for anything but `true` or `false`, as Tauri's
-  `bool` parameter allows nothing else (breaking)
 - A window's default title is "Tokra App", as Tauri's is "Tauri App"
 - The default menu's About item, the Linux desktop file, and a dialog
   plugin message's title name the app by `package_info.name`, and the About
