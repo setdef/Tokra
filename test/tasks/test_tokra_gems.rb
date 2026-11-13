@@ -70,6 +70,15 @@ class TestTokraGems < Minitest::Test
     TOKRA_GEMS.reject(&:core?).each { |plugin| assert_empty plugin.prepare.call("/repo"), plugin.name }
   end
 
+  # Bundler's release would tag v0.1.0 for every gem, so no Rakefile loads
+  # it; tasks/releases.rake releases each gem under a tag named for it.
+  def test_no_rakefile_loads_bundlers_gem_tasks
+    rakefiles = IO.popen(["git", "ls-files", "--", "Rakefile", "plugins/*/Rakefile", chdir: ROOT], &:read).lines.map(&:chomp)
+
+    assert_equal 1 + TOKRA_GEMS.count { |gem| !gem.core? }, rakefiles.size
+    rakefiles.each { |rakefile| refute_match(%r{^require "bundler/gem_tasks"}, File.read(File.join(ROOT, rakefile)), rakefile) }
+  end
+
   def test_names_and_paths
     shortcut = TOKRA_GEMS.find { |gem| gem.short_name == "global-shortcut" }
 

@@ -5,7 +5,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
-require "bundler/gem_tasks"
+# No bundler/gem_tasks: its release tags v0.1.0, which would collide
+# between Tokra's gems. tasks/releases.rake releases each gem instead.
 
 require "rdoc/task"
 RDoc::Task.new do |rdoc|
@@ -25,9 +26,8 @@ RbSys::ExtensionTask.new("tokra", GEMSPEC) do |ext|
   ext.lib_dir = "lib/tokra"
 end
 
-# Sync Tauri JS templates before compile/build
+# Sync Tauri JS templates before compile
 task compile: "sync:tauri"
-task build: :compile
 
 require_relative "tasks/real_windows"
 

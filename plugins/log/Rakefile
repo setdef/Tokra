@@ -5,7 +5,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
-require "bundler/gem_tasks"
+# Releases run from the root Rakefile, rake release:<plugin>:*, whose tags
+# name the gem; Bundler's gem_tasks would tag v0.1.0 for every plugin.
 require "rake/testtask"
 require_relative "../../tasks/real_windows"
 
