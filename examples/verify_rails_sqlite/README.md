@@ -17,7 +17,7 @@ web server and no open port.
 
 ## What Changes
 
-Two new files sit beside `config.ru`. The first,
+Two new files and an icon sit beside `config.ru`. The first file,
 [`tokra.conf.json`](tokra.conf.json), describes the desktop app: its
 identifier, its name, and the window it opens. It plays the part your
 deploy config plays for a server, and its keys are Tauri's, so
@@ -40,7 +40,7 @@ documents every one:
 ```
 <!-- SPDX-SnippetEnd -->
 
-The second, [`tokra.rb`](tokra.rb), starts the app in place of
+The second file, [`tokra.rb`](tokra.rb), starts the app in place of
 `bin/rails server`. Trimmed to its core:
 
 <!-- SPDX-SnippetBegin -->
@@ -76,6 +76,10 @@ Rack::Handler::Tokra.run(Rails.application)
 beside the script and opens the window it lists. The window asks for
 `tokra://localhost/...`, and the handler passes each request to your
 Rack app and the response back to the window.
+
+The icon is [`icons/icon.png`](icons/icon.png), an RGBA PNG. A Tauri
+app that lacks one fails to compile, so Tokra's config reading raises
+when it is missing.
 
 A server gets its `secret_key_base` from credentials or the environment
 when you deploy it. A desktop app has no deploy step, so `tokra.rb`
