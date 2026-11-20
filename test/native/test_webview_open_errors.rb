@@ -18,8 +18,9 @@ class TestNativeWebviewOpenErrors < Minitest::Test
   MACOS = RbConfig::CONFIG["host_os"].include?("darwin")
   WINDOWS = RbConfig::CONFIG["host_os"].match?(/mswin|mingw|cygwin/)
 
-  # The webview attributes a page at Tokra's URL opens with.
-  PAGE = { url: "tokra://localhost/", initialization_scripts: [] }.freeze
+  # The webview attributes a page at Tokra's URL opens with: no script, and
+  # the schemes a webview registers when the app holds none of its own.
+  PAGE = { url: "tokra://localhost/", initialization_scripts: [], uri_scheme_protocols: %w[tokra ipc] }.freeze
 
   def setup
     reason = NativeEventLoop.unavailable_reason

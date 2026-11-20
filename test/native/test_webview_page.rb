@@ -20,8 +20,9 @@ class TestNativeWebviewPage < Minitest::Test
   LINUX = RbConfig::CONFIG["host_os"].include?("linux")
   WINDOWS = RbConfig::CONFIG["host_os"].match?(/mswin|mingw|cygwin/)
 
-  # The webview attributes a page at Tokra's URL opens with.
-  PAGE = { url: "tokra://localhost/", initialization_scripts: [] }.freeze
+  # The webview attributes a page at Tokra's URL opens with: no script, and
+  # the schemes a webview registers when the app holds none of its own.
+  PAGE = { url: "tokra://localhost/", initialization_scripts: [], uri_scheme_protocols: %w[tokra ipc] }.freeze
 
   # A cookie Hash as Tokra::Cookie#native_fields makes one.
   FIELDS = {
