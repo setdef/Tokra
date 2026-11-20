@@ -47,7 +47,7 @@ options = FixtureApp.options(ARGV, :no_main_timer, :raise_main)
 module TrayMenuFixture
   # What the closer raises in the main thread with --raise-main. It is not
   # a StandardError, so no callback reports and drops it: it must end the
-  # loop (ADR 012, decision 5).
+  # loop (doc/contributors/design/native.md, "Interrupts and signals").
   class MenuRaise < Interrupt; end
 
   class << self

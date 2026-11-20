@@ -62,7 +62,9 @@ module UriSchemesFixture
   end
 
   # The third scheme: answers from a thread of its own, so the answer
-  # reaches the main thread through the event loop (ADR 012, decision 6).
+  # reaches the main thread through the event loop
+  # (doc/contributors/design/native.md, "Protocol answers from other
+  # threads").
   THIRD = Ractor.shareable_proc do |context, request, responder|
     seen = UriSchemesFixture.seen(context, request)
     Thread.new do
