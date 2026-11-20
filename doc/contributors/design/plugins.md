@@ -31,3 +31,32 @@ plan has ported `fs`, `http`, or `store` yet. Each plugin's plan
 enumerates the upstream plugin's commands and formats, and its tests
 drive them through the IPC as the page does.
 
+## Versions and releases
+
+The repository holds several gems: `tokra` at the root, and one plugin
+gem for each folder under `plugins/`. Each gem keeps its own version in
+its own `version.rb`, its own `CHANGELOG.md`, and its own tags, named
+for the gem (`tokra-dialog/v0.1.0`), so a tag, a changelog section, and
+a RubyGems version each name one gem's release, and a plugin fix ships
+without a tokra release. A plugin bounds tokra by minor version
+(`~> 0.0` today); a tokra release that moves its minor version raises every
+plugin's bound to that minor in the same commit, since each plugin is
+tested only against the tokra beside it. Releases run through the rake
+tasks AGENTS.md's "Committing" section names, which the maintainer runs;
+Bundler's `gem_tasks` are not loaded, since their `v0.1.0` tags would
+collide between gems. Ferro releases its gems the same way.
+
+The cost is that a tokra minor release changes every plugin's gemspec,
+and each plugin then needs a release of its own before its users can
+take the new tokra, and that an app's Gemfile can combine a plugin and a
+tokra that were never tested together, within the bound. This was
+decided on 2026-11-13 by an agent, with the maintainer accountable,
+after the repository had worked this way since the first plugins; a
+shared version for every gem, which Tauri's own plugins do not use
+either, was weighed against it then.
+
+`test/tasks/test_tokra_gems.rb` checks the list of gems against the
+repository: every gemspec is listed, each version file matches its
+gemspec, each plugin bounds tokra, and no Rakefile loads Bundler's
+`gem_tasks`. `test/tasks/test_bump.rb` and `test/tasks/test_release.rb`
+pin the tasks.
