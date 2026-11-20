@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
 SPDX-License-Identifier: CC-BY-SA-4.0
 -->
 
-> Copied unchanged from Fledge's answer to Tokra, 2026-11-05, as research for [ADR 015](../adr/015.md). Its capability ids refer to [the companion note](2026-11-05-fledge-app-metadata-and-installer-needs.md).
+> Copied unchanged from Fledge's answer to Tokra, 2026-11-05, as research for [ADR 015](../adr/015.md). Its capability ids refer to [the companion note](2026-11-05-fledge-app-metadata-and-installer-needs.md). Its "ADR 015, section 6" is ADR 015 as it stood then; that section is now [packaging through Fledge](../design/packaging.md), "Every key in Tauri's bundle".
 
 # Tauri `bundle` keys against Fledge 0.5.1 (trunk dd11739), for Tokra's session
 

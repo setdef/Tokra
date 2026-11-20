@@ -72,7 +72,9 @@ exactly that:
   `tauri.conf.json`, with `Gemfile` and `Gemfile.lock`, less `.tokra/`,
   every `node_modules`, the `frontendDist` folder (which ships as assets),
   and what Fledge never ships. A project that wants less writes a
-  gemspec.
+  gemspec. Tauri ships what its bundle names, not what a developer
+  forgot to exclude, so there is no exclusion list and no
+  `.tokraignore` for what ships.
 - **The config, compiled in.** The config files do not ship. The
   packaged context (below) takes their place, as Tauri's binary carries
   its config and reads no file.
@@ -196,7 +198,7 @@ because the Tokra config owns it.
 
 ## Every key in Tauri's bundle
 
-Each key takes one of these paths:
+`tokra build` drops no `bundle` key. Each takes one of these paths:
 
 - **Mapped.** Fledge has it, and `tokra build` writes it into
   `fledge.yml`, onto Fledge's command line, or into the staged files.
@@ -214,15 +216,36 @@ A key that Tauri reads only for an installer this build does not produce
 is not refused, since `tauri build` would not use it either: `windows.wix`
 without an MSI, `linux.rpm` without an RPM. A key left at Tauri's default
 is not refused, but for the three defaults that ask for more than Fledge
-has, which ADR 015 decides: `targets: "all"`, an unset `rank`, and an
-unset `webviewInstallMode`.
+has. A default is a value like any other, so the build gives Tauri's
+result or refuses, and never gives a different result without a word:
+
+- `targets: "all"` includes an MSI on Windows and an RPM on Linux, which
+  Fledge defers past its 1.0. It builds every installer `tokra build` can
+  make on the host, and prints each of Tauri's targets it left out, with
+  what Fledge lacks: `all` means all there is. A target named outright
+  that cannot be built is refused.
+- A file association's `rank` defaults to `Default`, and Fledge never
+  makes an app a file's default (Fledge ADR 052). An unset `rank` is
+  refused, as `Default` is when written. The refusal names the key and
+  the value that builds, `Alternate`.
+- `webviewInstallMode` defaults to `downloadBootstrapper`, and Fledge's
+  NSIS include, the only way to install WebView2, is planned for its
+  1.1.0. An unset `webviewInstallMode` refuses a Windows setup program,
+  since the app would fail to open on a computer without WebView2,
+  where Tauri's installer installs it. `"type": "skip"` builds one, and
+  says so in the config.
+
+These three were decided on 2026-11-13 by an agent, from the rule that
+no key is dropped, and are proposed with ADR 015. A packager that warned
+on, or ignored, a key Fledge lacks would ship an app its developer did
+not ask for.
 
 | Tauri | Tauri writes it into | Tokra |
 |---|---|---|
 | `identifier` | every bundle | mapped to `identifier`. Fledge's pattern (two or more dot-separated parts, ASCII, at most 128 characters) is stricter than Tauri's check; Fledge's refusal is passed through |
 | `productName` | every bundle | mapped to `name`; unset, Fledge's default (the gemspec's name, else the folder's, camelized) |
 | `version` | every bundle | mapped to `version` |
-| `bundle.active`, `bundle.targets`, `--bundles` | which bundles | mapped to `installers`: `dmg`, `nsis`, `appimage`, `deb` by name; `app` comes with every windowed macOS app; `active: false` without `--bundles` gives `[]`; `all` builds each of those the host can make, and prints each of Tauri's targets it left out (ADR 015). `rpm` waits for Fledge's `installers: [rpm]`, planned after its 1.0. `msi` waits for an MSI Fledge has deferred past its 1.0 with no plan |
+| `bundle.active`, `bundle.targets`, `--bundles` | which bundles | mapped to `installers`: `dmg`, `nsis`, `appimage`, `deb` by name; `app` comes with every windowed macOS app; `active: false` without `--bundles` gives `[]`; `all` builds each of those the host can make, and prints each of Tauri's targets it left out. `rpm` waits for Fledge's `installers: [rpm]`, planned after its 1.0. `msi` waits for an MSI Fledge has deferred past its 1.0 with no plan |
 | `bundle.publisher` | NSIS manufacturer, `.deb` `Maintainer` | mapped to `publisher` |
 | `bundle.copyright` | `NSHumanReadableCopyright`, NSIS | mapped to `copyright` |
 | `bundle.icon` | `.icns`, `.ico`, hicolor PNGs | mapped through `tokra-packaged/icons/` ("Icons") |
@@ -234,7 +257,7 @@ unset `webviewInstallMode`.
 | `bundle.category` | `LSApplicationCategoryType`, desktop `Categories` | waits for Fledge's `macos: info_plist` and `linux: desktop_entry`, planned for its 1.1.0. Tokra ports Tauri's category table and its "invalid category, did you mean" check (`tauri-bundler/src/bundle/category.rs:68-240`, `interface/rust.rs:1529-1534`) and writes each system's value; Fledge checks none |
 | `bundle.licenseFile` | NSIS license page, disk image agreement, MSI | mapped to `license_file` (Fledge 0.6.0) for the Windows setup program. Not written on Linux, where Fledge would install it as the `.deb`'s copyright file and Tauri's `.deb` has none. A disk image's agreement waits for one Fledge has deferred past its 1.0, so a macOS build that makes a `dmg` refuses the key |
 | `bundle.license` | RPM only (`linux/rpm.rs:61`) | with the RPM; no installer Fledge builds takes it, as none Tauri builds there does |
-| `bundle.fileAssociations` | `CFBundleDocumentTypes`, NSIS registry, desktop `MimeType` | mapped to `file_associations` (Fledge 0.6.0): `ext` to `extensions`, `mimeType` to `mime_types`, `contentTypes` to `content_types`, `name`, and the `Editor` and `Viewer` roles. Fledge offers an app for its files and never makes it their default (Fledge ADR 052), so a `rank` set to anything but `Alternate`, a `Shell`, `QLGenerator`, or `None` role, a `description`, and an `exportedType` are refused. An unset `rank` is refused as `Default` is, naming `Alternate` (ADR 015). Opening the file is Tokra's side, and waits for the `Opened` run event |
+| `bundle.fileAssociations` | `CFBundleDocumentTypes`, NSIS registry, desktop `MimeType` | mapped to `file_associations` (Fledge 0.6.0): `ext` to `extensions`, `mimeType` to `mime_types`, `contentTypes` to `content_types`, `name`, and the `Editor` and `Viewer` roles. Fledge offers an app for its files and never makes it their default (Fledge ADR 052), so a `rank` set to anything but `Alternate`, a `Shell`, `QLGenerator`, or `None` role, a `description`, and an `exportedType` are refused. An unset `rank` is refused as `Default` is, naming `Alternate`. Opening the file is Tokra's side, and waits for the `Opened` run event |
 | `bundle.createUpdaterArtifacts` | signed updater archives (`updater_bundle.rs`) | never in Fledge: an updater is the framework's role. `tokra build` ports `updater_bundle.rs` with the updater plugin; until then `true` and `"v1Compatible"` are refused |
 | `bundle.useLocalToolsDir` | where tauri-bundler caches its tools | accepted with no effect: Fledge brings its own tools, and the key changes no output in Tauri either |
 | `bundle.windows.digestAlgorithm` | signtool `/fd`, default `sha256` (`windows/sign.rs:19-25`) | `sha256` is accepted; any other value is refused: Fledge signs with SHA-256 only (`lib/fledge/windows_signing.rb:74`) |

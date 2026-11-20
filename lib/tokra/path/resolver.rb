@@ -308,9 +308,10 @@ module Tokra
       # Raises NotImplementedError. Tauri finds it beside the app's
       # executable (tauri-utils platform.rs:264-336), which for a Tokra
       # app is the Ruby interpreter. A packaged Tokra app will keep its
-      # resources in <tt>tokra-packaged/resources/</tt> (ADR 015), and
-      # this answers once that packaging exists (plan 063, decision 7).
-      # Until then, find a resource from your script's directory, with
+      # resources in <tt>tokra-packaged/resources/</tt>
+      # (doc/contributors/design/packaging.md, "What ships"), and this
+      # answers once that packaging exists (plan 063, decision 7). Until
+      # then, find a resource from your script's directory, with
       # <tt>__dir__</tt>.
       #
       # === Example
