@@ -10,9 +10,9 @@ This document says what the `tokra` command does: where it lives, how it
 finds a project, how it runs hooks, and what `tokra dev` and `tokra
 build` do with each of tauri-cli's flags. It is for Tokra's
 contributors, and nothing in it is built yet. Why things are so is in
-ADR 015 (the CLI, and packaging through Fledge) and ADR 016 (development
-unless `tokra build` made it). What `tokra build` hands Fledge is in
-[packaging.md](packaging.md).
+ADR 015 (the CLI, and packaging through Fledge), which is proposed and
+not yet accepted by the maintainer, and so is everything here. What
+`tokra build` hands Fledge is in [packaging.md](packaging.md).
 
 Tauri citations are to `vendor/tauri` at `9f0306fbc`, under
 `crates/tauri-cli/src/` unless they name another crate.
@@ -108,14 +108,16 @@ reads `bundle.resources` and `bundle.externalBin` where they are.
 
 ## The dev session
 
-`tokra dev` sets no flag, since development is the default (ADR 016). It
-hands the app its `--config` patches and the built-in server's `devUrl`
-in `.tokra/dev.json`, which holds the merged patch and the `tokra dev`
-process's id. `generate_context` merges it over the config only when no
-packaged context exists and the recorded id is `Process.ppid`. A stale
-file left by a crash, or a plain `ruby main.rb`, then changes nothing.
-Merging it changes no more than editing `tokra.conf.json` would, and no
-environment variable carries it (ADR 014).
+`tokra dev` sets no flag, since development is the default
+([packaging.md](packaging.md), "Development unless tokra build made
+it"). It hands the app its `--config` patches and the built-in server's
+`devUrl` in `.tokra/dev.json`, which holds the merged patch and the
+`tokra dev` process's id. `generate_context` merges it over the config
+only when no packaged context exists and the recorded id is
+`Process.ppid`. A stale file left by a crash, or a plain `ruby main.rb`,
+then changes nothing. Merging it changes no more than editing
+`tokra.conf.json` would, and no environment variable carries it (ADR
+014).
 
 ## tokra build
 

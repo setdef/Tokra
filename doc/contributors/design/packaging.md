@@ -11,7 +11,8 @@ the packaged context, the `fledge.yml` it writes, what it does with each
 key of Tauri's `bundle`, what each platform needs, and which Fledge
 release it runs. It is for Tokra's contributors, and nothing in it is
 built yet. Why things are so is in ADR 015 (the CLI, and packaging
-through Fledge) and ADR 016 (development unless `tokra build` made it).
+through Fledge), which is proposed and not yet accepted by the
+maintainer; so is everything here that follows from it.
 The commands themselves are in [cli.md](cli.md).
 
 Tauri citations are to `vendor/tauri` at `9f0306fbc`. Fledge citations
@@ -104,6 +105,56 @@ dev-dependency never reaches a Tauri binary either.
 Gems Fledge installs come from the lockfile, not from the developer's
 computer. A path gem outside the project fails in the staged copy, as
 Fledge refuses one already.
+
+## Development unless tokra build made it
+
+Proposed, with ADR 015, and not yet accepted by the maintainer: an app
+is in development unless `tokra build` made it. A Tauri app knows
+whether it is in development from one flag. `tauri build` turns on the
+Cargo feature `tauri/custom-protocol`
+(`crates/tauri-cli/src/interface/rust.rs:483-490`), which the macro
+reads into `ContextData.dev` (`crates/tauri-macros/src/context.rs:155`)
+and the crate into `is_dev()` (`crates/tauri/src/lib.rs:313-316`). That
+flag picks `devUrl` or `frontendDist`, which origin may invoke commands,
+`devCsp` or `csp`, and whether assets are embedded. A Ruby app has no
+Cargo features, and Tokra's flag is `true` until this lands, so an app
+shipped today whose config names a `devUrl` would trust its developer's
+localhost for IPC on its users' computers.
+
+The marker is the packaged context below, which only `tokra build`
+writes, and only into the copy it stages. A shipped app needs to say
+nothing, and neither does a developer's code: `tokra dev` sets no flag,
+`generate_context` takes no `dev:` keyword, and `Tokra.is_dev` answers
+the context's `dev`. Writing the marker into the checkout was set aside,
+since the checkout would turn packaged during a build and stay that way
+after a crash. A default of packaged, with development an opt-in in
+code, was set aside because every developer would edit code to work
+against a dev server; an environment variable or a command-line flag,
+because whoever starts the app would control it. It was proposed on
+2026-11-13 as Tauri's rule; its decider is the maintainer, Kerrick
+Long.
+
+The cost: an app shipped any other way, a hand-run `fledge build`
+included, runs in development and trusts `devUrl`'s origin, as a Tauri
+binary built without the CLI does. Once `tokra build` exists, the README
+says to ship with it.
+
+Tauri has no distribution path for an app crate: without
+`tauri/custom-protocol`, Tauri's build script marks the app as
+development (`crates/tauri/build.rs:252-255`), so a plain `cargo
+install` of a Tauri app runs in development unless its manifest enables
+the feature. A gem gets the marker the same way. `tokra build --bundles
+gem` takes the place of building with the feature: it stages a copy as
+for Fledge, writes the packaged context, and builds the gem there, with
+the gemspec loaded in the checkout and its `files` replaced by the
+staged list. The gem is packaged and the checkout is not, so one rule
+covers every way an app ships. A gem built with plain `gem build` runs
+in development, as the `cargo install` above does. This was decided on
+2026-11-13 by an agent, from the rule above, and is proposed with it.
+
+Tests run `generate_context` with and without a packaged context and a
+dev session, a stale session included. `rake test:package` runs the app
+`tokra build` made, which must report `dev` false.
 
 ## The packaged context
 
