@@ -58,7 +58,7 @@ module Tokra
     # icon come from files beside its config. Codegen decodes a PNG or an
     # ICO to RGBA, or keeps a file's raw bytes, and writes code that holds
     # the result. A Ruby app has no compile step, so this class does the
-    # same work when Tokra.generate_context runs (ADR 014 §2) and #value
+    # same work when Tokra.generate_context runs (ADR 014) and #value
     # answers what that code would hold: a Tokra::Image, or the raw bytes.
     #
     # It decodes through png 0.17.16 and ico 0.5.0, the decoders codegen

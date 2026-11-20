@@ -14,7 +14,8 @@ module Tokra
       # SPDX-SnippetCopyrightText: 2019-2024 Tauri Programme within The Commons Conservancy
       # SPDX-SnippetComment: adapted from tauri-utils src/config/parse.rs at
       #   vendor/tauri 9f0306fbc, with the config-json5 feature and without
-      #   config-toml, with the brand renamed (ADR 014 §3)
+      #   config-toml, with the brand renamed
+      #   (doc/contributors/design/config.md, "File names")
       #++
 
       # Reads config files from disk into JSON values.
@@ -33,7 +34,8 @@ module Tokra
       # context.
       #
       # Tokra reads JSON and JSON5, as Tauri does with its
-      # <tt>config-json5</tt> feature, which ADR 014 §7 builds in. A
+      # <tt>config-json5</tt> feature, which Tokra builds in
+      # (doc/contributors/design/config.md, "Formats"). A
       # <tt>tokra.conf.json</tt> is read as JSON5 first, so one with
       # comments or trailing commas reads too, and serde_json's error is
       # the one reported when neither reads it (parse.rs:288-300). TOML
@@ -111,8 +113,9 @@ module Tokra
         # Every format a config file may have, enabled or not.
         SUPPORTED_FORMATS = [ConfigFormat::Json, ConfigFormat::Json5, ConfigFormat::Toml].freeze
 
-        # The formats Tokra reads: JSON, and JSON5 (ADR 014 §7). TOML
-        # waits on plan 054's question 2.
+        # The formats Tokra reads: JSON, and JSON5
+        # (doc/contributors/design/config.md, "Formats"). TOML waits on
+        # plan 054's question 2.
         ENABLED_FORMATS = [ConfigFormat::Json, ConfigFormat::Json5].freeze
 
         # Raised when a config file cannot be read.

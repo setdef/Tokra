@@ -24,7 +24,7 @@ module Tokra
       # platform's own file over it, and hands you this, frozen and
       # shareable with any Ractor.
       #
-      # Every key is Tauri's (ADR 014 §4): <tt>identifier</tt> is
+      # Every key is Tauri's (ADR 014): <tt>identifier</tt> is
       # required, <tt>$schema</tt> reads as +schema+, and
       # <tt>plugins</tt> is a Hash of plugin name to that plugin's JSON,
       # with String keys, as Tauri's <tt>JsonValue</tt> holds it. Each
@@ -76,7 +76,8 @@ module Tokra
         VERSION_EXPECTING = "a semver string or a path to a package.json file" # :nodoc:
 
         # The words of PackageVersion's custom errors (config.rs:3155-3183),
-        # with the config's file named as Tokra names it (ADR 014 §3).
+        # with the config's file named as Tokra names it
+        # (doc/contributors/design/config.md, "File names").
         NOT_SEMVER = "`tokra.conf.json > version` must be a semver string" # :nodoc:
         NOT_AN_OBJECT = "`tokra.conf.json > version` value is not a path to a JSON object" # :nodoc:
         NO_VERSION_FIELD = "JSON must contain a `version` field" # :nodoc:

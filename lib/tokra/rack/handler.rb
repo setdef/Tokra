@@ -91,8 +91,9 @@ module Rack # :nodoc:
         # The context read from the directory of +rackup_config+, the path
         # of <tt>config.ru</tt> rackup passes (rackup 2.3.1
         # lib/rackup/server.rb:341), or from beside the entry script
-        # without one (ADR 014 §5). The <tt>rackup</tt> command expands the
-        # path (server.rb:404), but <tt>bin/rails server</tt> passes
+        # without one (doc/contributors/design/config.md, "Where the loader
+        # looks"). The <tt>rackup</tt> command expands the path
+        # (server.rb:404), but <tt>bin/rails server</tt> passes
         # <tt>"config.ru"</tt> as written (railties 8.1.2
         # server_command.rb:110, 161), so a relative path is expanded
         # against the working directory, as rackup would.

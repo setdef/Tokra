@@ -21,7 +21,7 @@ module Tokra
   # Tauri's tauri-codegen crate reads the config while the app compiles
   # and writes the code that builds its context. Ruby has no compile
   # step, so this module does the same work when your app starts, and
-  # answers the context itself (ADR 014 §2). Tokra.generate_context calls
+  # answers the context itself (ADR 014). Tokra.generate_context calls
   # it, as Tauri's macro calls codegen.
   #
   # Mirrors Tauri's tauri-codegen crate: <tt>get_config</tt>,
@@ -92,8 +92,8 @@ module Tokra
     # the schema.
     #
     # Tauri merges its <tt>TAURI_CONFIG</tt> variable over the files too;
-    # that is the CLI's, and Tokra reads no environment variable (ADR 014
-    # §6). Tauri moves the working directory to the config's while it
+    # that is the CLI's, and Tokra reads no environment variable (ADR 014).
+    # Tauri moves the working directory to the config's while it
     # reads <tt>version</tt>; Tokra hands the reader the directory instead.
     #
     # Mirrors Tauri's <tt>get_config</tt> (tauri-codegen src/lib.rs:53-99).

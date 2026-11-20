@@ -11,7 +11,7 @@ module Tokra
   #
   # Tauri splits the work of reading its config across three crates: the
   # macro, tauri-codegen, and tauri-utils. Tokra keeps the split, so each
-  # file answers to one crate (ADR 014 §2): Tokra.generate_context is the
+  # file answers to one crate (ADR 014): Tokra.generate_context is the
   # macro, Tokra::Codegen is tauri-codegen, and this module is tauri-utils.
   #
   # Use Tokra::Utils::Config to read a config's types, and

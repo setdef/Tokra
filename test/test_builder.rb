@@ -11,8 +11,8 @@ require_relative "support/test_app"
 
 # Builder#build and Builder#run take the app's Context, as Tauri's
 # Builder::build and Builder::run do (app.rs:2094, 2298-2302), and the
-# window settings ADR 004 invented are gone: the config holds them (ADR 014
-# §1; plan 054, decision 12).
+# window settings ADR 004 invented are gone: the config holds them (ADR 014;
+# plan 054, decision 12).
 class TestBuilder < Minitest::Test
   def setup
     StubNative.clear_event
@@ -56,7 +56,7 @@ class TestBuilder < Minitest::Test
   end
 
   # Their settings are app.windows[].title, .width, .height, and
-  # app.withGlobalTauri in the config (ADR 014 §1).
+  # app.withGlobalTauri in the config (ADR 014).
   def test_the_window_settings_tauri_does_not_have_are_gone
     builder = Tokra::Builder.default
     assert_raises(NoMethodError) { builder.title("My App") }

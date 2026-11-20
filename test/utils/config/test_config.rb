@@ -268,7 +268,8 @@ class TestUtilsConfig < Minitest::Test
     end
   end
 
-  # Tauri's default window title, renamed as ADR 014 §4 renames it.
+  # Tauri's default window title, renamed as doc/contributors/design/config.md
+  # ("The schema") renames it.
   private def renamed(value)
     case value
     when "Tauri App" then "Tokra App"

@@ -487,8 +487,9 @@ fn copy_under_tauri_names(from: &Path, to: &Path, skip: &[&str]) {
     }
 }
 
-/// A Tokra config file name under Tauri's brand (ADR 014 §3); any other
-/// name as it is. A path's last component alone is renamed.
+/// A Tokra config file name under Tauri's brand
+/// (`doc/contributors/design/config.md`, "File names"); any other name
+/// as it is. A path's last component alone is renamed.
 fn tauri_name(name: &str) -> String {
     let (dir, file) = name
         .rsplit_once('/')
@@ -520,10 +521,10 @@ fn is_config_name(file: &str, lower: &str, upper: &str) -> bool {
 /// `answer` with every string's directory and brand as placeholders.
 fn placeholders(answer: &Value, dir: &Path) -> Value {
     match answer {
-        // The window's default title (config.rs:2061-2063), which ADR 014 §4
-        // renames by the brand rule, as a whole value only. A case whose
-        // own value is the string "Tauri App" reads it back as "{Brand} App"
-        // too, so no case should hold one.
+        // The window's default title (config.rs:2061-2063), which
+        // doc/contributors/design/config.md renames by the brand rule, as a
+        // whole value only. A case whose own value is the string "Tauri App"
+        // reads it back as "{Brand} App" too, so no case should hold one.
         Value::String(text) if text == "Tauri App" => Value::String("{Brand} App".to_owned()),
         Value::String(text) => Value::String(placeholder_text(text, dir)),
         Value::Array(items) => {

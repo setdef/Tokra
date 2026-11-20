@@ -168,17 +168,18 @@ module Tokra
   # <tt>tauri.conf.json</tt> when the app compiles. A Ruby app has no
   # compile step, so this method reads <tt>tokra.conf.json</tt> when you
   # call it, with the same rules and the same errors, raised before any
-  # window exists (ADR 014 §2).
+  # window exists (ADR 014).
   #
   # The file may be JSON5 instead, as <tt>tokra.conf.json5</tt> or as a
   # <tt>tokra.conf.json</tt> with comments or trailing commas, as Tauri
-  # reads it with its <tt>config-json5</tt> feature (ADR 014 §7).
+  # reads it with its <tt>config-json5</tt> feature
+  # (doc/contributors/design/config.md, "Formats").
   #
   # With no +path+ it reads <tt>tokra.conf.json</tt> in the entry
   # script's directory, the one Ruby was started with, taken when
   # <tt>tokra</tt> loads, so a later <tt>Dir.chdir</tt> does not move it,
-  # and a symlinked launcher resolves to the script it points at (ADR 014
-  # §5). With +path+, a String or Pathname, a relative path joins that
+  # and a symlinked launcher resolves to the script it points at
+  # (doc/contributors/design/config.md, "Where the loader looks"). With +path+, a String or Pathname, a relative path joins that
   # directory and an absolute one is taken as given; a path where no
   # config file exists raises ArgumentError, "no file at path {path}
   # exists, expected tokra config file". Once the path is found only its
@@ -201,7 +202,7 @@ module Tokra
   # nor ICO raises Tokra::Codegen::EmbeddedAssetsError::InvalidImageExtension,
   # which only the tray icon can reach, since the window icon is found by
   # its extension. Reads no environment variable: Tauri's
-  # <tt>TAURI_CONFIG</tt> belongs to its CLI (ADR 014 §6).
+  # <tt>TAURI_CONFIG</tt> belongs to its CLI (ADR 014).
   #
   # Mirrors Tauri's <tt>generate_context!</tt> (tauri-macros
   # src/lib.rs:76-87, src/context.rs:24-169). Its <tt>capabilities</tt>,
@@ -242,7 +243,8 @@ module Tokra
   #++
 
   # The entry script's directory, which a config path is relative to,
-  # as Tauri's is to CARGO_MANIFEST_DIR (ADR 014 §5).
+  # as Tauri's is to CARGO_MANIFEST_DIR
+  # (doc/contributors/design/config.md, "Where the loader looks").
   def self.anchor # :nodoc:
     @anchor
   end

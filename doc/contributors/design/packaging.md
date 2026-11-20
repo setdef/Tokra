@@ -117,10 +117,10 @@ runtime folder.
 `Tokra.generate_context` looks for the file in the folder it would read
 the config from, before it looks for a config file. When it finds one it
 builds the `Context` from it, with `dev` false, and reads no
-`tokra.conf.json`. Otherwise it reads the config files as ADR 014 says,
-with `dev` true, and merges the dev session ([cli.md](cli.md), "The dev
-session"). The file exists only in the staged copy, never in the
-developer's checkout.
+`tokra.conf.json`. Otherwise it reads the config files as
+[config.md](config.md) says, with `dev` true, and merges the dev session
+([cli.md](cli.md), "The dev session"). The file exists only in the
+staged copy, never in the developer's checkout.
 
 `fledge build --sign` seals the file with the rest of the app. On macOS
 codesign covers every file in the `.app` bundle, so removing or editing

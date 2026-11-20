@@ -28,7 +28,7 @@ module Tokra
       # not know. A key reads in camelCase (<tt>alwaysOnTop</tt>) or its
       # alias (<tt>always-on-top</tt>), and each member is its snake_case
       # name. The default title is "Tokra App", as Tauri's is "Tauri App"
-      # (ADR 014 §4).
+      # (doc/contributors/design/config.md, "The schema").
       #
       # Some keys drive a part of Tokra that does not exist yet; they are
       # read and checked, and acted on when that part lands (plan 054's

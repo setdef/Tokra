@@ -26,7 +26,8 @@ module Tokra
   # #config= and #package_info=. Its values are frozen, so build a changed
   # copy with <tt>Data#with</tt>: Tauri's <tt>config_mut</tt> and
   # <tt>package_info_mut</tt> lend the value to change in place, which
-  # Ruby has no way to express (ADR 014 §8).
+  # Ruby has no way to express
+  # (doc/contributors/design/config.md, "The Ruby surface").
   #
   # Change the icon each window without one of its own takes with
   # #set_default_window_icon, and the icon of the tray the config

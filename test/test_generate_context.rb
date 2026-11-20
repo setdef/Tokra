@@ -9,7 +9,7 @@ require "test_helper"
 require_relative "support/config_fixtures"
 
 # Tokra.generate_context, the translation of Tauri's generate_context!
-# macro (ADR 014 §2, §5): where it looks, what it checks, and what it
+# macro (ADR 014; doc/contributors/design/config.md): where it looks, what it checks, and what it
 # answers, held up against the macro's check and tauri-codegen's
 # get_config on this machine's platform (test/fixtures/config/cases).
 class TestGenerateContext < Minitest::Test
@@ -139,7 +139,7 @@ class TestGenerateContext < Minitest::Test
     end
   end
 
-  # --- no environment variable (ADR 014 §6) ---
+  # --- no environment variable (ADR 014) ---
 
   def test_no_environment_variable_changes_the_config
     ConfigFixtures.with_case("platform_merge") do |dir|

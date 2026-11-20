@@ -44,7 +44,8 @@ found three levels down. The frontend's folder is the nearest with a
 
 `TAURI_APP_PATH`, `TAURI_FRONTEND_PATH`, and `TAURI_CLI_CONFIG_DEPTH`
 become `TOKRA_APP_PATH`, `TOKRA_FRONTEND_PATH`, and
-`TOKRA_CLI_CONFIG_DEPTH` by ADR 014 §3's rule: they are the developer's
+`TOKRA_CLI_CONFIG_DEPTH` by the renaming rule of [config.md](config.md),
+"File names": they are the developer's
 instructions to the framework's own tool, and nothing outside Tokra reads
 them. They steer that tool, not the app, so ADR 011 does not reach them.
 
@@ -64,7 +65,8 @@ names: `TAURI_ENV_PLATFORM_VERSION`, `TAURI_ENV_DEBUG`,
 `TAURI_ENV_FAMILY`. These are a contract with the frontend's tooling,
 not the framework's brand: a Vite config from Tauri's templates reads
 `TAURI_ENV_DEBUG` and `TAURI_ENV_PLATFORM` to pick its target and
-minification. ADR 014 §3 keeps such names as Tauri spells them, as it
+minification. [config.md](config.md), "File names", keeps such names as
+Tauri spells them, as it
 keeps `__TAURI_INTERNALS__` (ADR 009) and `@tauri-apps/api` (ADR 010);
 `TOKRA_ENV_*` would break that tooling. The triple is the host's as Rust
 names it, since Fledge builds only for the host.
@@ -86,8 +88,8 @@ It does what `dev::setup` does (`dev.rs:136-322`):
 
 With watching on, a change under the config's folder or an additional
 watch folder restarts the app, as a Rust change rebuilds and reruns a
-Tauri app. `.tokraignore` stands in for `.taurignore` by ADR 014 §3's
-rule for the framework's own file names, and Tauri's
+Tauri app. `.tokraignore` stands in for `.taurignore` by the rule for the
+framework's own file names in [config.md](config.md), and Tauri's
 `tauri-dev-watcher.gitignore` is ported as it is. An app in development
 reads `bundle.resources` and `bundle.externalBin` where they are.
 
@@ -113,7 +115,7 @@ process's id. `generate_context` merges it over the config only when no
 packaged context exists and the recorded id is `Process.ppid`. A stale
 file left by a crash, or a plain `ruby main.rb`, then changes nothing.
 Merging it changes no more than editing `tokra.conf.json` would, and no
-environment variable carries it (ADR 014 §6).
+environment variable carries it (ADR 014).
 
 ## tokra build
 
