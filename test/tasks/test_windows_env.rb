@@ -41,7 +41,11 @@ class TestWindowsEnv < Minitest::Test
     @libclang = File.join(@dir, "site-packages/clang/native")
     FileUtils.mkdir_p(@libclang)
     File.write(File.join(@libclang, "libclang.dll"), "")
-    stand_in("ruby", "printf '%s' '#{windows(@sysroot)}'")
+    @msys = File.join(@dir, "msys64")
+    FileUtils.mkdir_p(File.join(@msys, "ucrt64/bin"))
+    File.write(File.join(@msys, "ucrt64/bin/gcc.exe"), "")
+    stand_in("cygpath", "[ \"$*\" = '-m /' ] && printf '%s/\\n' '#{@msys}'")
+    stand_in("ruby", "printf '%s' \"$MSYS2_PATH\" > \"$(dirname \"$0\")/ruby_msys2_path\"; printf '%s' '#{windows(@sysroot)}'")
     stand_in("python", "printf '%s\\r\\n' '#{windows(@libclang)}'")
     stand_in("recorder", RECORDER.lines.drop(1).join)
   end
@@ -110,6 +114,45 @@ class TestWindowsEnv < Minitest::Test
 
     refute_predicate status, :success?
     assert_includes output, "windows-env: no libclang.dll in #{@libclang}"
+    refute_path_exists File.join(@bin, "env")
+  end
+
+  # RubyInstaller finds an MSYS2 by MSYS2_PATH, beside Ruby, at C:\msys64,
+  # in the registry, or as a PATH entry that is an MSYS2's root, and
+  # mise's Ruby is beside none. The bash running this script is an MSYS2's,
+  # and when that MSYS2 has the UCRT64 compiler, Ruby gets it.
+  def test_ruby_finds_the_msys2_this_runs_in_when_it_has_the_ucrt64_compiler
+    output, status = run_script("recorder")
+
+    assert_predicate status, :success?, output
+    assert_equal @msys, File.read(File.join(@bin, "ruby_msys2_path"))
+    assert_equal @msys, recorded_env["MSYS2_PATH"]
+  end
+
+  # Git for Windows' bash is an MSYS2 with no compiler, and an MSYS2_PATH
+  # of your own names the MSYS2 you chose.
+  def test_ruby_keeps_its_own_lookup_without_that_compiler_or_with_msys2_path_set
+    File.delete(File.join(@msys, "ucrt64/bin/gcc.exe"))
+    output, status = run_script("recorder")
+
+    assert_predicate status, :success?, output
+    assert_empty File.read(File.join(@bin, "ruby_msys2_path"))
+    refute recorded_env.key?("MSYS2_PATH")
+
+    output, status = run_script("recorder", extra: { "MSYS2_PATH" => "D:/msys64" })
+
+    assert_predicate status, :success?, output
+    assert_equal "D:/msys64", recorded_env["MSYS2_PATH"]
+  end
+
+  # A Ruby that finds no MSYS2 says so itself, and nothing runs after it.
+  def test_a_ruby_that_finds_no_msys2_stops_it_before_the_command
+    stand_in("ruby", "echo 'MSYS2 could not be found' >&2; exit 1")
+    output, status = run_script("recorder")
+
+    refute_predicate status, :success?
+    assert_includes output, "MSYS2 could not be found"
+    refute_includes output, "no C headers"
     refute_path_exists File.join(@bin, "env")
   end
 

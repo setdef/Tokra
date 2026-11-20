@@ -18,10 +18,26 @@
 # into mise's Python. The two AVX-512 defines are CI's: they keep clang
 # from parsing intrinsics headers bindgen cannot handle (rust-bindgen
 # #2500).
+#
+# RubyInstaller looks for its MSYS2 in MSYS2_PATH, beside Ruby, at
+# C:\msys64, in the registry, and among PATH's entries for an MSYS2's
+# root, and mise installs Ruby beside none of them. So when MSYS2_PATH is
+# unset and the MSYS2 whose bash runs this has the UCRT64 compiler, Ruby
+# builds gems with that one. Git for Windows' bash is an MSYS2 too, with
+# no compiler, so there Ruby keeps its own lookup.
 set -e
 here=$(dirname "$0")
 rust=$(sed -n 's/^rust = "\(.*\)"$/\1/p' "$here/../mise.toml")
-sysroot=$(ruby -e 'm = RubyInstaller::Runtime.msys2_installation; print File.join(m.msys_path, m.mingw_prefix)' | tr -d '\r' | tr '\\' /)
+if [ -z "${MSYS2_PATH:-}" ] && command -v cygpath >/dev/null 2>&1; then
+  msys=$(cygpath -m / | tr -d '\r')
+  msys=${msys%/}
+  if [ -f "$msys/ucrt64/bin/gcc.exe" ]; then
+    MSYS2_PATH=$msys
+    export MSYS2_PATH
+  fi
+fi
+sysroot=$(ruby -e 'm = RubyInstaller::Runtime.msys2_installation; print File.join(m.msys_path, m.mingw_prefix)')
+sysroot=$(printf '%s' "$sysroot" | tr -d '\r' | tr '\\' /)
 libclang=$(python -c 'import clang, os; print(os.path.join(os.path.dirname(clang.__file__), "native"))' | tr -d '\r' | tr '\\' /)
 if [ ! -f "$sysroot/include/stdio.h" ]; then
   echo "windows-env: no C headers (stdio.h) in $sysroot/include, Ruby's MSYS2; run ridk install." >&2
