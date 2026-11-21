@@ -10,6 +10,7 @@ require "json"
 require "rbconfig"
 require_relative "frontmost"
 require_relative "hang_probe"
+require_relative "../../support/desktop"
 require_relative "../../support/real_windows_run"
 require_relative "../../support/watched_child"
 
@@ -96,8 +97,7 @@ module RealApp
   def self.unavailable_reason(page: true)
     case RbConfig::CONFIG["host_os"]
     when /darwin/
-      session = IO.popen(["launchctl", "managername"], err: File::NULL, &:read).to_s.strip
-      "no macOS GUI session (launchctl managername is #{session.inspect}, not \"Aqua\")" unless session == "Aqua"
+      Desktop.session_unavailable_reason
     when /linux/
       display = [ENV["DISPLAY"], ENV["WAYLAND_DISPLAY"]].any? { |value| value && !value.empty? }
       "no display server (DISPLAY and WAYLAND_DISPLAY are unset or empty)" unless display

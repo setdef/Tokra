@@ -7,8 +7,8 @@
 
 require "rbconfig"
 
-# What the desktop a real-window test runs on lacks, for the few tests
-# that need it (Plan 061).
+# What the desktop a real-window test runs on lacks, for the tests that
+# need it (Plan 061).
 #
 # Windows can give a program a desktop of its own, as a build machine or a
 # service does, so its windows open on no one's screen. Windows, webviews,
@@ -17,13 +17,33 @@ require "rbconfig"
 # person signs in to, so a tray icon has nowhere to go; and the cursor,
 # which only the desktop that takes the mouse has.
 #
-# Each method probes for exactly that, once, and only on Windows, so a
-# Windows machine with a taskbar and a cursor, such as CI's runner, skips
-# nothing. Use it as RealApp.unavailable_reason is used:
+# A Mac can run a program outside any login session, as a build machine's
+# daemon does. There is no window server there, so no window opens, and
+# neither does the pasteboard, a file panel, or the notification center.
+#
+# Each method probes for exactly that, once, and only on its own system,
+# so a Windows machine with a taskbar and a cursor and a Mac with a GUI
+# session, such as CI's runners, skip nothing. Use it as
+# RealApp.unavailable_reason is used:
 #
 #   reason = Desktop.tray_unavailable_reason
 #   skip reason if reason
 module Desktop
+  # Why this Mac has no GUI session, or +nil+ when it has one or this is
+  # not a Mac. launchd names the session a process runs in: Aqua for a
+  # person's login, System for a daemon's.
+  def self.session_unavailable_reason
+    return nil unless macos?
+    return @session if defined?(@session)
+
+    @session = no_session_reason(IO.popen(["launchctl", "managername"], err: File::NULL, &:read).to_s.strip)
+  end
+
+  # Why launchd's session +name+ is not a GUI session, or +nil+ for Aqua.
+  def self.no_session_reason(name)
+    "no macOS GUI session (launchctl managername is #{name.inspect}, not \"Aqua\")" unless name == "Aqua"
+  end
+
   # Why no tray icon can show on this desktop, or +nil+ when one can.
   def self.tray_unavailable_reason
     return nil unless windows?
@@ -43,6 +63,10 @@ module Desktop
 
   def self.windows?
     RbConfig::CONFIG["host_os"].match?(/mswin|mingw|cygwin/)
+  end
+
+  def self.macos?
+    RbConfig::CONFIG["host_os"].include?("darwin")
   end
 
   # The two user32 calls, by windows-sys 0.59.0's signatures

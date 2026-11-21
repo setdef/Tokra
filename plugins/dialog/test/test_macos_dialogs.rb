@@ -7,6 +7,7 @@
 
 require_relative "support/dialog_test"
 require "support/real_windows_run"
+require "support/desktop"
 
 # The file commands on macOS, end to end, without a window.
 #
@@ -23,6 +24,9 @@ require "support/real_windows_run"
 # Message dialogs without a parent window are system alerts on a thread of
 # rfd's own (utils/user_alert.rs:177-196), which only a person can dismiss,
 # so none opens here.
+#
+# A Mac with no GUI session has no window server, so a panel never opens
+# and the child waits until it is killed. There these skip, saying why.
 class TestMacosDialogs < Minitest::Test
   include DialogTest
 
@@ -59,6 +63,8 @@ class TestMacosDialogs < Minitest::Test
   def setup
     skip_unless_platform(:macos)
     RealWindowsRun.require!("AppKit's file panels")
+    reason = Desktop.session_unavailable_reason
+    skip "AppKit's file panels cannot open here: #{reason}" if reason
   end
 
   private def cancelled(command, payload)

@@ -67,11 +67,28 @@ PACKAGES = [
       # clipboard is the person's, which may hold what no text restores.
       clipboard = Tokra::Plugins::Clipboard::Clipboard.new
       error = clipboard.instance_variable_get(:@error)
-      abort "arboard could not open the clipboard: \#{error}" if error
-      native = clipboard.instance_variable_get(:@clipboard)
-      abort "the plugin did not open ferro-arboard's clipboard" unless native.instance_of?(Ferro::Arboard::Clipboard)
       abort "ferro-arboard lost its native calls" unless Ferro::Arboard::Clipboard.private_method_defined?(:native_set_text)
-      puts "tokra-clipboard \#{Tokra::Plugins::Clipboard::VERSION} opens the clipboard through ferro-arboard"
+      version = Tokra::Plugins::Clipboard::VERSION
+      if error
+        # A Mac with no GUI session, such as a build machine's daemon, has
+        # no pasteboard, and arboard says so. The plugin reached
+        # ferro-arboard's extension to hear it. Anywhere else, an error
+        # fails the check.
+        session = begin
+          IO.popen(["launchctl", "managername"], err: File::NULL, &:read).strip
+        rescue SystemCallError
+          nil
+        end
+        no_pasteboard = "The selected clipboard is not supported with the current system configuration."
+        abort "arboard could not open the clipboard: \#{error}" unless error == no_pasteboard && session && session != "Aqua"
+        # No backslash: on Windows, ruby -e's command line would not keep it.
+        why = %(no macOS GUI session (launchctl managername is \#{session.inspect}, not "Aqua"))
+        puts "tokra-clipboard \#{version} reaches ferro-arboard, which opens no clipboard here: \#{why}"
+      else
+        native = clipboard.instance_variable_get(:@clipboard)
+        abort "the plugin did not open ferro-arboard's clipboard" unless native.instance_of?(Ferro::Arboard::Clipboard)
+        puts "tokra-clipboard \#{version} opens the clipboard through ferro-arboard"
+      end
     RUBY
   PackageCheck::Target.new(
     name: "tokra-dialog",

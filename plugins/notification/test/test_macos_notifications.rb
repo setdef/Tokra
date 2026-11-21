@@ -7,6 +7,7 @@
 
 require_relative "support/notification_test"
 require "support/real_windows_run"
+require "support/desktop"
 
 # macOS, in child processes only.
 #
@@ -72,8 +73,12 @@ class TestMacosNotifications < Minitest::Test
 
   # The command settles while the send still waits for the notification
   # center, on a thread of its own (desktop.rs:216-218), and the send ends
-  # without raising.
+  # without raising. A Mac with no GUI session has no notification center
+  # to send to, so there it skips, saying why.
   def test_notify_resolves_while_the_send_waits
+    reason = Desktop.session_unavailable_reason
+    skip "the notification center cannot be reached here: #{reason}" if reason
+
     outcome, errors = in_child(<<~RUBY)
       #{SWEEPER}
       Ferro::NotifyRust.set_application("com.apple.finder")

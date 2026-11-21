@@ -17,13 +17,15 @@ $LOAD_PATH.unshift File.expand_path("../../../test", __dir__)
 require "support/stub_native"
 require "support/test_app"
 require "support/real_windows_run"
+require "support/desktop"
 
 # Tests for Tokra::Plugins::Clipboard::Plugin.
 #
 # Every test drives the real system clipboard through ferro-arboard. It is
 # the session's own, so these tests run with the real-window ones
 # (tasks/real_windows.rb), and plugins:test and this plugin's own rake test
-# never write your clipboard (Plan 057).
+# never write your clipboard (Plan 057). A Mac with no GUI session has no
+# pasteboard for arboard to open, so there they skip, saying why.
 #
 # The construction-error arm (arboard failing in Clipboard.new, e.g. on a
 # clipboard-less system) is not testable on a machine with a working
@@ -49,6 +51,8 @@ class TestClipboard < Minitest::Test
 
   def setup
     RealWindowsRun.require!("the system clipboard")
+    reason = Desktop.session_unavailable_reason
+    skip "the system clipboard cannot open here: #{reason}" if reason
   end
 
   # A real app handle, built exactly as an app builds one.
