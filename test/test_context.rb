@@ -6,6 +6,7 @@
 #++
 
 require "test_helper"
+require_relative "support/test_app"
 
 # Tokra::Context, Tauri's Context (lib.rs:349-527), and what
 # Codegen.context_codegen fills it with: the package information, with

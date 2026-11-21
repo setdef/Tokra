@@ -6,6 +6,7 @@
 #++
 
 require "test_helper"
+require_relative "support/test_app"
 require "fileutils"
 require "tmpdir"
 
