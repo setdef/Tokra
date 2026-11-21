@@ -9,6 +9,7 @@
 require "minitest/autorun"
 require "tmpdir"
 require "fileutils"
+require "digest"
 require "tokra-clipboard"
 
 # Tokra's StubNative double lives with the core tests; plugins exercise a
@@ -19,7 +20,8 @@ require "support/test_app"
 require "support/real_windows_run"
 require "support/desktop"
 
-# Tests for Tokra::Plugins::Clipboard::Plugin.
+# Tests for the clipboard plugin, Tokra::Plugins::Clipboard.init, and the
+# Clipboard it manages.
 #
 # Every test drives the real system clipboard through ferro-arboard. It is
 # the session's own, so these tests run with the real-window ones
@@ -60,12 +62,24 @@ class TestClipboard < Minitest::Test
     build_test_app
   end
 
+  # Tauri's init(), registered on +app+'s handle, whose setup manages the
+  # Clipboard that #clipboard answers.
   private def build_plugin(app = build_app)
-    Tokra::Plugins::Clipboard::Plugin.new(app.handle)
+    @app = app
+    plugin = Tokra::Plugins::Clipboard.init
+    app.handle.plugin(plugin)
+    plugin
   end
 
+  # The Clipboard the app manages, Tauri's app.clipboard().
+  private def clipboard
+    @app.handle.clipboard
+  end
+
+  # The calling webview, whose app's managed Clipboard the commands use,
+  # as Tauri's take it as State.
   private def stub_webview
-    Tokra::Webview.new(label: "test", native: Object.new, window: Object.new, app_handle: Object.new)
+    Tokra::Webview.new(label: "test", native: Object.new, window: Object.new, app_handle: @app.handle)
   end
 
   private def build_invoke(command, payload = {}, webview: stub_webview)
@@ -86,13 +100,63 @@ class TestClipboard < Minitest::Test
 
   def test_registering_on_a_real_handle_manages_the_clipboard
     app = build_app
-    plugin = Tokra::Plugins::Clipboard::Plugin.new(app.handle)
-    app.handle.plugin(plugin)
+    app.handle.plugin(Tokra::Plugins::Clipboard.init)
 
     # Registration stores the clipboard in managed state, the body of
     # Tauri's setup closure (clipboard-manager lib.rs:54-61)
     assert_instance_of CLIPBOARD, app.handle.clipboard
     assert Ractor.shareable?(app.handle.clipboard), "the managed clipboard is Ractor-shareable"
+  end
+
+  # Tauri's init() goes to Builder#plugin before the app exists. Its setup
+  # manages the clipboard when the app runs, and every page of an app with
+  # withGlobalTauri runs the plugin's api-iife.js after Tauri's bundle,
+  # whose window.__TAURI__ it extends (plan 064).
+  def test_builder_plugin_manages_the_clipboard_and_runs_the_global_api_script
+    builder = Tokra::Builder.default.plugin(Tokra::Plugins::Clipboard.init)
+    app = build_test_app(builder, config: { "app" => { "withGlobalTauri" => true } })
+
+    app.run
+
+    assert_instance_of CLIPBOARD, app.handle.clipboard
+    script = File.read(File.expand_path("../lib/tokra/plugins/clipboard/api-iife.js", __dir__))
+    scripts = app.handle.webviews["main"].native.initialization_scripts
+    assert_includes scripts, script
+    assert_operator scripts.index(script), :>, scripts.index { |each| each.include?("__TAURI_IIFE__") }
+  ensure
+    StubNative.clear_event
+  end
+
+  # SHA-256 of plugins/clipboard-manager/api-iife.js at plugins-workspace
+  # d4613ff0.
+  UPSTREAM_API_SCRIPT_SHA256 = "a606758cf18983a9d54606994c269724d9a187c583283ecbe3449da299541975"
+
+  def test_init_is_a_tauri_plugin_named_clipboard_manager
+    plugin = Tokra::Plugins::Clipboard.init
+
+    assert_instance_of Tokra::Plugin::TauriPlugin, plugin
+    assert_equal "clipboard-manager", plugin.name, "lib.rs:45"
+  end
+
+  def test_the_gem_names_tauris_global_api_script
+    path = File.expand_path("../lib/tokra/plugins/clipboard/api-iife.js", __dir__)
+
+    assert_includes Tokra::Utils::Plugin.global_api_script_paths, File.realpath(path), "build.rs:16"
+    assert_equal UPSTREAM_API_SCRIPT_SHA256, Digest::SHA256.file(path).hexdigest, "upstream's file, unchanged"
+  end
+
+  # Tauri's plugin takes no config, so a non-null slice fails the app
+  # before the setup that would open the clipboard runs.
+  def test_a_clipboard_manager_config_is_refused_as_tauris_unit_config_is
+    builder = Tokra::Builder.default.plugin(Tokra::Plugins::Clipboard.init)
+    app = build_test_app(builder, config: { "plugins" => { "clipboard-manager" => {} } })
+
+    error = assert_raises(Tokra::Error::PluginInitialization) { app.run }
+
+    assert_equal "failed to initialize plugin `clipboard-manager`: Error deserializing 'plugins.clipboard-manager' " \
+      "within your Tokra configuration: invalid type: map, expected unit", error.message
+  ensure
+    StubNative.clear_event
   end
 
   # Per doc/contributors/design/plugins.md ("State shared across
@@ -103,19 +167,19 @@ class TestClipboard < Minitest::Test
   end
 
   def test_write_and_read_roundtrip
-    plugin = build_plugin
-    plugin.write_text("test_clipboard_roundtrip")
-    assert_equal "test_clipboard_roundtrip", plugin.read_text
+    build_plugin
+    clipboard.write_text("test_clipboard_roundtrip")
+    assert_equal "test_clipboard_roundtrip", clipboard.read_text
   end
 
   def test_clear_empties_clipboard
-    plugin = build_plugin
-    plugin.write_text("to_be_cleared")
-    plugin.clear
+    build_plugin
+    clipboard.write_text("to_be_cleared")
+    clipboard.clear
     # After clear, read_text raises Error::Clipboard with arboard's
     # message, matching Tauri's rejected promise (desktop.rs read_text
     # propagates get_text errors into Error::Clipboard)
-    error = assert_raises(Tokra::Plugins::Clipboard::Error::Clipboard) { plugin.read_text }
+    error = assert_raises(Tokra::Plugins::Clipboard::Error::Clipboard) { clipboard.read_text }
     assert_equal EMPTY_CLIPBOARD_MESSAGE, error.message
     assert_kind_of Tokra::Error, error, "plugin errors should remain rescuable as Tokra::Error"
   end
@@ -220,11 +284,11 @@ class TestClipboard < Minitest::Test
   end
 
   def test_plugin_image_roundtrip_through_tokra_image
-    plugin = build_plugin
+    build_plugin
     image = Tokra::Image.new(rgba: RGBA_2X2, width: 2, height: 2)
 
-    plugin.write_image(image)
-    read = plugin.read_image
+    clipboard.write_image(image)
+    read = clipboard.read_image
 
     assert_instance_of Tokra::Image, read
     assert_equal image, read, "Image should round-trip through the clipboard byte-exact"
@@ -233,7 +297,7 @@ class TestClipboard < Minitest::Test
   def test_extend_api_read_text_dispatch
     # The router strips plugin:clipboard-manager|, so commands are bare
     plugin = build_plugin
-    plugin.write_text("ipc_test_value")
+    clipboard.write_text("ipc_test_value")
 
     invoke, responses = build_invoke("read_text")
     result = plugin.extend_api(invoke)
@@ -244,7 +308,7 @@ class TestClipboard < Minitest::Test
 
   def test_extend_api_read_text_rejects_when_empty
     plugin = build_plugin
-    plugin.clear
+    clipboard.clear
 
     invoke, responses = build_invoke("read_text")
     result = plugin.extend_api(invoke)
@@ -262,12 +326,12 @@ class TestClipboard < Minitest::Test
 
     assert result, "extend_api should return true for handled command"
     assert_equal [[true, nil]], responses
-    assert_equal "written_via_ipc", plugin.read_text
+    assert_equal "written_via_ipc", clipboard.read_text
   end
 
   def test_extend_api_read_image_resolves_rid
     plugin = build_plugin
-    plugin.write_image(Tokra::Image.new(rgba: RGBA_2X2, width: 2, height: 2))
+    clipboard.write_image(Tokra::Image.new(rgba: RGBA_2X2, width: 2, height: 2))
     webview = stub_webview
 
     invoke, responses = build_invoke("read_image", {}, webview:)
@@ -293,7 +357,7 @@ class TestClipboard < Minitest::Test
 
     assert result
     assert_equal [[true, nil]], responses
-    assert_equal RGBA_2X2, plugin.read_image.rgba, "the referenced image should reach the clipboard"
+    assert_equal RGBA_2X2, clipboard.read_image.rgba, "the referenced image should reach the clipboard"
   end
 
   def test_extend_api_write_image_with_rgba_hash
@@ -305,7 +369,7 @@ class TestClipboard < Minitest::Test
 
     assert result
     assert_equal [[true, nil]], responses
-    assert_equal RGBA_2X2, plugin.read_image.rgba
+    assert_equal RGBA_2X2, clipboard.read_image.rgba
   end
 
   def test_extend_api_write_image_with_unknown_rid_rejects
@@ -351,20 +415,20 @@ class TestClipboard < Minitest::Test
 
     assert result
     assert_equal [[true, nil]], responses
-    assert_equal "via ipc", plugin.read_text,
+    assert_equal "via ipc", clipboard.read_text,
       "the wire's camelCase altText should become the plain-text flavor"
   end
 
   def test_extend_api_clear_dispatch
     plugin = build_plugin
-    plugin.write_text("to_be_cleared_via_ipc")
+    clipboard.write_text("to_be_cleared_via_ipc")
 
     invoke, responses = build_invoke("clear")
     result = plugin.extend_api(invoke)
 
     assert result
     assert_equal [[true, nil]], responses
-    assert_raises(Tokra::Plugins::Clipboard::Error::Clipboard) { plugin.read_text }
+    assert_raises(Tokra::Plugins::Clipboard::Error::Clipboard) { clipboard.read_text }
   end
 
   def test_extend_api_unknown_command_returns_false
@@ -375,24 +439,36 @@ class TestClipboard < Minitest::Test
     assert_empty responses, "unknown commands should not resolve or reject"
   end
 
+  # The commands answer from the clipboard the app manages, as Tauri's
+  # take it as State (commands.rs:35-40), so once it is retired they
+  # reject.
+  def test_commands_answer_from_the_managed_clipboard
+    plugin = build_plugin
+    clipboard.cleanup
+    invoke, responses = build_invoke("read_text")
+
+    assert plugin.extend_api(invoke)
+    assert_equal [[false, CLEANED_UP]], responses
+  end
+
   def test_on_event_exit_cleans_up_native_clipboard
     app = build_app
     plugin = build_plugin(app)
 
     plugin.on_event(app.handle, Tokra::RunEvent::Exit.new)
 
-    error = assert_raises(Tokra::Plugins::Clipboard::Error::Clipboard) { plugin.read_text }
+    error = assert_raises(Tokra::Plugins::Clipboard::Error::Clipboard) { clipboard.read_text }
     assert_match(/cleaned up/i, error.message)
   end
 
   def test_on_event_ignores_other_events
     app = build_app
     plugin = build_plugin(app)
-    plugin.write_text("survives_ready")
+    clipboard.write_text("survives_ready")
 
     plugin.on_event(app.handle, Tokra::RunEvent::Ready.new)
 
-    assert_equal "survives_ready", plugin.read_text, "non-Exit events should not clean up"
+    assert_equal "survives_ready", clipboard.read_text, "non-Exit events should not clean up"
   end
 
   def test_manager_extension_provides_clipboard_accessor
@@ -413,22 +489,22 @@ class TestClipboard < Minitest::Test
   # false) and must share it, so Exit cleans the one everything uses.
   def test_second_plugin_shares_the_managed_clipboard
     app = build_app
-    first = build_plugin(app)
+    build_plugin(app)
     managed = app.handle.clipboard
     second = build_plugin(app)
 
     assert_same managed, app.handle.clipboard, "the first clipboard stays managed"
-    second.write_text("shared")
-    assert_equal "shared", first.read_text
+    app.handle.clipboard.write_text("shared")
+    assert_equal "shared", managed.read_text
 
     second.on_event(app.handle, Tokra::RunEvent::Exit.new)
-    error = assert_raises(Tokra::Plugins::Clipboard::Error::Clipboard) { first.read_text }
+    error = assert_raises(Tokra::Plugins::Clipboard::Error::Clipboard) { managed.read_text }
     assert_match(/cleaned up/i, error.message, "Exit cleans app.clipboard, the managed one")
   end
 
   def test_exit_through_a_real_run_cleans_the_managed_clipboard
     app = build_app
-    app.handle.plugin(build_plugin(app))
+    build_plugin(app)
 
     app.run
 
@@ -497,7 +573,7 @@ class TestClipboard < Minitest::Test
 
     assert plugin.extend_api(invoke)
     assert_equal [[true, nil]], responses
-    assert_equal Tokra::Image.new(rgba: RED_THEN_BLUE, width: 2, height: 1), plugin.read_image
+    assert_equal Tokra::Image.new(rgba: RED_THEN_BLUE, width: 2, height: 1), clipboard.read_image
   end
 
   def test_write_image_ipc_with_png_byte_array
@@ -507,7 +583,7 @@ class TestClipboard < Minitest::Test
 
     assert plugin.extend_api(invoke)
     assert_equal [[true, nil]], responses
-    assert_equal Tokra::Image.new(rgba: RED_THEN_BLUE, width: 2, height: 1), plugin.read_image
+    assert_equal Tokra::Image.new(rgba: RED_THEN_BLUE, width: 2, height: 1), clipboard.read_image
   end
 
   def test_write_image_ipc_with_missing_png_path_rejects
@@ -563,8 +639,8 @@ class TestClipboard < Minitest::Test
   # decision 7).
   def test_an_argument_error_from_a_bug_is_not_taken_for_a_bad_argument
     plugin = build_plugin
-    plugin.define_singleton_method(:write_text) { |_text| raise ArgumentError, "a bug" }
     invoke, = build_invoke("write_text", { "text" => "x" })
+    invoke.define_singleton_method(:resolve) { |_value| raise ArgumentError, "a bug" }
 
     assert_equal "a bug", assert_raises(ArgumentError) { plugin.extend_api(invoke) }.message
   end
@@ -592,13 +668,13 @@ class TestClipboard < Minitest::Test
   # non-string label rejects before the text is written.
   def test_write_text_rejects_a_non_string_label
     plugin = build_plugin
-    plugin.write_text("before")
+    clipboard.write_text("before")
     invoke, responses = build_invoke("write_text", { "text" => "after", "label" => 42 })
 
     assert plugin.extend_api(invoke)
     assert_equal [[false, "invalid args `label` for command `write_text`: invalid type: integer `42`, expected a string"]],
       responses
-    assert_equal "before", plugin.read_text, "a rejected invoke writes nothing"
+    assert_equal "before", clipboard.read_text, "a rejected invoke writes nothing"
   end
 
   def test_write_text_accepts_a_null_label
@@ -615,7 +691,7 @@ class TestClipboard < Minitest::Test
 
     assert plugin.extend_api(invoke)
     assert_equal [[true, nil]], responses
-    assert_equal "labelled", plugin.read_text
+    assert_equal "labelled", clipboard.read_text
   end
 
   # ==========================================================================

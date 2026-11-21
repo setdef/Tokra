@@ -32,30 +32,22 @@ module Tokra
         def with_clipboard: [T] () { (Ferro::Arboard::Clipboard) -> T } -> T
       end
 
-      class Plugin < Tokra::Plugin
-        def name: () -> String
-        def read_text: () -> String
-        def write_text: (String) -> void
-        def read_image: () -> Tokra::Image
-        def write_image: (Tokra::Image) -> void
-        def write_html: (String html, ?String? alt_text) -> void
-        def clear: () -> void
-        def extend_api: (Tokra::Ipc::Invoke) -> bool
-        def on_event: (Tokra::AppHandle app, Tokra::run_event event) -> void
+      COMMANDS: Array[String]
 
-        private
+      def self.init: () -> Tokra::Plugin::TauriPlugin[nil]
+      private def self.handle_invoke: (Tokra::Ipc::Invoke invoke) -> bool
 
-        def handle_read_text: (Tokra::Ipc::Invoke) -> bool
-        def handle_write_text: (Tokra::Ipc::Invoke) -> bool
-        def handle_read_image: (Tokra::Ipc::Invoke) -> bool
-        def handle_write_image: (Tokra::Ipc::Invoke) -> bool
-        def handle_write_html: (Tokra::Ipc::Invoke) -> bool
-        def handle_clear: (Tokra::Ipc::Invoke) -> bool
-        def clipboard: () -> Clipboard
-        def argument: (Tokra::Ipc::Invoke invoke, String key) -> Tokra::Ipc::CommandItem
-        def string_arg: (Tokra::Ipc::Invoke invoke, String key) -> String
-        def optional_string_arg: (Tokra::Ipc::Invoke invoke, String key, ?expected: String) -> String?
-        def string_value: (Tokra::json_value value, String expected) -> String
+      module Commands
+        def self.write_text: (Tokra::Ipc::Invoke invoke, Clipboard clipboard) -> void
+        def self.read_text: (Tokra::Ipc::Invoke invoke, Clipboard clipboard) -> void
+        def self.write_image: (Tokra::Ipc::Invoke invoke, Clipboard clipboard) -> void
+        def self.read_image: (Tokra::Ipc::Invoke invoke, Clipboard clipboard) -> void
+        def self.write_html: (Tokra::Ipc::Invoke invoke, Clipboard clipboard) -> void
+        def self.clear: (Tokra::Ipc::Invoke invoke, Clipboard clipboard) -> void
+        private def self.argument: (Tokra::Ipc::Invoke invoke, String key) -> Tokra::Ipc::CommandItem
+        private def self.string_arg: (Tokra::Ipc::Invoke invoke, String key) -> String
+        private def self.optional_string_arg: (Tokra::Ipc::Invoke invoke, String key, ?expected: String) -> String?
+        private def self.string_value: (Tokra::json_value value, String expected) -> String
       end
     end
   end

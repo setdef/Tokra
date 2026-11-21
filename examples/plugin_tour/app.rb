@@ -25,7 +25,6 @@ module PluginTour
   # +withGlobalTauri+, as Tauri does.
   FILES = {
     "/" => ["index.html", "text/html; charset=utf-8"],
-    "/vendor/clipboard-manager.js" => ["vendor/clipboard-manager.js", "text/javascript"],
     "/vendor/global-shortcut.js" => ["vendor/global-shortcut.js", "text/javascript"],
   }.freeze
 
@@ -72,6 +71,7 @@ end
 app = Tokra::Builder.default
   .app(site)
   .invoke_handler(&commands)
+  .plugin(Tokra::Plugins::Clipboard.init)
   .plugin(Tokra::Plugins::Dialog.init)
   .plugin(Tokra::Plugins::Notification.init)
   .build(Tokra.generate_context)
@@ -79,7 +79,6 @@ handle = app.handle
 
 # Each plugin registers before App#run, so the window's page gets its
 # initialization script.
-handle.plugin(Tokra::Plugins::Clipboard::Plugin.new(handle))
 handle.plugin(Tokra::Plugins::GlobalShortcut::Plugin.new(handle))
 
 # The log plugin writes to the terminal and to the page, which hears each

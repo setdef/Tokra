@@ -8,7 +8,7 @@
 # SPDX-SnippetBegin
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # SPDX-SnippetCopyrightText: 2019-2023 Tauri Programme within The Commons Conservancy
-# SPDX-SnippetComment: Plugin, commands, Clipboard, and ClipboardExt adapted
+# SPDX-SnippetComment: init, Commands, Clipboard, and ClipboardExt adapted
 #                      from tauri-plugin-clipboard-manager src/lib.rs,
 #                      src/commands.rs, and src/desktop.rs
 
@@ -22,9 +22,66 @@ require "ferro/arboard"
 module Tokra
   # Namespace for Tokra plugins.
   module Plugins
-    # Namespace for the clipboard plugin.
+    # The system clipboard for Tokra desktop applications.
     #
-    # Use Tokra::Plugins::Clipboard::Plugin as the plugin class.
+    # A desktop app copies and pastes: a link to share, a result to paste
+    # elsewhere, an image the user copied from another app. The page cannot
+    # reach the system clipboard on its own, and each part of the app
+    # opening the clipboard for itself scatters the failures.
+    #
+    # This plugin opens it once, through ferro-arboard, a one-to-one Ruby
+    # binding of the arboard crate, manages it as a Clipboard every manager
+    # reaches as +clipboard+, and serves the commands of Tauri's
+    # clipboard-manager plugin, so the frontend uses
+    # <tt>@tauri-apps/plugin-clipboard-manager</tt> unchanged. The managed
+    # Clipboard is Ractor-shareable (doc/contributors/design/plugins.md,
+    # "State shared across Ractors").
+    #
+    # Use it to read and write text, HTML, and images, from Ruby or from
+    # the page.
+    #
+    # == JavaScript API (Tauri Compatibility)
+    #
+    #   import { writeText, readText, writeHtml, readImage, writeImage, clear }
+    #     from '@tauri-apps/plugin-clipboard-manager';
+    #
+    #   await writeText('Hello');
+    #   const text = await readText();             // rejects when the clipboard is empty
+    #   await writeHtml('<b>Hi</b>', 'Hi');          // with a plain-text fallback
+    #   const image = await readImage();           // an Image, by resource ID
+    #   await writeImage(image);                   // an Image, bytes, a path, or RGBA
+    #   await clear();
+    #
+    # Arguments are checked the way Tauri deserializes them: a missing or
+    # mistyped argument rejects with Tauri's message, for example
+    # <tt>invalid args `text` for command `write_text`: command
+    # write_text missing required key text</tt>.
+    #
+    # With <tt>app.withGlobalTauri</tt> in your config, a page with no
+    # bundler finds the same functions on
+    # <tt>window.__TAURI__.clipboardManager</tt>: the plugin ships Tauri's
+    # own <tt>api-iife.js</tt>, which every page runs after Tauri's bundle.
+    # Require <tt>tokra-clipboard</tt> before Tokra.generate_context reads
+    # it.
+    #
+    # == Ruby API
+    #
+    # Register the plugin on the builder with ::init:
+    #
+    #   require "tokra-clipboard"
+    #
+    #   Tokra::Builder.default
+    #     .plugin(Tokra::Plugins::Clipboard.init)
+    #     .run(Tokra.generate_context)
+    #
+    #   handle.clipboard.write_text("Hello")
+    #   handle.clipboard.read_text  #=> "Hello"
+    #
+    # The plugin takes no config: a non-null
+    # <tt>plugins.clipboard-manager</tt> in your config fails the app with
+    # Error::PluginInitialization, as Tauri's does.
+    #
+    # Mirrors Tauri's clipboard-manager plugin (lib.rs:43-69).
     module Clipboard
       # Base error for clipboard operations.
       #
@@ -75,8 +132,8 @@ module Tokra
       # copied contents live only as long as some clipboard in the process
       # stays open.
       #
-      # The plugin builds one Clipboard at registration and manages it, so
-      # every manager reaches it as +clipboard+. Each method raises
+      # The plugin's setup builds one Clipboard and manages it, so every
+      # manager reaches it as +clipboard+. Each method raises
       # Error::Clipboard with arboard's message when the system clipboard
       # refuses, exactly as Tauri's methods return
       # <tt>Error::Clipboard(String)</tt>.
@@ -217,288 +274,156 @@ module Tokra
         end
       end
 
-      # Clipboard plugin for Tokra desktop applications.
+      # The commands the plugin answers (build.rs:5-12).
+      COMMANDS = %w[write_text read_text write_image read_image write_html clear].freeze
+
+      # Initializes the plugin: a Tokra::Plugin::TauriPlugin named
+      # +clipboard-manager+, the name in
+      # <tt>plugin:clipboard-manager|read_text</tt>, for Tokra::Builder#plugin.
       #
-      # Provides read/write access to the system clipboard through
-      # ferro-arboard, a one-to-one Ruby binding of the arboard crate. The
-      # managed Clipboard is Ractor-shareable
-      # (doc/contributors/design/plugins.md, "State shared across Ractors").
+      # Its setup opens the system clipboard and manages it as a Clipboard
+      # for the app (a second plugin finds one already managed and shares
+      # it). Each command answers from that managed Clipboard, rejecting
+      # with Error::Clipboard's message or Tauri's argument error; any other
+      # command is left for the router, and anything else a command raises
+      # is a bug, and reaches the router. When the app exits, its
+      # RunEvent::Exit retires the managed Clipboard.
       #
-      # == JavaScript API (Tauri Compatibility)
+      # Mirrors Tauri's <tt>init</tt> (lib.rs:43-69).
       #
-      # The following IPC commands are exposed for frontend use:
+      # === Example
       #
-      #   // Write text to clipboard
-      #   await invoke("plugin:clipboard-manager|write_text", { text: "Hello" });
-      #
-      #   // Read text from clipboard (rejects when the clipboard is empty)
-      #   const text = await invoke("plugin:clipboard-manager|read_text");
-      #
-      #   // Read an image; resolves a resource ID for the Image API
-      #   const rid = await invoke("plugin:clipboard-manager|read_image");
-      #
-      #   // Write an image by resource ID, byte array, path, or RGBA hash
-      #   await invoke("plugin:clipboard-manager|write_image", { image: rid });
-      #
-      #   // Write HTML with a plain-text fallback
-      #   await invoke("plugin:clipboard-manager|write_html", { html: "<b>Hi</b>", altText: "Hi" });
-      #
-      #   // Clear clipboard
-      #   await invoke("plugin:clipboard-manager|clear");
-      #
-      # Arguments are checked the way Tauri deserializes them: a missing or
-      # mistyped argument rejects with Tauri's message, for example
-      # <tt>invalid args `text` for command `write_text`: command
-      # write_text missing required key text</tt>.
+      #   Tokra::Builder.default.plugin(Tokra::Plugins::Clipboard.init)
+      def self.init
+        Tokra::Plugin::Builder.new("clipboard-manager")
+          .invoke_handler { |invoke| handle_invoke(invoke) }
+          .setup { |app, _api| app.manage(Clipboard.new) }
+          .on_event { |app, event| app.clipboard.cleanup if event.is_a?(Tokra::RunEvent::Exit) }
+          .build
+      end
+
+      # Runs one of COMMANDS against the Clipboard the invoking webview's
+      # app manages, as Tauri's commands take it as State; answers whether
+      # it was one of them. Failures reject the invoke with the error's
+      # message, mirroring Tauri's Result-to-InvokeError propagation
+      # (commands.rs), as does an argument that does not read.
+      def self.handle_invoke(invoke) # :nodoc:
+        command = invoke.command
+        return false unless COMMANDS.include?(command)
+
+        clipboard = invoke.webview.app_handle.clipboard
+        case command
+        when "write_text" then Commands.write_text(invoke, clipboard)
+        when "read_text" then Commands.read_text(invoke, clipboard)
+        when "write_image" then Commands.write_image(invoke, clipboard)
+        when "read_image" then Commands.read_image(invoke, clipboard)
+        when "write_html" then Commands.write_html(invoke, clipboard)
+        else Commands.clear(invoke, clipboard)
+        end
+        true
+      rescue Error,
+        Tokra::Error::BadResourceId,
+        Tokra::Error::Image,
+        Tokra::Error::InvalidArgs,
+        Tokra::Error::Io => e
+
+        invoke.reject(e.message)
+        true
+      end
+      private_class_method :handle_invoke
+
+      # The plugin's commands, each reading its arguments as Tauri
+      # deserializes them, in order, and answering +invoke+ from
+      # +clipboard+, the app's managed Clipboard. A failure raises for the
+      # plugin's router to reject.
       #
       # *Deviation*: Tauri runs these commands as +async+ functions, off the
       # main thread. Tokra dispatches every invoke on the main thread today,
-      # so the Linux deadlock warning on read_text and read_image applies to
-      # the IPC commands too. Moving dispatch to a worker Ractor (ADR 001)
-      # lifts it.
+      # so the Linux deadlock warning on Clipboard#read_text and
+      # Clipboard#read_image applies to the commands too. Moving dispatch to
+      # a worker Ractor (ADR 001) lifts it.
       #
-      # == Ruby API
-      #
-      # Register the plugin with the app handle once the app exists, for
-      # example from the setup hook:
-      #
-      #   Tokra::Builder.new
-      #     .setup { |app| app.handle.plugin(Tokra::Plugins::Clipboard::Plugin.new(app.handle)) }
-      #     .run(Tokra.generate_context)
-      #
-      class Plugin < Tokra::Plugin
-        # Returns the unique plugin identifier.
-        #
-        # Uses "clipboard-manager" for 1:1 compatibility with Tauri's
-        # guest-js/index.ts command naming.
-        def name
-          "clipboard-manager"
-        end
-
-        # Initializes the plugin with the app handle and configuration.
-        #
-        # Creates the Ractor-shareable Clipboard
-        # (doc/contributors/design/plugins.md) and stores it in managed
-        # state for ClipboardManagerExt access, the
-        # body of Tauri's setup closure, which calls
-        # <tt>app.manage(clipboard)</tt> (lib.rs:54-61). Construction at
-        # registration matches Tauri's Plugin::initialize timing. Every
-        # operation goes through the managed clipboard, so a second plugin
-        # instance (whose manage call finds one already managed) shares the
-        # first one's clipboard instead of opening another:
-        #
-        #   handle.plugin(Tokra::Plugins::Clipboard::Plugin.new(handle))
-        def initialize(app, config = {})
-          super
-          app.manage(Clipboard.new)
-        end
-
-        # Reads text from the clipboard.
-        #
-        # Returns the clipboard text content. An empty clipboard raises
-        # Error::Clipboard carrying arboard's message, exactly as Tauri's
-        # <tt>read_text</tt> propagates the error to a rejected promise.
-        #
-        # *Warning*: Do not call this on the main thread on Linux. The
-        # underlying libraries may deadlock when reading data this app
-        # copied, for example text the user copied from the WebView.
-        #
-        # === Example
-        #
-        #   plugin.read_text  #=> "copied text"
-        def read_text
-          clipboard.read_text
-        end
-
-        # Writes text to the clipboard.
-        #
-        # Raises Error::Clipboard when the write fails.
-        #
-        # +text+:: the text string to write
-        #
-        # === Example
-        #
-        #   plugin.write_text("Hello")
-        def write_text(text)
-          clipboard.write_text(text)
-        end
-
-        # Reads an image from the clipboard as a Tokra::Image.
-        #
-        # Mirrors Tauri's Clipboard#read_image (desktop.rs). An empty
-        # clipboard raises Error::Clipboard.
-        #
-        # *Warning*: Do not call this on the main thread on Linux. The
-        # underlying libraries may deadlock when reading data this app
-        # copied.
-        #
-        # === Example
-        #
-        #   image = plugin.read_image
-        #   File.binwrite("shot.rgba", image.rgba)
-        def read_image
-          clipboard.read_image
-        end
-
-        # Writes a Tokra::Image to the clipboard.
-        #
-        # Mirrors Tauri's Clipboard#write_image (desktop.rs). Raises
-        # Error::Clipboard when the write fails, including when the image
-        # is empty or its byte count does not match its dimensions.
-        #
-        # +image+:: the Tokra::Image to write
-        #
-        # === Example
-        #
-        #   plugin.write_image(Tokra::Image.from_path("icon.png"))
-        def write_image(image)
-          clipboard.write_image(image)
-        end
-
-        # Writes HTML to the clipboard.
-        #
-        # Mirrors Tauri's Clipboard#write_html (desktop.rs). +alt_text+,
-        # when given, becomes the plain-text flavor that non-HTML
-        # consumers read. Raises Error::Clipboard when the write fails.
-        #
-        # === Example
-        #
-        #   plugin.write_html("<b>Hi</b>", "Hi")
-        def write_html(html, alt_text = nil)
-          clipboard.write_html(html, alt_text)
-        end
-
-        # Clears the clipboard contents.
-        #
-        # Raises Error::Clipboard when the clear fails.
-        #
-        # === Example
-        #
-        #   plugin.clear
-        def clear
-          clipboard.clear
-        end
-
-        # Handles IPC invoke commands from the JavaScript frontend.
-        #
-        # The router strips the <tt>plugin:clipboard-manager|</tt> prefix,
-        # so this matches bare command names. Failures reject the invoke
-        # with the error message, mirroring Tauri's Result-to-InvokeError
-        # propagation (commands.rs), as does an argument that does not
-        # read. Anything else is a bug, and reaches the router.
-        #
-        # Returns +true+ if this plugin handled the command, +false+ otherwise.
-        def extend_api(invoke)
-          case invoke.command
-          when "read_text" then handle_read_text(invoke)
-          when "write_text" then handle_write_text(invoke)
-          when "read_image" then handle_read_image(invoke)
-          when "write_image" then handle_write_image(invoke)
-          when "write_html" then handle_write_html(invoke)
-          when "clear" then handle_clear(invoke)
-          else false
-          end
-        rescue Error,
-          Tokra::Error::BadResourceId,
-          Tokra::Error::Image,
-          Tokra::Error::InvalidArgs,
-          Tokra::Error::Io => e
-
-          invoke.reject(e.message)
-          true
-        end
-
-        # Cleans up the managed clipboard on exit. Mirrors the on_event hook in Tauri's
-        # clipboard-manager lib.rs (62-66), which cleans
-        # <tt>app.clipboard()</tt>, the managed state.
-        def on_event(app, event)
-          return unless event.is_a?(Tokra::RunEvent::Exit)
-
-          app.clipboard.cleanup
-        end
-
-        # The managed Clipboard (ClipboardExt, lib.rs:37-41).
-        private def clipboard
-          app.clipboard
-        end
-
-        private def handle_read_text(invoke)
-          invoke.resolve(read_text)
-          true
-        end
-
-        # Writes payload text. The mobile-only label is checked but unused,
-        # as on Tauri desktop, which still deserializes it as an
-        # Option<String> (commands.rs:9-18).
-        private def handle_write_text(invoke)
+      # Mirrors Tauri's <tt>commands.rs</tt>.
+      module Commands
+        # Writes the payload's +text+. The mobile-only +label+ is checked but
+        # unused, as on Tauri desktop, which still deserializes it as an
+        # <tt>Option<String></tt> (commands.rs:9-18).
+        def self.write_text(invoke, clipboard)
           text = string_arg(invoke, "text")
           optional_string_arg(invoke, "label", expected: "a string")
-          write_text(text)
+          clipboard.write_text(text)
           invoke.resolve(nil)
-          true
         end
 
-        # Stores the clipboard image in the calling webview's resource
-        # table and resolves its resource ID (commands.rs:53-61).
-        private def handle_read_image(invoke)
-          rid = invoke.webview.resources_table.add(read_image)
-          invoke.resolve(rid)
-          true
+        # Resolves the clipboard's text; an empty clipboard raises
+        # Error::Clipboard (commands.rs:34-40).
+        def self.read_text(invoke, clipboard)
+          invoke.resolve(clipboard.read_text)
         end
 
         # Reads the JsImage argument, resolves it against the calling
-        # webview's resource table, and writes it (commands.rs:43-50): a
+        # webview's resource table, and writes it (commands.rs:42-51): a
         # payload of the wrong shape is the argument's InvalidArgs, and one
-        # that names no image is into_img's error.
-        private def handle_write_image(invoke)
+        # that names no image is +into_img+'s error.
+        def self.write_image(invoke, clipboard)
           js_image = argument(invoke, "image").deserialize { |value| Tokra::JsImage.deserialize(value) }
-          write_image(js_image.into_img(invoke.webview.resources_table))
+          clipboard.write_image(js_image.into_img(invoke.webview.resources_table))
           invoke.resolve(nil)
-          true
         end
 
-        # Writes HTML using the wire's camelCase altText key
-        # (commands.rs:63-72; guest-js sends { html, altText }).
-        private def handle_write_html(invoke)
-          write_html(string_arg(invoke, "html"), optional_string_arg(invoke, "altText"))
+        # Stores the clipboard's image in the calling webview's resource
+        # table and resolves its resource ID (commands.rs:53-62).
+        def self.read_image(invoke, clipboard)
+          invoke.resolve(invoke.webview.resources_table.add(clipboard.read_image))
+        end
+
+        # Writes the payload's +html+, with the wire's camelCase +altText+ as
+        # the plain-text flavor (commands.rs:64-72; guest-js sends
+        # <tt>{ html, altText }</tt>).
+        def self.write_html(invoke, clipboard)
+          clipboard.write_html(string_arg(invoke, "html"), optional_string_arg(invoke, "altText"))
           invoke.resolve(nil)
-          true
         end
 
         # Clears the clipboard (commands.rs:74-80).
-        private def handle_clear(invoke)
-          clear
+        def self.clear(invoke, clipboard)
+          clipboard.clear
           invoke.resolve(nil)
-          true
         end
 
         # Argument +key+ of +invoke+, read as Tauri's CommandItem reads it.
-        private def argument(invoke, key)
+        def self.argument(invoke, key) # :nodoc:
           Tokra::Ipc::CommandItem.new(name: invoke.command, key:, payload: invoke.body)
         end
 
         # A required string argument (a Rust &str), or InvalidArgs.
-        private def string_arg(invoke, key)
+        def self.string_arg(invoke, key) # :nodoc:
           argument(invoke, key).deserialize { |value| string_value(value, "a borrowed string") }
         end
 
         # An optional string argument (a Rust Option<&str>, or with
         # <tt>expected: "a string"</tt> an Option<String>): absent or null
         # is +nil+.
-        private def optional_string_arg(invoke, key, expected: "a borrowed string")
+        def self.optional_string_arg(invoke, key, expected: "a borrowed string") # :nodoc:
           argument(invoke, key).deserialize_option { |value| string_value(value, expected) }
         end
 
         # +value+ if it is a String, or serde's error naming +expected+:
         # serde's &str visitor expects "a borrowed string", its String
         # visitor "a string".
-        private def string_value(value, expected)
+        def self.string_value(value, expected) # :nodoc:
           value.is_a?(String) ? value : raise(Tokra::Ipc::CommandItem::Mismatch.invalid_type(value, expected))
         end
+        private_class_method :argument, :string_arg, :optional_string_arg, :string_value
       end
     end
   end
 end
+
+# Tauri's own global API script for the plugin, which defines
+# window.__TAURI__.clipboardManager in a page with withGlobalTauri
+# (build.rs:16; api-iife.js at plugins-workspace d4613ff0, unchanged).
+Tokra::Utils::Plugin.define_global_api_script_path(File.expand_path("clipboard/api-iife.js", __dir__))
 
 # Extend Manager when plugin file is loaded (matches Tauri pattern)
 Tokra::Manager.include(Tokra::Plugins::Clipboard::ClipboardManagerExt)
