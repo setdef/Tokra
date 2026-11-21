@@ -63,7 +63,7 @@ module GlobalShortcutTest
     def shared
       @shared ||= begin
         app = TestApp.build_test_app
-        plugin = G::Plugin.new(app.handle)
+        plugin = G::Builder.new.build
         app.handle.plugin(plugin)
         Shared.new(app:, plugin:)
       end

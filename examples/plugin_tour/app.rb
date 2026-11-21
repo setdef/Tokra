@@ -19,13 +19,11 @@ require "ferro/time"
 
 # The tour's constants, kept in one namespace.
 module PluginTour
-  # The files the page loads, by request path: the page, and the global
-  # API script (+api-iife.js+) of each Tauri plugin whose Tokra gem does
-  # not ship it yet; Tokra injects the others' for an app that sets
-  # +withGlobalTauri+, as Tauri does.
+  # The files the page loads, by request path: only the page. Each
+  # plugin's global API script (+api-iife.js+) comes from its gem, which
+  # Tokra injects for an app that sets +withGlobalTauri+, as Tauri does.
   FILES = {
     "/" => ["index.html", "text/html; charset=utf-8"],
-    "/vendor/global-shortcut.js" => ["vendor/global-shortcut.js", "text/javascript"],
   }.freeze
 
   # The date and time at the start of each log line, in the layout of
@@ -42,7 +40,7 @@ module PluginTour
   end
 end
 
-# Serves the page and its scripts from this folder.
+# Serves the page from this folder.
 site = lambda do |env|
   file, type = PluginTour::FILES[env["PATH_INFO"]]
   if file
@@ -73,13 +71,10 @@ app = Tokra::Builder.default
   .invoke_handler(&commands)
   .plugin(Tokra::Plugins::Clipboard.init)
   .plugin(Tokra::Plugins::Dialog.init)
+  .plugin(Tokra::Plugins::GlobalShortcut::Builder.new.build)
   .plugin(Tokra::Plugins::Notification.init)
   .build(Tokra.generate_context)
 handle = app.handle
-
-# Each plugin registers before App#run, so the window's page gets its
-# initialization script.
-handle.plugin(Tokra::Plugins::GlobalShortcut::Plugin.new(handle))
 
 # The log plugin writes to the terminal and to the page, which hears each
 # line as a <tt>log://log</tt> event. The commands above reach it through

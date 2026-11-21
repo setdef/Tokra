@@ -32,7 +32,7 @@ class TestSetup < Minitest::Test
         .with_shortcut(#{child_unusual('F17').dump})
         .with_shortcuts([#{child_unusual('F18').dump}])
         .with_handler { |app, shortcut, event| heard << [app.equal?(HANDLE), shortcut.to_s, event.state.debug] }
-      plugin = builder.build(HANDLE)
+      plugin = builder.build
       HANDLE.plugin(plugin)
       shortcuts = HANDLE.global_shortcut
       registered = [shortcuts.is_registered(#{child_unusual('F17').dump}), shortcuts.is_registered(#{child_unusual('F18').dump})]
@@ -54,13 +54,35 @@ class TestSetup < Minitest::Test
     assert_raises(ArgumentError) { G::Builder.new.with_handler }
   end
 
+  # Builder#plugin takes the plugin before the app exists, and App#run runs
+  # its setup, which registers the builder's shortcuts and manages the
+  # GlobalShortcut; a page with withGlobalTauri runs Tauri's api-iife.js
+  # after Tauri's bundle (plan 064).
+  def test_builder_plugin_sets_up_at_run_and_the_page_runs_the_global_api_script
+    path = File.expand_path("../lib/tokra/plugins/global_shortcut/api-iife.js", __dir__)
+    (registered, order), = in_display_child(<<~RUBY)
+      builder = Tokra::Builder.default.plugin(G::Builder.new.with_shortcut(#{child_unusual('F17').dump}).build)
+      app = TestApp.build_test_app(builder, config: { "app" => { "withGlobalTauri" => true } })
+      app.run
+      registered = app.handle.global_shortcut.is_registered(#{child_unusual('F17').dump})
+      app.handle.global_shortcut.unregister_all
+      scripts = app.handle.webviews["main"].native.initialization_scripts
+      [registered, [scripts.index(File.read(#{path.dump})), scripts.index { |each| each.include?("__TAURI_IIFE__") }]]
+    RUBY
+
+    assert registered, "the builder's shortcut is registered when the app runs"
+    script, bundle = order
+    refute_nil script, "the page runs the plugin's global API script"
+    assert_operator script, :>, bundle, "after Tauri's bundle, whose window.__TAURI__ it extends"
+  end
+
   # Setup's ? (lib.rs:399-410) fails the plugin's initialization with
   # global-hotkey's message (plugin.rs:1009).
   def test_a_shortcut_the_system_refuses_fails_setup
     shortcut, message = unsupported
     (failure, managed), = in_display_child(PRELUDE + <<~RUBY)
       begin
-        G::Builder.new.with_shortcuts([#{child_unusual('F17').dump}, #{shortcut.dump}]).build(HANDLE)
+        HANDLE.plugin(G::Builder.new.with_shortcuts([#{child_unusual('F17').dump}, #{shortcut.dump}]).build)
         nil
       rescue Tokra::Error::PluginInitialization => e
         [[e.class.name, e.plugin, e.message], HANDLE.try_state(G::GlobalShortcut)]
@@ -80,9 +102,9 @@ class TestSetup < Minitest::Test
   def test_macos_keeps_one_plugin_per_process
     skip_unless_platform(:macos)
     failure, = in_child(PRELUDE + <<~RUBY)
-      HANDLE.plugin(G::Plugin.new(HANDLE))
+      HANDLE.plugin(G::Builder.new.build)
       begin
-        G::Plugin.new(HANDLE)
+        HANDLE.plugin(G::Builder.new.build)
         nil
       rescue Tokra::Error::PluginInitialization => e
         e.message

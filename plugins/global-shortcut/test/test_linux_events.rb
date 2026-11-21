@@ -33,7 +33,7 @@ class TestLinuxEvents < Minitest::Test
       heard = Thread::Queue.new
       plugin = G::Builder.new
         .with_handler { |_app, shortcut, event| heard << [:global, shortcut.to_s, event.state.debug] }
-        .build(HANDLE)
+        .build
       HANDLE.plugin(plugin)
       HANDLE.global_shortcut.on_shortcut("ctrl+alt+shift+F24") do |app, shortcut, event|
         heard << [:own, shortcut.to_s, event.state.debug, app.equal?(HANDLE), Thread.current == Thread.main]
@@ -58,7 +58,7 @@ class TestLinuxEvents < Minitest::Test
   # (lib.rs:293-302).
   def test_a_press_reaches_the_page_through_the_register_commands_channel
     evals, = in_display_child(PRELUDE + <<~RUBY)
-      HANDLE.plugin(plugin = G::Plugin.new(HANDLE))
+      HANDLE.plugin(plugin = G::Builder.new.build)
       window = Tokra::Window.new(label: "main", native: Object.new, app_handle: HANDLE)
       webview = Tokra::Webview.new(label: "main", native: StubNative::WebView.new, window:, app_handle: HANDLE)
       answers = Thread::Queue.new
@@ -98,8 +98,8 @@ class TestLinuxEvents < Minitest::Test
     heard, = in_display_child(PRELUDE + <<~RUBY)
       heard = Thread::Queue.new
       second = TestApp.build_test_app.handle
-      HANDLE.plugin(G::Plugin.new(HANDLE))
-      second.plugin(G::Plugin.new(second))
+      HANDLE.plugin(G::Builder.new.build)
+      second.plugin(G::Builder.new.build)
       second.global_shortcut.on_shortcut("ctrl+alt+shift+F17") { |*| heard << :second }
       HANDLE.global_shortcut.on_shortcut("ctrl+alt+shift+F24") { |_app, _shortcut, event| heard << :first }
       press("ctrl+alt+shift+F17")
@@ -117,7 +117,7 @@ class TestLinuxEvents < Minitest::Test
   def test_an_unregistered_shortcut_reaches_no_handler
     heard, = in_display_child(PRELUDE + <<~RUBY)
       heard = Thread::Queue.new
-      HANDLE.plugin(G::Plugin.new(HANDLE))
+      HANDLE.plugin(G::Builder.new.build)
       HANDLE.global_shortcut.on_shortcut("ctrl+alt+shift+F24") { |*| heard << :heard }
       HANDLE.global_shortcut.unregister("ctrl+alt+shift+F24")
       press("ctrl+alt+shift+F24")

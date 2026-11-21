@@ -167,7 +167,10 @@ PACKAGES = [
       plugin = Tokra::Plugins::GlobalShortcut
       builder = plugin::Builder.new.with_shortcut("ctrl+alt+shift+super+F19")
       abort "ferro-global-hotkey lost the shortcut" unless builder.shortcuts.first.into_string == "shift+control+alt+meta+F19"
-      abort "the plugin lost its commands" unless plugin::Plugin::COMMANDS.include?("register")
+      abort "the plugin lost its commands" unless plugin::COMMANDS.include?("register")
+      # The global API script is a packaged file too, named as the gem loads.
+      api = Tokra::Utils::Plugin.global_api_script_paths.find { |path| path.end_with?("global_shortcut/api-iife.js") }
+      abort "the global API script is not packaged" unless api && File.read(api).include?("__TAURI_PLUGIN_GLOBAL_SHORTCUT__")
       puts "tokra-global-shortcut \#{plugin::VERSION} parses a shortcut through ferro-global-hotkey"
     RUBY
   PackageCheck::Target.new(

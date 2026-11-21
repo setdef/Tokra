@@ -8,7 +8,7 @@
 module Tokra
   module Plugins
     # GlobalShortcut is a module (not class) to allow VERSION in version.rb.
-    # The actual plugin is GlobalShortcut::Plugin.
+    # Builder#build builds the plugin.
     module GlobalShortcut
       # Version of the tokra-global-shortcut gem.
       VERSION = "0.0.1.pre.1"

@@ -25,7 +25,7 @@ module GlobalShortcutFixture
   # on other systems one nobody uses.
   SHORTCUT = ENV.key?("FIXTURE_PRESSES") ? "ctrl+alt+shift+F24" : "ctrl+alt+shift+super+F19"
 
-  # The page's facts, Tauri's api-iife.js, and the line the test waits for.
+  # The page's facts and the line the test waits for.
   ROUTES = {
     "/global-shortcut.json" => lambda { |_env|
       [
@@ -33,9 +33,6 @@ module GlobalShortcutFixture
         { "content-type" => "application/json" },
         [JSON.generate(presses: ENV.key?("FIXTURE_PRESSES"), shortcut: SHORTCUT)],
 ]
-    },
-    "/api-iife.js" => lambda { |_env|
-      [200, { "content-type" => "text/javascript" }, [File.read(File.join(__dir__, "api-iife.js"))]]
     },
     "/registered" => lambda { |_env|
       puts "REGISTERED"
@@ -46,6 +43,6 @@ module GlobalShortcutFixture
 end
 
 options = FixtureApp.options(ARGV)
-FixtureApp.builder(FixtureApp::Site.new(__dir__, options, GlobalShortcutFixture::ROUTES),
-  plugins: [Tokra::Plugins::GlobalShortcut::Plugin])
+FixtureApp.builder(FixtureApp::Site.new(__dir__, options, GlobalShortcutFixture::ROUTES))
+  .plugin(Tokra::Plugins::GlobalShortcut::Builder.new.build)
   .run(Tokra.generate_context)

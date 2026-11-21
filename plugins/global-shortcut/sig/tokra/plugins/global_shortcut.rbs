@@ -100,23 +100,19 @@ module Tokra
         def with_shortcut: (shortcut_like shortcut) -> self
         def with_shortcuts: (Array[shortcut_like] shortcuts) -> self
         def with_handler: () { (Tokra::AppHandle app, shortcut shortcut, event event) -> void } -> self
-        def build: (Tokra::AppHandle app) -> Plugin
-      end
-
-      class Plugin < Tokra::Plugin
-        COMMANDS: Array[String]
-
-        def name: () -> String
-        def initialize: (Tokra::AppHandle app, ?Builder builder) -> void
-        def extend_api: (Tokra::Ipc::Invoke invoke) -> bool
+        def build: () -> Tokra::Plugin::TauriPlugin[nil]
 
         private
 
+        def setup: (Tokra::AppHandle app, Array[shortcut] shortcuts, _Handler? handler) -> nil
+        def handle_invoke: (Tokra::Ipc::Invoke invoke) -> bool
         def register_at_setup: (Tokra::RuntimeContext context, Ferro::GlobalHotkey::GlobalHotKeyManager manager,
                                 Array[shortcut] shortcuts) -> Hash[Integer, GlobalShortcut::RegisteredShortcut]
         def release_at_setup: (Tokra::RuntimeContext context, Ferro::GlobalHotkey::GlobalHotKeyManager manager,
                                Array[shortcut] shortcuts) -> void
       end
+
+      COMMANDS: Array[String]
     end
   end
 end

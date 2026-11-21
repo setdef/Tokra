@@ -31,13 +31,24 @@ XWayland. Building needs no system libraries.
 
 == Usage
 
-Register the plugin once, on the app handle, for example in the setup
-hook. It manages a Tokra::Plugins::GlobalShortcut::GlobalShortcut,
-reachable from any manager as +global_shortcut+:
+Make the plugin with Tokra::Plugins::GlobalShortcut::Builder, Tauri's,
+and register it once, on the app's builder. It manages a
+Tokra::Plugins::GlobalShortcut::GlobalShortcut, reachable from any manager
+as +global_shortcut+:
+
+  require "tokra-global-shortcut"
 
   Tokra::Builder.default
-    .setup(&Ractor.shareable_proc { |app| app.handle.plugin(Tokra::Plugins::GlobalShortcut::Plugin.new(app.handle)) })
+    .plugin(Tokra::Plugins::GlobalShortcut::Builder.new.build)
     .run(Tokra.generate_context)
+
+The plugin takes no config: a non-null <tt>plugins.global-shortcut</tt>
+in your config fails the app with Tokra::Error::PluginInitialization, as
+Tauri's does. With <tt>app.withGlobalTauri</tt> in your config, a page
+with no bundler finds the plugin's functions on
+<tt>window.__TAURI__.globalShortcut</tt>, from Tauri's own
+<tt>api-iife.js</tt>, which the gem ships. Require
+<tt>tokra-global-shortcut</tt> before Tokra.generate_context reads it.
 
 In the frontend:
 
@@ -58,13 +69,13 @@ In Ruby:
   handle.global_shortcut.unregister("Alt+Space")
 
 To register shortcuts as the app starts, with one handler for all of them,
-build the plugin:
+give them to the builder:
 
   plugin = Tokra::Plugins::GlobalShortcut::Builder.new
     .with_shortcuts(["CmdOrCtrl+Shift+D", "Alt+Space"])
     .with_handler { |app, shortcut, event| app.emit("shortcut", shortcut.to_s) }
-    .build(app.handle)
-  app.handle.plugin(plugin)
+    .build
+  Tokra::Builder.default.plugin(plugin).run(Tokra.generate_context)
 
 If another application already holds a shortcut, its handler is not
 triggered, so choose combinations that are unlikely to clash.

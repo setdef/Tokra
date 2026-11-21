@@ -64,12 +64,11 @@ on Windows.
 
 ## How it is put together
 
-`app.rb` serves `index.html` and the scripts in `vendor/` through a Rack
-lambda, registers the five plugins, and answers the page's two commands.
-Each plugin's `api-iife.js`, unchanged from Tauri, puts its API on
-`window.__TAURI__`. Because the config sets `withGlobalTauri`, Tokra
-injects the script of each plugin gem that ships one; `vendor/` holds the
-rest, which the page loads itself. With a bundler, import
+`app.rb` serves `index.html` through a Rack lambda, registers the five
+plugins, and answers the page's two commands. Each plugin's
+`api-iife.js`, unchanged from Tauri, puts its API on `window.__TAURI__`.
+Each plugin gem ships its script, and because the config sets
+`withGlobalTauri`, Tokra injects them into the page. With a bundler, import
 `@tauri-apps/plugin-clipboard-manager` and the others instead.
 
 tokra-log has no command the page can call yet, so the page sends its
