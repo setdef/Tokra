@@ -21,7 +21,6 @@ class TestCommands < Minitest::Test
   def test_the_plugin_is_named_process
     app = build_app
 
-    assert_equal "process", Tokra::Plugins::Process::Plugin.new(app.handle).name
     assert app.handle.remove_plugin("process"), "the plugin registers under its name"
   end
 

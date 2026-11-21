@@ -18,14 +18,20 @@ tokra-process is pure Ruby and needs nothing but Tokra:
 
 == Usage
 
-Register the plugin on the app handle:
+Register the plugin on the builder with Tokra::Plugins::Process.init,
+Tauri's <tt>init()</tt>:
 
   require "tokra"
   require "tokra-process"
 
-  app = Tokra::Builder.default.build(Tokra.generate_context)
-  app.handle.plugin(Tokra::Plugins::Process::Plugin.new(app.handle))
-  app.run
+  Tokra::Builder.default
+    .plugin(Tokra::Plugins::Process.init)
+    .run(Tokra.generate_context)
+
+With <tt>app.withGlobalTauri</tt> in your config, a page with no bundler
+finds the plugin's functions on <tt>window.__TAURI__.process</tt>, from
+Tauri's own <tt>api-iife.js</tt>, which the gem ships. Require
+<tt>tokra-process</tt> before Tokra.generate_context reads it.
 
 Then call it from the page:
 

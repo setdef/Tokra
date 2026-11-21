@@ -12,11 +12,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- `tokra-process` gem: `Tokra::Plugins::Process::Plugin.new(app)` serves
-  Tauri's process commands (`exit`, `restart`) for
+- `tokra-process` gem: `Tokra::Plugins::Process.init`, registered with
+  `Builder#plugin`, serves Tauri's process commands (`exit`, `restart`) for
   `@tauri-apps/plugin-process`: `exit(code)` asks the app to exit through
   `AppHandle#exit`, `relaunch()` restarts it through
   `AppHandle#request_restart`, and a `code` that is not an `i32` rejects
-  with Tauri's argument error; it is pure Ruby
+  with Tauri's argument error; a page with `withGlobalTauri` gets
+  `window.__TAURI__.process` from Tauri's own `api-iife.js`, which the gem
+  ships; it is pure Ruby
 
 [Unreleased]: https://github.com/setdef/Tokra/commits/trunk/plugins/process

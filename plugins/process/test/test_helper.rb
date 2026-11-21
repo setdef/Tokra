@@ -41,11 +41,10 @@ module ProcessTest
   end
 
   # A real app, its Env the command line above, with the plugin
-  # registered on its handle as the README shows.
+  # registered on its builder as the README shows.
   private def build_app
-    app = Tokra::Env.stub(:default, ENV_FOR_TESTS) { build_test_app }
-    app.handle.plugin(Tokra::Plugins::Process::Plugin.new(app.handle))
-    app
+    builder = Tokra::Builder.default.plugin(Tokra::Plugins::Process.init)
+    Tokra::Env.stub(:default, ENV_FOR_TESTS) { build_test_app(builder) }
   end
 
   # Queues the page's invoke of +cmd+ with +payload+, from the app's own

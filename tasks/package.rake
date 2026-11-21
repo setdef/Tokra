@@ -203,9 +203,12 @@ PACKAGES = [
       config = Tokra::Config.new(identifier: "com.tokra.smoke")
       context = Tokra::Codegen.context_codegen(Tokra::Codegen::ContextData.new(dev: true, config:, config_parent: config_dir))
       handle = Tokra::Builder.default.build(context).handle
-      handle.plugin(Tokra::Plugins::Process::Plugin.new(handle))
+      handle.plugin(Tokra::Plugins::Process.init)
       abort "the plugin did not register as process" unless handle.remove_plugin("process")
-      abort "the plugin lost its commands" unless Tokra::Plugins::Process::Plugin::COMMANDS == %w[exit restart]
+      abort "the plugin lost its commands" unless Tokra::Plugins::Process::COMMANDS == %w[exit restart]
+      # The global API script is a packaged file too, named as the gem loads.
+      api = Tokra::Utils::Plugin.global_api_script_paths.find { |path| path.end_with?("process/api-iife.js") }
+      abort "the global API script is not packaged" unless api && File.read(api).include?("__TAURI_PLUGIN_PROCESS__")
       puts "tokra-process \#{Tokra::Plugins::Process::VERSION} registers its exit and restart commands"
     RUBY
 ].freeze

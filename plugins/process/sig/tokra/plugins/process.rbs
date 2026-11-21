@@ -14,14 +14,9 @@ module Tokra::Plugins::Process
     def self.restart: (Tokra::AppHandle app) -> nil
   end
 
-  class Plugin < Tokra::Plugin
-    COMMANDS: Array[String]
+  COMMANDS: Array[String]
 
-    def name: () -> String
-    def extend_api: (Tokra::Ipc::Invoke invoke) -> bool
-
-    private
-
-    def exit_code: (Tokra::Ipc::Invoke invoke) -> Integer
-  end
+  def self.init: () -> Tokra::Plugin::TauriPlugin[nil]
+  private def self.handle_invoke: (Tokra::Ipc::Invoke invoke) -> bool
+  private def self.exit_code: (Tokra::Ipc::Invoke invoke) -> Integer
 end
