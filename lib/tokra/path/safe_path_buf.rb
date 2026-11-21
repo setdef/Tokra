@@ -39,9 +39,6 @@ module Tokra
     #   safe = Tokra::Path::SafePathBuf.new("notes/today.md")
     #   File.read(app.path.app_data_dir.join(safe.display))
     class SafePathBuf < Data.define(:path)
-      # Tauri's message for a path that climbs.
-      MESSAGE = "cannot traverse directory, rewrite the path without the use of `../`"
-
       # Checks +path+, a String or anything with +to_path+ such as a
       # Pathname. Raises ArgumentError with Tauri's message when a
       # component of it is <tt>..</tt>, as SafePathBuf::new returns that
@@ -55,6 +52,9 @@ module Tokra
 
       # :attr_reader: path
       # The path, a String.
+
+      # Tauri's message for a path that climbs.
+      MESSAGE = "cannot traverse directory, rewrite the path without the use of `../`"
 
       # Whether +path+ has a <tt>..</tt> component by +std+'s rules.
       def self.traverses?(path, std) # :nodoc:
