@@ -165,8 +165,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `invoke_handler`, `js_init_script`, `js_init_script_on_all_frames`,
   `setup` (with the handle and a `Tokra::PluginApi` whose `config` the
   `config:` type read), `on_navigation`, `on_page_load`, `on_window_ready`,
-  `on_webview_ready`, `on_event`, `on_drop`, `try_build`, and `build`,
-  which make a `Tokra::Plugin::TauriPlugin`; a plugin with no `config:`
+  `on_webview_ready`, `on_event`, `on_drop`,
+  `register_uri_scheme_protocol` and
+  `register_asynchronous_uri_scheme_protocol` (handed to the app's
+  webviews when the plugin initializes, unless its setup fails),
+  `try_build`, and `build`, which make a `Tokra::Plugin::TauriPlugin`; a
+  plugin with no `config:`
   refuses a non-null config with "Error deserializing 'plugins.NAME'
   within your Tokra configuration: invalid type: map, expected unit", and
   the names `core` and `tauri` raise

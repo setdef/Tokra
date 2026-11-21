@@ -32,7 +32,7 @@ module Tokra
     class TauriPlugin < Plugin
       # Made by Plugin::Builder#try_build from the builder's blocks.
       def initialize(name:, config_type:, invoke_handler:, setup:, js_init_script:, on_navigation:, on_page_load:, # :nodoc:
-        on_window_ready:, on_webview_ready:, on_event:, on_drop:
+        on_window_ready:, on_webview_ready:, on_event:, on_drop:, uri_scheme_protocols:
       )
         super()
         @name = name
@@ -46,6 +46,7 @@ module Tokra
         @on_webview_ready = on_webview_ready
         @on_event = on_event
         @on_drop = on_drop
+        @uri_scheme_protocols = uri_scheme_protocols
       end
 
       # The plugin's name (plugin.rs:783-785).
@@ -59,19 +60,21 @@ module Tokra
       # Tokra::Error, "Error deserializing 'plugins.NAME' within your Tokra
       # configuration: ERROR", Tauri's message with the brand renamed
       # (doc/contributors/design/config.md, "File names"); a plugin with no
-      # setup block never reads its config.
-      # Returns +nil+.
+      # setup block never reads its config. Then, unless the setup raised,
+      # it hands each of the builder's URI scheme protocols to the app's
+      # webview manager, for the webviews made from then on. Returns +nil+.
       #
-      # Mirrors <tt>TauriPlugin::initialize</tt> (plugin.rs:787-817). Its
-      # URI scheme protocols wait for the native layer (plan 064, decision
-      # 10).
+      # Mirrors <tt>TauriPlugin::initialize</tt> (plugin.rs:787-817).
       def initialize_plugin(app, config)
         super
         setup = @setup
-        return nil unless setup
-
-        @setup = nil
-        setup.call(app, PluginApi.new(app:, config: read_config(config), name: @name))
+        if setup
+          @setup = nil
+          setup.call(app, PluginApi.new(app:, config: read_config(config), name: @name))
+        end
+        @uri_scheme_protocols.each do |uri_scheme, protocol|
+          app.webview_manager.register_uri_scheme_protocol(uri_scheme, protocol)
+        end
         nil
       end
 

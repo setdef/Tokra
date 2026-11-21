@@ -33,6 +33,7 @@ module Tokra
       @on_webview_ready: ^(Webview) -> void
       @on_event: ^(AppHandle, run_event) -> void
       @on_drop: (^(AppHandle) -> void)?
+      @uri_scheme_protocols: Hash[String, WebviewManager::uri_scheme_protocol]
 
       def initialize: (String name, ?config: _ConfigType[C]) -> void
       def invoke_handler: () { (Ipc::Invoke) -> bool } -> self
@@ -45,6 +46,8 @@ module Tokra
       def on_webview_ready: () { (Webview) -> void } -> self
       def on_event: () { (AppHandle, run_event) -> void } -> self
       def on_drop: () { (AppHandle) -> void } -> self
+      def register_uri_scheme_protocol: (String uri_scheme) { (UriSchemeContext, Native::HttpRequestEvent) -> Response } -> self
+      def register_asynchronous_uri_scheme_protocol: (String uri_scheme) { (UriSchemeContext, Native::HttpRequestEvent, UriSchemeResponder) -> void } -> self
       def try_build: () -> TauriPlugin[C]
       def build: () -> TauriPlugin[C]
 

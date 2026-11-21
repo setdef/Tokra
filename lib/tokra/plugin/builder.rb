@@ -146,6 +146,7 @@ module Tokra
         @on_webview_ready = -> (_webview) {}
         @on_event = -> (_app, _event) {}
         @on_drop = nil
+        @uri_scheme_protocols = {}
       end
 
       # Defines the JS message handler callback: the block gets each
@@ -326,6 +327,73 @@ module Tokra
         self
       end
 
+      # Registers a URI scheme protocol available to all webviews.
+      #
+      # A plugin can serve more than commands: the images it caches, the
+      # files it manages, data it computes. A scheme of its own answers
+      # those requests the way a server would, so an <tt><img></tt> or a
+      # <tt>fetch</tt> on the page reaches it.
+      #
+      # When the app initializes the plugin, it hands +uri_scheme+ and the
+      # block to the app's webviews, which register it as
+      # Tokra::Builder#register_uri_scheme_protocol does: the block receives
+      # a UriSchemeContext and the request, a Native::HttpRequestEvent, and
+      # returns a Response, on the main thread. A later registration of
+      # the same scheme, of either kind, replaces it, and the plugin's
+      # replaces the app's own, since the plugin registers after the app's.
+      # The block need not be Ractor-shareable (plan 064, decision 4).
+      #
+      # URI scheme protocols are registered when the webview is created.
+      # If the plugin is registered after a webview has been created, that
+      # webview does not have this protocol. Pages loaded from a custom
+      # protocol have a different origin on each platform:
+      # <tt><scheme>://localhost/<path></tt> on macOS and Linux, and
+      # <tt>http://<scheme>.localhost/<path></tt> on Windows, so a handler
+      # that answers a page from another origin adds that origin, or
+      # <tt>*</tt>, to <tt>Access-Control-Allow-Origin</tt>.
+      #
+      # Mirrors Tauri's <tt>Builder::register_uri_scheme_protocol</tt>
+      # (plugin.rs:595-656).
+      #
+      # === Example
+      #
+      #   builder.register_uri_scheme_protocol("myscheme") { |_ctx, _request| Tokra::Response.ok("") }
+      def register_uri_scheme_protocol(uri_scheme, &block)
+        handler = required(block, __method__)
+        @uri_scheme_protocols[uri_scheme] = -> (ctx, request, responder) { responder.respond(handler.call(ctx, request)) }
+        self
+      end
+
+      # Registers a URI scheme protocol whose block answers when it is
+      # ready, as #register_uri_scheme_protocol does otherwise: the block
+      # receives a UriSchemeContext, the request, and a UriSchemeResponder,
+      # and calls <tt>responder.respond(response)</tt> once, now or later,
+      # from any thread. A request whose responder never answers stays
+      # pending in the page.
+      #
+      # Mirrors Tauri's
+      # <tt>Builder::register_asynchronous_uri_scheme_protocol</tt>
+      # (plugin.rs:658-724).
+      #
+      # === Example
+      #
+      #   builder.register_asynchronous_uri_scheme_protocol("app-files") do |_ctx, request, responder|
+      #     path = URI(request.uri).path.delete_prefix("/")
+      #     Thread.new do
+      #       responder.respond(
+      #         if File.file?(path)
+      #           Tokra::Response.new(status: 200, headers: {}, body: File.binread(path))
+      #         else
+      #           Tokra::Response.error(400, "failed to read file")
+      #         end
+      #       )
+      #     end
+      #   end
+      def register_asynchronous_uri_scheme_protocol(uri_scheme, &block)
+        @uri_scheme_protocols[uri_scheme] = required(block, __method__)
+        self
+      end
+
       # Builds the TauriPlugin, or raises BuilderError::ReservedName for a
       # name in RESERVED_PLUGIN_NAMES.
       #
@@ -340,7 +408,7 @@ module Tokra
         TauriPlugin.new(name: @name, config_type: @config_type, invoke_handler: @invoke_handler, setup: @setup,
           js_init_script: @js_init_script, on_navigation: @on_navigation, on_page_load: @on_page_load,
           on_window_ready: @on_window_ready, on_webview_ready: @on_webview_ready, on_event: @on_event,
-          on_drop: @on_drop)
+          on_drop: @on_drop, uri_scheme_protocols: @uri_scheme_protocols.dup)
       end
 
       # Builds the TauriPlugin, as #try_build does. Tauri's panics where

@@ -15,12 +15,14 @@ module Tokra
       @on_webview_ready: ^(Webview) -> void
       @on_event: ^(AppHandle, run_event) -> void
       @on_drop: (^(AppHandle) -> void)?
+      @uri_scheme_protocols: Hash[String, WebviewManager::uri_scheme_protocol]
 
       def initialize: (name: String, config_type: _ConfigType[C], invoke_handler: ^(Ipc::Invoke) -> bool,
                        setup: (^(AppHandle, PluginApi[C]) -> void)?, js_init_script: [String, bool]?,
                        on_navigation: ^(Webview, Ferro::Url::Url) -> bool, on_page_load: ^(Webview, PageLoadPayload) -> void,
                        on_window_ready: ^(Window) -> void, on_webview_ready: ^(Webview) -> void,
-                       on_event: ^(AppHandle, run_event) -> void, on_drop: (^(AppHandle) -> void)?) -> void
+                       on_event: ^(AppHandle, run_event) -> void, on_drop: (^(AppHandle) -> void)?,
+                       uri_scheme_protocols: Hash[String, WebviewManager::uri_scheme_protocol]) -> void
 
       def name: () -> String
       def initialize_plugin: (AppHandle app, json_value config) -> nil

@@ -198,6 +198,65 @@ class TestUriSchemeProtocols < Minitest::Test
     assert_equal ['"PONG"', '"Command ping not allowed by ACL"'], StubNative.responses.map(&:last)
   end
 
+  # A plugin's schemes go to the app's webview manager when the plugin
+  # initializes, and every webview made after registers them
+  # (plugin.rs:635-724, 810-815). Its blocks need not be Ractor-shareable
+  # (plan 064, decision 4).
+  def test_a_plugins_scheme_reaches_its_handler
+    heard = []
+    plugin = Tokra::Plugin::Builder.new("files")
+      .register_uri_scheme_protocol("second") do |ctx, request|
+        heard << [ctx.webview_label, request.uri]
+        Tokra::Response.ok("from the plugin")
+      end
+      .build
+    run_app(-> (b) { b.plugin(plugin) }) { [request("second", "second://localhost/a.png")] }
+
+    assert_equal [["main", "second://localhost/a.png"]], heard
+    assert_equal [[5, 200, [["content-type", "text/html"]], "from the plugin"]], StubNative.responses
+    assert_equal %w[second tokra ipc], main_webview.uri_scheme_protocols
+  end
+
+  def test_a_plugins_asynchronous_scheme_answers_through_its_responder
+    plugin = Tokra::Plugin::Builder.new("files").register_asynchronous_uri_scheme_protocol("third", &THIRD).build
+    run_app(-> (b) { b.plugin(plugin) }) { [request("third", "third://localhost/data")] }
+
+    assert_equal [[:third, "main", "third://localhost/data"]], log
+    assert_equal [[5, 200, [["content-type", "application/json"]], "third"]], StubNative.responses
+  end
+
+  # The builder's plugins initialize after the app's own schemes are held,
+  # so a plugin's scheme replaces the app's of the same name, as Tauri's
+  # map insert does (app.rs:2289; manager/webview.rs:98-108).
+  def test_a_plugins_scheme_replaces_the_apps_of_the_same_name
+    plugin = Tokra::Plugin::Builder.new("files").register_uri_scheme_protocol("second", &SYNC).build
+    run_app(-> (b) { b.register_uri_scheme_protocol("second", &SECOND).plugin(plugin) }) do
+      [request("second", "second://localhost/")]
+    end
+
+    assert_equal [:sync], log
+  end
+
+  # Tauri's initialize returns at a failed setup, before the protocols are
+  # registered (plugin.rs:793-815).
+  def test_a_plugin_whose_setup_fails_registers_no_scheme
+    app = build_test_app
+    plugin = Tokra::Plugin::Builder.new("files")
+      .register_uri_scheme_protocol("second", &SYNC)
+      .setup { |_app, _api| raise "no files" }
+      .build
+
+    assert_raises(Tokra::Error::PluginInitialization) { app.handle.plugin(plugin) }
+    refute app.handle.webview_manager.uri_scheme_protocols.key?("second")
+  end
+
+  def test_a_plugins_scheme_needs_a_block
+    builder = Tokra::Plugin::Builder.new("files")
+
+    assert_raises(ArgumentError) { builder.register_uri_scheme_protocol("second") }
+    assert_raises(ArgumentError) { builder.register_asynchronous_uri_scheme_protocol("second") }
+  end
+
   private def log = Thread.current[:schemes]
 
   private def main_webview
