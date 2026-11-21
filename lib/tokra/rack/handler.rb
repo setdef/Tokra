@@ -79,10 +79,11 @@ module Rack # :nodoc:
         #
         def run(app, context: nil, invoke_handler: nil, native: ::Tokra::Native, **options)
           context ||= default_context(options[:config])
-          # Porcelain over plumbing (ADR 004): build a Tokra::Builder with
-          # this Rack app as the tokra:// content server and let App own the
-          # event loop, webview, script injection, and IPC dispatch. This
-          # keeps one unified path rather than a second bespoke loop.
+          # Porcelain over plumbing (doc/contributors/design/ipc.md): build a
+          # Tokra::Builder with this Rack app as the tokra:// content server
+          # and let App own the event loop, webview, script injection, and IPC
+          # dispatch. This keeps one unified path rather than a second bespoke
+          # loop.
           builder = ::Tokra::Builder.new.app(app)
           builder.invoke_handler(&invoke_handler) if invoke_handler
           builder.run(context, native:)

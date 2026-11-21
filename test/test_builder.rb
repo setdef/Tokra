@@ -11,7 +11,7 @@ require_relative "support/test_app"
 
 # Builder#build and Builder#run take the app's Context, as Tauri's
 # Builder::build and Builder::run do (app.rs:2094, 2298-2302), and the
-# window settings ADR 004 invented are gone: the config holds them (ADR 014;
+# window settings Tokra's first builder design invented are gone: the config holds them (ADR 014;
 # plan 054, decision 12).
 class TestBuilder < Minitest::Test
   def setup

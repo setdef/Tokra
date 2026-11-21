@@ -299,8 +299,8 @@ module Tokra
       create_config_tray
 
       # If a Rack app was configured, build the adapter that serves it
-      # over tokra:// (ADR 004: Builder aggregates the app, App instantiates
-      # the Handler). The Rack app runs on the main Ractor for now.
+      # over tokra:// (Builder aggregates the app, App instantiates the
+      # Handler; doc/contributors/design/ipc.md, "One App path"). The Rack app runs on the main Ractor for now.
       rack_app = @builder.__send__(:rack_app)
       @rack_handler = ::Rack::Handler::Tokra.new(rack_app, proxy) if rack_app
 

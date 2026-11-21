@@ -11,7 +11,8 @@ require_relative "../support/stub_native"
 require_relative "../support/test_app"
 
 # Tests for Builder#app: serving a Rack app over the tokra:// protocol
-# through the unified App path (ADR 004 porcelain over Rack::Handler).
+# through the unified App path, porcelain over Rack::Handler
+# (doc/contributors/design/ipc.md, "One App path").
 class TestBuilderRackApp < Minitest::Test
   # A minimal Rack app echoing the path it received.
   ECHO_APP = -> (env) { [200, { "content-type" => "text/plain" }, ["echo:#{env['PATH_INFO']}"]] }

@@ -43,8 +43,9 @@ module Tokra
     #
     # Pass any Rack application (Rails, Roda, Sinatra) and the built App
     # serves it, following redirects and forwarding cookies. Mirrors the
-    # <tt>.app(MyRackApp)</tt> context step in ADR 004; the request/response
-    # translation is handled by <tt>Rack::Handler::Tokra</tt>.
+    # <tt>.app(MyRackApp)</tt> step of Tokra's first builder design; the
+    # request/response translation is handled by <tt>Rack::Handler::Tokra</tt>
+    # (doc/contributors/design/ipc.md, "One App path").
     #
     # === Example
     #

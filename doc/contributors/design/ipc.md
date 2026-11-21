@@ -62,7 +62,9 @@ Tauri routes both transports through `webview.on_message`. Tokra
 routes both through one private `App#route_invoke`: `plugin:`-prefixed
 commands go to the plugin store and everything else to the app's
 `invoke_handler`, and an unclaimed command rejects with `Command NAME
-not found`. Each transport supplies only what differs: how it reads the
+not found`. The app's `invoke_handler` is a block that dispatches on
+`invoke.command` at run time, where Tauri's is a dispatch table its
+`generate_handler!` macro builds when the app compiles. Each transport supplies only what differs: how it reads the
 raw invoke key (a JSON member for `postMessage`, the `Tauri-Invoke-Key`
 header for `ipc://`), how it parses the payload, where it finds the
 origin, its responder, and its drop action.
