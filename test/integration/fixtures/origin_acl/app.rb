@@ -5,7 +5,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
-# Fixture for origin_acl_test.rb: the local-origin stopgap (ADR 010 §6).
+# Fixture for origin_acl_test.rb: the local-origin stopgap
+# (doc/contributors/design/ipc.md, "Only the app's own origin may invoke").
 # A frame from tokra://foreign.test, a host other than localhost, sends the
 # same invoke the app's own page sends, over both transports. Run by hand to
 # watch it:

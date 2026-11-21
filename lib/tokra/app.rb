@@ -834,7 +834,7 @@ module Tokra
     # invoke whose origin is not the app's own (local_url?) with Tauri's
     # release-build ACL message. That is stricter than Tauri, which lets a
     # remote origin call app commands when the app has no ACL manifest;
-    # the stopgap goes away when capabilities land (ADR 010). The
+    # the stopgap goes away when capabilities land (doc/contributors/design/ipc.md). The
     # channel-data fetch command is exempt, as Tauri exempts it from the
     # ACL (webview/mod.rs:1802-1806). On Linux the
     # postMessage origin is the webview's top-level URI, not the posting

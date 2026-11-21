@@ -9,7 +9,7 @@
 require_relative "support/real_app"
 
 # The real @tauri-apps/api invoke, loaded with with_global_tauri, rides the
-# ipc:// custom protocol (ADR 010) and never falls back to postMessage. A
+# ipc:// custom protocol (doc/contributors/design/ipc.md) and never falls back to postMessage. A
 # request with the wrong invoke key is left unanswered, as in Tauri.
 class IpcTransportTest < RealApp::TestCase
   def setup

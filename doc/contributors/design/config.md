@@ -251,7 +251,8 @@ packaged app may carry.
   fixture, and test the capabilities it needs. Before that commit the
   authority is resolved and held, and checks nothing. From it on, an app
   needs a capability to call any plugin command, as in Tauri. Until then
-  the local-origin stopgap of ADR 010 §6 stands.
+  the local-origin stopgap stands ([ipc.md](ipc.md), "Only the app's
+  own origin may invoke").
 - A refusal carries Tauri's debug text in development and its release
   text in a packaged app.
 - Tauri's behavior is ported as written where it surprises: a deny in

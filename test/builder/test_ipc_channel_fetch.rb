@@ -102,7 +102,7 @@ class TestBuilderIpcChannelFetch < Minitest::Test
   end
 
   # webview/mod.rs:1802-1806: the fetch command skips the ACL check, so it
-  # skips the stopgap that stands in for it (ADR 010).
+  # skips the stopgap that stands in for it (doc/contributors/design/ipc.md).
   def test_fetch_is_not_subject_to_the_origin_stopgap
     app = build_test_app
     _, headers, body = run_events(app, [fetch_request(app, channel_id: "9999999", origin: "https://example.com")]).first

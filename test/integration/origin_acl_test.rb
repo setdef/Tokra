@@ -8,7 +8,7 @@
 
 require_relative "support/real_app"
 
-# The local-origin stopgap (ADR 010 §6) in a real webview: a frame from
+# The local-origin stopgap (doc/contributors/design/ipc.md, "Only the app's own origin may invoke") in a real webview: a frame from
 # tokra://foreign.test that holds the real invoke key is rejected over both
 # transports with Tauri's release-build ACL message, while the app's own page
 # is answered.
@@ -40,7 +40,7 @@ class OriginAclTest < RealApp::TestCase
   # frame's (wry 0.54.1 src/webkitgtk/mod.rs:635-645), so a foreign frame's
   # message carries tokra://localhost and is answered. Tauri parses the same
   # URI (ipc/protocol.rs:302) and decides locality from it
-  # (webview/mod.rs:1726), so it has the same gap (ADR 010, section 6). This
+  # (webview/mod.rs:1726), so it has the same gap (doc/contributors/design/ipc.md). This
   # asserts what Linux does, so a wry change that reports the frame shows up.
   def test_a_foreign_origin_over_post_message_is_rejected_where_wry_reports_the_frame
     expected = if RbConfig::CONFIG["host_os"].include?("linux")
