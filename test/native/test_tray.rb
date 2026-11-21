@@ -9,6 +9,7 @@ require "test_helper"
 require "open3"
 require "rbconfig"
 require "tmpdir"
+require_relative "../support/desktop"
 require_relative "../support/native_event_loop"
 require_relative "../support/test_app"
 
@@ -22,7 +23,7 @@ class TestNativeTray < Minitest::Test
   def linux? = RbConfig::CONFIG["host_os"].include?("linux")
 
   def tray(id = "native-tray", **attributes)
-    reason = NativeEventLoop.unavailable_reason
+    reason = NativeEventLoop.unavailable_reason || Desktop.tray_unavailable_reason
     skip reason if reason
     NativeEventLoop.shared
     Tokra::Native::TrayIcon.new(id, attributes.transform_keys(&:to_s)).tap { |made| (@trays ||= []) << made }
@@ -69,7 +70,7 @@ class TestNativeTray < Minitest::Test
   end
 
   def test_a_tray_keeps_its_id_and_takes_every_attribute
-    reason = NativeEventLoop.unavailable_reason
+    reason = NativeEventLoop.unavailable_reason || Desktop.tray_unavailable_reason
     skip reason if reason
     menu = Tokra::Native::Menu.with_id("native-tray-menu")
     menu.append(Tokra::Native::MenuItem.with_id("native-tray-item", "Item", true, nil))

@@ -7,6 +7,7 @@
 
 require_relative "../support/real_app"
 require_relative "../support/keyboard_notice"
+require_relative "../../support/desktop"
 
 # A real tray menu (plan 043), opened the way tray-icon opens it for a
 # click: -[NSStatusBarButton performClick:] on macOS and the
@@ -25,6 +26,8 @@ class TrayMenuTest < RealApp::TestCase
   def setup
     super
     skip "Linux's tray menu is shown by the desktop's StatusNotifierItem host" if linux?
+    reason = Desktop.tray_unavailable_reason
+    skip reason if reason
     @run = self.class.fixture_run do
       KeyboardNotice.take_the_keyboard_for_the_run
       RealApp.launch("tray_menu")

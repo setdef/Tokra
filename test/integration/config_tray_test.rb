@@ -6,6 +6,7 @@
 #++
 
 require_relative "support/real_app"
+require_relative "../support/desktop"
 
 # A real app built from its tokra.conf.json shows the tray the config's
 # app.trayIcon describes, built before the setup hook with the id "main"
@@ -20,6 +21,8 @@ class ConfigTrayTest < RealApp::TestCase
 
   def setup
     super
+    reason = Desktop.tray_unavailable_reason
+    skip reason if reason
     @run = self.class.fixture_run { RealApp.launch("config_tray") }
     assert_finished @run
     assert_equal 0, @run.status, @run.describe

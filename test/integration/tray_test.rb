@@ -6,6 +6,7 @@
 #++
 
 require_relative "support/real_app"
+require_relative "../support/desktop"
 
 # A real tray icon, read back from the platform and sent events through
 # tray-icon's own dispatch, so each event comes through tray-icon's handler
@@ -18,6 +19,8 @@ class TrayTest < RealApp::TestCase
 
   def setup
     super
+    reason = Desktop.tray_unavailable_reason
+    skip reason if reason
     @run = self.class.fixture_run { RealApp.launch("tray") }
     assert_finished @run
     assert_equal 0, @run.status, @run.describe

@@ -6,6 +6,7 @@
 #++
 
 require_relative "support/real_app"
+require_relative "../support/desktop"
 
 # A real window's getters and setters (plan 040), changed from another
 # thread through Tokra::Window and read back from what tao reports. The
@@ -201,6 +202,9 @@ class WindowStateTest < RealApp::TestCase
   end
 
   def test_the_cursor_position_is_a_physical_position
+    reason = Desktop.cursor_unavailable_reason
+    skip reason if reason
+
     expected = {
 "handle" => "Tokra::PhysicalPosition",
 "window" => "Tokra::PhysicalPosition",
