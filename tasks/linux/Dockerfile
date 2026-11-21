@@ -24,11 +24,13 @@ RUN apt-get update \
 
 # Ruby, built as setup-ruby's are, with a shared libruby. Its checksum is
 # the one ruby-lang.org publishes for the version, so the two change
-# together. test_linux_gate.rb checks the version is mise.toml's, and in
-# the series of each Ruby in ci.yml's matrix, which names a series, not a
-# patch.
-ARG RUBY_VERSION=4.0.9
-ARG RUBY_SHA256=c35350682ff050b79702d57ade4516e7336063f510155d19fb2fb5b3f3909511
+# together. The image holds one Ruby, the one mise.toml pins on Linux, so
+# test:linux runs the job of ci.yml's matrix in that Ruby's series, and
+# CI alone runs the others. test_linux_gate.rb checks the version is
+# mise.toml's Linux pin, and in the series of a Ruby in ci.yml's matrix,
+# which names a series, not a patch.
+ARG RUBY_VERSION=4.1.0-preview1
+ARG RUBY_SHA256=fb530bb88e90de3ae91c1310a27ae090e6bd989b8726de50ef12a890a85b88ef
 RUN curl --fail --silent --show-error --location --output /tmp/ruby.tar.gz \
       "https://cache.ruby-lang.org/pub/ruby/${RUBY_VERSION%.*}/ruby-${RUBY_VERSION}.tar.gz" \
  && echo "${RUBY_SHA256}  /tmp/ruby.tar.gz" | sha256sum --check - \

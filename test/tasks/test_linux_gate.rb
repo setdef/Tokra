@@ -212,11 +212,10 @@ class TestLinuxGate < Minitest::Test
     ruby = dockerfile[/^ARG RUBY_VERSION=(\S+)$/, 1]
     matrix = YAML.safe_load_file(File.join(ROOT, ".github/workflows/ci.yml")).dig("jobs", "gate", "strategy", "matrix", "ruby")
 
-    assert_equal mise[/^ruby = "(.*)"$/, 1], ruby
-    # The image holds one Ruby, so with more in the matrix test:linux
-    # runs only one of them: decide which, or build one image for each.
-    assert_equal 1, matrix.size, "ci.yml's matrix runs Rubies #{matrix.inspect}, but test:linux runs only #{ruby}"
-    matrix.each { |series| assert ruby.start_with?("#{series}."), "#{ruby} is not in ci.yml's #{series} series" }
+    # The image holds one Ruby, the one a Linux machine's mise installs,
+    # so test:linux runs the matrix's job in that Ruby's series.
+    assert_equal mise[/^\s*\{ version = "([^"]+)", os = \[[^\]]*"linux"/, 1], ruby
+    assert(matrix.any? { |series| ruby.start_with?("#{series}.") }, "#{ruby} is in none of ci.yml's series #{matrix.inspect}")
     assert_match(/^ARG RUBY_SHA256=\h{64}$/, dockerfile)
     # Ubuntu 24.04's python3 is 3.12; a new pin needs another source.
     assert_equal "3.12", mise[/^python = "(.*)"$/, 1]

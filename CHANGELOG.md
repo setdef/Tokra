@@ -12,6 +12,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Runs on Ruby 4.1, its preview included, on Linux and macOS, beside 4.0;
+  not yet on Windows
 - Tauri's event system: `Listener` (`listen`, `once`, `unlisten`,
   `listen_any`, `once_any`) and `Emitter` (`emit`, `emit_str`, `emit_to`,
   `emit_str_to`, `emit_filter`, `emit_str_filter`) on `App`, `AppHandle`,

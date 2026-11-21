@@ -34,10 +34,20 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         # Each supported Ruby release, one per line (tokra.gemspec requires
-        # 4.0.1 or newer; setup-ruby picks the latest 4.0 patch). Add a
-        # release when it ships, and remove one only at its end of life.
+        # 4.0.1 or newer). setup-ruby picks the newest of each series,
+        # preferring a release to a preview: 4.0's latest patch, and
+        # 4.1.0-preview1 until 4.1.0 ships. Add a release when it ships,
+        # and remove one only at its end of life.
         ruby:
           - "4.0"
+          - "4.1"
+        # No Ruby 4.1 builds the extension soundly on Windows yet: on
+        # RubyInstaller's builds of it, magnus does not compile against
+        # Ruby's 64-bit lengths, or, where bindgen misses the define that
+        # makes them so, compiles against the wrong ones (Plan 069).
+        exclude:
+          - os: windows-latest
+            ruby: "4.1"
     defaults:
       run:
         shell: bash
@@ -163,11 +173,12 @@ jobs:
           echo "LIBCLANG_PATH=$libclang" >> "$GITHUB_ENV"
 
       # The bundle, as setup-ruby's bundler-cache would install it: frozen
-      # to Gemfile.lock, in vendor/bundle, cached by OS, CPU, exact Ruby,
-      # and lockfile.
+      # to Gemfile.lock, in vendor/bundle, cached by OS, CPU, exact Ruby
+      # (its revision too, since a preview of 4.1.0 and 4.1.0 itself both
+      # say 4.1.0), and lockfile.
       - name: Read the exact Ruby
         id: exact
-        run: echo "ruby=$(ruby -e 'print RUBY_VERSION, "-", RUBY_PLATFORM')" >> "$GITHUB_OUTPUT"
+        run: echo "ruby=$(ruby -e 'print RUBY_VERSION, "-", RUBY_REVISION, "-", RUBY_PLATFORM')" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor/bundle
