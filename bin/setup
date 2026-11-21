@@ -9,9 +9,23 @@
 # and a display server") come from bin/linux-env where Debian or Ubuntu
 # lacks them (Plan 068); on another system, install them first. On
 # Windows, run bin/setup.ps1, which runs this in the bash of Ruby's MSYS2.
+#
+# With --gate it installs only what the gate needs, and leaves the git
+# hooks and the RDoc alone. .githooks/pre-push runs it so before every
+# push, so a fresh checkout needs nothing run first (Plan 061).
 
 set -euo pipefail
 IFS=$'\n\t'
+
+gate=false
+case "$*" in
+  "") ;;
+  --gate) gate=true ;;
+  *)
+    echo "usage: bin/setup [--gate]" >&2
+    exit 2
+    ;;
+esac
 set -vx
 
 if ! command -v mise >/dev/null 2>&1; then
@@ -58,6 +72,11 @@ if [ "$windows" = true ]; then
   mise x -- sh bin/windows-env bundle install
 else
   mise x -- bin/linux-env bundle install
+fi
+
+# The rest is for a clone a person works in, not for the gate.
+if [ "$gate" = true ]; then
+  exit 0
 fi
 
 # The pre-push hook, .githooks/pre-push, runs the gate on the commit you

@@ -9,10 +9,11 @@
 #
 # The gate tests the working tree, so the push is refused unless that is
 # the commit being pushed, with nothing uncommitted and nothing untracked.
-# On Linux the gate runs as CI runs it (.github/workflows/ci.yml), under
-# Xvfb and a D-Bus session of its own, so its windows open on no one's
-# desktop. On Windows it runs from MSYS2's bash, after bin/setup.ps1, and
-# runs the gate as CI's Windows job does.
+# Then the hook sets Tokra up itself, so it needs nothing run before it,
+# not even in a fresh checkout: only mise. On Linux the gate runs as CI
+# runs it (.github/workflows/ci.yml), under Xvfb and a D-Bus session of
+# its own, so its windows open on no one's desktop. On Windows it runs
+# from MSYS2's bash, as CI's Windows job does.
 root=$(git rev-parse --show-toplevel) || exit 1
 cd "$root" || exit 1
 # git points a hook's commands at its own repository through these, from a
@@ -55,6 +56,22 @@ if [ -n "$untracked" ]; then
   exit 1
 fi
 
+# bin/setup --gate installs the tools mise.toml pins and the bundle, and on
+# Linux the packages the machine lacks, and does nothing when they are
+# there. It leaves the git hooks and the RDoc to a person's bin/setup.
+# What it prints goes to a log, and its end to you if it fails.
+log=tmp/pre-push-setup.log
+mkdir -p tmp || exit 1
+bin/setup --gate > "$log" 2>&1 || {
+  status=$?
+  tail -n 40 "$log" >&2
+  echo "pre-push: bin/setup --gate failed with status $status; all it printed is in $log." >&2
+  exit "$status"
+}
+
+# Nothing need have activated mise, so the gate runs with the tools it
+# pins through mise x.
+#
 # Windows sets OS for every process, and MSYS2's bash passes it on.
 # bin/windows-env sets what CI's earlier steps set for Rust and bindgen,
 # and A and RUST_BACKTRACE are the gate step's own on Windows: each test
@@ -63,7 +80,7 @@ if [ "${OS:-}" = Windows_NT ]; then
   A=--verbose
   RUST_BACKTRACE=1
   export A RUST_BACKTRACE
-  exec sh bin/windows-env bundle exec rake
+  exec mise x -- sh bin/windows-env bundle exec rake
 fi
 case "$(uname -s)" in
   Linux)
@@ -72,6 +89,6 @@ case "$(uname -s)" in
     GDK_BACKEND=x11
     export GDK_BACKEND
     # bin/linux-env brings ci.yml's packages where they are missing.
-    exec bin/linux-env xvfb-run --auto-servernum dbus-run-session -- bundle exec rake ;;
-  *) exec bundle exec rake ;;
+    exec mise x -- bin/linux-env xvfb-run --auto-servernum dbus-run-session -- bundle exec rake ;;
+  *) exec mise x -- bundle exec rake ;;
 esac

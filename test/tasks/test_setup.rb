@@ -10,8 +10,8 @@ require "open3"
 require "tmpdir"
 require "yaml"
 
-# Tests bin/setup (Plan 061): what it installs for a person and for a CI
-# runner, and the pre-push stub it writes. Each test runs the real script
+# Tests bin/setup (Plan 061): what it installs for a person, for a CI
+# runner, and for the gate, and the pre-push stub it writes. Each test runs the real script
 # in a real repository, with a stand-in for mise that logs its arguments.
 class TestSetup < Minitest::Test
   ROOT = File.expand_path("../..", __dir__)
@@ -26,12 +26,8 @@ class TestSetup < Minitest::Test
     { printf '%s' mise; for a in "$@"; do printf ' %s' "$a"; done; printf '\n'; } >> "$(dirname "$0")/log"
   SH
 
-  # The real hook, and the gate a stand-in for bundle or xvfb-run logs.
+  # The hook this repository ships.
   REAL_HOOK = File.join(ROOT, ".githooks/pre-push")
-  GATE = <<~'SH'
-    #!/bin/sh
-    { printf '%s' "$(basename "$0")"; for a in "$@"; do printf ' %s' "$a"; done; printf '\n'; } >> "$(dirname "$0")/log"
-  SH
 
   # A hook that records the folder it ran in and its arguments.
   HOOK = <<~'SH'
@@ -94,10 +90,13 @@ class TestSetup < Minitest::Test
 
   # Runs bin/setup in the repository, and returns what it printed and its
   # status.
-  private def run_setup(extra = {}, chdir: @repo) = Open3.capture2e(env(extra), SETUP, chdir:)
+  private def run_setup(extra = {}, *, chdir: @repo) = Open3.capture2e(env(extra), SETUP, *, chdir:)
 
   # What mise was called with, one line a call.
-  private def calls = File.readlines(File.join(@bin, "log"), chomp: true)
+  private def calls
+    log = File.join(@bin, "log")
+    File.exist?(log) ? File.readlines(log, chomp: true) : []
+  end
 
   def test_for_a_person_it_installs_the_tools_the_bundle_the_commit_hook_and_the_docs
     output, status = run_setup
@@ -125,6 +124,43 @@ class TestSetup < Minitest::Test
       "mise x -- bundle config set --local frozen true",
       "mise x -- bin/linux-env bundle install",
     ], calls
+  end
+
+  # .githooks/pre-push runs bin/setup --gate before every push. It installs
+  # what the gate needs and nothing only a person's clone wants, so a push
+  # writes no hook and spends no time on the documentation.
+  def test_for_the_gate_it_installs_the_tools_and_the_bundle_and_leaves_the_hooks_and_the_docs
+    output, status = run_setup({}, "--gate")
+
+    assert_predicate status, :success?, output
+    assert_equal [
+      "mise install",
+      "mise x -- python -m pip install --quiet #{REUSE}",
+      "mise x -- bin/linux-env bundle install",
+    ], calls
+    refute_path_exists @stub
+  end
+
+  def test_for_the_gate_on_a_ci_runner_it_installs_the_bundle_as_ci_does
+    output, status = run_setup({ "CI" => "true" }, "--gate")
+
+    assert_predicate status, :success?, output
+    assert_equal [
+      "mise install",
+      "mise x -- python -m pip install --quiet #{REUSE}",
+      "mise x -- bundle config set --local path vendor/bundle",
+      "mise x -- bundle config set --local frozen true",
+      "mise x -- bin/linux-env bundle install",
+    ], calls
+    refute_path_exists @stub
+  end
+
+  def test_an_argument_it_does_not_know_stops_it_before_it_installs_anything
+    output, status = run_setup({}, "--gtae")
+
+    assert_equal 2, status.exitstatus, output
+    assert_includes output.lines(chomp: true), "usage: bin/setup [--gate]"
+    assert_empty calls
   end
 
   # pre-commit refuses to install under core.hooksPath and would end the
@@ -257,30 +293,29 @@ class TestSetup < Minitest::Test
     assert_empty Dir.glob(File.join(@repo, ".git/worktrees/*/hooks/*"))
   end
 
-  # The whole path, for real: bin/setup's stub, the hook this repository
-  # ships, and a git push, which hands the hook its refs on standard input.
-  # Without them the hook sees nothing to gate and lets the push through.
-  def test_a_real_push_through_its_stub_runs_the_shipped_hook_and_the_gate
-    %w[bundle xvfb-run].each do |name|
-      File.write(File.join(@bin, name), GATE)
-      File.chmod(0o755, File.join(@bin, name))
-    end
+  # The whole path, for real: bin/setup's stub, the hook and bin/setup this
+  # repository ships, and a git push, which hands the hook its refs on
+  # standard input. Without them the hook sees nothing to gate and lets the
+  # push through. The stand-in mise runs nothing, so the gate is its last
+  # call.
+  def test_a_real_push_through_its_stub_runs_the_shipped_hook_its_setup_and_the_gate
     File.write(File.join(@repo, ".githooks/pre-push"), File.read(REAL_HOOK))
-    # On Linux the hook runs the gate through bin/linux-env.
     FileUtils.mkdir_p(File.join(@repo, "bin"))
-    File.write(File.join(@repo, "bin/linux-env"), "#!/bin/sh\nexec \"$@\"\n")
-    File.chmod(0o755, File.join(@repo, "bin/linux-env"))
-    git("add", "bin/linux-env")
+    File.write(File.join(@repo, "bin/setup"), File.read(SETUP))
+    File.chmod(0o755, File.join(@repo, "bin/setup"))
+    git("add", "bin/setup")
     git("commit", "--quiet", "--all", "--message", "the shipped hook")
     remote = File.join(@dir, "remote.git")
     git("init", "--quiet", "--bare", remote, chdir: @dir)
     run_setup
+    before = calls.size
     git("push", "--quiet", remote, "HEAD:refs/heads/trunk")
 
-    gate = calls.reject { |call| call.start_with?("mise") }
+    pushed = calls.drop(before)
 
-    assert_equal 1, gate.size, calls.inspect
-    assert_match(/\A(xvfb-run .* )?bundle exec rake\z/, gate.first)
+    assert_equal "mise install", pushed.first, pushed.inspect
+    refute_includes pushed, "mise x -- bundle exec rake rdoc"
+    assert_match(%r{\Amise x -- (bin/linux-env xvfb-run .* )?bundle exec rake\z}, pushed.last)
     assert_equal git("rev-parse", "HEAD"), git("rev-parse", "refs/heads/trunk", chdir: remote)
   end
 
