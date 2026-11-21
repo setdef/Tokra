@@ -23,6 +23,12 @@ AllCops:
     - "vendor/tauri/**/*"
     # setup-ruby's bundler-cache installs the bundle here in CI
     - "vendor/bundle/**/*"
+# The repository holds LF. On Windows git writes the working tree with CRLF
+# or LF as each clone's core.autocrlf says, so the native style would pass
+# one Windows clone and fail every file of another at the same commit.
+# Elsewhere a CR only arrives by mistake, and the cop still catches it.
+Layout/EndOfLine:
+  Enabled: <%= !Gem.win_platform? %>
 # RDoc mis-parses endless methods: the methods after one lose their comments
 # and visibility (doc/contributors/documentation_style.md, section 5). Every
 # file RDoc reads uses def ... end.
