@@ -15,36 +15,38 @@ console, in Tauri's format:
 == Usage
 
 Build the plugin with Tokra::Plugins::Log::Builder and register it on the
-app handle from the setup hook, before the window opens:
+app's builder, as a Tauri app does:
 
   require "tokra"
   require "tokra-log"
 
-  Tokra::Builder.default
-    .setup(&Ractor.shareable_proc { |app|
-      log = Tokra::Plugins::Log::Builder.new
-        .app_handle(app.handle)
-        .level(:info)
-        .targets([
-          Tokra::Plugins::Log::Target.new(Tokra::Plugins::Log::TargetKind::Stdout.new),
-          Tokra::Plugins::Log::Target.new(Tokra::Plugins::Log::TargetKind::Folder.new(path: "logs")),
-        ])
-        .build
-      app.handle.plugin(log)
-      log.info("started")
-    })
-    .run(Tokra.generate_context)
+  log = Tokra::Plugins::Log::Builder.new
+    .level(:info)
+    .targets([
+      Tokra::Plugins::Log::Target.new(Tokra::Plugins::Log::TargetKind::Stdout.new),
+      Tokra::Plugins::Log::Target.new(Tokra::Plugins::Log::TargetKind::Folder.new(path: "logs")),
+    ])
+    .build
+  Tokra::Builder.default.plugin(log).run(Tokra.generate_context)
+
+When the app starts, the plugin's setup makes its logger and attaches it
+as the process's logger. Reach it with Tokra::Plugins::Log.logger, and
+log from Ruby with +trace+, +debug+, +info+, +warn+, +error+, and
++fatal+. They take Ruby's Logger arguments, so the logger also serves as
+the Logger a library asks for:
+<tt>Tokra::Plugins::Log.logger.warn("db") { "slow query" }</tt> logs
+"slow query" with the target +db+.
+
+A process has one logger, as a Rust process has, and attaches it once: a
+second app in the same process whose log plugin attaches fails to start.
+Build that plugin with +skip_logger+, or attach a logger of your own with
++split+ and Tokra::Plugins::Log.attach_logger.
 
 The plugin takes no config. A +log+ entry under +plugins+ in your
 <tt>tokra.conf.json</tt> fails the app, as it fails a Tauri app. With
 <tt>"withGlobalTauri": true</tt> under +app+, a page finds Tauri's
 frontend API on <tt>window.__TAURI__.log</tt>, from the script the gem
 ships.
-
-Log from Ruby with +trace+, +debug+, +info+, +warn+, +error+, and
-+fatal+. They take Logger's arguments, so the plugin also serves as the
-Logger a library asks for: <tt>log.warn("db") { "slow query" }</tt> logs
-"slow query" with the target +db+.
 
 Log from the page with <tt>@tauri-apps/plugin-log</tt>. Its +trace+
 through +error+ invoke the plugin's <tt>log</tt> command, which logs the
@@ -77,8 +79,13 @@ does.
   file names
 - +rotation_strategy+, +max_file_size+:: what happens to a full log file
 
-LogDir and Webview targets need the app handle, given with +app_handle+.
+- +skip_logger+:: register the plugin without making or attaching a
+  logger
+- +split+:: make the plugin and the logger apart, for you to attach
 
-Tauri's +level_for+, +with_colors+, +skip_logger+, and +split+ raise
-NotImplementedError: each depends on Rust's module paths, fern's colors,
-or Rust's global logger. Their RDoc names the alternative.
+LogDir targets write in the app's log directory, and file targets are
+named for the app unless they name a file.
+
+Tauri's +level_for+ and +with_colors+ raise NotImplementedError: one
+depends on Rust's module paths, the other on fern's colors. Their RDoc
+names the alternative.

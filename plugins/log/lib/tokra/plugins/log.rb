@@ -8,8 +8,9 @@
 # SPDX-SnippetBegin
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # SPDX-SnippetCopyrightText: 2019-2023 Tauri Programme within The Commons Conservancy
-# SPDX-SnippetComment: Plugin adapted from tauri-plugin-log src/lib.rs
-#                      (acquire_logger) and fern 0.7.1 src/log_impl.rs
+# SPDX-SnippetComment: attach_logger and Error adapted from tauri-plugin-log
+#                      src/lib.rs; logger, max_level, and SetLoggerError from
+#                      log 0.4.29 src/lib.rs
 
 require "fileutils"
 require "tokra"
@@ -21,326 +22,116 @@ require_relative "log/target_kind"
 require_relative "log/target"
 require_relative "log/rotating_file"
 require_relative "log/output"
+require_relative "log/logger"
+require_relative "log/commands"
 require_relative "log/builder"
 
 module Tokra
   module Plugins
     # Logging for Tokra applications, ported from Tauri's log plugin.
     #
-    # Use Builder to make the Plugin.
+    # An app logs from its Ruby code and from its pages, and wants both in
+    # one place. Register the plugin that Builder#build makes; its setup
+    # attaches a Logger as the process's logger, which Ruby code reaches
+    # with Log.logger and the page's <tt>@tauri-apps/plugin-log</tt>
+    # reaches through the plugin's <tt>log</tt> command.
+    #
+    # Tauri's plugin crate re-exports the log crate, whose global logger
+    # Rust code logs to with <tt>log::info!</tt>. Tokra keeps the log
+    # crate's names here, beside Record and Metadata: Log.logger and
+    # Log.max_level are <tt>log::logger</tt> and <tt>log::max_level</tt>.
+    #
+    # === Example
+    #
+    #   Tokra::Builder.default
+    #     .plugin(Tokra::Plugins::Log::Builder.new.level(:info).build)
+    #     .setup(&Ractor.shareable_proc { |_app| Tokra::Plugins::Log.logger.info("started") })
+    #     .run(Tokra.generate_context)
     module Log
-      # Logger's severity for a trace record, one below Logger's DEBUG,
-      # for Plugin#add.
-      TRACE = -1
+      # The log plugin's errors (lib.rs:56-68).
+      class Error < Tokra::Error
+        # Builder#split on a builder that called Builder#skip_logger.
+        class LoggerNotInitialized < Error
+          # Tauri's message (lib.rs:66-67).
+          def initialize(message = "Internal logger disabled and cannot be acquired or attached")
+            super
+          end
+        end
+      end
 
-      # The log plugin: one logger for the app's Ruby code and its pages.
+      # A second attach_logger in one process: the process has one logger,
+      # and it is set once.
       #
-      # A desktop app logs from two places, its Ruby code and its pages,
-      # and you want both in the same terminal and the same files, in one
-      # format, with the page's lines marked as the page's. Built by
-      # Builder, the plugin takes each record through the builder's level,
-      # filters, and format, then through each target's filters and
-      # format, to its targets, as Tauri's fern dispatch does.
+      # Mirrors <tt>log::SetLoggerError</tt> (log lib.rs:462-463, 1551-1555).
+      class SetLoggerError < Tokra::Error
+        # The log crate's message.
+        def initialize(message = "attempted to set a logger after the logging system was already initialized")
+          super
+        end
+      end
+
+      # The logger Log.logger answers before any is attached: one that
+      # drops every record, as the log crate's NopLogger does.
+      NOP_LOGGER = Ractor.make_shareable(Log::Logger.new(level: :off, filters: [], format: nil, app_name: "", targets: []))
+      private_constant :NOP_LOGGER
+
+      # Guards the one attach.
+      ATTACH = Mutex.new
+      private_constant :ATTACH
+
+      @logger = nil
+      @max_level = :off
+
+      # Attaches +log+ as the process's logger, which Log.logger answers
+      # and the plugin's <tt>log</tt> command logs to, and records
+      # +max_level+ for Log.max_level. Returns +nil+.
       #
-      # Ruby code logs with #trace, #debug, #info, #warn, #error, and
-      # #fatal, which take Logger's arguments, so the plugin also stands in
-      # for a Logger a library takes. A record's target is the +progname+
-      # passed, or the app's name.
+      # A process has one logger, set once: a second call raises
+      # SetLoggerError and changes nothing, as the log crate's
+      # +set_boxed_logger+ does. So a second app in one process whose log
+      # plugin attaches fails to initialize it; build that one with
+      # Builder#skip_logger.
       #
-      # Mirrors the logger Tauri's plugin installs (lib.rs:567-708).
+      # The logger lives on the main Ractor, where the app's plugins run.
+      #
+      # Mirrors Tauri's <tt>attach_logger</tt> (lib.rs:711-719).
       #
       # === Example
       #
-      #   log = Tokra::Plugins::Log::Builder.new.app_handle(app.handle).build
-      #   app.handle.plugin(log)
+      #   plugin, max_level, logger = Tokra::Plugins::Log::Builder.new.split(app.handle)
+      #   Tokra::Plugins::Log.attach_logger(max_level, logger)
+      #   app.handle.plugin(plugin)
+      def self.attach_logger(max_level, log)
+        ATTACH.synchronize do
+          raise SetLoggerError if @logger
+
+          @logger = log
+          @max_level = max_level
+        end
+        nil
+      end
+
+      # The process's logger, or one that drops every record when none is
+      # attached.
       #
-      #   log.info("started")
-      #   log.warn("db") { "slow query" }   # target "db"
-      #   ActiveRecord::Base.logger = log
-      class Plugin < Tokra::Plugin
-        # Logger's severities by the level each logs at; FATAL and UNKNOWN
-        # log at +:error+, log's highest level.
-        SEVERITY_LEVELS = { TRACE => :trace, 0 => :debug, 1 => :info, 2 => :warn }.freeze
-        private_constant :SEVERITY_LEVELS
+      # Mirrors <tt>log::logger</tt> (log lib.rs:1578-1593).
+      #
+      # === Example
+      #
+      #   Tokra::Plugins::Log.logger.warn("db") { "slow query" }
+      def self.logger
+        @logger || NOP_LOGGER
+      end
 
-        # log's level filters, from Off up.
-        LEVEL_FILTERS = %i[off error warn info debug trace].freeze
-        private_constant :LEVEL_FILTERS
-
-        # The range of Rust's u16, which LogLevel deserializes through.
-        U16 = 0..65_535
-        private_constant :U16
-
-        # Returns <tt>"log"</tt>, Tauri's plugin name (lib.rs:667).
-        def name
-          "log"
-        end
-
-        # Makes the plugin from +builder+, opening each target's output
-        # (lib.rs:567-664). Call Builder#build rather than this.
-        #
-        # [builder] A configured Builder.
-        def initialize(builder)
-          super(builder.configured_app_handle)
-          @max_level = LEVEL_FILTERS.index(builder.configured_level) || LEVEL_FILTERS.size
-          @filters = builder.configured_filters.dup.freeze
-          @format = builder.configured_format
-          @app_name = builder.configured_app_name || builder.configured_app_handle&.package_info&.name || "app"
-          @targets = builder.configured_targets.map do |target|
-            [target.filters.dup.freeze, target.formatter, output(target.kind, builder)]
-          end
-        end
-
-        # Initializes the plugin with +app+ and +config+, its slice of the
-        # app config's +plugins+, which must be null: Tauri's log plugin
-        # takes no config, and its setup fails the app with "Error
-        # deserializing 'plugins.log' within your Tauri configuration:
-        # ..." (lib.rs:691-708; plugin.rs:793-806). Tokra's message names
-        # the Tokra configuration (doc/contributors/design/config.md, "File
-        # names").
-        def initialize_plugin(app, config)
-          Tokra::Plugin::Builder::Unit.deserialize(config)
-          super
-        rescue Tokra::Ipc::CommandItem::Mismatch => e
-          raise Tokra::Error, "Error deserializing 'plugins.log' within your Tokra configuration: #{e.message}"
-        end
-
-        # Logs a trace message: very low priority, often extremely verbose,
-        # information. Takes Logger's arguments, as #add does.
-        #
-        # === Example
-        #
-        #   log.trace("frame drawn")
-        def trace(progname = nil, &)
-          add(TRACE, nil, progname, &)
-        end
-
-        # Logs a debug message: lower priority information.
-        #
-        # === Example
-        #
-        #   log.debug("cache") { "miss for #{key}" }
-        def debug(progname = nil, &)
-          add(0, nil, progname, &)
-        end
-
-        # Logs an info message: useful information.
-        #
-        # === Example
-        #
-        #   log.info("window opened")
-        def info(progname = nil, &)
-          add(1, nil, progname, &)
-        end
-
-        # Logs a warn message: hazardous situations.
-        #
-        # === Example
-        #
-        #   log.warn("disk nearly full")
-        def warn(progname = nil, &)
-          add(2, nil, progname, &)
-        end
-
-        # Logs an error message: very serious errors.
-        #
-        # === Example
-        #
-        #   log.error(exception)
-        def error(progname = nil, &)
-          add(3, nil, progname, &)
-        end
-
-        # Logs a message at +:error+, log's highest level, for Logger's
-        # FATAL.
-        #
-        # === Example
-        #
-        #   log.fatal("cannot start")
-        def fatal(progname = nil, &)
-          add(4, nil, progname, &)
-        end
-
-        # Logs +message+ at +severity+, as Logger#add takes them, and
-        # returns +true+.
-        #
-        # +severity+ is a Logger severity or TRACE; FATAL, UNKNOWN, and
-        # +nil+ log at +:error+. +progname+ becomes the record's target,
-        # the app's name when +nil+. Without a +message+, the block's value
-        # is the message, or else +progname+ is, with the default target. A
-        # record below the builder's level skips the block. A message that
-        # is not a String is written as Logger writes it.
-        #
-        # === Example
-        #
-        #   log.add(Logger::WARN, "slow", "db")
-        #   log.add(Logger::INFO) { "computed #{expensive}" }
-        def add(severity, message = nil, progname = nil)
-          level = level_of(severity)
-          return true unless LEVEL_FILTERS.index(level).to_i <= @max_level
-
-          if message.nil?
-            if block_given?
-              message = yield
-            else
-              message = progname
-              progname = nil
-            end
-          end
-          dispatch(Record.new(args: message_text(message), level:, target: progname || @app_name))
-          true
-        end
-
-        # Serves the <tt>log</tt> command that <tt>@tauri-apps/plugin-log</tt>'s
-        # +trace+, +debug+, +info+, +warn+, and +error+ invoke as
-        # <tt>plugin:log|log</tt> (commands.rs:11-41).
-        #
-        # The command logs the page's message at its LogLevel, with the
-        # target <tt>webview:<location></tt>, or WEBVIEW_TARGET when the
-        # page names no location, and resolves +null+. The record goes
-        # through this plugin as a Ruby record does, where Tauri's goes
-        # through the global logger the plugin installed. An argument that
-        # does not read as its Rust type rejects the invoke with Tauri's
-        # <tt>invalid args</tt> message.
-        #
-        # Returns +true+ for <tt>log</tt>, and +false+ for any other
-        # command.
-        #
-        # === Example
-        #
-        #   // In the page
-        #   import { warn } from "@tauri-apps/plugin-log";
-        #   await warn("slow paint", { keyValues: { frame: "12" } });
-        def extend_api(invoke)
-          return false unless invoke.command == "log"
-
-          level = log_level_arg(invoke)
-          message = argument(invoke, "message").string
-          location = optional_str_arg(invoke, "location")
-          file = optional_str_arg(invoke, "file")
-          line = argument(invoke, "line").deserialize_option { |value| Ipc::CommandItem.integer(value, "u32") }
-          key_values = key_values_arg(invoke)
-          target = location ? "#{WEBVIEW_TARGET}:#{location}" : WEBVIEW_TARGET
-          dispatch(Record.new(args: message, level:, target:, file:, line:, key_values: key_values || {}))
-          invoke.resolve(nil)
-          true
-        rescue Tokra::Error::InvalidArgs => e
-          invoke.reject(e.message)
-          true
-        end
-
-        # Logs +record+ as Tauri's dispatch does: the builder's level and
-        # filters, the builder's format, then each target's filters,
-        # format, and output (fern log_impl.rs:446-550).
-        private def dispatch(record)
-          metadata = record.metadata
-          return unless LEVEL_FILTERS.index(metadata.level).to_i <= @max_level
-          return unless @filters.all? { |filter| filter.call(metadata) }
-
-          record = finish(record, @format)
-          @targets.each do |filters, formatter, output|
-            next unless filters.all? { |filter| filter.call(metadata) }
-
-            output.log(finish(record, formatter))
-          end
-        end
-
-        # +record+ with its args replaced by +format+'s line, or as it was
-        # when there is no format or it returns +nil+, as fern finishes a
-        # record whose format never calls finish (log_impl.rs:452-472).
-        private def finish(record, format)
-          return record unless format
-
-          line = format.call(record.args, record)
-          line.nil? ? record : record.with(args: line.to_s)
-        end
-
-        private def level_of(severity)
-          return :error if severity.nil?
-          return :trace if severity < TRACE
-
-          SEVERITY_LEVELS.fetch(severity, :error)
-        end
-
-        # Logger::Formatter#msg2str.
-        private def message_text(message)
-          case message
-          when ::String then message
-          when ::Exception then "#{message.message} (#{message.class})\n#{message.backtrace&.join("\n")}"
-          else message.inspect
-          end
-        end
-
-        # Argument +key+ of the invoke, read as Tauri's CommandItem reads it.
-        private def argument(invoke, key)
-          Ipc::CommandItem.new(name: invoke.command, key:, payload: invoke.body)
-        end
-
-        # The level, read as serde_repr reads LogLevel: a u16, then one of
-        # its discriminants (serde_repr 0.1.20 lib.rs:101-118).
-        private def log_level_arg(invoke)
-          argument(invoke, "level").deserialize do |value|
-            unless value.is_a?(Integer) && Ipc::Unexpected::JSON_INTEGERS.cover?(value)
-              raise Ipc::CommandItem::Mismatch.invalid_type(value, "u16")
-            end
-            raise Ipc::CommandItem::Mismatch, "invalid value: integer `#{value}`, expected u16" unless U16.cover?(value)
-            unless LogLevel::LEVELS.key?(value)
-              raise Ipc::CommandItem::Mismatch, "invalid value: #{value}, expected one of: 1, 2, 3, 4, 5"
-            end
-
-            LogLevel.to_level(value)
-          end
-        end
-
-        # An Option<&str> argument: absent or null is +nil+.
-        private def optional_str_arg(invoke, key)
-          argument(invoke, key).deserialize_option do |value|
-            value.is_a?(String) ? value : raise(Ipc::CommandItem::Mismatch.invalid_type(value, "a borrowed string"))
-          end
-        end
-
-        # The Option<HashMap<String, String>> of key-value pairs.
-        private def key_values_arg(invoke)
-          argument(invoke, "keyValues").deserialize_option do |value|
-            raise Ipc::CommandItem::Mismatch.invalid_type(value, "a map") unless value.is_a?(Hash)
-
-            value.each_value do |item|
-              raise Ipc::CommandItem::Mismatch.invalid_type(item, "a string") unless item.is_a?(String)
-            end
-            value
-          end
-        end
-
-        # The output for +kind+ (lib.rs:587-657).
-        private def output(kind, builder)
-          case kind
-          when TargetKind::Stdout then Output::Stream.new(:stdout)
-          when TargetKind::Stderr then Output::Stream.new(:stderr)
-          when TargetKind::Folder then file_output(kind.path, kind.file_name, builder)
-          when TargetKind::LogDir then file_output(log_dir(builder), kind.file_name, builder)
-          when TargetKind::Webview then Output::Webview.new(handle_for("Webview", builder))
-          when TargetKind::Dispatch then Output::Dispatch.new(kind.logger)
-          else raise ArgumentError, "unknown target kind: #{kind.inspect}"
-          end
-        end
-
-        # A RotatingFile in +dir+, which is created first (lib.rs:613-641).
-        private def file_output(dir, file_name, builder)
-          FileUtils.mkdir_p(dir)
-          file = RotatingFile.new(dir, file_name || @app_name, builder.configured_max_file_size,
-            builder.configured_rotation_strategy, builder.configured_timezone_strategy)
-          Output::Writer.new(file)
-        end
-
-        private def log_dir(builder)
-          resolver = builder.configured_path_resolver || handle_for("LogDir", builder).path
-          resolver.app_log_dir
-        end
-
-        private def handle_for(kind, builder)
-          builder.configured_app_handle ||
-            raise(ArgumentError, "a #{kind} target needs the app handle: call Builder#app_handle")
-        end
+      # The level filter attach_logger recorded, +:off+ before any attach.
+      #
+      # Mirrors <tt>log::max_level</tt> (log lib.rs:1393-1401).
+      #
+      # === Example
+      #
+      #   Tokra::Plugins::Log.max_level # => :trace
+      def self.max_level
+        @max_level
       end
     end
   end

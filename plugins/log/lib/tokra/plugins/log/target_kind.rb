@@ -26,7 +26,7 @@ module Tokra
       #   Target.new(TargetKind::Stdout.new)
       #   Target.new(TargetKind::LogDir.new(file_name: "webview"))
       #   Target.new(TargetKind::Folder.new(path: "logs"))
-      #   Target.new(TargetKind::Dispatch.new(Logger.new("audit.log")))
+      #   Target.new(TargetKind::Dispatch.new(::Logger.new("audit.log")))
       module TargetKind
         # Prints lines to standard output (+$stdout+).
         class Stdout < Data.define; end
@@ -88,15 +88,15 @@ module Tokra
         # <tt>@tauri-apps/plugin-log</tt>.
         class Webview < Data.define; end
 
-        # Hands each line to a Logger of your own.
+        # Hands each line to a ::Logger of your own.
         #
         # Tauri's Dispatch chains any fern dispatch, so an app can build a
         # target the plugin does not offer. A Ruby app reaches for a
-        # Logger instead: the plugin calls <tt>logger.add(severity,
-        # line, target)</tt>, with +:trace+ as Logger's DEBUG.
+        # ::Logger instead: the plugin calls <tt>logger.add(severity,
+        # line, target)</tt>, with +:trace+ as ::Logger's DEBUG.
         class Dispatch < Data.define(:logger)
           # :attr_reader: logger
-          # Any object with Logger's +add+.
+          # Any object with ::Logger's +add+.
         end
       end
     end

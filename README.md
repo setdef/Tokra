@@ -324,7 +324,7 @@ not on `window.__TAURI__`.
 | [tokra-clipboard](plugins/clipboard/README.rdoc) | clipboard-manager | `@tauri-apps/plugin-clipboard-manager` | ferro-arboard |
 | [tokra-dialog](plugins/dialog/README.rdoc) | dialog | `@tauri-apps/plugin-dialog` | ferro-rfd |
 | [tokra-global-shortcut](plugins/global-shortcut/README.rdoc) | global-shortcut | `@tauri-apps/plugin-global-shortcut` | ferro-global-hotkey |
-| [tokra-log](plugins/log/README.rdoc) | log | none yet; Ruby only | none |
+| [tokra-log](plugins/log/README.rdoc) | log | `@tauri-apps/plugin-log` | ferro-time |
 | [tokra-notification](plugins/notification/README.rdoc) | notification | `@tauri-apps/plugin-notification` | ferro-notify-rust, ferro-url, ferro-time |
 | [tokra-process](plugins/process/README.rdoc) | process | `@tauri-apps/plugin-process` | none |
 

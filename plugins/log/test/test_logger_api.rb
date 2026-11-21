@@ -7,9 +7,9 @@
 
 require_relative "test_helper"
 
-# Ruby code logs through the plugin as Rust code logs through log's
-# macros, with Logger's arguments, so the plugin can stand in for a
-# Logger a library takes.
+# Ruby code logs through the Logger as Rust code logs through log's
+# macros, with ::Logger's arguments, so the Logger can stand in for a
+# ::Logger a library takes.
 class TestLoggerApi < Minitest::Test
   include LogTest
 
@@ -17,7 +17,7 @@ class TestLoggerApi < Minitest::Test
   LEVEL_AND_TARGET = Ractor.shareable_proc { |message, record| "#{record.level} #{record.target} #{message}" }
 
   private def records
-    logged(Log::Builder.new.app_name("demo").format(LEVEL_AND_TARGET)) { |log| yield log }.lines(chomp: true)
+    logged(Log::Builder.new.format(LEVEL_AND_TARGET)) { |log| yield log }.lines(chomp: true)
   end
 
   # Logger's FATAL and UNKNOWN are above log's highest level, Error.
@@ -78,8 +78,8 @@ class TestLoggerApi < Minitest::Test
 
   # Logger#add returns true whether or not it wrote.
   def test_add_returns_true
-    plugin = stdout_plugin(Log::Builder.new.level(:off))
+    logger = stdout_logger(Log::Builder.new.level(:off))
 
-    assert plugin.add(::Logger::INFO, "x")
+    assert logger.add(::Logger::INFO, "x")
   end
 end

@@ -14,22 +14,22 @@ require_relative "test_helper"
 class TestWebviewTarget < Minitest::Test
   include LogTest
 
-  # A plugin whose only target is the Webview, and the payloads its
+  # A logger whose only target is the Webview, and the payloads its
   # log://log events carry.
-  private def webview_plugin(builder = Log::Builder.new)
+  private def webview_logger(builder = Log::Builder.new)
     handle = app_handle
     payloads = []
     handle.listen("log://log") { |event| payloads << JSON.parse(event.payload) }
-    plugin = builder.app_handle(handle).clear_targets.target(Log::Target.new(Log::TargetKind::Webview.new)).build
-    [plugin, payloads]
+    logger = logger_of(builder.clear_targets.target(Log::Target.new(Log::TargetKind::Webview.new)), handle)
+    [logger, payloads]
   end
 
   # RecordPayload { message, level } (lib.rs:317-321), where the message
   # is the formatted line (fern hands the target the formatted record).
   def test_the_event_carries_the_formatted_line_and_its_level
-    plugin, payloads = webview_plugin(Log::Builder.new.app_name("demo"))
+    logger, payloads = webview_logger(Log::Builder.new)
 
-    plugin.info("hello")
+    logger.info("hello")
 
     assert_equal 1, payloads.size
     assert_match(/\A#{STAMP}\[demo\]\[INFO\] hello\z/o, payloads[0]["message"])
@@ -38,14 +38,14 @@ class TestWebviewTarget < Minitest::Test
 
   # LogLevel serializes each level as its number (lib.rs:70-120).
   def test_each_level_is_sent_as_its_log_level_number
-    plugin, payloads = webview_plugin(Log::Builder.new.clear_format)
+    logger, payloads = webview_logger(Log::Builder.new.clear_format)
 
-    plugin.trace("t")
-    plugin.debug("d")
-    plugin.info("i")
-    plugin.warn("w")
-    plugin.error("e")
-    plugin.fatal("f")
+    logger.trace("t")
+    logger.debug("d")
+    logger.info("i")
+    logger.warn("w")
+    logger.error("e")
+    logger.fatal("f")
 
     assert_equal [1, 2, 3, 4, 5, 5], payloads.map { |payload| payload["level"] }
     assert_equal %w[t d i w e f], payloads.map { |payload| payload["message"] }
@@ -53,9 +53,9 @@ class TestWebviewTarget < Minitest::Test
 
   # The builder's level applies to the webview as to every target.
   def test_the_level_applies_to_the_webview
-    plugin, payloads = webview_plugin(Log::Builder.new.level(:warn))
+    logger, payloads = webview_logger(Log::Builder.new.level(:warn))
 
-    plugin.info("dropped")
+    logger.info("dropped")
 
     assert_empty payloads
   end
@@ -66,16 +66,8 @@ class TestWebviewTarget < Minitest::Test
     payloads = []
     handle.listen("log://log") { |event| payloads << JSON.parse(event.payload)["message"] }
     target = Log::Target.new(Log::TargetKind::Webview.new).format(Ractor.shareable_proc { |message, _| "> #{message}" })
-    Log::Builder.new.clear_format.app_handle(handle).clear_targets.target(target).build.info("x")
+    logger_of(Log::Builder.new.clear_format.clear_targets.target(target), handle).info("x")
 
     assert_equal ["> x"], payloads
-  end
-
-  def test_the_webview_target_without_an_app_handle_raises
-    error = assert_raises(ArgumentError) do
-      Log::Builder.new.clear_targets.target(Log::Target.new(Log::TargetKind::Webview.new)).build
-    end
-
-    assert_equal "a Webview target needs the app handle: call Builder#app_handle", error.message
   end
 end

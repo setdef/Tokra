@@ -44,9 +44,9 @@ module Tokra
       # size. The Builder holds those choices: the targets, the level, the
       # filters, the line format, the clock, and how files rotate. Each
       # method returns the builder, so calls chain, and #build makes the
-      # Plugin.
+      # plugin, whose setup makes the Logger and attaches it.
       #
-      # With no changes, the plugin writes every level to standard output
+      # With no changes, the logger writes every level to standard output
       # and to the app's log directory, as
       # <tt>[2026-11-13][09:41:07][my-app][INFO] message</tt> in UTC, and
       # starts a log file over at 40000 bytes.
@@ -56,11 +56,10 @@ module Tokra
       # === Examples
       #
       #   # Tauri's defaults
-      #   Builder.new.app_handle(app.handle).build
+      #   Tokra::Builder.default.plugin(Builder.new.build)
       #
       #   # The terminal and the page's console, info and above
       #   Builder.new
-      #     .app_handle(app.handle)
       #     .level(:info)
       #     .targets([
       #       Target.new(TargetKind::Stdout.new),
@@ -70,7 +69,6 @@ module Tokra
       #
       #   # Local time, keeping the last five full files
       #   Builder.new
-      #     .app_handle(app.handle)
       #     .timezone_strategy(TimezoneStrategy::UseLocal.new)
       #     .rotation_strategy(RotationStrategy::KeepSome.new(5))
       #     .build
@@ -110,9 +108,7 @@ module Tokra
           @_rotation_strategy = DEFAULT_ROTATION_STRATEGY
           @_timezone_strategy = DEFAULT_TIMEZONE_STRATEGY
           @_max_file_size = DEFAULT_MAX_FILE_SIZE
-          @_path_resolver = nil
-          @_app_handle = nil
-          @_app_name = nil
+          @_skip_logger = false
         end
 
         # Sets what happens to a full log file (lib.rs:438-441).
@@ -271,57 +267,50 @@ module Tokra
           self
         end
 
-        # :call-seq:
-        #   skip_logger -> raises NotImplementedError
+        # Skips the creation and global registration of a logger.
         #
-        # Raises NotImplementedError.
+        # If you wish to use your own logger, call #skip_logger so that the
+        # plugin does not attempt to attach a second one: Log.attach_logger
+        # takes one logger per process. In this configuration no logger is
+        # created, the plugin's <tt>log</tt> command logs to whatever
+        # Log.logger answers, and the builder's targets are ignored. If you
+        # ever register the plugin more than once in a process, as tests
+        # do, call this method so the second registration does not fail
+        # (lib.rs:519-533).
         #
-        # == Why This Is Not Implemented
+        # === Example
         #
-        # Tauri's +skip_logger+ builds the plugin without a logger, so a
-        # Rust app can install its own global logger, or register the
-        # plugin twice in tests; the plugin's <tt>log</tt> command then
-        # logs to whichever global logger the app installed. Ruby has no
-        # global logger to install. A plugin that skipped its logger would
-        # drop every record the page sends.
-        #
-        # == Alternatives
-        #
-        # Send the plugin's records to a Logger of your own:
-        #
-        #   builder.clear_targets.target(Target.new(TargetKind::Dispatch.new(my_logger)))
-        #
-        # See: https://github.com/tauri-apps/plugins-workspace/blob/d4613ff0029ea65f5c6895c3a6f8f5668dd1b55e/plugins/log/src/lib.rs#L519-L533
+        #   plugin, max_level, logger = Tokra::Plugins::Log::Builder.new.split(app.handle)
+        #   Tokra::Plugins::Log.attach_logger(max_level, logger)
+        #   Tokra::Plugins::Log::Builder.new.skip_logger.build
         def skip_logger
-          raise NotImplementedError,
-            "skip_logger is not implemented. Tauri skips its logger so a Rust app can install its own " \
-              "global logger, and Ruby has no global logger. Use TargetKind::Dispatch to send the " \
-              "plugin's records to a Logger of your own."
+          @_skip_logger = true
+          self
         end
 
-        # :call-seq:
-        #   split(app_handle) -> raises NotImplementedError
+        # Makes the plugin and the logger apart, without attaching the
+        # logger, for an app that attaches it itself, or composes it with
+        # its own: returns <tt>[plugin, max_level, logger]</tt>, where
+        # +plugin+ serves the page's <tt>log</tt> command, +logger+ is the
+        # Logger the builder describes, made with +app_handle+ as
+        # #build's setup makes it, and +max_level+ the lowest level it can
+        # log, +:off+ when it has no targets (lib.rs:670-689; fern 0.7.1
+        # builders.rs:589-595). The plugin has no setup, so it reads no
+        # config.
         #
-        # Raises NotImplementedError.
+        # Raises Error::LoggerNotInitialized after #skip_logger, and the
+        # target's error when a file target cannot be opened.
         #
-        # == Why This Is Not Implemented
+        # === Example
         #
-        # Tauri's +split+ hands back the plugin, its level, and its logger
-        # apart, so a Rust app can combine the logger with others before it
-        # installs one global logger. Ruby has no global logger to install,
-        # and the Plugin is already the logger Ruby code calls.
-        #
-        # == Alternatives
-        #
-        # Log through the Plugin, and add a TargetKind::Dispatch target to
-        # reach a Logger of your own.
-        #
-        # See: https://github.com/tauri-apps/plugins-workspace/blob/d4613ff0029ea65f5c6895c3a6f8f5668dd1b55e/plugins/log/src/lib.rs#L670-L689
-        def split(_app_handle)
-          raise NotImplementedError,
-            "split is not implemented. Tauri splits its logger out so a Rust app can install it in a " \
-              "global logger, and Ruby has no global logger. Log through the plugin, and use " \
-              "TargetKind::Dispatch to reach a Logger of your own."
+        #   plugin, max_level, logger = Tokra::Plugins::Log::Builder.new.split(app.handle)
+        #   Tokra::Plugins::Log.attach_logger(max_level, logger)
+        #   app.handle.plugin(plugin)
+        def split(app_handle)
+          raise Error::LoggerNotInitialized if @_skip_logger
+
+          max_level, logger = acquire_logger(app_handle, settings)
+          [plugin_builder.build, max_level, logger]
         end
 
         # :call-seq:
@@ -355,91 +344,101 @@ module Tokra
               "library lacks. Use Builder#format with a format that applies ANSI escape codes."
         end
 
-        # Sets the path resolver whose +app_log_dir+ a LogDir target writes
-        # in. Without one, the app handle's is used.
+        # Makes the plugin: a Tokra::Plugin::TauriPlugin named +log+, the
+        # name in <tt>plugin:log|log</tt>, for Tokra::Builder#plugin, taking
+        # no config.
+        #
+        # Its setup makes the Logger the builder describes, with the app's
+        # handle, and attaches it as the process's logger with
+        # Log.attach_logger, unless #skip_logger was called. LogDir targets
+        # write in the app's +app_log_dir+, files are named for the app's
+        # <tt>package_info.name</tt> unless their target names one, and
+        # Webview targets emit through the app. A file target that cannot
+        # be opened, or a second attach in one process, fails the app with
+        # Tokra::Error::PluginInitialization. The settings are the
+        # builder's when #build is called; changing the builder later
+        # changes nothing, as Tauri's +build+ consumes the builder
+        # (lib.rs:691-708).
         #
         # === Example
         #
-        #   builder.path_resolver(app.handle.path)
-        def path_resolver(resolver)
-          @_path_resolver = resolver
-          self
-        end
-
-        # Sets the app handle that Webview targets emit through and LogDir
-        # targets find their directory and file name with, as Tauri's
-        # plugin reads them from the app it is set up on (lib.rs:575, 628).
-        #
-        # === Example
-        #
-        #   builder.app_handle(app.handle)
-        def app_handle(handle)
-          @_app_handle = handle
-          self
-        end
-
-        # Sets the app's name: the default target of Ruby records and the
-        # default file name of Folder and LogDir targets. Without one, the
-        # app handle's <tt>package_info.name</tt> is used.
-        #
-        # === Example
-        #
-        #   builder.app_name("my-app")
-        def app_name(name)
-          @_app_name = name
-          self
-        end
-
-        # Makes the plugin, opening each target's file.
-        #
-        # Raises ArgumentError when a LogDir or Webview target has no app
-        # handle to work with.
-        #
-        # === Example
-        #
-        #   app.handle.plugin(Builder.new.app_handle(app.handle).build)
+        #   Tokra::Builder.default.plugin(Tokra::Plugins::Log::Builder.new.level(:info).build)
         def build
-          Plugin.new(self)
+          settings = self.settings
+          skip_logger = @_skip_logger
+          plugin_builder
+            .setup do |app_handle, _api|
+              Log.attach_logger(*acquire_logger(app_handle, settings)) unless skip_logger
+              nil
+            end
+            .build
         end
 
-        def configured_targets # :nodoc:
-          @_targets
+        # The builder's settings, as acquire_logger takes them.
+        Settings = Data.define(:level, :filters, :format, :targets, :rotation_strategy, :timezone_strategy,
+          :max_file_size)
+        private_constant :Settings
+
+        # A frozen copy of the builder's settings.
+        private def settings
+          Settings.new(level: @_level, filters: @_filters.dup.freeze, format: @_format,
+            targets: @_targets.dup.freeze, rotation_strategy: @_rotation_strategy,
+            timezone_strategy: @_timezone_strategy, max_file_size: @_max_file_size)
         end
 
-        def configured_format # :nodoc:
-          @_format
+        # The plugin both #build and #split make, before #build's setup:
+        # named +log+, with the <tt>log</tt> command (lib.rs:666-668).
+        private def plugin_builder
+          Tokra::Plugin::Builder.new("log").invoke_handler { |invoke| handle_invoke(invoke) }
         end
 
-        def configured_level # :nodoc:
-          @_level
+        # Runs Commands.log for the <tt>log</tt> command and answers
+        # whether it was that one, so Tokra rejects the rest with
+        # <tt>Command NAME not found</tt>, as Tauri's generated handler
+        # does. An argument that does not read rejects the invoke with
+        # Tauri's message.
+        private def handle_invoke(invoke)
+          return false unless invoke.command == "log"
+
+          Commands.log(invoke)
+          true
+        rescue Tokra::Error::InvalidArgs => e
+          invoke.reject(e.message)
+          true
         end
 
-        def configured_filters # :nodoc:
-          @_filters
+        # The lowest level the logger can log and the Logger itself, each
+        # target's output opened with +app_handle+ (lib.rs:567-664; fern
+        # 0.7.1 builders.rs:589-595, 634-641).
+        private def acquire_logger(app_handle, settings)
+          app_name = app_handle.package_info.name
+          targets = settings.targets.map do |target|
+            [target.filters.dup.freeze, target.formatter, output(target.kind, app_handle, app_name, settings)]
+          end
+          max_level = targets.empty? ? :off : settings.level
+          logger = Log::Logger.new(level: settings.level, filters: settings.filters, format: settings.format, app_name:,
+            targets:)
+          [max_level, logger]
         end
 
-        def configured_rotation_strategy # :nodoc:
-          @_rotation_strategy
+        # The output for +kind+ (lib.rs:587-657).
+        private def output(kind, app_handle, app_name, settings)
+          case kind
+          when TargetKind::Stdout then Output::Stream.new(:stdout)
+          when TargetKind::Stderr then Output::Stream.new(:stderr)
+          when TargetKind::Folder then file_output(kind.path, kind.file_name || app_name, settings)
+          when TargetKind::LogDir then file_output(app_handle.path.app_log_dir, kind.file_name || app_name, settings)
+          when TargetKind::Webview then Output::Webview.new(app_handle)
+          when TargetKind::Dispatch then Output::Dispatch.new(kind.logger)
+          else raise ArgumentError, "unknown target kind: #{kind.inspect}"
+          end
         end
 
-        def configured_timezone_strategy # :nodoc:
-          @_timezone_strategy
-        end
-
-        def configured_max_file_size # :nodoc:
-          @_max_file_size
-        end
-
-        def configured_path_resolver # :nodoc:
-          @_path_resolver
-        end
-
-        def configured_app_handle # :nodoc:
-          @_app_handle
-        end
-
-        def configured_app_name # :nodoc:
-          @_app_name
+        # A RotatingFile in +dir+, which is created first (lib.rs:613-641).
+        private def file_output(dir, file_name, settings)
+          FileUtils.mkdir_p(dir)
+          Output::Writer.new(RotatingFile.new(dir, file_name, settings.max_file_size, settings.rotation_strategy,
+            settings.timezone_strategy))
         end
       end
     end

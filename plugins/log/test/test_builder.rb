@@ -16,10 +16,10 @@ class TestBuilder < Minitest::Test
   def test_the_defaults_are_tauris
     builder = Log::Builder.new
 
-    assert_equal Log::RotationStrategy::KeepOne.new, builder.configured_rotation_strategy
-    assert_equal Log::TimezoneStrategy::UseUtc.new, builder.configured_timezone_strategy
-    assert_equal 40_000, builder.configured_max_file_size
-    assert_equal :trace, builder.configured_level
+    assert_equal Log::RotationStrategy::KeepOne.new, builder.__send__(:settings).rotation_strategy
+    assert_equal Log::TimezoneStrategy::UseUtc.new, builder.__send__(:settings).timezone_strategy
+    assert_equal 40_000, builder.__send__(:settings).max_file_size
+    assert_equal :trace, builder.__send__(:settings).level
   end
 
   # Each setter returns the builder, as each Rust method returns Self.
@@ -37,6 +37,7 @@ class TestBuilder < Minitest::Test
       -> { builder.clear_targets },
       -> { builder.target(stdout_target) },
       -> { builder.targets([stdout_target]) },
+      -> { builder.skip_logger },
     ]
 
     calls.each { |call| assert_same builder, call.call }
@@ -47,7 +48,7 @@ class TestBuilder < Minitest::Test
     second = Log::Target.new(Log::TargetKind::Stderr.new)
     builder = Log::Builder.new.targets([first]).target(second)
 
-    assert_equal [first, second], builder.configured_targets
+    assert_equal [first, second], builder.__send__(:settings).targets
   end
 
   # The builder keeps its own list, as Rust's targets collects the
@@ -57,19 +58,45 @@ class TestBuilder < Minitest::Test
     builder = Log::Builder.new.targets(list)
     list << Log::Target.new(Log::TargetKind::Stderr.new)
 
-    assert_equal 1, builder.configured_targets.size
+    assert_equal 1, builder.__send__(:settings).targets.size
   end
 
   # Sizes above u64::MAX are clamped (lib.rs:459-466).
   def test_max_file_size_is_clamped_to_u64
-    assert_equal (2 ** 64) - 1, Log::Builder.new.max_file_size(2 ** 70).configured_max_file_size
+    assert_equal (2 ** 64) - 1, Log::Builder.new.max_file_size(2 ** 70).__send__(:settings).max_file_size
   end
 
-  def test_build_returns_the_plugin_named_log
-    plugin = stdout_plugin
+  # Tauri's build and split make a TauriPlugin named log
+  # (lib.rs:666-711).
+  def test_build_and_split_make_the_plugin_named_log
+    plugin = Log::Builder.new.build
+    split, = Log::Builder.new.clear_targets.split(app_handle)
 
-    assert_instance_of Log::Plugin, plugin
-    assert_equal "log", plugin.name
+    [plugin, split].each do |made|
+      assert_instance_of Tokra::Plugin::TauriPlugin, made
+      assert_equal "log", made.name
+    end
+  end
+
+  # split returns the logger apart, and the lowest level it can log:
+  # the builder's level, or Off with no targets, as fern's into_log
+  # computes it (fern 0.7.1 builders.rs:589-595).
+  def test_split_returns_the_level_and_the_logger_unattached
+    _, max_level, logger = Log::Builder.new.level(:info).clear_targets.target(stdout_target).split(app_handle)
+    _, none, = Log::Builder.new.level(:info).clear_targets.split(app_handle)
+
+    assert_equal :info, max_level
+    assert_equal :off, none
+    assert_instance_of Log::Logger, logger
+    refute_same logger, Log.logger, "split attaches nothing"
+  end
+
+  # skip_logger has split refuse, with Tauri's message (lib.rs:66-67,
+  # 676-678).
+  def test_split_after_skip_logger_raises_logger_not_initialized
+    error = assert_raises(Log::Error::LoggerNotInitialized) { Log::Builder.new.skip_logger.split(app_handle) }
+
+    assert_equal "Internal logger disabled and cannot be acquired or attached", error.message
   end
 
   # Tauri filters by Rust module path (lib.rs:488-491), which Ruby records
@@ -86,16 +113,5 @@ class TestBuilder < Minitest::Test
     error = assert_raises(NotImplementedError) { Log::Builder.new.with_colors({}) }
 
     assert_match(/Builder#format/, error.message)
-  end
-
-  # Both exist to install or compose Rust's global logger
-  # (lib.rs:519-533, 670-719), which Ruby lacks.
-  def test_skip_logger_and_split_are_declined
-    [-> { Log::Builder.new.skip_logger }, -> { Log::Builder.new.split(app_handle) }].each do |call|
-      error = assert_raises(NotImplementedError) { call.call }
-
-      assert_match(/global logger/, error.message)
-      assert_match(/TargetKind::Dispatch/, error.message)
-    end
   end
 end

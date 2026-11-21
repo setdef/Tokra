@@ -49,11 +49,15 @@ Style/Send:
 # Tokra::Process mirrors tauri::process, so inside module Tokra a bare
 # Process names it, not Ruby's module (plan 039, decision 8). Library code
 # names either from the top: ::Process or Tokra::Process.
-# test/tasks/test_top_level_constants.rb checks the signatures.
+# test/tasks/test_top_level_constants.rb checks the signatures. Likewise
+# Tokra::Plugins::Log::Logger mirrors the logger Tauri's log plugin makes,
+# so inside module Log a bare Logger names it, not Ruby's: write ::Logger
+# or Log::Logger.
 Lint/ConstantResolution:
   Enabled: true
   Only:
     - Process
+    - Logger
   Include:
     - "lib/**/*.rb"
     - "plugins/*/lib/**/*.rb"

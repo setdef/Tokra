@@ -8,7 +8,7 @@
 module Tokra
   module Plugins
     # Log is a module (not class) to allow VERSION in version.rb.
-    # The actual plugin is Log::Plugin.
+    # Log::Builder#build makes the plugin.
     module Log
       # Version of the tokra-log gem.
       VERSION = "0.0.1.pre.1"

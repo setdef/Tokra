@@ -25,10 +25,29 @@ module Tokra
       DEFAULT_TIMEZONE_STRATEGY: TimezoneStrategy::UseUtc
       LOG_DATE_FORMAT: Ferro::Time::FormatDescription::description
 
-      class Plugin < Tokra::Plugin
+      class Error < Tokra::Error
+        class LoggerNotInitialized < Error
+          def initialize: (?String message) -> void
+        end
+      end
+
+      class SetLoggerError < Tokra::Error
+        def initialize: (?String message) -> void
+      end
+
+      NOP_LOGGER: Logger
+      ATTACH: Thread::Mutex
+
+      self.@logger: Logger?
+      self.@max_level: level_filter
+
+      def self.attach_logger: (level_filter max_level, Logger log) -> nil
+      def self.logger: () -> Logger
+      def self.max_level: () -> level_filter
+
+      class Logger
         SEVERITY_LEVELS: Hash[Integer, level]
         LEVEL_FILTERS: Array[level_filter]
-        U16: Range[Integer]
 
         @max_level: Integer
         @filters: Array[filter]
@@ -36,9 +55,8 @@ module Tokra
         @app_name: String
         @targets: Array[[Array[filter], format?, output]]
 
-        def name: () -> String
-        def initialize: (Builder builder) -> void
-        def initialize_plugin: (Tokra::AppHandle app, Tokra::json_value config) -> nil
+        def initialize: (level: level_filter, filters: Array[filter], format: format?, app_name: String,
+                         targets: Array[[Array[filter], format?, output]]) -> void
         def trace: (?Object? progname) ?{ () -> Object } -> true
         def debug: (?Object? progname) ?{ () -> Object } -> true
         def info: (?Object? progname) ?{ () -> Object } -> true
@@ -46,23 +64,23 @@ module Tokra
         def error: (?Object? progname) ?{ () -> Object } -> true
         def fatal: (?Object? progname) ?{ () -> Object } -> true
         def add: (Integer? severity, ?Object? message, ?Object? progname) ?{ () -> Object } -> true
-        def extend_api: (Tokra::Ipc::Invoke invoke) -> bool
+        def log: (Record record) -> nil
 
         private
 
-        def argument: (Tokra::Ipc::Invoke invoke, String key) -> Tokra::Ipc::CommandItem
-        def log_level_arg: (Tokra::Ipc::Invoke invoke) -> level
-        def optional_str_arg: (Tokra::Ipc::Invoke invoke, String key) -> String?
-        def key_values_arg: (Tokra::Ipc::Invoke invoke) -> Hash[String, String]?
-
-        def dispatch: (Record record) -> void
         def finish: (Record record, format? format) -> Record
         def level_of: (Integer? severity) -> level
         def message_text: (Object? message) -> String
-        def output: (kind kind, Builder builder) -> output
-        def file_output: (String | Pathname dir, String? file_name, Builder builder) -> Output::Writer
-        def log_dir: (Builder builder) -> Pathname
-        def handle_for: (String kind, Builder builder) -> Tokra::AppHandle
+      end
+
+      module Commands
+        U16: Range[Integer]
+
+        def self.log: (Tokra::Ipc::Invoke invoke) -> void
+        private def self.argument: (Tokra::Ipc::Invoke invoke, String key) -> Tokra::Ipc::CommandItem
+        private def self.log_level_arg: (Tokra::Ipc::Invoke invoke) -> level
+        private def self.optional_str_arg: (Tokra::Ipc::Invoke invoke, String key) -> String?
+        private def self.key_values_arg: (Tokra::Ipc::Invoke invoke) -> Hash[String, String]?
       end
 
       class Builder
@@ -79,9 +97,7 @@ module Tokra
         @_rotation_strategy: rotation
         @_timezone_strategy: timezone
         @_max_file_size: Integer
-        @_path_resolver: Tokra::Path::Resolver?
-        @_app_handle: Tokra::AppHandle?
-        @_app_name: String?
+        @_skip_logger: bool
 
         def initialize: () -> void
         def rotation_strategy: (rotation rotation_strategy) -> self
@@ -95,23 +111,31 @@ module Tokra
         def clear_targets: () -> self
         def target: (Target target) -> self
         def targets: (Enumerable[Target] targets) -> self
-        def skip_logger: () -> bot
-        def split: (Tokra::AppHandle app_handle) -> bot
+        def skip_logger: () -> self
+        def split: (Tokra::AppHandle app_handle) -> [Tokra::Plugin::TauriPlugin[nil], level_filter, Logger]
         def with_colors: (Hash[Symbol, Symbol] colors) -> bot
-        def path_resolver: (Tokra::Path::Resolver resolver) -> self
-        def app_handle: (Tokra::AppHandle handle) -> self
-        def app_name: (String name) -> self
-        def build: () -> Plugin
-        def configured_targets: () -> Array[Target]
-        def configured_format: () -> format?
-        def configured_level: () -> level_filter
-        def configured_filters: () -> Array[filter]
-        def configured_rotation_strategy: () -> rotation
-        def configured_timezone_strategy: () -> timezone
-        def configured_max_file_size: () -> Integer
-        def configured_path_resolver: () -> Tokra::Path::Resolver?
-        def configured_app_handle: () -> Tokra::AppHandle?
-        def configured_app_name: () -> String?
+        def build: () -> Tokra::Plugin::TauriPlugin[nil]
+
+        class Settings < Data
+          attr_reader level: level_filter
+          attr_reader filters: Array[filter]
+          attr_reader format: format?
+          attr_reader targets: Array[Target]
+          attr_reader rotation_strategy: rotation
+          attr_reader timezone_strategy: timezone
+          attr_reader max_file_size: Integer
+          def self.new: (level: level_filter, filters: Array[filter], format: format?, targets: Array[Target],
+                         rotation_strategy: rotation, timezone_strategy: timezone, max_file_size: Integer) -> Settings
+        end
+
+        private
+
+        def settings: () -> Settings
+        def plugin_builder: () -> Tokra::Plugin::Builder[nil]
+        def handle_invoke: (Tokra::Ipc::Invoke invoke) -> bool
+        def acquire_logger: (Tokra::AppHandle app_handle, Settings settings) -> [level_filter, Logger]
+        def output: (kind kind, Tokra::AppHandle app_handle, String app_name, Settings settings) -> output
+        def file_output: (String | Pathname dir, String file_name, Settings settings) -> Output::Writer
       end
 
       class Target

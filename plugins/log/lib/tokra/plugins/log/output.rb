@@ -89,10 +89,10 @@ module Tokra
 
         # An app's own Logger (lib.rs:656).
         class Dispatch # :nodoc:
-          # Logger's severities for each level; Logger has no trace.
+          # ::Logger's severities for each level; Logger has no trace.
           SEVERITIES = { error: 3, warn: 2, info: 1, debug: 0, trace: 0 }.freeze
 
-          # [logger] Any object with Logger's +add+.
+          # [logger] Any object with ::Logger's +add+.
           def initialize(logger)
             @logger = logger
           end
