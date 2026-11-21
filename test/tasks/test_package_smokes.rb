@@ -33,8 +33,13 @@ class TestPackageSmokes < Minitest::Test
   # Each smoke script reaches its process as a ruby -e argument, and on
   # Windows the command line Ruby builds for it does not keep a backslash
   # before a quote or a line break, so the script arrives cut short.
+  #
+  # Ruby requires a command line's -r libraries before RUBYOPT's, so each
+  # child names bundler/setup first: otherwise rake loads the Ruby's own
+  # default gems, and Bundler refuses where they differ from Gemfile.lock's,
+  # as Ruby 4.1's fileutils does (Plan 069).
   def test_no_smoke_script_holds_a_backslash
-    smokes, status = Open3.capture2(RbConfig.ruby, "-rrake", "-rjson", "-e", <<~RUBY, PACKAGE_RAKE)
+    smokes, status = Open3.capture2(RbConfig.ruby, "-rbundler/setup", "-rrake", "-rjson", "-e", <<~RUBY, PACKAGE_RAKE)
       load ARGV.fetch(0)
       print JSON.generate(PACKAGES.to_h { |gem| [gem.name, gem.smoke] })
     RUBY
@@ -80,7 +85,7 @@ class TestPackageSmokes < Minitest::Test
   # launchctl that answers +session+, or none, on PATH. Returns what it
   # printed and its status.
   private def clipboard_smoke(error: nil, session: nil)
-    smoke, status = Open3.capture2(RbConfig.ruby, "-rrake", "-e", <<~RUBY, PACKAGE_RAKE)
+    smoke, status = Open3.capture2(RbConfig.ruby, "-rbundler/setup", "-rrake", "-e", <<~RUBY, PACKAGE_RAKE)
       load ARGV.fetch(0)
       print PACKAGES.find { |gem| gem.name == "tokra-clipboard" }.smoke
     RUBY

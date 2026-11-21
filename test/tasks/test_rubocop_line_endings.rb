@@ -21,7 +21,9 @@ class TestRubocopLineEndings < Minitest::Test
   def test_layout_end_of_line_is_off_on_windows_alone
     script = 'cop = RuboCop::ConfigLoader.configuration_from_file(ARGV[0]).for_cop("Layout/EndOfLine"); ' \
       'print cop["Enabled"], " ", cop["EnforcedStyle"]'
-    printed, status = Open3.capture2e(RbConfig.ruby, "-rrubocop", "-e", script, File.join(ROOT, ".rubocop.yml"))
+    # bundler/setup before rubocop, which would otherwise load the Ruby's own
+    # default gems before RUBYOPT's bundler/setup runs (Plan 069).
+    printed, status = Open3.capture2e(RbConfig.ruby, "-rbundler/setup", "-rrubocop", "-e", script, File.join(ROOT, ".rubocop.yml"))
 
     assert_predicate status, :success?, printed
     assert_equal "#{!Gem.win_platform?} native", printed
