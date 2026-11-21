@@ -8,7 +8,11 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 2026-11-21. Two bug reports, written as they would be filed, one for
 rb-sys and one for magnus. Neither has been filed. Whether and when to
-file them is the maintainer's to say. Plan 069 ("Why Windows stays on
+file them is the maintainer's to say. This folder holds what Tokra
+would send upstream: for each change, the report or pull-request text
+as a Markdown file, and beside it, once written, a `.patch` an upstream
+maintainer could accept as it stands. The patches for these two
+reports are not written yet. Plan 069 ("Why Windows stays on
 4.0") records how Tokra met the fault; this note is the report itself.
 
 The maintainer decided on 2026-11-21 that Tokra moves to Ruby 4.1 on
