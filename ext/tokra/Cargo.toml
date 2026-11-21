@@ -15,10 +15,15 @@ crate-type = ["cdylib"]
 
 [dependencies]
 # rb-sys exposes AsRawValue, for comparing a thread VALUE without the GVL.
-magnus = { git = "https://github.com/matsadler/magnus", rev = "2370a35261db7476f59e165752791fd60fddc26b", features = ["bytes", "rb-sys"] }
+magnus = { version = "0.9.3", features = ["bytes", "rb-sys"] }
 # Ruby's thread-event hooks, which magnus does not wrap (gvl_handoff.rs).
-# The same rb-sys magnus links, with no features of its own.
-rb-sys = { version = "0.9.124", default-features = false }
+# The same rb-sys magnus links. rb-sys 0.9.130 writes Ruby's inline C
+# helpers (RSTRING_PTR and the like) in Rust for each Ruby up to 4.0
+# (src/stable_api/ruby_4_0.rs), and its build stops on any other Ruby
+# unless it may compile the C ones instead (build/stable_api_config.rs,
+# Strategy::RustThenCompiled), as it does for Ruby 4.1 (Plan 069). On a
+# Ruby it has Rust for, the feature changes nothing.
+rb-sys = { version = "0.9.124", default-features = false, features = ["stable-api-compiled-fallback"] }
 tao = "0.34.5"
 # linux-body hands custom-protocol request bodies to the handler on Linux,
 # as tauri-runtime-wry enables it (Cargo.toml:15-20); without it WebKitGTK
