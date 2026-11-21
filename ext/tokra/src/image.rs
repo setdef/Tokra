@@ -6,7 +6,7 @@
 //! Thin wrapper around the `image` crate — the same crate Tauri uses for
 //! its `image-png` and `image-ico` features. Rust decodes bytes to raw
 //! RGBA; Ruby owns the Image value object and all resource management
-//! per ADR 020.
+//! per ADR 022.
 
 use magnus::{function, prelude::*, Error, RString, Ruby};
 

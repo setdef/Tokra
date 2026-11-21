@@ -17,13 +17,21 @@ sources it rests on.
 
 ## What the extension holds
 
-The extension wraps platform types and holds no application logic
-(ADR 020): it passes raw events and messages to Ruby, and Ruby owns
-command routing, security checks, and state. A new platform capability
-follows the same split. The Rust side wraps the crate's type in a
-magnus class under `Tokra::Native` and exposes the crate's own methods;
-the Ruby side builds the user-facing API over it, as Tauri's, and keeps
-the callbacks, ids, and state. Event data reaches Ruby as `Data.define`
+The extension is to wrap platform types and hold no application logic
+(ADR 022): it passes raw events and messages to Ruby, and Ruby owns
+command routing, security checks, and state. It does not yet keep to
+that. Command routing and security checks are Ruby, but the extension
+also holds some of Tauri's own behavior and state: events reach Ruby
+filtered and mapped as Tauri's runtime maps them, a window opens from
+one Hash of Tauri's builder rows, and the web contexts, window labels,
+and pending responders are kept in Rust
+([the Rust in Tokra](../research/2026-11-21-rust-in-tokra.md) lists
+every such region). That logic is moving to Ruby, and the binding to
+Ferro (ADR 020). A new platform capability follows the intended split.
+The Rust side wraps the crate's type in a magnus class under
+`Tokra::Native` and exposes the crate's own methods; the Ruby side
+builds the user-facing API over it, as Tauri's, and keeps the
+callbacks, ids, and state. Event data reaches Ruby as `Data.define`
 values, which are frozen and shareable. The cost is a platform issue
 traced through both layers, and a Ruby object for every event.
 

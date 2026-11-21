@@ -41,7 +41,7 @@ What it was read against:
 - Ruby: the `ruby/ruby` checkout at master `b84532add7` (2026-11-20),
   whose `NEWS.md` is the 4.1.0 development NEWS; fiddle 1.1.8 as Ruby
   4.0.9 bundles it.
-- Ferro: its repository as it stands, read only: `AGENTS.md`, the former ADR 001 (now ADR 020),
+- Ferro: its repository as it stands, read only: `AGENTS.md`, the former ADR 001 (now ADR 022),
   `doc/contributors/design/translation.md` and `repository.md`, the
   `bind-crate` skill, its plans 001 to 010, and the seven gems in
   `gems/`.
@@ -771,7 +771,7 @@ repository, and its answer key is the crates, not Tokra.
 47. The default flips to the Ferro backend.
 48. `ext/tokra` is deleted, the gemspec loses its extension, and the
     packaging check proves the gem loads with no compiler.
-49. The records: the former ADR 001 (now ADR 020), 011, and 012 superseded or amended, and
+49. The records: the former ADR 001 (now ADR 022), 011, and 012 superseded or amended, and
     `native.md` moved to the Ferro gem's design.
 
 Forty-nine steps, seven of them large. The order puts the smallest,
@@ -1011,10 +1011,10 @@ workspace, so spike 2 ran on 4.0.9 only.)
 
 | Where | What it says | What is true |
 |---|---|---|
-| `AGENTS.md:10` | "Rust (rb_sys + magnus, in `ext/`) is a thin binding over tao and wry; Ruby owns all logic (the former ADR 001 (now ADR 020))." | The extension binds muda, tray-icon, window-vibrancy, image, png, ico, dirs, and std as well, and 3,383 of its lines (2,137 code) are Tauri's logic: `tauri-runtime-wry`'s event mapping, window placement, web-context store, window-id map, undecorated resizing, and `WindowExt`; `tauri`'s vibrancy, native icons, tray events, accelerator hook, and dev icon; `tauri-codegen`'s icon decoding. |
+| `AGENTS.md:10` | "Rust (rb_sys + magnus, in `ext/`) is a thin binding over tao and wry; Ruby owns all logic (the former ADR 001 (now ADR 022))." | The extension binds muda, tray-icon, window-vibrancy, image, png, ico, dirs, and std as well, and 3,383 of its lines (2,137 code) are Tauri's logic: `tauri-runtime-wry`'s event mapping, window placement, web-context store, window-id map, undecorated resizing, and `WindowExt`; `tauri`'s vibrancy, native icons, tray events, accelerator hook, and dev icon; `tauri-codegen`'s icon decoding. |
 | `doc/contributors/adr/001.md:44-46` | "The Rust layer is a dumb pipe: a magnus extension ... that wraps tao and wry and knows nothing of commands or state, and everything else is Ruby." | It knows nothing of commands. It holds state (the web contexts by data directory, the window labels, the pending responders, the accelerator menus) and the Tauri logic above. |
 | `doc/contributors/adr/001.md:73-74` | "AGENTS.md states the rule, that Rust is a thin binding and Ruby owns all logic". | The rule is stated, and nothing checks it; the code does not follow it (above). |
-| `doc/contributors/design/native.md:20-22` | "The extension wraps platform types and holds no application logic (the former ADR 001 (now ADR 020)): it passes raw events and messages to Ruby, and Ruby owns command routing, security checks, and state." | Command routing and security checks are Ruby. Events reach Ruby filtered and mapped as Tauri's runtime maps them (`event_loop.rs:402-478`), and the state above is Rust's. |
+| `doc/contributors/design/native.md:20-22` | "The extension wraps platform types and holds no application logic (the former ADR 001 (now ADR 022)): it passes raw events and messages to Ruby, and Ruby owns command routing, security checks, and state." | Command routing and security checks are Ruby. Events reach Ruby filtered and mapped as Tauri's runtime maps them (`event_loop.rs:402-478`), and the state above is Rust's. |
 | `doc/contributors/design/native.md:22-25` | "The Rust side wraps the crate's type in a magnus class under `Tokra::Native` and exposes the crate's own methods". | Many classes expose Tauri's runtime messages rather than the crate's methods: a window opens from one Hash of Tauri's builder rows (`window_builder.rs:79-126`), and its setters are `handle_user_message` arms. |
 | `ext/tokra/src/proxy.rs:4-7`, `:20-21`; `lib.rs:20` | The proxy is "for cross-Ractor communication", "for waking up the event loop from Ractors", "Ractor-safe". | It can be shared with a Ractor, but only the main Ractor can call it: the extension never calls `rb_ext_ractor_safe`, so Ruby raises `Ractor::UnsafeError` for its methods in any other Ractor (`vm_insnhelper.c:3597-3600`), as `native.md:245-247` itself says. Nothing in `test/` starts a Ractor. |
 | `ext/tokra/src/lib.rs:1-5` | "Thin Magnus bindings around `tao` (windowing) and `wry` ... Ruby manages all application logic, state, and routing." | As for `AGENTS.md:10`. Its module list names 14 of 31 modules. |
