@@ -43,14 +43,18 @@ class TestSetup < Minitest::Test
   # here at the repository whose hook runs these tests.
   GIT_PLACE = %w[GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX GIT_COMMON_DIR].to_h { |name| [name, nil] }.freeze
 
-  # Git as these tests run it: no one's own configuration or hooks, and
-  # submodules cloned from a folder, which git otherwise refuses.
+  # Git as these tests run it: no one's own configuration or hooks,
+  # submodules cloned from a folder, which git otherwise refuses, and no
+  # background maintenance, which these settings would otherwise replace
+  # (test_helper.rb).
   GIT_ALONE = GIT_PLACE.merge(
     "GIT_CONFIG_GLOBAL" => File::NULL,
     "GIT_CONFIG_NOSYSTEM" => "1",
-    "GIT_CONFIG_COUNT" => "1",
+    "GIT_CONFIG_COUNT" => "2",
     "GIT_CONFIG_KEY_0" => "protocol.file.allow",
-    "GIT_CONFIG_VALUE_0" => "always"
+    "GIT_CONFIG_VALUE_0" => "always",
+    "GIT_CONFIG_KEY_1" => "maintenance.auto",
+    "GIT_CONFIG_VALUE_1" => "false"
   ).freeze
 
   def setup
