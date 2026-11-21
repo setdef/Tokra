@@ -7,7 +7,8 @@
 
 # Tauri compiles the title bar rows, the tabbing identifier, and the
 # traffic-light position only for macOS (window/mod.rs:853-879;
-# webview_window.rs:828-883), so they exist only there (ADR 011; plan
+# webview_window.rs:828-883), so they exist only there
+# (doc/contributors/design/native.md, "Translating a crate's API"; plan
 # 052, decision c4).
 return unless Tokra::App.os_name == "macos"
 

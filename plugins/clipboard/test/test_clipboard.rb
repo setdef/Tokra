@@ -91,8 +91,9 @@ class TestClipboard < Minitest::Test
     assert Ractor.shareable?(app.handle.clipboard), "the managed clipboard is Ractor-shareable"
   end
 
-  # Per ADR 007 and ADR 011 section 7, the clipboard is born shareable:
-  # ferro-arboard's frozen clipboard is, and so is the cleanup latch.
+  # Per ADR 007 and doc/contributors/design/plugins.md ("Plugins over
+  # Ferro"), the clipboard is born shareable: ferro-arboard's frozen
+  # clipboard is, and so is the cleanup latch.
   def test_clipboard_is_ractor_shareable_as_built
     assert Ractor.shareable?(CLIPBOARD.new), "the clipboard should be Ractor-shareable without help"
   end
@@ -617,7 +618,7 @@ class TestClipboard < Minitest::Test
   # Packaging (Plan 016 #8, Plan 021)
   # ==========================================================================
 
-  # The plugin is pure Ruby (ADR 011 section 9): no extension of its own.
+  # The plugin is pure Ruby (ADR 011): no extension of its own.
   def test_the_gem_ships_no_native_extension
     spec = Gem::Specification.load(File.expand_path("../tokra-clipboard.gemspec", __dir__))
 

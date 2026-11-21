@@ -7,10 +7,97 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 # The Native Layer
 
 This document says how Tokra's Rust extension, `ext/tokra`, meets Ruby:
-which thread its objects belong to, and how the event loop shares Ruby's
-GVL with the app's other threads. It is for Tokra's contributors. Why the
-loop keeps the GVL is ADR 012. Each module's own documentation in
+which crates it links and which it leaves to Ferro, how a crate's API
+becomes Ruby, which thread its objects belong to, and how the event loop
+shares Ruby's GVL with the app's other threads. It is for Tokra's
+contributors. Why crates live where they do is ADR 011, and why the loop
+keeps the GVL is ADR 012. Each module's own documentation in
 `ext/tokra/src/` holds the sources it rests on.
+
+## Where each crate lives
+
+Tokra's extension links the windowing stack: tao, wry, muda, and
+tray-icon. Every other crate a plugin needs comes from a Ferro gem, and
+the plugin is pure Ruby. A crate in the table below gets exactly one
+native home: no two gems that one app might load link it. tray-icon and
+muda share one home, as do ratatui and crossterm, since tray-icon takes
+muda's menu objects and ratatui takes crossterm's backend.
+
+Each extension keeps its Rust symbols private (rustc exports only
+`Init_*` and `ruby_abi_version`), so two copies of a crate never share
+code. The danger is state the operating system keeps once per process:
+
+| Crate | A second copy in the process |
+|---|---|
+| tao, every version | crashes: fixed Objective-C class names, and NSApp's one delegate |
+| tray-icon, every version | crashes: the fixed `TaoTrayTarget` class |
+| wry before 0.54.3 (Tokra locks 0.54.1) | crashes: fixed class names |
+| muda, with objc2 0.6.3 in either lockfile | crashes; on Windows, menu IDs also clash on a shared window |
+| global-hotkey | misroutes: on macOS the last copy swallows every hotkey |
+| notify-rust (macOS) | misroutes: each copy undoes the other's bundle hook and steals its delegate |
+| crossterm | misroutes: two copies race on stdin and terminal mode |
+
+arboard, rfd, open, os_info, sys-locale, auto-launch, keyring, image,
+dirs, url, idna, and time keep no such state. A second copy of them,
+even at another version, is harmless: Tokra's extension links url and
+idna through wry while ferro-url links its own, and time through wry's
+cookie while ferro-time links its own. This was read from objc2 0.6.3
+and 0.6.5 (`define_class.rs`), tao 0.37.2, wry 0.54.1 and 0.57.1
+(commit 40a7032, "fix(macOS): panic when loading multiple dylibs"), muda
+0.21.2, tray-icon 0.26.1, global-hotkey 0.9.0, mac-notification-sys
+0.6.15, and crossterm 0.29.0.
+
+One more coupling reaches into the event loop: muda's keyboard
+accelerators on Windows need the loop that owns the window to call
+`TranslateAcceleratorW`. The rest of the windowing crates need an OS
+event loop on the right thread, not tao's, and global-hotkey on Linux
+runs its own thread.
+
+A Rust value cannot enter another gem's Rust API: magnus checks every
+wrapped object against its own gem's type record, so handing one gem's
+window to another gem's method raises `TypeError` (magnus
+`r_typed_data.rs:380-400`). Plain Ruby values and byte strings cross
+freely, and so do raw window handles passed as Integers, which wry and
+rfd take as any `HasWindowHandle` and muda as an `isize` HWND or a GTK
+window. A raw handle is unsafe: nothing tracks the window's lifetime,
+and the handle works only on the thread that owns the window. So a raw
+handle crosses into another gem only when that gem's crate never
+dereferences it.
+
+## Translating a crate's API
+
+Tokra's native values and Ferro's gems translate a crate's API into Ruby
+by one table, after AGENTS.md's design precedence: Rust constructs with
+no Ruby meaning are translated, never ported.
+
+| Rust | Ruby |
+|---|---|
+| crate `arboard` | gem `ferro-arboard`, `require "ferro/arboard"`, module `Ferro::Arboard` |
+| type, method, and variant names | kept: `Clipboard#get_text`, `ImageData`, `Error::ContentNotAvailable` |
+| `Result<T, E>` | returns `T`, or raises |
+| an error enum | an exception class per variant under the crate's `Error < StandardError`, with the crate's `Display` text as the message |
+| `Option<T>` | `T` or `nil` |
+| `String`, `&str`, `Cow<str>`, `impl Into<Cow<str>>` | `String` |
+| `Vec<u8>`, `&[u8]`, `Cow<[u8]>` | binary `String` |
+| `PathBuf`, `&Path`, `impl AsRef<Path>` | `String` |
+| a struct with public fields | `Data.define` |
+| a borrowing builder (`clipboard.get().text()`) | an object that holds its clipboard: `clipboard.get.text` |
+| lifetimes, `self` consumption, `Send`/`Sync` bounds | dropped; documented where they change behavior |
+| a Cargo feature | an additive feature is built in; one that relaxes a safety default stays off |
+| a `#[cfg(target_os)]` item or platform trait | defined only on that platform, so `respond_to?` answers |
+
+A Cargo feature that adds behavior, such as a codec or a platform
+backend, is built in. A feature that relaxes a safety default, such as
+Tauri's `process-relaunch-dangerous-allow-symlink-macos`, stays off. If
+one is ever exposed, it becomes an opt-in the app developer sets in
+code, named after the feature and off by default, never an environment
+variable, so whoever runs the app cannot turn it on. This rule was
+recorded on 2026-10-28 for plan 039.
+
+The crate's rustdoc, examples, and tests are the answer key, and tests
+run against the real crate, never a stub. A deviation the table does
+not cover is a design call, written down in the docs of the gem or class
+that makes it.
 
 ## Threads
 

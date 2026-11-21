@@ -31,6 +31,38 @@ plan has ported `fs`, `http`, or `store` yet. Each plugin's plan
 enumerates the upstream plugin's commands and formats, and its tests
 drive them through the IPC as the page does.
 
+## Plugins over Ferro
+
+A plugin that needs a Rust crate builds on the Ferro gem that binds it,
+and carries no Rust of its own (ADR 011): `tokra-clipboard` over
+`ferro-arboard`, `tokra-dialog` over `ferro-rfd`, `tokra-global-shortcut`
+over `ferro-global-hotkey`, and `tokra-notification` over
+`ferro-notify-rust`, `ferro-url`, and `ferro-time`. The plugin maps
+Tauri's commands, payloads, and error messages onto the Ferro gem's API.
+Each fix goes to the layer it belongs to: `ferro-arboard` refuses an
+image arboard would panic on, raising the crate's `ConversionFailure`,
+and `tokra-clipboard` validates Tauri's payloads and turns
+`Ferro::Arboard::Error` subclasses into `clipboard-manager`'s messages.
+A third-party plugin that wraps a crate builds on a Ferro gem, or
+contributes one to Ferro, rather than shipping its own extension.
+Ferro binds crates that add something Ruby lacks, and skips crates that
+duplicate the standard library or a popular gem, such as `serde_json`.
+
+Tokra depends only on released Ferro versions: a published gem, or a
+release tag pushed to Ferro's repository and named as a git source,
+never a path source or an unpushed commit, since a Tokra contributor
+clones Tokra alone. While a Ferro gem is not on RubyGems.org, each
+Gemfile that needs it names its tag, with a `glob` that names only that
+gem's folder. A Tokra change that needs a Ferro API waits for that
+release.
+
+A Ferro gem marks its extension Ractor-safe only where the crate's types
+allow calls from any thread, and freezes and shares objects only where
+they are `Sync`. Where a Ferro object lives is the plugin's call:
+`tokra-clipboard` builds its `Clipboard` frozen and Ractor-shareable,
+holding a frozen `Ferro::Arboard::Clipboard` that takes calls from any
+thread or Ractor.
+
 ## Versions and releases
 
 The repository holds several gems: `tokra` at the root, and one plugin

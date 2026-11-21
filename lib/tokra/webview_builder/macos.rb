@@ -5,9 +5,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
-# Tauri compiles allow_link_preview only for macOS (webview/mod.rs:1196-1203;
-# webview_window.rs:857-862), so it exists only there (ADR 011; plan 052,
-# decision e1-6).
+# Tauri compiles allow_link_preview only for macOS
+# (webview/mod.rs:1196-1203; webview_window.rs:857-862), so it exists
+# only there (doc/contributors/design/native.md, "Translating a crate's
+# API"; plan 052, decision e1-6).
 return unless Tokra::App.os_name == "macos"
 
 # SPDX-SnippetBegin

@@ -7,7 +7,8 @@
 
 # Tauri compiles WindowBuilder::owner and drag_and_drop only for Windows
 # (window/mod.rs:760-764, 845-850; webview_window.rs:745-749, 820-825),
-# so they exist only there (ADR 011; plan 052, decision c4).
+# so they exist only there (doc/contributors/design/native.md,
+# "Translating a crate's API"; plan 052, decision c4).
 return unless Tokra::App.os_name == "windows"
 
 # SPDX-SnippetBegin

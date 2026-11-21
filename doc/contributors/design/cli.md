@@ -47,7 +47,9 @@ become `TOKRA_APP_PATH`, `TOKRA_FRONTEND_PATH`, and
 `TOKRA_CLI_CONFIG_DEPTH` by the renaming rule of [config.md](config.md),
 "File names": they are the developer's
 instructions to the framework's own tool, and nothing outside Tokra reads
-them. They steer that tool, not the app, so ADR 011 does not reach them.
+them. They steer that tool, not the app, so the rule that keeps safety
+switches out of the environment ([native.md](native.md), "Translating a
+crate's API") does not reach them.
 
 The app's entry is the program Fledge would build: the project root's
 gemspec executable, else its `main.rb`.
@@ -97,7 +99,7 @@ reads `bundle.resources` and `bundle.externalBin` where they are.
 |---|---|
 | `-r`, `--runner` and `build.runner` | translated: the command that runs the entry instead of `ruby` |
 | `-t`, `--target` | deferred: Tokra runs on the host only |
-| `-f`, `--features` and `build.features` | not ported: Tokra has no Cargo features to choose (ADR 011) |
+| `-f`, `--features` and `build.features` | not ported: Tokra has no Cargo features to choose ([native.md](native.md), "Translating a crate's API") |
 | `-e`, `--exit-on-panic` | translated: an app that exits with a nonzero status ends `tokra dev` instead of waiting for a change (`dev.rs:324-332`) |
 | `-c`, `--config` | ported, through the dev session |
 | `--release` | not ported: there is no compile profile |
@@ -152,7 +154,7 @@ It runs `build::setup`'s checks and hook (`build.rs:140-260`), then
 | `-r`, `--runner` | deferred: it replaces the compiler, and nothing compiles the app |
 | `-d`, `--debug` | translated: hooks get `TAURI_ENV_DEBUG`; what else it changes waits on plan 050's question 2 (devtools) |
 | `-t`, `--target` | deferred: Fledge builds for the computer it runs on (Fledge ADR 010) |
-| `-f`, `--features` | not ported (ADR 011) |
+| `-f`, `--features` | not ported ([native.md](native.md), "Translating a crate's API") |
 | `-b`, `--bundles` | translated into `installers` ([packaging.md](packaging.md)) |
 | `--no-bundle` | translated: `installers: []`, so Fledge writes the archive alone, the counterpart of Tauri's bare binary |
 | `-c`, `--config` | ported, into the packaged context |

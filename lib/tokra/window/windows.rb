@@ -7,7 +7,8 @@
 
 # Tauri compiles Window::set_overlay_icon only for Windows
 # (window/mod.rs:2113-2124), so it exists only where the native window
-# has it (ADR 011; plan 045, decision 5).
+# has it (doc/contributors/design/native.md, "Translating a crate's
+# API"; plan 045, decision 5).
 return unless Tokra::Native::Window.method_defined?(:set_overlay_icon)
 
 # SPDX-SnippetBegin

@@ -36,8 +36,9 @@ module Tokra
     Default = new(name: "Default")
 
     # Tauri compiles FluentOverlay only for Windows (tauri-runtime
-    # src/webview.rs:186-191), so it exists only there (ADR 011; plan 052,
-    # decision e1-6).
+    # src/webview.rs:186-191), so it exists only there
+    # (doc/contributors/design/native.md, "Translating a crate's API"; plan
+    # 052, decision e1-6).
     if App.os_name == "windows"
       # Fluent's thin scroll bars, drawn over the page. They need the
       # WebView2 Runtime 125.0.2535.41 or newer, and do nothing on an

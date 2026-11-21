@@ -5,9 +5,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
-# Tauri compiles WindowBuilder::transient_for only for Linux and the BSDs
-# (window/mod.rs:814-824; webview_window.rs:791-801), so it exists only on
-# Linux, the one of them Tokra builds for (ADR 011; plan 052, decision c4).
+# Tauri compiles WindowBuilder::transient_for only for Linux and the
+# BSDs (window/mod.rs:814-824; webview_window.rs:791-801), so it exists
+# only on Linux, the one of them Tokra builds for
+# (doc/contributors/design/native.md, "Translating a crate's API"; plan
+# 052, decision c4).
 return unless Tokra::App.os_name == "linux"
 
 # SPDX-SnippetBegin
