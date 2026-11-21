@@ -79,7 +79,7 @@ namespace :sync do
     # Vendor the webview initialization scripts verbatim, converting
     # Tauri's serialize-to-javascript markers into ERB tags. Template
     # values render as JS literals (JSON-encoded by the caller); raw
-    # values splice scripts. See plan 014 and ADR 009.
+    # values splice scripts. See plan 014 and doc/contributors/design/ipc.md.
     scripts_dir = Pathname("vendor/tauri/crates/tauri/scripts")
     banner = lambda do |name|
       <<~JS

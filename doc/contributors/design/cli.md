@@ -69,8 +69,7 @@ not the framework's brand: a Vite config from Tauri's templates reads
 `TAURI_ENV_DEBUG` and `TAURI_ENV_PLATFORM` to pick its target and
 minification. [config.md](config.md), "File names", keeps such names as
 Tauri spells them, as it
-keeps `__TAURI_INTERNALS__` (ADR 009) and `@tauri-apps/api`
-([ipc.md](ipc.md));
+keeps `__TAURI_INTERNALS__` and `@tauri-apps/api` ([ipc.md](ipc.md));
 `TOKRA_ENV_*` would break that tooling. The triple is the host's as Rust
 names it, since Fledge builds only for the host.
 

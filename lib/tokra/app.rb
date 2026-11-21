@@ -702,18 +702,19 @@ module Tokra
     # <tt>console.error("JSON error: ...")</tt> (ipc/protocol.rs:287-291,
     # 422-430; error.rs:50-51), and the invoke's promise stays pending.
     #
-    # Deviations (ADR 009): Tauri deserializes the message into a strict
-    # Message struct; Tokra parses it as a whole Value and reads its
-    # members. That is stricter for members Tauri does not know: serde
-    # skips an unknown field with ignore_value, which checks neither its
-    # strings' surrogates nor its numbers' range (serde_json de.rs:1100-1281),
-    # so Tauri accepts a lone surrogate there and Tokra rejects it. It is
-    # looser about shape: a message that is not an object is logged to
-    # stderr, a missing +cmd+ is the empty command, and a message without
-    # integer callback ids is fire-and-forget, so hand-rolled postMessage
-    # calls keep working. A +cmd+ that is present but not a string fails
-    # with Tauri's <tt>invalid type: ..., expected a string</tt>, without the
-    # line and column serde gives it, which a parsed Value no longer knows.
+    # Deviations (doc/contributors/design/ipc.md): Tauri deserializes the
+    # message into a strict Message struct; Tokra parses it as a whole Value
+    # and reads its members. That is stricter for members Tauri does not
+    # know: serde skips an unknown field with ignore_value, which checks
+    # neither its strings' surrogates nor its numbers' range (serde_json
+    # de.rs:1100-1281), so Tauri accepts a lone surrogate there and Tokra
+    # rejects it. It is looser about shape: a message that is not an object
+    # is logged to stderr, a missing +cmd+ is the empty command, and a
+    # message without integer callback ids is fire-and-forget, so
+    # hand-rolled postMessage calls keep working. A +cmd+ that is present
+    # but not a string fails with Tauri's
+    # <tt>invalid type: ..., expected a string</tt>, without the line and
+    # column serde gives it, which a parsed Value no longer knows.
     #
     # The command's body is the +payload+ member as sent, any JSON value,
     # so a typed array arrives as an Array of numbers, and its headers are
@@ -792,8 +793,8 @@ module Tokra
     # string, or headers that are not an object raise IpcMessageError with
     # serde's message, without the line and column (Plan 033). Options
     # that are not an object, and a customProtocolIpcBlocked that is not a
-    # bool, are ignored where serde would fail, as ADR 009 tolerates a
-    # loose message shape.
+    # bool, are ignored where serde would fail: Tokra tolerates a loose
+    # message shape (doc/contributors/design/ipc.md).
     private def post_message_headers(options)
       empty = {} #: Hash[String, String]
       return empty.freeze unless options.is_a?(Hash) && options.key?("headers")
@@ -921,7 +922,8 @@ module Tokra
     # Tauri's can_use_channel_for_response (ipc/protocol.rs:337-339): any
     # command but the channel-data fetch, unless the client reports that
     # ipc:// failed. A customProtocolIpcBlocked that is not +true+ counts
-    # as false, as ADR 009 tolerates a loose message shape.
+    # as false: Tokra tolerates a loose message shape
+    # (doc/contributors/design/ipc.md).
     private def can_use_channel_for_response?(cmd, options)
       blocked = options.is_a?(Hash) && options["customProtocolIpcBlocked"] == true
       cmd != Ipc::Channel::FETCH_CHANNEL_DATA_COMMAND && !blocked

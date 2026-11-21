@@ -7,15 +7,32 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 # The IPC Path
 
 This document says how a page's `invoke` reaches Ruby and how its answer
-gets back: the two transports, how a command is routed, how each
-transport answers and fails, which origins may invoke, how the page gets
-`@tauri-apps/api`, and where Tokra departs from Tauri. It is for Tokra's
+gets back: the scripts the page runs, the two transports, how a command
+is routed, how each transport answers and fails, the invoke key, which
+origins may invoke, how the page gets `@tauri-apps/api`, where commands
+run, and where Tokra departs from Tauri. It is for Tokra's
 contributors. Why the page speaks Tauri's protocol is ADR 008. The
 dispatch in `lib/tokra/app.rb` carries the Tauri source lines for each
 step.
 
 Tauri citations are to `vendor/tauri` at `9f0306fbc`, under
 `crates/tauri/src/` unless they name another crate.
+
+## The page's scripts
+
+The `__TAURI_INTERNALS__` object the page needs is built by
+initialization scripts, and Tokra writes none of them. `rake sync:tauri`
+vendors Tauri's own scripts from the pinned submodule (`init.js`,
+`pattern.js`, `ipc.js`, `ipc-protocol.js`, `core.js`,
+`process-ipc-message-fn.js`, and the event scripts) into
+`lib/tokra/js/`, turning Tauri's serialize-to-javascript markers into
+ERB, and aborts if its extraction patterns stop matching. `App` assembles
+them in Tauri's injection order (`manager/webview.rs`), so the injected
+side is Tauri's code verbatim. Regenerating them is a manual step.
+
+The frontend's `invoke` sends one message, `{cmd, callback, error,
+payload, options, __TAURI_INVOKE_KEY__}` (`ipc/protocol.rs`), where
+`callback` and `error` are integer callback ids.
 
 ## Two transports
 
@@ -50,6 +67,22 @@ raw invoke key (a JSON member for `postMessage`, the `Tauri-Invoke-Key`
 header for `ipc://`), how it parses the payload, where it finds the
 origin, its responder, and its drop action.
 
+## The postMessage responder
+
+A `postMessage` invoke is answered by evaluating
+`window.__TAURI_INTERNALS__.runCallback(id, value)` in the calling
+webview: the callback id on success, the error id on failure. The
+JavaScript comes from `Tokra::Ipc::FormatCallback`, a port of Tauri's
+`ipc/format_callback.rs`, including its 10 KiB `JSON.parse('...')`
+heuristic. A raw body evaluates as a JSON number array, as Tauri's
+`format_result` writes it on macOS and whenever the client reports
+`customProtocolIpcBlocked`. Off macOS, a successful object, array, or
+raw result travels over `Channel.from_callback_fn` instead, as Tauri
+sends it, unless the command is the channel-data fetch or the message
+reports `customProtocolIpcBlocked` (`ipc/protocol.rs:337-407`). The
+message's `options.headers` become the command's headers, checked as
+the http crate checks them.
+
 ## The ipc:// responder
 
 The client reads the HTTP response and calls `runCallback` itself
@@ -81,6 +114,14 @@ in a map keyed by `request_id`, so `Proxy#drop_response(request_id)`
 removes and drops it. wry's responder has no `Drop`, so nothing answers
 the request, the client's `fetch` stays pending, and the invoke never
 settles, as in Tauri.
+
+## The invoke key
+
+`Tokra.generate_invoke_key` mirrors Tauri's `generate_invoke_key`: 16
+random bytes, Z85-encoded by `Tokra::Z85`. `AppManager` holds the key,
+the scripts carry it, and every message is checked against it. A
+mismatch is logged to stderr and the message is dropped without an
+answer, as Tauri's `Webview::on_message` does (`webview/mod.rs`).
 
 ## Only the app's own origin may invoke
 
@@ -133,6 +174,28 @@ init scripts, mirroring `manager/webview.rs`; Tauri's codegen reads the
 same key when it compiles. `rake sync:tauri` vendors `bundle.global.js`
 from the pinned submodule, built by the API package's own rollup, so
 Tokra never hand-bundles Tauri's JavaScript.
+
+## One App path
+
+`App` owns the event loop, the windows, the webviews, script injection,
+and IPC dispatch, as Tauri's `App` does. `Builder#app(rack_app)` serves a
+Rack app over `tokra://` by handing it to a `Rack::Handler::Tokra`
+instance, whose one job is translating each request and response. `App`
+never learns what Rack is: it holds a protocol adapter, as Tauri's
+manager holds the asset protocol handler. `Rack::Handler::Tokra.run`
+builds a `Builder` and runs it, so there is no second event loop, and a
+Rack- or Rails-served page gets the same scripts and working `invoke`
+answers as any other. The handler keeps its Rack name and `.run` entry,
+so `rackup -s tokra` works.
+
+## Where commands run
+
+`App` dispatches every command synchronously on the main Ractor, and the
+responder answers directly. The responder is an opaque callable on
+`Ipc::Invoke`, so a later move of the app's logic to a worker Ractor
+(ADR 001) can replace it without touching handlers. Until then the
+responder captures its webview and must never cross a Ractor boundary,
+and the Rack app also runs on the main Ractor.
 
 ## Deviations from Tauri
 
