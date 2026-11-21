@@ -189,6 +189,8 @@ class TestNativeClosedWindow < Minitest::Test
 
     error = assert_raises(ThreadError) { quietly { webview.close } }
     assert_equal "Tokra::Native::WebView can only be used on the thread that created it", error.message
+  ensure
+    webview&.close
   end
 
   # Runs the block on another thread and returns its value, raising what it
