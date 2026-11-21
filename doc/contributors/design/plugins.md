@@ -10,6 +10,58 @@ This document says how Tokra's plugins are built and shipped. It is for
 Tokra's contributors. Each plugin's README covers its install, usage,
 and differences from Tauri.
 
+## Matching Tauri's JavaScript packages
+
+A page uses Tauri's own npm packages against Tokra (ADR 008). For a
+Tokra plugin to answer a Tauri package, it:
+
+1. **Matches the IPC command names exactly.** The page invokes
+   `plugin:clipboard-manager|read_text`; the plugin store routes on the
+   plugin's name, and the plugin's `extend_api` sees the bare command:
+
+   ```ruby
+   def extend_api(invoke)
+     case invoke.command
+     when "read_text"
+       invoke.resolve(read_text)
+       true
+     # ...
+     end
+   end
+   ```
+
+2. **Matches the payload and response formats.** It reads
+   `invoke.payload` as Tauri does, a JSON value, and answers through
+   `invoke.resolve` or `invoke.reject` in Tauri's format, with Tauri's
+   error messages.
+3. **Uses Tauri's plugin name,** such as `"clipboard-manager"`, which is
+   also the key of its configuration.
+
+To check a plugin against its package, read the Tauri plugin's
+`guest-js/index.ts` for the command names and `src/commands.rs` for the
+payload and response types, and dispatch the same commands in
+`extend_api`.
+
+| Tokra plugin | Tauri npm package |
+|---|---|
+| `tokra-clipboard` | `@tauri-apps/plugin-clipboard-manager` |
+| `tokra-dialog` | `@tauri-apps/plugin-dialog` |
+| `tokra-notification` | `@tauri-apps/plugin-notification` |
+| `tokra-global-shortcut` | `@tauri-apps/plugin-global-shortcut` |
+| `tokra-shell` | `@tauri-apps/plugin-shell` |
+| `tokra-fs` | `@tauri-apps/plugin-fs` |
+| `tokra-http` | `@tauri-apps/plugin-http` |
+| `tokra-os` | `@tauri-apps/plugin-os` |
+| `tokra-process` | `@tauri-apps/plugin-process` |
+| `tokra-updater` | `@tauri-apps/plugin-updater` |
+
+Of these, `tokra-clipboard`, `tokra-dialog`, `tokra-notification`,
+`tokra-global-shortcut`, and `tokra-process` exist today, and so does
+`tokra-log`, which does not yet answer `@tauri-apps/plugin-log`'s
+commands. Each of the five names its Tauri package in its README, which
+tells the app developer to use that package unchanged. Where a Tokra
+plugin ever diverges from Tauri's API, its README says so.
+
 ## Which plugins Tokra ports
 
 Tokra ports every official Tauri plugin that has a desktop side, with
