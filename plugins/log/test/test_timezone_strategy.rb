@@ -7,8 +7,10 @@
 
 require_relative "test_helper"
 
-# TimezoneStrategy chooses the clock of the default timestamps and of
-# rotated file names (lib.rs:132-147).
+# Tests for TimezoneStrategy Data classes (Tauri API parity).
+#
+# TimezoneStrategy controls whether timestamps use UTC or local time.
+# Plugin-level setting passed to formatters.
 class TestTimezoneStrategy < Minitest::Test
   TimezoneStrategy = Tokra::Plugins::Log::TimezoneStrategy
 
@@ -28,29 +30,53 @@ class TestTimezoneStrategy < Minitest::Test
     assert_equal [], use_local.members
   end
 
-  # get_now: the time crate's now, as Tauri's get_now (lib.rs:138-147)
+  # format_time: converts time to appropriate timezone
 
-  def test_use_utc_gets_now_in_utc_from_the_time_crate
-    before = Ferro::Time::OffsetDateTime.now_utc
-    now = TimezoneStrategy::UseUtc.new.get_now
+  def test_use_utc_converts_time_to_utc
+    local_time = Time.new(2026, 1, 31, 12, 0, 0, "-06:00")
 
-    assert_instance_of Ferro::Time::OffsetDateTime, now
-    assert now.offset.is_utc
-    assert_operator now, :>=, before
+    result = TimezoneStrategy::UseUtc.new.format_time(local_time)
+
+    assert result.utc?
+    assert_equal 18, result.hour # 12:00 CST = 18:00 UTC
   end
 
-  def test_use_local_gets_now_in_the_local_offset
-    now = TimezoneStrategy::UseLocal.new.get_now
+  def test_use_local_returns_time_unchanged
+    local_time = Time.new(2026, 1, 31, 12, 0, 0, "-06:00")
 
-    assert_instance_of Ferro::Time::OffsetDateTime, now
-    assert_equal Ferro::Time::UtcOffset.current_local_offset, now.offset
+    result = TimezoneStrategy::UseLocal.new.format_time(local_time)
+
+    assert_same local_time, result
   end
 
-  # Rust cannot always learn the local offset; Tauri falls back to UTC.
-  def test_use_local_falls_back_to_utc_when_the_local_offset_is_unknown
-    unknown = -> { raise Ferro::Time::Error::IndeterminateOffset }
-    now = Ferro::Time::OffsetDateTime.stub(:now_local, unknown) { TimezoneStrategy::UseLocal.new.get_now }
+  # Integration: TimezoneStrategy affects log output
 
-    assert now.offset.is_utc
+  # Shareable formatter that extracts time's UTC status
+  UTC_STATUS_FORMATTER = Ractor.make_shareable(
+    -> (severity, time, progname, msg) { "utc:#{time.utc?}\n" }
+  )
+
+  def test_use_utc_strategy_passes_utc_time_to_formatter
+    output = StringIO.new
+    target = Tokra::Plugins::Log::Target.new(output)
+      .timezone_strategy(TimezoneStrategy::UseUtc.new)
+      .format(UTC_STATUS_FORMATTER)
+    builder = Tokra::Plugins::Log::Builder.new
+
+    target.to_logger(builder).info("test")
+
+    assert_equal "utc:true\n", output.string
+  end
+
+  def test_use_local_strategy_passes_local_time_to_formatter
+    output = StringIO.new
+    target = Tokra::Plugins::Log::Target.new(output)
+      .timezone_strategy(TimezoneStrategy::UseLocal.new)
+      .format(UTC_STATUS_FORMATTER)
+    builder = Tokra::Plugins::Log::Builder.new
+
+    target.to_logger(builder).info("test")
+
+    assert_equal "utc:false\n", output.string
   end
 end

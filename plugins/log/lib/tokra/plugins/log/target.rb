@@ -5,114 +5,197 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
-# SPDX-SnippetBegin
-# SPDX-License-Identifier: Apache-2.0 OR MIT
-# SPDX-SnippetCopyrightText: 2019-2023 Tauri Programme within The Commons Conservancy
-# SPDX-SnippetComment: Target adapted from tauri-plugin-log src/lib.rs
+require "logger"
+require "fileutils"
 
 module Tokra
   module Plugins
     module Log
-      # One place the plugin writes to, with its own filters and format.
+      # Configures a log output destination.
       #
-      # Different places want different lines. The page's console wants
-      # only what the page logged; a file for bug reports wants
-      # everything; the terminal wants it short. A Target pairs a
-      # TargetKind with the filters that choose its records and the format
-      # that shapes its lines. Its filters run after the builder's, and its
-      # format reshapes the line the builder's format already made.
+      # Follows Tauri's fluent API pattern with mutable builder methods.
       #
-      # Mirrors Tauri's +Target+ (lib.rs:359-393). Filters and formats are
-      # Ractor-shareable procs (Ractor.shareable_proc), so a target can be
-      # built once and shared.
+      # == Examples
       #
-      # === Examples
+      #   # Console output
+      #   Target.new($stdout)
       #
-      #   Target.new(TargetKind::Stdout.new)
+      #   # File output
+      #   Target.new(Pathname("logs/app.log"))
       #
-      #   # Only what the page logs, into its own file
-      #   Target.new(TargetKind::LogDir.new(file_name: "webview"))
-      #     .filter(Ractor.shareable_proc { |metadata| metadata.target.start_with?(WEBVIEW_TARGET) })
+      #   # With filter and formatter
+      #   Target.new($stdout)
+      #     .filter { |msg| !msg.include?("secret") }
+      #     .format { |sev, time, prog, msg| "[#{sev}] #{msg}\n" }
       #
-      #   # Prefix each line for the terminal
-      #   Target.new(TargetKind::Stderr.new)
-      #     .format(Ractor.shareable_proc { |message, record| "#{record.level}: #{message}" })
+      # == Errors
+      #
+      # Raises +Ractor::IsolationError+ if filter/formatter is not Ractor-shareable.
+      #
+      # @see https://github.com/tauri-apps/plugins-workspace/blob/v2/plugins/log/src/lib.rs#L360-L393
+      #
       class Target
-        # The TargetKind this target writes to.
+        # The destination for log output.
         attr_reader :kind
 
-        # The target's filters, in the order they were added.
-        attr_reader :filters
-
-        # The target's format, or +nil+ to write the builder's line as is.
-        attr_reader :formatter
-
-        # Makes a target that writes to +kind+.
+        # Creates a new Target with the given kind.
         #
-        # [kind] A TargetKind value, such as <tt>TargetKind::Stdout.new</tt>.
-        #
-        # Raises ArgumentError for anything else.
+        # +kind+:: Pathname, IO, StringIO, or TargetKind::LogDir
         def initialize(kind)
-          raise ArgumentError, "unknown target kind: #{kind.inspect}" unless KINDS.any? { |known| kind.is_a?(known) }
-
           @kind = kind
           @filters = []
           @formatter = nil
+          @rotation_strategy = nil
+          @timezone_strategy = nil
         end
 
-        # Adds a filter and returns the target. The filter receives each
-        # record's Metadata and returns whether the record reaches this
-        # target. Every filter has to pass.
+        # Adds a filter to this target. Returns self for chaining.
         #
-        # Raises Ractor::IsolationError for a filter that is not
-        # Ractor-shareable.
+        # +callback+:: a Ractor-shareable proc that receives the message
+        #              and returns true to allow, false to block
         #
-        # === Example
-        #
-        #   target.filter(Ractor.shareable_proc { |metadata| metadata.level != :trace })
         def filter(callback = nil, &block)
-          filter = callback || block
-          shareable!(filter, "filter")
-          @filters << filter
+          new_filter = callback || block
+          validate_shareable!(new_filter, "filter")
+          @filters << new_filter
           self
         end
 
-        # Sets the target's format and returns the target. The format
-        # receives the line the builder's format made and the Record, and
-        # returns this target's line; +nil+ keeps the line as it was.
+        # Sets the formatter for this target. Returns self for chaining.
         #
-        # Raises Ractor::IsolationError for a format that is not
-        # Ractor-shareable.
+        # +callback+:: a Ractor-shareable proc that receives (severity, time, progname, msg)
+        #              and returns the formatted string
         #
-        # === Example
-        #
-        #   target.format(Ractor.shareable_proc { |message, _record| "> #{message}" })
         def format(callback = nil, &block)
-          formatter = callback || block
-          shareable!(formatter, "format")
-          @formatter = formatter
+          new_formatter = callback || block
+          validate_shareable!(new_formatter, "formatter")
+          @formatter = new_formatter
           self
         end
 
-        # The kinds a target can write to.
-        KINDS = [
-          TargetKind::Stdout,
-          TargetKind::Stderr,
-          TargetKind::Folder,
-          TargetKind::LogDir,
-          TargetKind::Webview,
-          TargetKind::Dispatch,
-        ].freeze
-        private_constant :KINDS
+        # Sets the rotation strategy for this target. Returns self for chaining.
+        #
+        # +strategy+:: RotationStrategy (KeepAll, KeepOne, KeepSome)
+        #
+        def rotation_strategy(strategy)
+          @rotation_strategy = strategy
+          self
+        end
 
-        private def shareable!(callable, name)
-          return if Ractor.shareable?(callable)
+        # Sets the timezone strategy for this target. Returns self for chaining.
+        #
+        # +strategy+:: TimezoneStrategy (UseUtc, UseLocal)
+        #
+        def timezone_strategy(strategy)
+          @timezone_strategy = strategy
+          self
+        end
 
-          raise Ractor::IsolationError, "#{name} must be Ractor-shareable (use Ractor.shareable_proc)"
+        # Builds a TracingLogger instance for this target.
+        #
+        # +builder+:: Builder instance with configuration
+        def to_logger(builder)
+          logger = create_base_logger(builder)
+          level = builder.configured_level || :debug
+          logger.level = (level == :trace) ? TRACE : level
+          logger.formatter = wrap_formatter_with_timezone(@formatter) if @formatter
+          wrap_with_filters(logger)
+        end
+
+        private def create_base_logger(builder)
+          shift_age = @rotation_strategy&.to_shift_age || 0
+          shift_size = builder.configured_max_file_size || 1_048_576
+
+          case kind
+          when Pathname then TracingLogger.new(kind.to_s, shift_age, shift_size)
+          when IO, StringIO then TracingLogger.new(kind)
+          when TargetKind::LogDir then create_log_dir_logger(builder, shift_age, shift_size)
+          when TargetKind::Webview then create_webview_logger(builder)
+          else raise ArgumentError, "Unknown destination type: #{kind.class}"
+          end
+        end
+
+        private def create_log_dir_logger(builder, shift_age, shift_size)
+          path_resolver = builder.configured_path_resolver
+          log_dir = path_resolver.app_log_dir
+          FileUtils.mkdir_p(log_dir)
+
+          file_name = kind.file_name || builder.configured_app_name || "app"
+          log_path = log_dir.join("#{file_name}.log")
+          TracingLogger.new(log_path.to_s, shift_age, shift_size)
+        end
+
+        private def create_webview_logger(builder)
+          app_handle = builder.configured_app_handle
+          WebviewLogger.new(app_handle)
+        end
+
+        private def wrap_with_filters(logger)
+          @filters.reduce(logger) { |log, fltr| FilteringLogger.new(log, fltr) }
+        end
+
+        private def validate_shareable!(proc, name)
+          return if proc.nil?
+          return if Ractor.shareable?(proc)
+
+          raise Ractor::IsolationError,
+            "#{name} must be Ractor-shareable (use Ractor.shareable_proc)"
+        end
+
+        # Wraps formatter to apply timezone conversion if strategy is set.
+        private def wrap_formatter_with_timezone(formatter)
+          return formatter unless @timezone_strategy
+
+          strategy = @timezone_strategy
+          -> (severity, time, progname, msg) do
+            converted_time = strategy.format_time(time)
+            formatter.call(severity, converted_time, progname, msg)
+          end
         end
       end
+
+      # Logger wrapper that applies a filter to messages.
+      class FilteringLogger
+        # Creates a new FilteringLogger.
+        #
+        # +logger+:: the underlying logger to delegate to
+        # +filter+:: a callable that returns true to allow the message
+        def initialize(logger, filter)
+          @logger = logger
+          @filter = filter
+        end
+
+        # Adds a log entry if it passes the filter.
+        def add(severity, message = nil, progname = nil)
+          return unless @filter.call(message || progname)
+          @logger.add(severity, message, progname)
+        end
+
+        %i[trace debug info warn error fatal].each do |level|
+          define_method(level) do |message = nil, &block|
+            msg = message || block&.call
+            return unless @filter.call(msg)
+            @logger.__send__(level, msg)
+          end
+        end
+
+        # Writes raw message if it passes the filter.
+        def <<(msg)
+          return unless @filter.call(msg)
+          @logger << msg
+        end
+
+        # Delegates unknown methods to the underlying logger.
+        private def method_missing(method, *, &)
+          @logger.__send__(method, *, &)
+        end
+
+        # Returns true if the logger responds to the method.
+        def respond_to_missing?(method, include_private = false)
+          @logger.respond_to?(method, include_private)
+        end
+      end
+      private_constant :FilteringLogger
     end
   end
 end
-
-# SPDX-SnippetEnd

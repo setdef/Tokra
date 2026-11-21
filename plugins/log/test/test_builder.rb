@@ -7,111 +7,156 @@
 
 require_relative "test_helper"
 
-# Builder's defaults, its chaining, and the methods Tokra declines
-# (lib.rs:395-565).
+# Tests for Log::Builder fluent API.
+#
+# TDD tests following Tarlinder-style: verify behavior, not implementation.
 class TestBuilder < Minitest::Test
-  include LogTest
+  def test_new_creates_builder
+    builder = Tokra::Plugins::Log::Builder.new
 
-  # Builder::default (lib.rs:404-431).
-  def test_the_defaults_are_tauris
-    builder = Log::Builder.new
-
-    assert_equal Log::RotationStrategy::KeepOne.new, builder.__send__(:settings).rotation_strategy
-    assert_equal Log::TimezoneStrategy::UseUtc.new, builder.__send__(:settings).timezone_strategy
-    assert_equal 40_000, builder.__send__(:settings).max_file_size
-    assert_equal :trace, builder.__send__(:settings).level
+    assert_kind_of Tokra::Plugins::Log::Builder, builder
   end
 
-  # Each setter returns the builder, as each Rust method returns Self.
-  def test_each_setter_returns_the_builder
-    builder = Log::Builder.new
-    format = Ractor.shareable_proc { |message, _record| message }
-    calls = [
-      -> { builder.rotation_strategy(Log::RotationStrategy::KeepAll.new) },
-      -> { builder.timezone_strategy(Log::TimezoneStrategy::UseLocal.new) },
-      -> { builder.max_file_size(10) },
-      -> { builder.clear_format },
-      -> { builder.format(format) },
-      -> { builder.level(:info) },
-      -> { builder.filter(-> (_metadata) { true }) },
-      -> { builder.clear_targets },
-      -> { builder.target(stdout_target) },
-      -> { builder.targets([stdout_target]) },
-      -> { builder.skip_logger },
-    ]
+  def test_targets_returns_self_for_chaining
+    builder = Tokra::Plugins::Log::Builder.new
+    target = Tokra::Plugins::Log::Target.new($stdout)
 
-    calls.each { |call| assert_same builder, call.call }
+    result = builder.targets([target])
+
+    assert_same builder, result
   end
 
-  def test_targets_replaces_and_target_adds
-    first = stdout_target
-    second = Log::Target.new(Log::TargetKind::Stderr.new)
-    builder = Log::Builder.new.targets([first]).target(second)
+  def test_target_returns_self_for_chaining
+    builder = Tokra::Plugins::Log::Builder.new
+    target = Tokra::Plugins::Log::Target.new($stdout)
 
-    assert_equal [first, second], builder.__send__(:settings).targets
+    result = builder.target(target)
+
+    assert_same builder, result
   end
 
-  # The builder keeps its own list, as Rust's targets collects the
-  # iterator it is given into a Vec of its own.
-  def test_targets_keeps_its_own_list
-    list = [stdout_target]
-    builder = Log::Builder.new.targets(list)
-    list << Log::Target.new(Log::TargetKind::Stderr.new)
+  def test_level_returns_self_for_chaining
+    builder = Tokra::Plugins::Log::Builder.new
 
-    assert_equal 1, builder.__send__(:settings).targets.size
+    result = builder.level(:debug)
+
+    assert_same builder, result
   end
 
-  # Sizes above u64::MAX are clamped (lib.rs:459-466).
-  def test_max_file_size_is_clamped_to_u64
-    assert_equal (2 ** 64) - 1, Log::Builder.new.max_file_size(2 ** 70).__send__(:settings).max_file_size
+  def test_rotation_strategy_returns_self_for_chaining
+    builder = Tokra::Plugins::Log::Builder.new
+    strategy = Tokra::Plugins::Log::RotationStrategy::KeepOne.new
+
+    result = builder.rotation_strategy(strategy)
+
+    assert_same builder, result
   end
 
-  # Tauri's build and split make a TauriPlugin named log
-  # (lib.rs:666-711).
-  def test_build_and_split_make_the_plugin_named_log
-    plugin = Log::Builder.new.build
-    split, = Log::Builder.new.clear_targets.split(app_handle)
+  def test_timezone_strategy_returns_self_for_chaining
+    builder = Tokra::Plugins::Log::Builder.new
+    strategy = Tokra::Plugins::Log::TimezoneStrategy::UseUtc.new
 
-    [plugin, split].each do |made|
-      assert_instance_of Tokra::Plugin::TauriPlugin, made
-      assert_equal "log", made.name
-    end
+    result = builder.timezone_strategy(strategy)
+
+    assert_same builder, result
   end
 
-  # split returns the logger apart, and the lowest level it can log:
-  # the builder's level, or Off with no targets, as fern's into_log
-  # computes it (fern 0.7.1 builders.rs:589-595).
-  def test_split_returns_the_level_and_the_logger_unattached
-    _, max_level, logger = Log::Builder.new.level(:info).clear_targets.target(stdout_target).split(app_handle)
-    _, none, = Log::Builder.new.level(:info).clear_targets.split(app_handle)
+  def test_max_file_size_returns_self_for_chaining
+    builder = Tokra::Plugins::Log::Builder.new
 
-    assert_equal :info, max_level
-    assert_equal :off, none
-    assert_instance_of Log::Logger, logger
-    refute_same logger, Log.logger, "split attaches nothing"
+    result = builder.max_file_size(10_000_000)
+
+    assert_same builder, result
   end
 
-  # skip_logger has split refuse, with Tauri's message (lib.rs:66-67,
-  # 676-678).
-  def test_split_after_skip_logger_raises_logger_not_initialized
-    error = assert_raises(Log::Error::LoggerNotInitialized) { Log::Builder.new.skip_logger.split(app_handle) }
+  def test_clear_targets_returns_self_for_chaining
+    builder = Tokra::Plugins::Log::Builder.new
 
-    assert_equal "Internal logger disabled and cannot be acquired or attached", error.message
+    result = builder.clear_targets
+
+    assert_same builder, result
   end
 
-  # Tauri filters by Rust module path (lib.rs:488-491), which Ruby records
-  # do not carry.
-  def test_level_for_is_declined
-    error = assert_raises(NotImplementedError) { Log::Builder.new.level_for("hyper", :warn) }
+  def test_skip_logger_returns_self_for_chaining
+    builder = Tokra::Plugins::Log::Builder.new
 
-    assert_match(/module path/, error.message)
-    assert_match(/Builder#filter/, error.message)
+    result = builder.skip_logger
+
+    assert_same builder, result
   end
 
-  # fern's colors feature (lib.rs:551-565).
-  def test_with_colors_is_declined
-    error = assert_raises(NotImplementedError) { Log::Builder.new.with_colors({}) }
+  def test_build_returns_plugin
+    builder = Tokra::Plugins::Log::Builder.new
+      .targets([Tokra::Plugins::Log::Target.new($stdout)])
+      .level(:debug)
 
-    assert_match(/Builder#format/, error.message)
+    plugin = builder.build
+
+    assert_kind_of Tokra::Plugins::Log::Plugin, plugin
+  end
+
+  def test_progname_returns_self_for_chaining
+    builder = Tokra::Plugins::Log::Builder.new
+
+    result = builder.progname("my-app")
+
+    assert_same builder, result
+  end
+
+  def test_datetime_format_returns_self_for_chaining
+    builder = Tokra::Plugins::Log::Builder.new
+
+    result = builder.datetime_format("%Y-%m-%d %H:%M:%S")
+
+    assert_same builder, result
+  end
+
+  SIMPLE_FORMATTER = Ractor.make_shareable(
+    -> (sev, time, prog, msg) { "FORMATTED: #{msg}\n" }
+  )
+
+  def test_format_applies_formatter_to_built_plugin
+    output = StringIO.new
+    target = Tokra::Plugins::Log::Target.new(output)
+
+    plugin = Tokra::Plugins::Log::Builder.new
+      .targets([target])
+      .format(SIMPLE_FORMATTER)
+      .build
+
+    plugin.info("hello")
+
+    assert_equal "FORMATTED: hello\n", output.string
+  end
+
+  FILTER_REJECTS_SECRET = Ractor.make_shareable(
+    -> (msg) { !msg.include?("SECRET") }
+  )
+
+  def test_filter_rejects_matching_messages
+    output = StringIO.new
+    target = Tokra::Plugins::Log::Target.new(output)
+
+    plugin = Tokra::Plugins::Log::Builder.new
+      .targets([target])
+      .filter(FILTER_REJECTS_SECRET)
+      .build
+
+    plugin.info("public info")
+    plugin.info("SECRET data")
+    plugin.info("more public info")
+
+    assert_includes output.string, "public info", "non-matching messages should be logged"
+    assert_includes output.string, "more public info", "non-matching messages should be logged"
+    refute_includes output.string, "SECRET", "matching messages should be rejected"
+  end
+
+  def test_with_colors_raises_not_implemented_error
+    builder = Tokra::Plugins::Log::Builder.new
+
+    error = assert_raises(NotImplementedError) { builder.with_colors({}) }
+
+    assert_includes error.message, "Logger",
+      "error should explain Ruby's Logger is not color-aware"
   end
 end

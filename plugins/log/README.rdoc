@@ -3,44 +3,25 @@
 {rdoc-image:https://justin.searls.co/img/shovelware.svg}[https://justin.searls.co/shovelware/]
 {rdoc-image:https://github.com/setdef/Tokra/actions/workflows/ci.yml/badge.svg?branch=trunk}[https://github.com/setdef/Tokra/actions/workflows/ci.yml]
 
-Logging for Tokra desktop applications, ported from Tauri's log plugin.
+Logging plugin for Tokra desktop applications.
 
-Your app logs from Ruby and from its pages. tokra-log sends both to the
-same places, the terminal, a log file, a Logger of your own, the page's
-console, in Tauri's format:
-
-  [2026-11-13][09:41:07][my-app][INFO] window opened
-  [2026-11-13][09:41:08][webview:onClick@http://localhost/main.js:12:3][WARN] slow paint
+Wraps Ruby's Logger with desktop-friendly defaults and integrates with
+Tokra's plugin lifecycle.
 
 == Usage
 
 Build the plugin with Tokra::Plugins::Log::Builder and register it on the
 app's builder, as a Tauri app does:
 
+  require "pathname"
   require "tokra"
   require "tokra-log"
 
   log = Tokra::Plugins::Log::Builder.new
     .level(:info)
-    .targets([
-      Tokra::Plugins::Log::Target.new(Tokra::Plugins::Log::TargetKind::Stdout.new),
-      Tokra::Plugins::Log::Target.new(Tokra::Plugins::Log::TargetKind::Folder.new(path: "logs")),
-    ])
+    .targets([Tokra::Plugins::Log::Target.new(Pathname("app.log"))])
     .build
   Tokra::Builder.default.plugin(log).run(Tokra.generate_context)
-
-When the app starts, the plugin's setup makes its logger and attaches it
-as the process's logger. Reach it with Tokra::Plugins::Log.logger, and
-log from Ruby with +trace+, +debug+, +info+, +warn+, +error+, and
-+fatal+. They take Ruby's Logger arguments, so the logger also serves as
-the Logger a library asks for:
-<tt>Tokra::Plugins::Log.logger.warn("db") { "slow query" }</tt> logs
-"slow query" with the target +db+.
-
-A process has one logger, as a Rust process has, and attaches it once: a
-second app in the same process whose log plugin attaches fails to start.
-Build that plugin with +skip_logger+, or attach a logger of your own with
-+split+ and Tokra::Plugins::Log.attach_logger.
 
 The plugin takes no config. A +log+ entry under +plugins+ in your
 <tt>tokra.conf.json</tt> fails the app, as it fails a Tauri app. With
@@ -48,44 +29,12 @@ The plugin takes no config. A +log+ entry under +plugins+ in your
 frontend API on <tt>window.__TAURI__.log</tt>, from the script the gem
 ships.
 
-Log from the page with <tt>@tauri-apps/plugin-log</tt>. Its +trace+
-through +error+ invoke the plugin's <tt>log</tt> command, which logs the
-message with the target <tt>webview:<caller></tt>. A Webview target sends
-each line back to the page as a <tt>log://log</tt> event, which
-+attachConsole+ prints in the page's console:
-
-  import { warn, attachConsole } from "@tauri-apps/plugin-log";
-
-  await attachConsole();
-  await warn("slow paint");
-
 == Configuration
 
-Each Builder method returns the builder, so calls chain. With no changes
-the plugin writes every level to standard output and to the app's log
-directory, in UTC, and starts a log file over at 40000 bytes, as Tauri's
-does.
+Each Builder method returns the builder, so calls chain:
 
-- +targets+, +target+, +clear_targets+:: where lines go: a Target of
-  TargetKind::Stdout, Stderr, Folder, LogDir, Webview, or Dispatch (a
-  Logger of your own), each with its own +filter+ and +format+
-- +level+:: the lowest level logged: +:trace+ (the default), +:debug+,
-  +:info+, +:warn+, +:error+, or +:off+
-- +filter+:: a block that receives each record's level and target and
-  returns whether to log it
-- +format+, +clear_format+:: a block that receives the message and the
-  record and returns the line, or the message alone
-- +timezone_strategy+:: UTC or local time for timestamps and rotated
-  file names
-- +rotation_strategy+, +max_file_size+:: what happens to a full log file
-
-- +skip_logger+:: register the plugin without making or attaching a
-  logger
-- +split+:: make the plugin and the logger apart, for you to attach
-
-LogDir targets write in the app's log directory, and file targets are
-named for the app unless they name a file.
-
-Tauri's +level_for+ and +with_colors+ raise NotImplementedError: one
-depends on Rust's module paths, the other on fern's colors. Their RDoc
-names the alternative.
+- +level+:: minimum level (+:trace+, +:debug+, +:info+, +:warn+, +:error+, +:fatal+; default +:debug+)
+- +targets+, +target+:: where messages go: a Target wrapping an IO, a
+  Pathname, or a TargetKind (such as TargetKind::LogDir)
+- +rotation_strategy+, +max_file_size+, +timezone_strategy+:: file handling
+- +format+, +filter+:: a Ractor-shareable formatter or filter for every target

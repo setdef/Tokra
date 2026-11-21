@@ -65,11 +65,11 @@ SPDX-License-Identifier: MIT-0
 
   <script>
     const { invoke } = window.__TAURI__.core;
+    const { listen } = window.__TAURI__.event;
     const { writeText, readText } = window.__TAURI__.clipboardManager;
     const { open, save } = window.__TAURI__.dialog;
     const { register, unregister, isRegistered } = window.__TAURI__.globalShortcut;
     const { isPermissionGranted, requestPermission, sendNotification } = window.__TAURI__.notification;
-    const { info, attachLogger } = window.__TAURI__.log;
 
     const show = (id, text) => { document.getElementById(id).textContent = text; };
     const on = (id, action, out) => document.getElementById(id).addEventListener('click', async () => {
@@ -131,17 +131,18 @@ SPDX-License-Identifier: MIT-0
       show('shortcut-out', 'Registered; press it');
     }, 'shortcut-out');
 
-    // Log: tokra-log. info logs through the plugin's log command, and
-    // attachLogger hears each line the plugin sends back to the page.
-    attachLogger(({ message }) => {
+    // Log: tokra-log. The page listens for log://log, as the log plugin's
+    // attachLogger does.
+    const levels = { 1: 'TRACE', 2: 'DEBUG', 3: 'INFO', 4: 'WARN', 5: 'ERROR' };
+    listen('log://log', ({ payload }) => {
       const line = document.createElement('li');
-      line.textContent = message;
+      line.textContent = `[${levels[payload.level]}] ${payload.message}`;
       document.getElementById('log-lines').append(line);
     });
     let lines = 0;
     on('log', async () => {
       lines += 1;
-      await info(`Line ${lines} from the page`);
+      await invoke('log_message', { message: `Line ${lines} from the page` });
     }, 'log-out');
 
     // URL: Tokra reads the webview's address with ferro-url.

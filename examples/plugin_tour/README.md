@@ -18,7 +18,7 @@ again, which would end the tour.
 | Open a file, Save as | `dialog.open`, `dialog.save` | tokra-dialog | ferro-rfd |
 | Notify me | `notification.sendNotification` | tokra-notification | ferro-notify-rust |
 | Register | `globalShortcut.register` | tokra-global-shortcut | ferro-global-hotkey |
-| Write a log line | `log.info`, `log.attachLogger` | tokra-log | ferro-time |
+| Write a log line | `core.invoke('log_message')`, `event.listen('log://log')` | tokra-log | ferro-time, in `app.rb` |
 | Read this page's URL | `core.invoke('page_url')` | Tokra itself | ferro-url |
 
 ## What each control shows
@@ -50,12 +50,12 @@ shortcut is an X11 key grab, so it works under X11 and XWayland. If
 another app already holds the combination, the presses go to that app
 and the count stays still.
 
-**Log.** Write a log line calls `info`, which sends the line to
-tokra-log's `log` command. The plugin logs it to two targets in Tauri's
-layout, starting with the date and time in UTC, read through ferro-time:
-the terminal, and the page, which hears it through `attachLogger` and
-lists it. The line's target, `webview:` and the place in the page that
-logged it, says the page wrote it.
+**Log.** Write a log line sends a line to Ruby, which logs it through
+tokra-log to two targets: the terminal, where each line starts with the
+date and time in UTC, read through ferro-time in the layout of Tauri's
+log plugin; and the page, which hears it as the `log://log` event and
+lists it. The page's lines have no time, because tokra-log's page target
+ignores the formatter.
 
 **URL.** Read this page's URL asks Ruby for the webview's address, which
 Tokra reads with ferro-url, and shows it with its scheme, host, and
@@ -65,11 +65,15 @@ on Windows.
 ## How it is put together
 
 `app.rb` serves `index.html` through a Rack lambda, registers the five
-plugins, and answers the page's one command. Each plugin's
+plugins, and answers the page's two commands. Each plugin's
 `api-iife.js`, unchanged from Tauri, puts its API on `window.__TAURI__`.
 Each plugin gem ships its script, and because the config sets
 `withGlobalTauri`, Tokra injects them into the page. With a bundler, import
 `@tauri-apps/plugin-clipboard-manager` and the others instead.
+
+tokra-log has no command the page can call yet, so the page sends its
+line through the tour's own `log_message` command, and `app.rb` keeps
+the log plugin in managed state to reach it.
 
 ## Running it from this checkout
 

@@ -183,13 +183,9 @@ PACKAGES = [
     smoke: <<~RUBY),
       require "tokra-log"
       require "tokra/plugins/log/version"
-      # The plugin is built but never set up, so no logger is attached.
-      plugin = Tokra::Plugins::Log::Builder.new.level(:info).build
-      abort "the plugin is not named log" unless plugin.name == "log"
-      # The global API script is a packaged file too, named as the gem loads.
-      api = Tokra::Utils::Plugin.global_api_script_paths.find { |path| path.end_with?("log/api-iife.js") }
-      abort "the global API script is not packaged" unless api && File.read(api).include?("__TAURI_PLUGIN_LOG__")
-      puts "tokra-log \#{Tokra::Plugins::Log::VERSION} builds its plugin"
+      builder = Tokra::Plugins::Log::Builder.new.level(:info)
+      abort "builder lost its level" unless builder.configured_level == :info
+      puts "tokra-log \#{Tokra::Plugins::Log::VERSION} loads"
     RUBY
   PackageCheck::Target.new(
     name: "tokra-process",

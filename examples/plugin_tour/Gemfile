@@ -18,7 +18,7 @@ gem "tokra-notification", path: "../../plugins/notification"
 
 # The Ferro gems they build on, from their release tags until they are on
 # RubyGems.org. Each glob names its gem's own folder, so no gem comes from
-# another gem's tag. tokra-log reads its log times through ferro-time.
+# another gem's tag. The tour formats its log times with ferro-time itself.
 gem "ferro-arboard", git: "https://github.com/setdef/Ferro", tag: "ferro-arboard/v0.1.0", glob: "gems/arboard/*.gemspec"
 gem "ferro-global-hotkey", git: "https://github.com/setdef/Ferro", tag: "ferro-global-hotkey/v0.1.0",
   glob: "gems/global-hotkey/*.gemspec"

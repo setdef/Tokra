@@ -5,139 +5,189 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #++
 
-# SPDX-SnippetBegin
-# SPDX-License-Identifier: Apache-2.0 OR MIT
-# SPDX-SnippetCopyrightText: 2019-2023 Tauri Programme within The Commons Conservancy
-# SPDX-SnippetComment: attach_logger and Error adapted from tauri-plugin-log
-#                      src/lib.rs; logger, max_level, and SetLoggerError from
-#                      log 0.4.29 src/lib.rs
-
-require "fileutils"
 require "tokra"
-require_relative "log/log_level"
-require_relative "log/record"
+require "logger"
+require_relative "log/tracing_logger"
+require_relative "log/tauri_level"
+require_relative "log/webview_logger"
 require_relative "log/rotation_strategy"
 require_relative "log/timezone_strategy"
-require_relative "log/target_kind"
 require_relative "log/target"
-require_relative "log/rotating_file"
-require_relative "log/output"
-require_relative "log/logger"
-require_relative "log/commands"
+require_relative "log/target_kind"
 require_relative "log/builder"
 
 module Tokra
   module Plugins
-    # Logging for Tokra applications, ported from Tauri's log plugin.
+    # Namespace for the log plugin.
     #
-    # An app logs from its Ruby code and from its pages, and wants both in
-    # one place. Register the plugin that Builder#build makes; its setup
-    # attaches a Logger as the process's logger, which Ruby code reaches
-    # with Log.logger and the page's <tt>@tauri-apps/plugin-log</tt>
-    # reaches through the plugin's <tt>log</tt> command.
-    #
-    # Tauri's plugin crate re-exports the log crate, whose global logger
-    # Rust code logs to with <tt>log::info!</tt>. Tokra keeps the log
-    # crate's names here, beside Record and Metadata: Log.logger and
-    # Log.max_level are <tt>log::logger</tt> and <tt>log::max_level</tt>.
-    #
-    # === Example
-    #
-    #   Tokra::Builder.default
-    #     .plugin(Tokra::Plugins::Log::Builder.new.level(:info).build)
-    #     .setup(&Ractor.shareable_proc { |_app| Tokra::Plugins::Log.logger.info("started") })
-    #     .run(Tokra.generate_context)
+    # Use Tokra::Plugins::Log::Plugin as the plugin class.
     module Log
-      # The log plugin's errors (lib.rs:56-68).
-      class Error < Tokra::Error
-        # Builder#split on a builder that called Builder#skip_logger.
-        class LoggerNotInitialized < Error
-          # Tauri's message (lib.rs:66-67).
-          def initialize(message = "Internal logger disabled and cannot be acquired or attached")
-            super
+      # Logging plugin for Tokra desktop applications.
+      #
+      # Wraps Ruby's Logger with desktop-friendly defaults and
+      # integrates with Tokra's plugin lifecycle.
+      #
+      # == Example
+      #
+      #   Tokra::Builder.default
+      #     .plugin(Tokra::Plugins::Log::Builder.new.level(:info).build)
+      #     .run(Tokra.generate_context)
+      #
+      # The plugin takes no config: a non-null <tt>plugins.log</tt> in your
+      # config fails the app with Error::PluginInitialization, as Tauri's
+      # does. With <tt>app.withGlobalTauri</tt>, a page finds Tauri's
+      # frontend API on <tt>window.__TAURI__.log</tt>, from the
+      # <tt>api-iife.js</tt> the gem ships.
+      #
+      class Plugin < Tokra::Plugin
+        # Returns the unique plugin identifier.
+        def name
+          "log"
+        end
+
+        # Initializes the logging plugin from a Builder.
+        #
+        # +builder+:: configured Builder instance
+        def initialize(builder)
+          @progname = builder.configured_progname
+          @datetime_format = builder.configured_datetime_format
+          @loggers = build_loggers(builder)
+        end
+
+        # Initializes the plugin with +app+ and +config+, its slice of the
+        # app config's +plugins+, which must be null: Tauri's log plugin
+        # takes no config, and its setup fails the app with "Error
+        # deserializing 'plugins.log' within your Tauri configuration:
+        # ..." (lib.rs:691-708; plugin.rs:793-806). Tokra's message names
+        # the Tokra configuration (doc/contributors/design/config.md, "File
+        # names").
+        def initialize_plugin(app, config)
+          Tokra::Plugin::Builder::Unit.deserialize(config)
+          super
+        rescue Tokra::Ipc::CommandItem::Mismatch => e
+          raise Tokra::Error, "Error deserializing 'plugins.log' within your Tokra configuration: #{e.message}"
+        end
+
+        # :call-seq:
+        #   level_for(mod, level) -> raises NotImplementedError
+        #
+        # Raises NotImplementedError.
+        #
+        # == Why This Is Not Implemented
+        #
+        # Tauri's +level_for(module, level)+ filters log messages by
+        # Rust module path (e.g., +hyper::client+). This works because
+        # Rust's +log+ crate provides compile-time module metadata via
+        # +log::Record::target()+, which defaults to the module path.
+        #
+        # Ruby has no equivalent metadata:
+        #
+        # - Ruby Logger's +progname+ is rarely set by libraries
+        # - ActiveRecord, ActiveJob, Rack accept progname in signatures
+        #   but don't pass identifying values (just API compatibility)
+        # - Sinatra, Grape, SQLite3-Ruby, Roda don't use progname at all
+        # - Hanami supports progname in templates (app-level, not self-ID)
+        # - There's no automatic module/class context in log calls
+        #
+        # == Alternatives
+        #
+        # Use Target's +filter+ callback for message-based filtering:
+        #
+        #   target.filter(->(msg) { !msg.include?("CACHE") })
+        #
+        # Or use per-library loggers:
+        #
+        #   ActiveRecord::Base.logger = quiet_logger
+        #
+        # See: https://github.com/tauri-apps/plugins-workspace/blob/d4613ff0029ea65f5c6895c3a6f8f5668dd1b55e/plugins/log/src/lib.rs#L488-491
+        #
+        def level_for(_module_name, _level)
+          raise NotImplementedError,
+            "level_for is not implemented. Tauri's level_for filters by Rust module path " \
+              "metadata that Ruby lacks. Use Target#filter callbacks for message-based filtering."
+        end
+
+        # Logs a trace message (lowest priority).
+        def trace(message)
+          log(TRACE, message)
+        end
+
+        # Logs a debug message.
+        def debug(message)
+          log(:debug, message)
+        end
+
+        # Logs an info message.
+        def info(message)
+          log(:info, message)
+        end
+
+        # Logs a warning message.
+        def warn(message)
+          log(:warn, message)
+        end
+
+        # Logs an error message.
+        def error(message)
+          log(:error, message)
+        end
+
+        # Logs a fatal message.
+        def fatal(message)
+          log(:fatal, message)
+        end
+
+        # Logs a message using Logger's add API.
+        #
+        # +level+::    severity level (integer or symbol)
+        # +message+::  the log message
+        # +progname+:: optional program name override for this entry
+        def add(level, message = nil, progname = nil)
+          @loggers.each { |logger| logger.add(level, message, progname) }
+        end
+
+        # Writes a raw message without formatting.
+        def <<(message)
+          @loggers.each { |logger| logger << message }
+        end
+
+        # Temporarily adjusts log level for the duration of a block.
+        #
+        # +level+:: the level to use within the block
+        #
+        # See Logger#with_level (Ruby 3.3+).
+        def with_level(level)
+          @loggers.each { |logger| logger.with_level(level) { yield } }
+        end
+
+        # Dispatches a log message at the specified level to all loggers.
+        private def log(level, message) # :nodoc:
+          if level.is_a?(Integer)
+            @loggers.each { |logger| logger.add(level, message) }
+          else
+            @loggers.each { |logger| logger.__send__(level, message) }
           end
         end
-      end
 
-      # A second attach_logger in one process: the process has one logger,
-      # and it is set once.
-      #
-      # Mirrors <tt>log::SetLoggerError</tt> (log lib.rs:462-463, 1551-1555).
-      class SetLoggerError < Tokra::Error
-        # The log crate's message.
-        def initialize(message = "attempted to set a logger after the logging system was already initialized")
-          super
+        # Builds Logger instances from the configured targets.
+        private def build_loggers(builder) # :nodoc:
+          targets = builder.configured_targets
+          targets = [Target.new($stdout)] if targets.empty?
+          global_formatter = builder.configured_formatter
+          global_filter = builder.configured_filter
+          targets.map do |target|
+            logger = target.to_logger(builder)
+            logger.progname = @progname if @progname
+            logger.datetime_format = @datetime_format if @datetime_format
+            logger.formatter = global_formatter if global_formatter && !logger.formatter
+            logger = FilteringLogger.new(logger, global_filter) if global_filter
+            logger
+          end
         end
-      end
-
-      # The logger Log.logger answers before any is attached: one that
-      # drops every record, as the log crate's NopLogger does.
-      NOP_LOGGER = Ractor.make_shareable(Log::Logger.new(level: :off, filters: [], format: nil, app_name: "", targets: []))
-      private_constant :NOP_LOGGER
-
-      # Guards the one attach.
-      ATTACH = Mutex.new
-      private_constant :ATTACH
-
-      @logger = nil
-      @max_level = :off
-
-      # Attaches +log+ as the process's logger, which Log.logger answers
-      # and the plugin's <tt>log</tt> command logs to, and records
-      # +max_level+ for Log.max_level. Returns +nil+.
-      #
-      # A process has one logger, set once: a second call raises
-      # SetLoggerError and changes nothing, as the log crate's
-      # +set_boxed_logger+ does. So a second app in one process whose log
-      # plugin attaches fails to initialize it; build that one with
-      # Builder#skip_logger.
-      #
-      # The logger lives on the main Ractor, where the app's plugins run.
-      #
-      # Mirrors Tauri's <tt>attach_logger</tt> (lib.rs:711-719).
-      #
-      # === Example
-      #
-      #   plugin, max_level, logger = Tokra::Plugins::Log::Builder.new.split(app.handle)
-      #   Tokra::Plugins::Log.attach_logger(max_level, logger)
-      #   app.handle.plugin(plugin)
-      def self.attach_logger(max_level, log)
-        ATTACH.synchronize do
-          raise SetLoggerError if @logger
-
-          @logger = log
-          @max_level = max_level
-        end
-        nil
-      end
-
-      # The process's logger, or one that drops every record when none is
-      # attached.
-      #
-      # Mirrors <tt>log::logger</tt> (log lib.rs:1578-1593).
-      #
-      # === Example
-      #
-      #   Tokra::Plugins::Log.logger.warn("db") { "slow query" }
-      def self.logger
-        @logger || NOP_LOGGER
-      end
-
-      # The level filter attach_logger recorded, +:off+ before any attach.
-      #
-      # Mirrors <tt>log::max_level</tt> (log lib.rs:1393-1401).
-      #
-      # === Example
-      #
-      #   Tokra::Plugins::Log.max_level # => :trace
-      def self.max_level
-        @max_level
       end
     end
   end
 end
-
-# SPDX-SnippetEnd
 
 # Tauri's own global API script for the plugin, which defines
 # window.__TAURI__.log in a page with withGlobalTauri (build.rs; api-iife.js
