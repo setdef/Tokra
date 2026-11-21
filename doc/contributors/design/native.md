@@ -219,6 +219,11 @@ Tokra keeps the same promise in two layers.
   stay in a Ruby queue; the native event (`UserEvent::Task`) only wakes
   the loop, so Rust never holds a Ruby object across threads.
 
+Ractors cannot call these types at all: the extension never calls
+`rb_ext_ractor_safe`, so Ruby refuses its methods to every non-main
+Ractor. Only `Proxy`, a `frozen_shareable` `TypedData`, is shared across
+threads and Ractors by design.
+
 A main-thread callback that waits on a thread which waits on the main
 thread deadlocks, as in Tauri.
 

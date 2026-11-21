@@ -108,12 +108,33 @@ Gemfile that needs it names its tag, with a `glob` that names only that
 gem's folder. A Tokra change that needs a Ferro API waits for that
 release.
 
+## State shared across Ractors
+
+A plugin whose state must be reached from more than one Ractor cannot
+guard it with Ruby's `Mutex`, which no Ractor can share
+(`Ractor.make_shareable(Mutex.new)` raises `Ractor::Error`), and
+`Ractor.make_shareable` freezes what it shares. So the mutable state
+lives in native code that guards it with Rust's `Mutex<T>`, behind a
+`TypedData` marked `frozen_shareable`: frozen, and so shareable, but
+mutable through the `Mutex`. Since plugins carry no Rust, that code is
+the Ferro gem's:
+
+| State | Where it lives |
+|---|---|
+| None (each call stands alone) | the plugin's Ruby over its binding |
+| One copy per Ractor | a Ruby instance per Ractor |
+| One copy shared across Ractors | the binding's `Mutex<T>` behind a `frozen_shareable` `TypedData` |
+
 A Ferro gem marks its extension Ractor-safe only where the crate's types
 allow calls from any thread, and freezes and shares objects only where
 they are `Sync`. Where a Ferro object lives is the plugin's call:
 `tokra-clipboard` builds its `Clipboard` frozen and Ractor-shareable,
 holding a frozen `Ferro::Arboard::Clipboard` that takes calls from any
-thread or Ractor.
+thread or Ractor, and marks itself retired with a `Ractor::Port`, which
+is shareable yet closable once, since a frozen object cannot flip a
+flag. Marking an extension Ractor-safe and a type `frozen_shareable` is
+an assertion the binding's author makes, and a bug there breaks Ractor
+safety.
 
 ## Versions and releases
 

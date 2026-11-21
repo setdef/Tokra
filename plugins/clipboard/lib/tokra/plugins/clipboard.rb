@@ -81,9 +81,10 @@ module Tokra
       # refuses, exactly as Tauri's methods return
       # <tt>Error::Clipboard(String)</tt>.
       #
-      # A Clipboard is frozen and Ractor-shareable as built (ADR 007): it
-      # holds a frozen Ferro::Arboard::Clipboard, which takes calls from any
-      # thread or Ractor.
+      # A Clipboard is frozen and Ractor-shareable as built
+      # (doc/contributors/design/plugins.md, "State shared across Ractors"): it holds a
+      # frozen Ferro::Arboard::Clipboard, which takes calls from any thread
+      # or Ractor.
       #
       # Mirrors Tauri's <tt>Clipboard</tt> (desktop.rs:11-123).
       #
@@ -220,7 +221,8 @@ module Tokra
       #
       # Provides read/write access to the system clipboard through
       # ferro-arboard, a one-to-one Ruby binding of the arboard crate. The
-      # managed Clipboard is Ractor-shareable (ADR 007).
+      # managed Clipboard is Ractor-shareable
+      # (doc/contributors/design/plugins.md, "State shared across Ractors").
       #
       # == JavaScript API (Tauri Compatibility)
       #
@@ -275,8 +277,9 @@ module Tokra
 
         # Initializes the plugin with the app handle and configuration.
         #
-        # Creates the Ractor-shareable Clipboard (ADR 007) and stores it in
-        # managed state for ClipboardManagerExt access, the
+        # Creates the Ractor-shareable Clipboard
+        # (doc/contributors/design/plugins.md) and stores it in managed
+        # state for ClipboardManagerExt access, the
         # body of Tauri's setup closure, which calls
         # <tt>app.manage(clipboard)</tt> (lib.rs:54-61). Construction at
         # registration matches Tauri's Plugin::initialize timing. Every

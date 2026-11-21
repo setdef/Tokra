@@ -91,8 +91,8 @@ class TestClipboard < Minitest::Test
     assert Ractor.shareable?(app.handle.clipboard), "the managed clipboard is Ractor-shareable"
   end
 
-  # Per ADR 007 and doc/contributors/design/plugins.md ("Plugins over
-  # Ferro"), the clipboard is born shareable: ferro-arboard's frozen
+  # Per doc/contributors/design/plugins.md ("State shared across
+  # Ractors"), the clipboard is born shareable: ferro-arboard's frozen
   # clipboard is, and so is the cleanup latch.
   def test_clipboard_is_ractor_shareable_as_built
     assert Ractor.shareable?(CLIPBOARD.new), "the clipboard should be Ractor-shareable without help"
