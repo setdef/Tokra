@@ -171,12 +171,20 @@ check turns on ([config.md](config.md), "Access control").
 A page with no frontend bundler runs `@tauri-apps/api` through Tauri's
 `withGlobalTauri`, which injects the API's prebuilt IIFE
 (`bundle.global.js`) as an initialization script, exposing the whole API
-as `window.__TAURI__`. When the config's `app.withGlobalTauri` is set,
-`WebviewManager` appends the vendored `bundle.global.js` after the core
-init scripts, mirroring `manager/webview.rs`; Tauri's codegen reads the
-same key when it compiles. `rake sync:tauri` vendors `bundle.global.js`
-from the pinned submodule, built by the API package's own rollup, so
-Tokra never hand-bundles Tauri's JavaScript.
+as `window.__TAURI__`. Each plugin's `api-iife.js` adds the plugin's
+member, such as `window.__TAURI__.dialog`. Tauri's codegen reads these
+scripts into the `Context` when the config sets `app.withGlobalTauri`,
+and every webview runs them as main-frame scripts after the plugins'
+initialization scripts (`manager/webview.rs:196-215`). Tokra does the
+same, with `Tokra.generate_context` as the codegen: it reads
+`bundle.global.js` first, then each script a plugin gem named with
+`Tokra::Utils::Plugin.define_global_api_script_path` when it was
+required, and `WebviewManager` runs what the context holds. An app
+therefore requires its plugins before it calls `generate_context`.
+`rake sync:tauri` vendors `bundle.global.js` from the pinned submodule,
+built by the API package's own rollup, and each plugin gem ships its
+plugin's `api-iife.js` unchanged from plugins-workspace, so Tokra never
+hand-bundles Tauri's JavaScript.
 
 ## One App path
 

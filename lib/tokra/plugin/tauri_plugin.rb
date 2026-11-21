@@ -57,8 +57,9 @@ module Tokra
       # +app+ and a PluginApi whose config is +config+ read by the
       # builder's config type. A config the type cannot read raises
       # Tokra::Error, "Error deserializing 'plugins.NAME' within your Tokra
-      # configuration: ERROR", Tauri's message with the brand renamed (ADR
-      # 014 §3); a plugin with no setup block never reads its config.
+      # configuration: ERROR", Tauri's message with the brand renamed
+      # (doc/contributors/design/config.md, "File names"); a plugin with no
+      # setup block never reads its config.
       # Returns +nil+.
       #
       # Mirrors <tt>TauriPlugin::initialize</tt> (plugin.rs:787-817). Its

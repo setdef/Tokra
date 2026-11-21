@@ -15,19 +15,38 @@ covers its install, usage, and differences from Tauri.
 
 ## The plugin API
 
-A plugin is a subclass of `Tokra::Plugin`, Tauri's `Plugin` trait as a
-Ruby class with the same hooks: `name`, `initialize(app, config = {})`,
-`initialization_script`, `window_created`, `webview_created`,
-`on_navigation` (not yet called), `on_page_load`, `on_event`, and
-`extend_api`. An app registers one with `AppHandle#plugin`; Tauri's
-`Builder::plugin`, which hands each plugin its slice of
-`config.plugins`, is not ported yet. A plugin that needs no native code
-is pure Ruby, where every Tauri plugin is Rust.
+A plugin is a `Tokra::Plugin`, Tauri's `Plugin` trait as a Ruby class
+with the same hooks: `name`, `initialize_plugin(app, config)`,
+`initialization_script` and `initialization_script_2`,
+`window_created`, `webview_created`, `on_navigation` (not yet called),
+`on_page_load`, `on_event`, `extend_api`, and `drop`. Tauri's
+`Plugin::initialize` is `initialize_plugin`, because Ruby's `initialize`
+is the constructor and a plugin is made before the app exists (plan
+064, decision 1). Most plugins are no subclass of their own: as in
+Tauri, `Tokra::Plugin::Builder` makes a `Tokra::Plugin::TauriPlugin`
+from blocks, and a first-party plugin's `init` returns one. A plugin
+that needs no native code is pure Ruby, where every Tauri plugin is
+Rust.
 
-The constructor takes its configuration as a Hash, not keywords, as
-Tauri's plugin takes a `JsonValue`: a subclass receives it through
-`super`, and a plugin may define keys the base class does not know. A
-plugin validates its own keys when it starts.
+An app registers a plugin with `Builder#plugin`, before the app is
+built, or with `AppHandle#plugin` once it exists. Either way the plugin
+is initialized with the app and its slice of `config.plugins`, the JSON
+under its name or `nil`, as Tauri's plugin store hands it
+(`crates/tauri/src/plugin.rs:999-1010`): `AppHandle#plugin` at once, and
+`Builder#plugin`'s plugins in `App#run`, before the windows the config
+lists. A plugin made with `Plugin::Builder` reads its slice with the
+builder's `config:` type, `()` unless it names one, so a non-null slice
+for a plugin that takes no config fails the app with Tauri's
+"Error deserializing 'plugins.{name}' within your Tokra configuration";
+a failed initialization raises `Error::PluginInitialization`. The core
+plugins keep their older form, a subclass made with the app's handle.
+
+With `withGlobalTauri`, each plugin gem's `api-iife.js` puts its API on
+`window.__TAURI__`, as each Tauri plugin's does. A gem names its script
+with `Tokra::Utils::Plugin.define_global_api_script_path` when it is
+required, where a Tauri plugin's build script names it when the app
+compiles, and `Tokra.generate_context` reads every named script
+([ipc.md](ipc.md), "withGlobalTauri").
 
 A plugin keeps its state apart from itself, as Tauri's does: it creates
 the state and hands it to `manage`, and anyone with a manager reaches it

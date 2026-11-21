@@ -13,8 +13,9 @@ plan's fidelity table.
 
 - Class, module, method, hook, and command names match Tauri's
   (`window_created`, not `on_window_created`). Do not invent a hook Tauri
-  lacks; map Tauri's lifecycle onto Ruby's (`Plugin::initialize` is the Ruby
-  constructor, called at registration).
+  lacks; map Tauri's lifecycle onto Ruby's (`Plugin::initialize` is
+  `Plugin#initialize_plugin`, since Ruby's `initialize` is the
+  constructor and a plugin exists before the app).
 - Wire names stay as the frontend sends them (`altText`, not `alt_text`).
 - Command routing parses exactly as Tauri does (`plugin:a|b|c` routes
   command `b`, the second `|` token).

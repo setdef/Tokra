@@ -199,10 +199,9 @@ Tokra::WebviewWindowBuilder.from_config(app, app.config.app.windows[0]).build
 <!-- SPDX-SnippetEnd -->
 
 `config.plugins` holds each plugin's JSON as Tauri's `JsonValue` holds
-it, with String keys. A plugin still takes a config Hash in its
-constructor and may be given one in code, until the plan that ports
-`Builder#plugin` hands each plugin its slice of `config.plugins` as
-Tauri's builder does.
+it, with String keys. When the app initializes a plugin it hands the
+plugin its slice, the JSON under the plugin's name or `nil`, as Tauri's
+builder does ([plugins.md](plugins.md), "The plugin API").
 
 `Context#config=` and `#package_info=` translate Tauri's `config_mut`
 and `package_info_mut`: Ruby has no mutable borrow, and the values are

@@ -59,7 +59,8 @@ module Tokra
         # takes no config, and its setup fails the app with "Error
         # deserializing 'plugins.log' within your Tauri configuration:
         # ..." (lib.rs:691-708; plugin.rs:793-806). Tokra's message names
-        # the Tokra configuration (ADR 014 §3).
+        # the Tokra configuration (doc/contributors/design/config.md, "File
+        # names").
         def initialize_plugin(app, config)
           Tokra::Plugin::Builder::Unit.deserialize(config)
           super
