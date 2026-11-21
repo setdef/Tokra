@@ -6,9 +6,12 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 # Plugins
 
-This document says how Tokra's plugins are built and shipped. It is for
-Tokra's contributors. Each plugin's README covers its install, usage,
-and differences from Tauri.
+This document says how Tokra's plugins are built and shipped: the
+plugin API, how a plugin answers Tauri's JavaScript packages, which of
+Tauri's plugins Tokra ports, how a plugin builds on a Ferro gem, where
+state shared across Ractors lives, and how the plugin gems are versioned
+and released. It is for Tokra's contributors. Each plugin's README
+covers its install, usage, and differences from Tauri.
 
 ## The plugin API
 
@@ -19,7 +22,7 @@ Ruby class with the same hooks: `name`, `initialize(app, config = {})`,
 `extend_api`. An app registers one with `AppHandle#plugin`; Tauri's
 `Builder::plugin`, which hands each plugin its slice of
 `config.plugins`, is not ported yet. A plugin that needs no native code
-is pure Ruby, which Tauri's Rust plugins cannot be.
+is pure Ruby, where every Tauri plugin is Rust.
 
 The constructor takes its configuration as a Hash, not keywords, as
 Tauri's plugin takes a `JsonValue`: a subclass receives it through
@@ -39,8 +42,8 @@ The first-party plugins live in this repository, one gem per folder
 under `plugins/`, beside `tokra`, rather than in a repository of their
 own or one each: changes that cross plugins are one commit, and there is
 one CI workflow and no repository to go stale, as a separate devtools
-repository once did for the same maintainer's ratatui_ruby. This was
-decided on 2026-01-31.
+repository did in the ratatui_ruby ecosystem. This was decided on
+2026-01-31.
 
 ## Matching Tauri's JavaScript packages
 

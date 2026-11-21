@@ -9,8 +9,9 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 This document says how a page's `invoke` reaches Ruby and how its answer
 gets back: the scripts the page runs, the two transports, how a command
 is routed, how each transport answers and fails, the invoke key, which
-origins may invoke, how the page gets `@tauri-apps/api`, where commands
-run, and where Tokra departs from Tauri. It is for Tokra's
+origins may invoke, how the page gets `@tauri-apps/api`, how one App
+serves a Rack app, where commands run, and where Tokra departs from
+Tauri. It is for Tokra's
 contributors. Why the page speaks Tauri's protocol is ADR 008. The
 dispatch in `lib/tokra/app.rb` carries the Tauri source lines for each
 step.
