@@ -190,6 +190,19 @@ Rack- or Rails-served page gets the same scripts and working `invoke`
 answers as any other. The handler keeps its Rack name and `.run` entry,
 so `rackup -s tokra` works.
 
+A Rack or Rails app runs inside the Tokra process, called in memory,
+rather than behind a TCP server in a child process with the webview
+pointed at `http://localhost`: no port opens that other processes can
+reach, no loopback stands between the page and the app, and no server
+process outlives the window. This was decided on 2026-01-29. The
+handler maps each `tokra://` request to a Rack env, calls the app, and
+answers with the body joined whole, so a streamed response, such as
+`ActionController::Live`, arrives only when it ends; a page that needs a
+stream uses events over the IPC instead. WKWebView follows no redirect
+from a custom protocol, so the handler follows a 3xx itself, up to a
+limit, carrying `Set-Cookie` across it, and the webview keeps the
+cookies for the protocol as for any origin.
+
 ## Where commands run
 
 `App` dispatches every command synchronously on the main Ractor, and the

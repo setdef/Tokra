@@ -155,7 +155,7 @@ Use this example if you want to:
 - See which Rails defaults matter when there is no web server.
 - Start a new desktop app with the Rails tools you already know.
 
-[ADR 002](../../doc/contributors/adr/002.md) explains how Tokra runs
-Rails.
+[The IPC design](../../doc/contributors/design/ipc.md), "One App path",
+explains how Tokra runs Rails.
 
 [Read the source code →](tokra.rb)

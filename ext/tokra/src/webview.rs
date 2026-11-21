@@ -62,8 +62,9 @@ fn forward_request_to_ruby(
 
 /// Build the `UserEvent::HttpRequest` Ruby receives for one protocol request.
 ///
-/// Headers carry cookies (ADR 002) and, on the ipc:// path, the Tauri-*
-/// invoke headers and Origin that Ruby parses per ipc/protocol.rs. Values
+/// Headers carry cookies (`doc/contributors/design/ipc.md`) and, on the
+/// ipc:// path, the Tauri-* invoke headers and Origin that Ruby parses per
+/// ipc/protocol.rs. Values
 /// keep their bytes, as Tauri hands `parts.headers` to the command
 /// (ipc/protocol.rs:546); wry builds them from Rust Strings, so they are
 /// UTF-8 and the lossy conversion never replaces anything. Ruby applies

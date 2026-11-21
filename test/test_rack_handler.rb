@@ -453,7 +453,7 @@ class TestRackHandler < Minitest::Test
   end
 
   # ==========================================================================
-  # Header Forwarding (ADR 002 / Plan 003)
+  # Header Forwarding (Plan 003)
   #
   # WKWebView custom protocols don't auto-persist cookies, so Tokra's Rust
   # layer extracts headers from WKURLSchemeTask and forwards them to Ruby.
