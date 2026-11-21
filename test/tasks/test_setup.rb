@@ -151,10 +151,11 @@ class TestSetup < Minitest::Test
   end
 
   # On Windows, Rust's GNU host toolchain for RubyInstaller's MinGW Ruby,
-  # with CI's components, and libclang for bindgen; the bundle installs
+  # with CI's components, and libclang and clang's own headers for
+  # bindgen; the bundle installs
   # with what bin/windows-env sets, and there is no commit hook, since
   # mise installs pre-commit there only through pipx.
-  def test_on_windows_it_adds_the_gnu_toolchain_and_libclang_and_installs_the_bundle_through_windows_env
+  def test_on_windows_it_adds_the_gnu_toolchain_libclang_and_clang_s_headers_and_installs_the_bundle_through_windows_env
     as_windows
     output, status = run_setup(WINDOWS)
 
@@ -164,6 +165,7 @@ class TestSetup < Minitest::Test
       "mise x -- rustup toolchain install 1.2.3-x86_64-pc-windows-gnu --profile minimal --component clippy --component rustfmt",
       "mise x -- python -m pip install --quiet #{REUSE}",
       "mise x -- python -m pip install --quiet #{LIBCLANG}",
+      "mise x -- sh bin/clang-headers",
       "mise x -- sh bin/windows-env bundle install",
       "mise x -- bundle exec rake rdoc",
     ], calls
@@ -179,6 +181,7 @@ class TestSetup < Minitest::Test
       "mise x -- rustup toolchain install 1.2.3-x86_64-pc-windows-gnu --profile minimal --component clippy --component rustfmt",
       "mise x -- python -m pip install --quiet #{REUSE}",
       "mise x -- python -m pip install --quiet #{LIBCLANG}",
+      "mise x -- sh bin/clang-headers",
       "mise x -- bundle config set --local path vendor/bundle",
       "mise x -- bundle config set --local frozen true",
       "mise x -- sh bin/windows-env bundle install",

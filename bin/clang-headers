@@ -1,0 +1,39 @@
+#!/bin/sh
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Puts clang's own headers (stddef.h, mm_malloc.h, the intrinsics) in
+# Tokra's folder of your cache, for bindgen on Windows. bin/setup runs it
+# there, and bin/windows-env points bindgen at what it unpacks.
+#
+# bindgen loads libclang from PyPI's libclang wheel, which holds the
+# library and none of the headers clang finds beside a full LLVM, so
+# parsing Ruby's MinGW headers stops at the first of them. These come
+# from LLVM's clang source release of the wheel's version, whose
+# lib/Headers is clang's resource include folder as it ships, checked
+# against the SHA-256 below and unpacked once. It needs curl, sha256sum,
+# and tar with xz, which MSYS2's base has.
+set -eu
+version=18.1.1
+sha256=412a482b81a969846b127552f8fa2251c7d57a82337f848fe7fea8e6ce614836
+url="https://github.com/llvm/llvm-project/releases/download/llvmorg-$version/clang-$version.src.tar.xz"
+dir="${XDG_CACHE_HOME:-$HOME/.cache}/tokra/clang-$version"
+[ -f "$dir/include/stddef.h" ] && exit 0
+
+mkdir -p "${dir%/*}"
+work=$(mktemp -d "$dir.XXXXXX")
+trap 'rm -rf "$work"' EXIT
+curl --fail --silent --show-error --location --retry 3 --output "$work/src.tar.xz" "$url"
+actual=$(sha256sum < "$work/src.tar.xz" | cut -d " " -f 1)
+if [ "$actual" != "$sha256" ]; then
+  echo "clang-headers: $url does not match its SHA-256, $sha256." >&2
+  exit 1
+fi
+mkdir -p "$work/resource/include"
+# GNU tar reads a name like C:/... as a remote host's file, so it is
+# given names relative to the folder it runs in.
+(cd "$work" && tar -xJf src.tar.xz -C resource/include --strip-components=3 "clang-$version.src/lib/Headers")
+# Another setup may have unpacked the same headers meanwhile.
+[ -f "$dir/include/stddef.h" ] && exit 0
+rm -rf "$dir"
+mv "$work/resource" "$dir"

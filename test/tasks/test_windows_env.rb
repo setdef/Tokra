@@ -34,6 +34,10 @@ class TestWindowsEnv < Minitest::Test
     @bin = File.join(@dir, "bin")
     FileUtils.mkdir_p(@bin)
     FileUtils.cp(SCRIPT, @bin)
+    FileUtils.cp(File.join(ROOT, "bin/clang-headers"), @bin)
+    @resource = File.join(@dir, "cache/tokra/clang-18.1.1")
+    FileUtils.mkdir_p(File.join(@resource, "include"))
+    File.write(File.join(@resource, "include/stddef.h"), "")
     File.write(File.join(@dir, "mise.toml"), %([tools]\nruby = "4.0.9"\nrust = "1.2.3"\n))
     @sysroot = File.join(@dir, "msys64/ucrt64")
     FileUtils.mkdir_p(File.join(@sysroot, "include"))
@@ -44,7 +48,7 @@ class TestWindowsEnv < Minitest::Test
     @msys = File.join(@dir, "msys64")
     FileUtils.mkdir_p(File.join(@msys, "ucrt64/bin"))
     File.write(File.join(@msys, "ucrt64/bin/gcc.exe"), "")
-    stand_in("cygpath", "[ \"$*\" = '-m /' ] && printf '%s/\\n' '#{@msys}'")
+    stand_in("cygpath", "if [ \"$*\" = '-m /' ]; then printf '%s/\\n' '#{@msys}'; else printf '%s\\n' \"$2\"; fi")
     stand_in("ruby", "printf '%s' \"$MSYS2_PATH\" > \"$(dirname \"$0\")/ruby_msys2_path\"; printf '%s' '#{windows(@sysroot)}'")
     stand_in("python", "printf '%s\\r\\n' '#{windows(@libclang)}'")
     stand_in("recorder", RECORDER.lines.drop(1).join)
@@ -64,7 +68,7 @@ class TestWindowsEnv < Minitest::Test
   end
 
   private def run_script(*, extra: {})
-    env = { "PATH" => "#{@bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}" }.merge(extra)
+    env = { "PATH" => "#{@bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}", "XDG_CACHE_HOME" => File.join(@dir, "cache") }.merge(extra)
     Open3.capture2e(env, File.join(@bin, "windows-env"), *, chdir: @dir)
   end
 
@@ -87,20 +91,22 @@ class TestWindowsEnv < Minitest::Test
 
   # The same clang arguments ci.yml's step writes, at Ruby's own MSYS2,
   # and libclang from the wheel bin/setup installs, with forward slashes
-  # as ci.yml writes them.
+  # as ci.yml writes them. The wheel has none of the headers a full LLVM
+  # has beside libclang, so clang also gets the resource folder
+  # bin/clang-headers unpacks.
   def test_bindgen_gets_ci_s_arguments_at_ruby_s_msys2_and_the_wheel_s_libclang
     output, status = run_script("recorder")
 
     assert_predicate status, :success?, output
     ci = ci_step("Point bindgen at Ruby's MSYS2 headers")[/BINDGEN_EXTRA_CLANG_ARGS=(.*)" >>/, 1]
 
-    assert_equal ci.sub("$sysroot", @sysroot), recorded_env["BINDGEN_EXTRA_CLANG_ARGS"]
+    assert_equal "#{ci.sub('$sysroot', @sysroot)} -resource-dir=#{@resource}", recorded_env["BINDGEN_EXTRA_CLANG_ARGS"]
     assert_equal @libclang, recorded_env["LIBCLANG_PATH"]
   end
 
   # A Ruby with no MSYS2 beside it, or a Python without the wheel, would
   # fail deep in a build script; this says which.
-  def test_missing_c_headers_or_libclang_stop_it_before_the_command
+  def test_missing_c_headers_libclang_or_clang_s_headers_stop_it_before_the_command
     File.delete(File.join(@sysroot, "include/stdio.h"))
     output, status = run_script("recorder")
 
@@ -114,6 +120,14 @@ class TestWindowsEnv < Minitest::Test
 
     refute_predicate status, :success?
     assert_includes output, "windows-env: no libclang.dll in #{@libclang}"
+    refute_path_exists File.join(@bin, "env")
+
+    File.write(File.join(@libclang, "libclang.dll"), "")
+    File.delete(File.join(@resource, "include/stddef.h"))
+    output, status = run_script("recorder")
+
+    refute_predicate status, :success?
+    assert_includes output, "windows-env: no clang headers (stddef.h) in #{@resource}/include; run bin/setup."
     refute_path_exists File.join(@bin, "env")
   end
 

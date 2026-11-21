@@ -39,8 +39,11 @@ fi
 mise x -- python -m pip install --quiet "reuse[charset-normalizer]==6.2.0"
 # On Windows, libclang for bindgen, which reads Ruby's headers: LLVM's own
 # build, from PyPI's libclang wheel, where CI takes the runner's LLVM.
+# The wheel holds libclang alone, so clang's own headers come from LLVM's
+# clang source release of the same version (bin/clang-headers).
 if [ "$windows" = true ]; then
   mise x -- python -m pip install --quiet "libclang==18.1.1"
+  mise x -- sh bin/clang-headers
 fi
 # A CI runner (CI=true) installs the bundle as ci.yml does: frozen to
 # Gemfile.lock, in vendor/bundle, which a runner that keeps its checkout
