@@ -16,7 +16,7 @@ module Tokra
     # page's listeners by webview, event, and id, and the queue of what a
     # handler asked for while an emit held the registry.
     #
-    # Ruby owns it (ADR 005). One Thread::Mutex guards the handlers, and
+    # Ruby owns it (ADR 001). One Thread::Mutex guards the handlers, and
     # #try_lock stands in for Rust's, so a listen, unlisten, or emit that
     # finds the registry held, from inside a handler or from another
     # thread, waits in the pending queue until the emit holding it

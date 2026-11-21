@@ -14,6 +14,18 @@ threads. It is for Tokra's contributors. Why crates live where they do
 is ADR 011, and why the loop keeps the GVL is ADR 012. Each module's own
 documentation in `ext/tokra/src/` holds the sources it rests on.
 
+## What the extension holds
+
+The extension wraps platform types and holds no application logic
+(ADR 001): it passes raw events and messages to Ruby, and Ruby owns
+command routing, security checks, and state. A new platform capability
+follows the same split. The Rust side wraps the crate's type in a
+magnus class under `Tokra::Native` and exposes the crate's own methods;
+the Ruby side builds the user-facing API over it, as Tauri's, and keeps
+the callbacks, ids, and state. Event data reaches Ruby as `Data.define`
+values, which are frozen and shareable. The cost is a platform issue
+traced through both layers, and a Ruby object for every event.
+
 ## Where each crate lives
 
 Tokra's extension links the windowing stack: tao, wry, muda, and

@@ -8,7 +8,7 @@
 //! read as `std::io::Error`'s Display, which only std can produce: on
 //! Windows it formats the raw Win32 error code, which Ruby has already
 //! mapped to a POSIX errno by the time it raises. Ruby owns the
-//! `Tokra::Error::Io` it becomes, per ADR 005.
+//! `Tokra::Error::Io` it becomes, per ADR 001.
 //!
 //! Ruby reads the file first, interruptibly, and calls this only when its
 //! read failed, to learn std's text. The read runs with Ruby's global VM
