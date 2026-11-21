@@ -15,9 +15,14 @@ on:
 permissions:
   contents: read
 
+# A run on trunk is never cancelled: with several pushes an hour, a newer
+# push would stop each run before its slowest job finished, and no commit
+# would get a verdict from every system. GitHub lets the run in progress
+# finish and keeps only the newest of those waiting, so one run can speak
+# for several pushes. A pull request's older runs are still cancelled.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/trunk' }}
 
 jobs:
   gate:
