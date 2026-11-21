@@ -12,9 +12,9 @@ require "bundler"
 # plugins:test and the real-window tasks install each plugin's Gemfile
 # apart from the root's, in an unbundled environment. A plugin has no
 # bundle settings of its own, so its gems went to Ruby's gem folder,
-# which on Windows lies so deep under mise's install of RubyInstaller's
-# head build that ferro-rfd's Cargo files passed the 260 characters
-# Windows allows a path. So a plugin's bundle installs where the root
+# which on Windows lay so deep under mise's install of RubyInstaller's
+# head build of Ruby 4.1 that ferro-rfd's Cargo files passed the 260
+# characters Windows allows a path. So a plugin's bundle installs where the root
 # bundle does, vendor/bundle on CI, and finds there the Ferro gems the
 # root already compiled.
 module PluginBundle
