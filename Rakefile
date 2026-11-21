@@ -30,6 +30,7 @@ end
 task compile: "sync:tauri"
 
 require_relative "tasks/real_windows"
+require_relative "tasks/plugin_bundle"
 
 # Plugin directories
 PLUGINS = Dir["plugins/*"].select { |f| File.directory?(f) }
@@ -39,20 +40,23 @@ PLUGINS = Dir["plugins/*"].select { |f| File.directory?(f) }
 # open real windows if +windows+. Each plugin has its own Gemfile.
 # Without an unbundled environment, the inherited BUNDLE_GEMFILE would
 # run the plugin under the root bundle. With <tt>install: false</tt> the
-# caller installed the bundle already (install_plugin_bundle).
+# caller installed the bundle already (install_plugin_bundle). Each
+# plugin's bundle installs where the root's does (PluginBundle).
 def run_plugin_tests(plugin, files, windows:, install: true)
   return if files.empty?
 
   steps = [*("bundle install --quiet" if install), "bundle exec rake test"]
+  bundle = PluginBundle.env
   Bundler.with_unbundled_env do
-    sh({ "TOKRA_TESTS" => files.join(",") }.merge(RealWindows.run_env(windows)), "cd #{plugin} && #{steps.join(' && ')}")
+    sh({ "TOKRA_TESTS" => files.join(",") }.merge(RealWindows.run_env(windows), bundle), "cd #{plugin} && #{steps.join(' && ')}")
   end
 end
 
 # Installs +plugin+'s own bundle, as run_plugin_tests does before its
 # tests.
 def install_plugin_bundle(plugin)
-  Bundler.with_unbundled_env { sh "cd #{plugin} && bundle install --quiet" }
+  bundle = PluginBundle.env
+  Bundler.with_unbundled_env { sh bundle, "cd #{plugin} && bundle install --quiet" }
 end
 
 # Plugin tasks that delegate to each plugin's Rakefile
