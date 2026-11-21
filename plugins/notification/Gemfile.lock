@@ -73,7 +73,7 @@ DEPENDENCIES
   tokra-notification!
 
 CHECKSUMS
-  bundler (4.0.20) sha256=7978a8ac648767f5e635bc522445b79e80a52b907a39a36c2d8085ed6bc762ae
+  bundler (4.0.24) sha256=16ca64e20816a0cf151a948fb141d788602996d2b4d73577b74388fe84fa98bc
   drb (2.2.3) sha256=0b00d6fdb50995fe4a45dea13663493c841112e4068656854646f418fda13373
   ferro-notify-rust (0.1.0)
   ferro-time (0.1.0)
@@ -89,4 +89,4 @@ CHECKSUMS
   tokra-notification (0.0.1.pre.1)
 
 BUNDLED WITH
-  4.0.20
+  4.0.24
