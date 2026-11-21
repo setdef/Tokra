@@ -118,7 +118,7 @@ module Tokra
         # one on X11, and on macOS an AppKit one, by its window number.
         #
         # ferro-rfd binds no Wayland handle, since rfd follows its pointers
-        # (ADR 013), and raises for one. Tauri shows the dialog there with
+        # (ADR 011), and raises for one. Tauri shows the dialog there with
         # its parent; Tokra shows it without one, so a Tokra window on
         # Wayland is no parent rather than a failed dialog.
         class WindowHandle < Data.define(:window_handle, :display_handle)

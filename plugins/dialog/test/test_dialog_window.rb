@@ -24,7 +24,7 @@ require "open3"
 # (rfd 0.17.2 src/backend/xdg_desktop_portal.rs:82-113); the app's bus is
 # one of the test's own, where no portal answers, and dbus-monitor records
 # what rfd asked, so the test sees the window the commands passed as
-# parent (ADR 013).
+# parent (ADR 011).
 class TestDialogWindow < RealApp::TestCase
   FIXTURES = File.expand_path("integration/fixtures", __dir__)
 
@@ -175,7 +175,7 @@ class TestDialogWindow < RealApp::TestCase
 
   # ferro-rfd looks the window up by its number and gives rfd its content
   # view, the window's own ns_view, from the main thread and, through the
-  # main thread's run loop, from another (ADR 013, plan 035).
+  # main thread's run loop, from another (plan 035).
   def test_on_macos_rfd_gets_the_window_as_parent_from_any_thread
     skip "macOS only" unless RUBY_PLATFORM.include?("darwin")
 

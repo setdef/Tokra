@@ -8,8 +8,9 @@
 require_relative "support/real_app"
 
 # A real window's raw handles, read the way a library on any thread reads
-# them, and followed back to the window system (ADR 013). The fixture
-# loads no page, so this runs on Windows as well as macOS and Linux.
+# them, and followed back to the window system
+# (doc/contributors/design/native.md, "Window handles"). The fixture loads no page, so
+# this runs on Windows as well as macOS and Linux.
 class WindowHandleTest < RealApp::TestCase
   def self.page?
     false
@@ -73,7 +74,7 @@ class WindowHandleTest < RealApp::TestCase
   end
 
   # An AppKit handle names its window by number too, as ferro-rfd reads
-  # it (ADR 013, plan 035): the number AppKit gives the window the
+  # it (plan 035): the number AppKit gives the window the
   # content view lies in.
   def test_an_appkit_window_number_is_the_windows_own
     skip "AppKit only" unless @report["main_window"]["kind"] == "AppKitWindowHandle"
@@ -103,7 +104,7 @@ class WindowHandleTest < RealApp::TestCase
 
   # On X11 every display handle is the first one tao opened, so each answer
   # names the same live connection, which Xlib reads its display name from
-  # (ADR 013, decision 4).
+  # (doc/contributors/design/native.md, "Window handles").
   def test_an_x11_display_handle_is_one_live_connection
     skip "X11 only" unless @report["main_display"]["kind"] == "XlibDisplayHandle"
 

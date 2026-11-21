@@ -8,7 +8,7 @@
 require_relative "support/dialog_test"
 
 # A Tokra::Window as a dialog's parent, as Tauri's set_parent takes its
-# Window (lib.rs:287-302, 460-478; ADR 013, plan 035). The window is a
+# Window (lib.rs:287-302, 460-478; plan 035). The window is a
 # real Tokra::Window on a real app handle, and its native stand-in answers
 # the tagged Arrays ext/tokra/src/raw_handle.rs builds. Each dialog is read
 # back through rfd's own Debug text, so what reaches rfd is what is

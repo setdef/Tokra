@@ -20,7 +20,8 @@ module Tokra
   # +HWND+, macOS an +NSView+, X11 a window ID, and Wayland a surface. A
   # library that draws into your window, or opens a dialog in front of it,
   # needs that name. Rust's raw-window-handle crate gives each kind a type,
-  # and Tauri's windows answer with one (ADR 013).
+  # and Tauri's windows answer with one
+  # (doc/contributors/design/native.md, "Window handles").
   #
   # Window#window_handle answers with one of these window handles, and
   # Window#display_handle and AppHandle#display_handle with one of these
@@ -94,7 +95,8 @@ module Tokra
     # the main thread, and takes the content view from the live window.
     #
     # raw-window-handle has no +window_number+; Tokra adds it beside
-    # +ns_view+, which keeps the crate's meaning (ADR 013).
+    # +ns_view+, which keeps the crate's meaning
+    # (doc/contributors/design/native.md, "Window handles").
     #
     # === Example
     #

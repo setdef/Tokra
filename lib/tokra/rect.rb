@@ -20,8 +20,8 @@ module Tokra
   #
   # Mirrors Tauri's <tt>Rect { position: Position, size: Size }</tt>
   # (tauri-runtime dpi.rs:8-15). dpi's Position and Size enums wrap one
-  # struct per variant; in Ruby the struct is the variant (ADR 013,
-  # decision 2).
+  # struct per variant; in Ruby the struct is the variant
+  # (doc/contributors/design/native.md, "Window handles").
   #
   # === Example
   #

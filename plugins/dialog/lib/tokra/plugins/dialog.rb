@@ -84,7 +84,7 @@ module Tokra
       #
       # * A dialog's parent is the calling window on Windows and X11 only.
       #   ferro-rfd binds no AppKit or Wayland handle, since rfd follows
-      #   those as pointers (ADR 013). On macOS, file dialogs still slide
+      #   those as pointers (ADR 011). On macOS, file dialogs still slide
       #   out of the app's main window, but message dialogs are system
       #   alerts of their own.
       # * Picked paths join no fs or asset protocol scope; Tokra has

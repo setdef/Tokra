@@ -8,11 +8,11 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 This document says how Tokra's Rust extension, `ext/tokra`, meets Ruby:
 which crates it links and which it leaves to Ferro, how a crate's API
-becomes Ruby, which thread its objects belong to, and how the event loop
-shares Ruby's GVL with the app's other threads. It is for Tokra's
-contributors. Why crates live where they do is ADR 011, and why the loop
-keeps the GVL is ADR 012. Each module's own documentation in
-`ext/tokra/src/` holds the sources it rests on.
+becomes Ruby, what a window's handles are, which thread its objects
+belong to, and how the event loop shares Ruby's GVL with the app's other
+threads. It is for Tokra's contributors. Why crates live where they do
+is ADR 011, and why the loop keeps the GVL is ADR 012. Each module's own
+documentation in `ext/tokra/src/` holds the sources it rests on.
 
 ## Where each crate lives
 
@@ -62,7 +62,7 @@ rfd take as any `HasWindowHandle` and muda as an `isize` HWND or a GTK
 window. A raw handle is unsafe: nothing tracks the window's lifetime,
 and the handle works only on the thread that owns the window. So a raw
 handle crosses into another gem only when that gem's crate never
-dereferences it.
+dereferences it ("Window handles").
 
 ## Translating a crate's API
 
@@ -98,6 +98,97 @@ The crate's rustdoc, examples, and tests are the answer key, and tests
 run against the real crate, never a stub. A deviation the table does
 not cover is a design call, written down in the docs of the gem or class
 that makes it.
+
+## Window handles
+
+Tauri's `Window` implements raw-window-handle's `HasWindowHandle` by
+asking its dispatcher, so the handle is read on the main thread whichever
+thread asks, and any failure of the getter becomes
+`HandleError::Unavailable`, as it does for a closed window
+(`crates/tauri/src/window/mod.rs:943-949`; tauri-runtime-wry
+`src/lib.rs:2012-2018`, `3244-3253`). `Window`, `WebviewWindow`, `App`,
+and `AppHandle` implement `HasDisplayHandle` through the runtime handle,
+on the calling thread (`window/mod.rs:951-957`,
+`webview/webview_window.rs:1410-1426`, `app.rs:2353-2367`).
+
+`Tokra::Window#window_handle` and `#display_handle`,
+`Tokra::AppHandle#display_handle`, and `Tokra::App#display_handle` port
+those impls; Tokra has no `WebviewWindow` for the fourth. Each returns a
+`Tokra::RawWindowHandle` value or raises its error. The values are one
+`Data` class per struct tao can answer with, with raw-window-handle
+0.6.2's field names: `Win32WindowHandle(hwnd, hinstance)`,
+`WindowsDisplayHandle`, `AppKitWindowHandle(ns_view, window_number)`,
+`AppKitDisplayHandle`, `XlibWindowHandle(window, visual_id)`,
+`XlibDisplayHandle(display, screen)`, `WaylandWindowHandle(surface)`,
+and `WaylandDisplayHandle(display)`. The crate's enums wrap one struct
+per variant; in Ruby the struct is the variant, and the same holds for
+dpi's `Position` and `Size`. The borrowed `WindowHandle<'a>` and its
+`as_raw` drop with the lifetime they carry. `HandleError` is a
+`StandardError` with a subclass per variant, `NotSupported` and
+`Unavailable`, whose messages are the crate's `Display` text.
+`AppKitWindowHandle#window_number`, the window's `-[NSWindow
+windowNumber]`, has no raw-window-handle field: a number names a window
+AppKit can look up, where an address from Ruby can point anywhere, so a
+binding such as ferro-rfd asks AppKit for the window instead of trusting
+`ns_view`, which keeps the crate's meaning.
+
+What tao 0.34.5 answers (`src/window.rs:1422-1437`,
+`src/event_loop.rs:344-350`):
+
+| Platform | Window handle | Display handle |
+|---|---|---|
+| Windows | `Win32 { hwnd, hinstance }` (`platform_impl/windows/window.rs:438-457`) | `Windows`, empty |
+| macOS | `AppKit { ns_view }`, the content view (`macos/window.rs:1494-1510`, `1561-1563`) | `AppKit`, empty |
+| Linux, X11 | `Xlib { window, visual_id: 0 }`, GDK's XID | `Xlib { display, screen }` from a new `XOpenDisplay` (`linux/window.rs:948-999`) |
+| Linux, Wayland | `Wayland { surface }` | `Wayland { display }`, GDK's |
+
+tao never answers Xcb, and an X11 window lacks a GDK window only before
+it is realized, when tao answers `Unavailable`.
+
+Every handle is read on the main thread, through `RuntimeContext`'s
+getter; a getter that cannot reach the loop, or whose answer never
+comes, raises `Unavailable`, as Tauri maps its getter's failure. Tauri
+reads the display handle on the calling thread; Tokra cannot, since its
+event loop is inside `run_return` while the app runs and its native
+objects answer only the main thread, so `AppHandle#display_handle` asks
+the app's first window for tao's `Window: HasDisplayHandle` through the
+same getter. tao builds both answers from the same default display.
+Before `App#run` builds the window, as in the setup hook, there is
+nothing to ask, and the call raises `Unavailable`. A Tokra window
+closes only when its event loop ends; after that a call from another
+thread raises `Unavailable`, and a call on the main thread, in a
+`RunEvent::Exit` handler or an `at_exit` hook, still runs.
+
+tao's X11 display handle opens a connection to the X server on every
+call and never closes it, and when `XOpenDisplay` fails, tao 0.34.5
+passes the null pointer on, which faults inside libX11: undefined
+behavior. Tauri reads the display handle for each dialog's parent on
+Linux, so each leaks a connection. Tokra asks tao for the X11 display
+handle once and answers every later call with that first display, which
+stays open for the life of the process (`raw_handle.rs`). The cache is
+set only from a successful answer, and Wayland's display is GDK's own,
+so it needs none. Every consumer shares one Xlib connection, which is
+sound only on the main thread, since nothing in Tokra calls
+`XInitThreads`. When Tokra moves to tao 0.37 or later, the null check
+is tao's (`linux/window.rs:984-992`), and the cache remains only for the
+leak.
+
+A handle is safe to read and unsafe to use. The native layer copies each
+field out of tao's answer: a pointer becomes its address, an ID its
+number, and nothing reads through a pointer. The danger is a consumer
+that turns the Integer back into a pointer, such as Fiddle or another
+gem's Rust: raw-window-handle promises a borrowed handle's pointers only
+for the borrow's lifetime (`src/borrowed.rs:200-257`), and Ruby has no
+lifetime to hold it to. `RawWindowHandle`'s RDoc says to use a handle on
+the main thread, while the window is open, with a library that says it
+takes one. An XID or `HWND` that outlives its window names nothing, or a
+later window; an `NSView` or `wl_surface` address that outlives it
+points at freed memory. How `tokra-dialog` parents its dialogs with
+these handles is in its README. A Wayland dialog has no parent because
+rfd builds the portal's `wayland:<handle>` from the raw surface; a
+binding that took a handle exported with `xdg-foreign`, which GDK can
+make (`gdk_wayland_window_export_handle`), would never follow a pointer,
+and is a Ferro follow-up.
 
 ## Threads
 

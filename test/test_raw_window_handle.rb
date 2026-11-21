@@ -11,7 +11,8 @@ require_relative "support/test_app"
 
 # Tests for Tokra::RawWindowHandle and the window_handle and display_handle
 # methods Tauri's HasWindowHandle and HasDisplayHandle impls become
-# (ADR 013). The native window is StubNative's, answering the tagged Arrays
+# (doc/contributors/design/native.md, "Window handles"). The native window is
+# StubNative's, answering the tagged Arrays
 # ext/tokra/src/raw_handle.rs builds; the app, its handle, its window, and
 # its RuntimeContext are real, and the test's thread plays the main thread.
 # The real-window tests in test/integration/window_handle_test.rb check

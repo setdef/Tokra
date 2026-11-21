@@ -6,7 +6,8 @@
 #++
 
 # Fixture for window_handle_test.rb: a real window's raw handles
-# (ADR 013). It needs no page, so it runs on Windows too.
+# (doc/contributors/design/native.md, "Window handles"). It needs no page, so it
+# runs on Windows too.
 #
 # Once the loop runs, a background thread reads the window's handle and
 # the display's, as a library on another thread would, and the main thread

@@ -8,12 +8,13 @@
 //! rfd can parent a dialog to it. tao implements both traits for its
 //! `Window` (tao 0.34.5 `src/window.rs:1422-1437`). This module turns what
 //! tao answers into a tagged Array of a Symbol and Integers, which
-//! `Tokra::RawWindowHandle.from_native` turns into Ruby values (ADR 013).
+//! `Tokra::RawWindowHandle.from_native` turns into Ruby values
+//! (`doc/contributors/design/native.md`, "Window handles").
 //!
 //! An `AppKit` window handle carries one field raw-window-handle lacks: the
 //! window's `-[NSWindow windowNumber]`, which names the window without
 //! pointing at it, so a binding such as ferro-rfd can ask `AppKit` for the
-//! window instead of trusting an address (ADR 013, plan 035).
+//! window instead of trusting an address (plan 035).
 //!
 //! Handing Ruby an address as an Integer reads nothing through it, so it is
 //! sound. Whoever turns the Integer back into a pointer takes on the
@@ -39,8 +40,8 @@ use tao::window::Window;
 /// checks the pointer first, `linux/window.rs:984-992`). A page can
 /// open dialogs as often as it likes, and each reads the display handle, so
 /// Tokra asks tao once and keeps the answer for the life of the process
-/// (ADR 013, decision 4). The connection stays open, so the address stays
-/// valid.
+/// (`doc/contributors/design/native.md`, "Window handles"). The connection stays
+/// open, so the address stays valid.
 static XLIB_DISPLAY: OnceLock<(Option<usize>, c_int)> = OnceLock::new();
 
 /// The tagged Array for `window`'s raw handle, or for its error. Call it

@@ -213,7 +213,7 @@ module Tokra
     # On X11, tao opens a new connection to the X server for every display
     # handle and never closes it. Tokra asks tao once and answers every
     # later call with that first display, which stays open as long as the
-    # app runs (ADR 013).
+    # app runs (doc/contributors/design/native.md, "Window handles").
     #
     # Mirrors Tauri's <tt>HasDisplayHandle</tt> for AppHandle
     # (app.rs:2353-2359), which reads it from the runtime's event loop
