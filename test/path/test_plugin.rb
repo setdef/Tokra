@@ -154,11 +154,18 @@ class TestPathPlugin < Minitest::Test
       .sub("__TEMPLATE_delimiter__", %q{JSON.parse('";"')}), windows
   end
 
+  # The host's plugin answers by the host's rules: Rust's PathBuf joins
+  # with a backslash on Windows, and there "/a" has no prefix, so it is
+  # not absolute.
+  private def windows_host? = Tokra::Utils::Platform::Target.current == Tokra::Utils::Platform::Target::Windows
+
+  private def host_separator = windows_host? ? "\\" : "/"
+
   def test_resolve_directory_answers_a_base_directory_and_path
     home = Tokra::Native.home_dir
 
     assert_equal [true, JSON.generate(home)], invoke("resolve_directory", { "directory" => 21 })
-    assert_equal [true, JSON.generate(File.join(home, "a"))],
+    assert_equal [true, JSON.generate("#{home}#{host_separator}a")],
       invoke("resolve_directory", { "directory" => 21, "path" => "a" })
     assert_equal [true, JSON.generate(home)], invoke("resolve_directory", { "directory" => 21, "path" => nil })
   end
@@ -174,14 +181,14 @@ class TestPathPlugin < Minitest::Test
   end
 
   def test_each_command_answers_through_the_store
-    assert_equal [true, JSON.generate(Dir.pwd)], invoke("resolve", { "paths" => [] })
-    assert_equal [true, '"a/b"'], invoke("normalize", { "path" => "a/./b" })
-    assert_equal [true, '"a/b"'], invoke("join", { "paths" => ["a", "b"] })
+    assert_equal [true, JSON.generate(Dir.pwd.tr("/", host_separator))], invoke("resolve", { "paths" => [] })
+    assert_equal [true, JSON.generate("a#{host_separator}b")], invoke("normalize", { "path" => "a/./b" })
+    assert_equal [true, JSON.generate("a#{host_separator}b")], invoke("join", { "paths" => ["a", "b"] })
     assert_equal [true, '"/a"'], invoke("dirname", { "path" => "/a/b" })
     assert_equal [true, '"json"'], invoke("extname", { "path" => "/a/b.json" })
     assert_equal [true, '"b"'], invoke("basename", { "path" => "/a/b.json", "ext" => ".json" })
     assert_equal [true, '"b.json"'], invoke("basename", { "path" => "/a/b.json" })
-    assert_equal [true, "true"], invoke("is_absolute", { "path" => "/a" })
+    assert_equal [true, JSON.generate(!windows_host?)], invoke("is_absolute", { "path" => "/a" })
   end
 
   def test_a_command_error_rejects_with_tauris_message
