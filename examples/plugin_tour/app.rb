@@ -20,14 +20,13 @@ require "ferro/time"
 # The tour's constants, kept in one namespace.
 module PluginTour
   # The files the page loads, by request path: the page, and the global
-  # API script (+api-iife.js+) each Tauri plugin publishes, which Tauri
-  # injects for an app that sets +withGlobalTauri+ and Tokra does not yet.
+  # API script (+api-iife.js+) of each Tauri plugin whose Tokra gem does
+  # not ship it yet; Tokra injects the others' for an app that sets
+  # +withGlobalTauri+, as Tauri does.
   FILES = {
     "/" => ["index.html", "text/html; charset=utf-8"],
     "/vendor/clipboard-manager.js" => ["vendor/clipboard-manager.js", "text/javascript"],
-    "/vendor/dialog.js" => ["vendor/dialog.js", "text/javascript"],
     "/vendor/global-shortcut.js" => ["vendor/global-shortcut.js", "text/javascript"],
-    "/vendor/notification.js" => ["vendor/notification.js", "text/javascript"],
   }.freeze
 
   # The date and time at the start of each log line, in the layout of
@@ -70,15 +69,18 @@ commands = Ractor.shareable_proc do |invoke|
   true
 end
 
-app = Tokra::Builder.default.app(site).invoke_handler(&commands).build(Tokra.generate_context)
+app = Tokra::Builder.default
+  .app(site)
+  .invoke_handler(&commands)
+  .plugin(Tokra::Plugins::Dialog.init)
+  .plugin(Tokra::Plugins::Notification.init)
+  .build(Tokra.generate_context)
 handle = app.handle
 
 # Each plugin registers before App#run, so the window's page gets its
 # initialization script.
 handle.plugin(Tokra::Plugins::Clipboard::Plugin.new(handle))
-handle.plugin(Tokra::Plugins::Dialog::Plugin.new(handle))
 handle.plugin(Tokra::Plugins::GlobalShortcut::Plugin.new(handle))
-handle.plugin(Tokra::Plugins::Notification::Plugin.new(handle))
 
 # The log plugin writes to the terminal and to the page, which hears each
 # line as a <tt>log://log</tt> event. The commands above reach it through
