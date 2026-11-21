@@ -412,8 +412,15 @@ module Tokra
         # 0.7.1 builders.rs:589-595, 634-641).
         private def acquire_logger(app_handle, settings)
           app_name = app_handle.package_info.name
-          targets = settings.targets.map do |target|
-            [target.filters.dup.freeze, target.formatter, output(target.kind, app_handle, app_name, settings)]
+          targets = []
+          begin
+            settings.targets.each do |target|
+              targets << [target.filters.dup.freeze, target.formatter, output(target.kind, app_handle, app_name, settings)]
+            end
+          rescue
+            # Rust drops the outputs already built when a later one fails.
+            targets.each { |_filters, _format, output| output.drop }
+            raise
           end
           max_level = targets.empty? ? :off : settings.level
           logger = Log::Logger.new(level: settings.level, filters: settings.filters, format: settings.format, app_name:,

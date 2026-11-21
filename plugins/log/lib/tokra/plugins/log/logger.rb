@@ -181,6 +181,26 @@ module Tokra
           nil
         end
 
+        # Closes the files the logger's targets opened and returns +nil+,
+        # as Rust's drop of the logger does. Rust drops a logger the
+        # moment nothing holds it; Ruby closes a File only when it is
+        # collected, and Windows refuses to delete or rename a file that
+        # is open. Log.attach_logger drops a logger it refuses, and the
+        # plugin's setup drops the outputs it opened when a later target
+        # fails, where Rust drops them. Drop a logger from Builder#split
+        # that you let go. The process's attached logger is never dropped,
+        # as Rust's never is: its files close when the process ends.
+        #
+        # === Example
+        #
+        #   _plugin, _max_level, logger = Tokra::Plugins::Log::Builder.new.split(app.handle)
+        #   logger.info("done")
+        #   logger.drop
+        def drop
+          @targets.each { |_filters, _format, output| output.drop }
+          nil
+        end
+
         # +record+ with its args replaced by +format+'s line, or as it was
         # when there is no format or it returns +nil+, as fern finishes a
         # record whose format never calls finish (log_impl.rs:452-472).

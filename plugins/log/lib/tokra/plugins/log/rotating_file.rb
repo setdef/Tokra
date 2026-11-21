@@ -64,6 +64,17 @@ module Tokra
           @buffer.clear
         end
 
+        # Closes the file, as Rust's drop of a RotatingFile closes the
+        # File it holds, and returns +nil+. Ruby closes a File only when
+        # it is collected, and Windows refuses to delete or rename a file
+        # that is open, so whoever lets a RotatingFile go drops it.
+        def drop
+          file = @inner
+          @inner = nil
+          file&.close
+          nil
+        end
+
         private def open_file
           file = File.open(@path, "ab")
           @current_size = file.size

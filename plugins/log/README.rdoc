@@ -81,7 +81,8 @@ does.
 
 - +skip_logger+:: register the plugin without making or attaching a
   logger
-- +split+:: make the plugin and the logger apart, for you to attach
+- +split+:: make the plugin and the logger apart, for you to attach;
+  call the logger's +drop+ when you let it go, which closes its files
 
 LogDir targets write in the app's log directory, and file targets are
 named for the app unless they name a file.

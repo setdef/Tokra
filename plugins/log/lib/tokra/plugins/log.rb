@@ -88,7 +88,8 @@ module Tokra
       #
       # A process has one logger, set once: a second call raises
       # SetLoggerError and changes nothing, as the log crate's
-      # +set_boxed_logger+ does. So a second app in one process whose log
+      # +set_boxed_logger+ does, dropping +log+, as Rust drops the logger
+      # it refuses (Logger#drop). So a second app in one process whose log
       # plugin attaches fails to initialize it; build that one with
       # Builder#skip_logger.
       #
@@ -103,7 +104,11 @@ module Tokra
       #   app.handle.plugin(plugin)
       def self.attach_logger(max_level, log)
         ATTACH.synchronize do
-          raise SetLoggerError if @logger
+          if @logger
+            # Rust drops the logger set_boxed_logger refused.
+            log.drop
+            raise SetLoggerError
+          end
 
           @logger = log
           @max_level = max_level

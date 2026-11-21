@@ -41,6 +41,11 @@ module Tokra
             @lock = Mutex.new
           end
 
+          # Leaves the stream open, as Rust's drop of Stdout does; +nil+.
+          def drop
+            nil
+          end
+
           # Writes +record+'s line.
           def log(record)
             Fallback.on_error(record) do
@@ -62,6 +67,11 @@ module Tokra
             @lock = Mutex.new
           end
 
+          # Closes the file (RotatingFile#drop); +nil+.
+          def drop
+            @lock.synchronize { @file.drop }
+          end
+
           # Writes +record+'s line.
           def log(record)
             Fallback.on_error(record) do
@@ -81,6 +91,11 @@ module Tokra
             @app_handle = app_handle
           end
 
+          # Holds nothing to close; +nil+.
+          def drop
+            nil
+          end
+
           # Emits +record+'s line and LogLevel.
           def log(record)
             @app_handle.emit("log://log", { message: record.args, level: LogLevel.from(record.level) })
@@ -95,6 +110,12 @@ module Tokra
           # [logger] Any object with ::Logger's +add+.
           def initialize(logger)
             @logger = logger
+          end
+
+          # Leaves the app's Logger open: the app made it, and keeps it;
+          # +nil+.
+          def drop
+            nil
           end
 
           # Adds +record+'s line at its severity, with its target as the

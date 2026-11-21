@@ -29,7 +29,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `format`, `clear_format`, and `Target#format` on the formatted line,
   `timezone_strategy`, and log files named for the app that rotate at
   `max_file_size` (default 40000 bytes) by `RotationStrategy` (default
-  `KeepOne`) into dated archives; `TimezoneStrategy#get_now` reads the
+  `KeepOne`) into dated archives, closed by `Logger#drop`, which a
+  refused attach and a failed setup call, as Rust drops the logger; `TimezoneStrategy#get_now` reads the
   time crate's now through `ferro-time` 0.1.0; the logger takes Logger's
   `trace` through `fatal` and `add`; `level_for` and `with_colors` raise
   `NotImplementedError`; like Tauri's, the plugin takes no config, and a

@@ -30,7 +30,7 @@ class TestRotatingFile < Minitest::Test
   end
 
   private def rotating(max_size, strategy, file_name: "app")
-    Log::RotatingFile.new(@dir, file_name, max_size, strategy, StoppedClock.new(NOW))
+    made(Log::RotatingFile.new(@dir, file_name, max_size, strategy, StoppedClock.new(NOW)))
   end
 
   private def line(file, text)

@@ -42,7 +42,7 @@ class TestTargets < Minitest::Test
   # A Folder target writes <file_name>.log in its folder, creating it
   # (lib.rs:613-626).
   def test_a_folder_target_writes_its_file_creating_the_folder
-    Dir.mktmpdir do |dir|
+    tmpdir do |dir|
       folder = File.join(dir, "nested", "logs")
       logger = logger_of(Log::Builder.new.clear_format.clear_targets
         .target(Log::Target.new(Log::TargetKind::Folder.new(path: folder, file_name: "events"))))
@@ -55,7 +55,7 @@ class TestTargets < Minitest::Test
 
   # Without a file name a file is named for the app (lib.rs:620, 635).
   def test_a_folder_file_is_named_for_the_app_by_default
-    Dir.mktmpdir do |dir|
+    tmpdir do |dir|
       logger = logger_of(Log::Builder.new.clear_targets
         .target(Log::Target.new(Log::TargetKind::Folder.new(path: dir))), app_handle(product_name: "Demo"))
 
@@ -89,7 +89,7 @@ class TestTargets < Minitest::Test
   # A Logger whose only target is +kind+, made for a handle whose path
   # resolver finds the user's directories in a temporary directory.
   private def in_log_dir(kind)
-    Dir.mktmpdir do |dir|
+    tmpdir do |dir|
       handle = app_handle
       resolver = Tokra::Path::Resolver.new(handle, dirs: Dirs.new(dir))
       logger = handle.stub(:path, resolver) do
@@ -121,6 +121,19 @@ class TestTargets < Minitest::Test
     log.fatal("db") { "f" }
 
     assert_equal "DEBUG db: t\nINFO db: i\nERROR db: f\n", io.string
+  end
+
+  # Logger#drop closes each file its targets opened, as Rust's drop of
+  # the logger closes its RotatingFiles, so Windows can delete them.
+  def test_drop_closes_the_files_the_targets_opened
+    tmpdir do |dir|
+      logger = logger_of(Log::Builder.new.clear_targets.target(Log::Target.new(Log::TargetKind::Folder.new(path: dir))))
+      path = File.join(dir, "demo.log")
+
+      assert open_file?(path)
+      assert_nil logger.drop
+      refute open_file?(path)
+    end
   end
 
   # A write that fails goes to standard error in fern's words

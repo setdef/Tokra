@@ -64,7 +64,42 @@ module LogTest
   # the process keeps one global logger.
   private def logger_of(builder, handle = app_handle)
     _plugin, _max_level, logger = builder.split(handle)
-    logger
+    made(logger)
+  end
+
+  # Keeps +droppable+, a Logger or RotatingFile, to drop when the test
+  # ends, as Rust drops what goes out of scope, and returns it. Windows
+  # refuses to delete a file that is open, so each test closes its files
+  # before its temporary directory goes.
+  private def made(droppable)
+    (@made ||= []) << droppable
+    droppable
+  end
+
+  # Drops everything #made kept.
+  private def drop_made
+    @made&.each(&:drop)
+    @made = []
+  end
+
+  # A temporary directory for the block, removed after the block's
+  # loggers and files are dropped.
+  private def tmpdir
+    Dir.mktmpdir do |dir|
+      yield dir
+    ensure
+      drop_made
+    end
+  end
+
+  # Whether a File open on +path+ is still open in this process.
+  private def open_file?(path)
+    ObjectSpace.each_object(File).any? { |file| !file.closed? && File.expand_path(file.path) == File.expand_path(path) }
+  end
+
+  def before_teardown
+    drop_made
+    super
   end
 
   # The Logger +builder+ describes, with standard output its only target.

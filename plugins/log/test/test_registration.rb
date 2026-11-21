@@ -123,6 +123,22 @@ class TestLogRegistration < Minitest::Test
 
       assert_raises(Tokra::Error::PluginInitialization) { built.run }
       assert_path_exists File.join(folder, "demo.log")
+      refute open_file?(File.join(folder, "demo.log")), "attach_logger drops the logger it refuses"
+    end
+  end
+
+  # When a target fails, the setup drops the outputs it opened before
+  # it, as Rust drops the dispatch it was building (lib.rs:576-662).
+  def test_a_failed_target_closes_the_files_opened_before_it
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "taken"), "")
+      first = Log::Target.new(Log::TargetKind::Folder.new(path: File.join(dir, "first")))
+      second = Log::Target.new(Log::TargetKind::Folder.new(path: File.join(dir, "taken")))
+      built = Tokra::Builder.default.plugin(Log::Builder.new.clear_targets.targets([first, second]).build)
+        .build(Tokra.generate_context(app_in(dir)), native: NoWindow)
+
+      assert_raises(Tokra::Error::PluginInitialization) { built.run }
+      refute open_file?(File.join(dir, "first", "demo.log"))
     end
   end
 
