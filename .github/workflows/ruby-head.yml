@@ -1,0 +1,133 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# News from Ruby's head, not the gate. Once a day, and when someone starts
+# it, this runs the gate as ci.yml does on Linux and macOS, but on
+# setup-ruby's build of Ruby's master instead of the Rubies ci.yml's
+# matrix names, so a change in Ruby that breaks Tokra shows before the
+# release that carries it (Plan 069). Ruby's master moves every day and
+# cannot be pinned, so a failure here is news to read: it blocks no push
+# and does not make trunk red.
+#
+# Windows is left out. RubyInstaller builds its head Ruby with 64-bit
+# lengths, so there the gate fails at cargo test every day for that known
+# reason, and a pass could come from an extension compiled against the
+# wrong lengths (Plan 069, "Why Windows stays on 4.0").
+
+name: Ruby head
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: ${{ matrix.os }}, Ruby head
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # sync:tauri extracts the JavaScript templates from the vendor/tauri
+      # submodule, so the checkout needs it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+
+      # mise.toml pins the toolchains contributors use; this reads the same
+      # pins as ci.yml does, all but Ruby's.
+      - name: Read the toolchain pins
+        id: pins
+        run: |
+          rust=$(sed -n 's/^rust = "\(.*\)"$/\1/p' mise.toml)
+          python=$(sed -n 's/^python = "\(.*\)"$/\1/p' mise.toml)
+          {
+            echo "rust=$rust"
+            echo "python=$python"
+            # tokra is the one native gem in this repository, its own Cargo
+            # workspace (plugins build on Ferro's gems, ADR 011).
+            echo "workspaces=. -> target"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: ${{ steps.pins.outputs.rust }}
+          components: clippy, rustfmt
+
+      # Ruby without the bundle, which the steps below install and cache.
+      # It comes before Rust's cache here, unlike in ci.yml, so that cache
+      # can be keyed by the exact build of master.
+      - uses: ruby/setup-ruby@7f797815d8adceb1c412e7abefdd1ab4abc47a5f # v1.335.0
+        with:
+          ruby-version: head
+      - name: Read the exact Ruby
+        id: exact
+        run: |
+          ruby -v
+          echo "ruby=$(ruby -e 'print RUBY_VERSION, "-", RUBY_REVISION, "-", RUBY_PLATFORM')" >> "$GITHUB_OUTPUT"
+
+      # The extensions link Ruby's headers through bindgen, and master's
+      # headers change from one day to the next, so the compiled
+      # dependencies are cached by the exact build of master.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: ruby-head-${{ steps.exact.outputs.ruby }}
+          workspaces: ${{ steps.pins.outputs.workspaces }}
+
+      # The REUSE tool, as ci.yml installs it.
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ steps.pins.outputs.python }}
+      - name: Install the REUSE tool
+        run: python -m pip install "reuse[charset-normalizer]==6.2.0"
+
+      # The packages ci.yml's step of the same name installs, and for the
+      # same reasons, which it gives.
+      - name: Install GTK, WebKitGTK, and a display server
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
+            pkg-config libclang-dev libwayland-dev xvfb xauth dbus dbus-x11 dunst \
+            xdotool x11-xserver-utils libxdo-dev libayatana-appindicator3-1
+
+      # The bundle, as ci.yml installs it: frozen to Gemfile.lock, in
+      # vendor/bundle, cached by OS, CPU, exact Ruby, and lockfile.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: vendor/bundle
+          key: bundle-${{ runner.os }}-${{ runner.arch }}-${{ steps.exact.outputs.ruby }}-${{ hashFiles('Gemfile.lock') }}
+      - name: Install the bundle
+        run: |
+          bundle config set --local path vendor/bundle
+          bundle config set --local frozen true
+          bundle install --jobs 4
+
+      # RealApp runs a real window only in an Aqua session (launchctl
+      # managername); this records which session the runner has.
+      - name: Report the GUI session
+        if: runner.os == 'macOS'
+        run: echo "launchctl managername is $(launchctl managername)"
+
+      - name: Run the gate under X11
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum dbus-run-session -- bundle exec rake
+
+      - name: Run the gate
+        if: runner.os != 'Linux'
+        run: bundle exec rake
