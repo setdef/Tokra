@@ -7,12 +7,13 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 # The Native Layer
 
 This document says how Tokra's Rust extension, `ext/tokra`, meets Ruby:
-which crates it links and which it leaves to Ferro, how a crate's API
-becomes Ruby, what a window's handles are, which thread its objects
-belong to, and how the event loop shares Ruby's GVL with the app's other
-threads. It is for Tokra's contributors. Why crates live where they do
-is ADR 011, and why the loop keeps the GVL is ADR 012. Each module's own
-documentation in `ext/tokra/src/` holds the sources it rests on.
+how it builds, what it holds, which crates it links and which it leaves
+to Ferro, how a crate's API becomes Ruby, what a window's handles are,
+which thread its objects belong to, and how the event loop shares Ruby's
+GVL with the app's other threads. It is for Tokra's contributors. Why
+crates live where they do is ADR 011, and why the loop keeps the GVL is
+ADR 012. Each module's own documentation in `ext/tokra/src/` holds the
+sources it rests on.
 
 ## What the extension holds
 
@@ -25,6 +26,16 @@ the Ruby side builds the user-facing API over it, as Tauri's, and keeps
 the callbacks, ids, and state. Event data reaches Ruby as `Data.define`
 values, which are frozen and shareable. The cost is a platform issue
 traced through both layers, and a Ruby object for every event.
+
+## Building the extension
+
+The extension builds through rb_sys, which bridges Cargo and Ruby's
+`mkmf`: `tokra.gemspec` depends on `rb_sys`, `ext/tokra/extconf.rb`
+calls `create_rust_makefile("tokra/tokra")`, the crate is a `cdylib`,
+and `lib/tokra.rb` loads the result as `tokra/tokra`. rb_sys finds
+libclang and Ruby's headers; the platform's own build tools and
+libraries, which the README lists, are still the developer's to
+install.
 
 ## Where each crate lives
 

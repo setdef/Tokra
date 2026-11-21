@@ -227,6 +227,11 @@ and the Rack app also runs on the main Ractor.
 
 ## Tests
 
+A change is proven by a full round trip through a real window, webview,
+and IPC layer, not by stubs alone: the real-window tests in
+`test/integration/`, one per concern, each driving a small fixture app,
+run on Linux, macOS, and Windows in CI (plan 018).
+
 `test/integration/ipc_transport_test.rb` drives the real
 `@tauri-apps/api`, loaded through `withGlobalTauri`, over `ipc://` in a
 real webview, and never falls back to `postMessage`.
