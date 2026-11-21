@@ -28,7 +28,7 @@ Gem::Specification.new do |spec|
 
   # Ship what an installed app loads. The plugin is pure Ruby: the
   # notifications go out through ferro-notify-rust, and attachment URLs
-  # are read with ferro-url and scheduled dates with ferro-time (ADR 011,
+  # are read with ferro-url and scheduled dates with ferro-time (ADR 020,
   # plans 024, 030, and 031).
   packaged = %w[lib sig README.rdoc CHANGELOG.md]
   spec.files = IO.popen(["git", "ls-files", "-z", "--", *packaged], chdir: __dir__, err: IO::NULL) do |ls|

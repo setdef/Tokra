@@ -215,11 +215,13 @@ cookies for the protocol as for any origin.
 ## Where commands run
 
 `App` dispatches every command synchronously on the main Ractor, and the
-responder answers directly. The responder is an opaque callable on
-`Ipc::Invoke`, so a later move of the app's logic to a worker Ractor
-(ADR 001) can replace it without touching handlers. Until then the
-responder captures its webview and must never cross a Ractor boundary,
-and the Rack app also runs on the main Ractor.
+responder answers directly. ADR 021 decides where commands are to run:
+an ordinary command here, as now, and an async one on a port of Tauri's
+async runtime, through `Invoke#respond_async`. The async form is not
+built yet. The responder is an opaque callable on `Ipc::Invoke`, so
+where it runs can change without touching handlers. Today it captures
+its webview and must never cross a Ractor boundary, and the Rack app
+also runs on the main Ractor.
 
 ## Deviations from Tauri
 

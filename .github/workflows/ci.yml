@@ -81,7 +81,7 @@ jobs:
             echo "rust=$rust"
             echo "python=$python"
             # tokra is the one native gem in this repository, its own Cargo
-            # workspace (plugins build on Ferro's gems, ADR 011).
+            # workspace (plugins build on Ferro's gems, ADR 020).
             echo "workspaces=. -> target"
           } >> "$GITHUB_OUTPUT"
 

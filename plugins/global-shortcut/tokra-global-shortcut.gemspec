@@ -27,7 +27,7 @@ Gem::Specification.new do |spec|
   spec.metadata["rubygems_mfa_required"] = "true"
 
   # Ship what an installed app loads. The plugin is pure Ruby: the
-  # hotkeys come from ferro-global-hotkey (ADR 011, Plan 025).
+  # hotkeys come from ferro-global-hotkey (ADR 020, Plan 025).
   packaged = %w[lib sig README.rdoc CHANGELOG.md]
   spec.files = IO.popen(["git", "ls-files", "-z", "--", *packaged], chdir: __dir__, err: IO::NULL) do |ls|
     ls.readlines("\x0", chomp: true)

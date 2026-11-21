@@ -905,9 +905,9 @@ module Tokra
     # eval is ignored (<tt>let _ = webview.eval(...)</tt>).
     #
     # The responder runs synchronously on the Main Ractor and captures
-    # the webview, so it must never cross a Ractor boundary. The Worker
-    # Ractor phase (ADR 001) will swap this implementation for a proxy
-    # round-trip without touching handlers.
+    # the webview, so it must never cross a Ractor boundary. Running
+    # commands off the main thread (ADR 021) can swap this implementation
+    # for a proxy round-trip without touching handlers.
     private def build_ipc_responder(webview, callback, error, can_use_channel: false)
       return nil unless callback.is_a?(Integer) && error.is_a?(Integer)
 

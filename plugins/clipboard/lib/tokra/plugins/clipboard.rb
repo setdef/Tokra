@@ -14,7 +14,7 @@
 
 require "tokra"
 
-# The system clipboard, through arboard (ADR 011). A failure to load it is a
+# The system clipboard, through arboard (ADR 020). A failure to load it is a
 # real installation problem (a missing or unloadable library), so its
 # LoadError propagates as-is.
 require "ferro/arboard"
@@ -340,8 +340,8 @@ module Tokra
       # *Deviation*: Tauri runs these commands as +async+ functions, off the
       # main thread. Tokra dispatches every invoke on the main thread today,
       # so the Linux deadlock warning on Clipboard#read_text and
-      # Clipboard#read_image applies to the commands too. Moving dispatch to
-      # a worker Ractor (ADR 001) lifts it.
+      # Clipboard#read_image applies to the commands too. Answering them
+      # off the main thread, as ADR 021 decides, lifts it.
       #
       # Mirrors Tauri's <tt>commands.rs</tt>.
       module Commands

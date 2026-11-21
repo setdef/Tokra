@@ -4,7 +4,7 @@
 //! Path resolution bindings.
 //!
 //! Thin wrapper around the `dirs` crate. Exposes raw directory functions;
-//! Ruby owns platform-specific path logic per ADR 001.
+//! Ruby owns platform-specific path logic per ADR 020.
 
 use magnus::{function, prelude::*, Error, Ruby};
 

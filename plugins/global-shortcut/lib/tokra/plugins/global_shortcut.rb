@@ -13,7 +13,7 @@
 
 require "tokra"
 
-# Global hotkeys, through global-hotkey (ADR 011). A failure to load it is a
+# Global hotkeys, through global-hotkey (ADR 020). A failure to load it is a
 # real installation problem, so its LoadError propagates as-is.
 require "ferro/global_hotkey"
 

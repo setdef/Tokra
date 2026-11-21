@@ -141,7 +141,7 @@ drive them through the IPC as the page does.
 ## Plugins over Ferro
 
 A plugin that needs a Rust crate builds on the Ferro gem that binds it,
-and carries no Rust of its own (ADR 011): `tokra-clipboard` over
+and carries no Rust of its own (ADR 020): `tokra-clipboard` over
 `ferro-arboard`, `tokra-dialog` over `ferro-rfd`, `tokra-global-shortcut`
 over `ferro-global-hotkey`, `tokra-log` over `ferro-time`, and
 `tokra-notification` over `ferro-notify-rust`, `ferro-url`, and

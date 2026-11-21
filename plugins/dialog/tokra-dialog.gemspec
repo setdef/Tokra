@@ -27,7 +27,7 @@ Gem::Specification.new do |spec|
   spec.metadata["rubygems_mfa_required"] = "true"
 
   # Ship what an installed app loads. The plugin is pure Ruby: the native
-  # dialogs come from ferro-rfd (ADR 011, Plan 023).
+  # dialogs come from ferro-rfd (ADR 020, Plan 023).
   packaged = %w[lib sig README.rdoc CHANGELOG.md]
   spec.files = IO.popen(["git", "ls-files", "-z", "--", *packaged], chdir: __dir__, err: IO::NULL) do |ls|
     ls.readlines("\x0", chomp: true)

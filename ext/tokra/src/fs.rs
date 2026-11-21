@@ -8,13 +8,13 @@
 //! read as `std::io::Error`'s Display, which only std can produce: on
 //! Windows it formats the raw Win32 error code, which Ruby has already
 //! mapped to a POSIX errno by the time it raises. Ruby owns the
-//! `Tokra::Error::Io` it becomes, per ADR 001.
+//! `Tokra::Error::Io` it becomes, per ADR 020.
 //!
 //! Ruby reads the file first, interruptibly, and calls this only when its
 //! read failed, to learn std's text. The read runs with Ruby's global VM
 //! lock released, so even a failing open on a slow network file system
 //! stops only the calling Ruby thread, never the main thread and its
-//! windows (ADR 001). It runs with no unblocking function: std retries a
+//! windows (ADR 020). It runs with no unblocking function: std retries a
 //! call the OS interrupts (`EINTR`), so nothing Ruby could send would end
 //! it early, and `Thread#raise`, `Thread#kill`, and Ctrl-C take effect once
 //! it returns. Ruby documents that such a call "will not stop for

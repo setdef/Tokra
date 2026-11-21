@@ -13,7 +13,7 @@
 require "tokra"
 
 # Desktop notifications, through notify-rust; attachment URLs, through url;
-# and scheduled dates, through time (ADR 011). A failure to load any of
+# and scheduled dates, through time (ADR 020). A failure to load any of
 # them is a real installation problem, so its LoadError propagates as-is.
 require "ferro/notify_rust"
 require "ferro/time"

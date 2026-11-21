@@ -41,7 +41,7 @@ What it was read against:
 - Ruby: the `ruby/ruby` checkout at master `b84532add7` (2026-11-20),
   whose `NEWS.md` is the 4.1.0 development NEWS; fiddle 1.1.8 as Ruby
   4.0.9 bundles it.
-- Ferro: its repository as it stands, read only: `AGENTS.md`, ADR 001,
+- Ferro: its repository as it stands, read only: `AGENTS.md`, the former ADR 001 (now ADR 020),
   `doc/contributors/design/translation.md` and `repository.md`, the
   `bind-crate` skill, its plans 001 to 010, and the seven gems in
   `gems/`.
@@ -109,7 +109,7 @@ lines of non-test Rust (8,600 to 24,000), and binding only what Tauri
 calls is about 9,600 (6,400 to 17,900), plus about 1,000 lines of the
 glue above. Today's extension has 7,046 non-test code lines. So
 shipping no extension in Tokra moves Rust into Ferro and grows it; what
-shrinks is Tauri's logic in Rust, which goes to Ruby. ADR 011's reason
+shrinks is Tauri's logic in Rust, which goes to Ruby. the former ADR 011 (now ADR 020)'s reason
 for one native library still holds: wry builds into tao's window, muda
 and window-vibrancy follow the window's pointers, and tray-icon takes
 muda's menus as Rust values. One native library, however many Ruby gems
@@ -421,7 +421,7 @@ The ways Ruby could reach them, weighed against the goals:
   of only what Tauri calls breaks Ferro's rule. Either needs a Ferro
   decision.
 - **A safe address, where one exists.** A pointer passed as an Integer
-  is unsafe in Ruby (ADR 011). Win32's `HWND` is a handle the system
+  is unsafe in Ruby (the former ADR 011 (now ADR 020)). Win32's `HWND` is a handle the system
   checks, so a stale one fails a call instead of crashing it. AppKit's
   `NSWindow` can be found by its window number, as ferro-rfd does (Ferro
   plan 008), so Ruby need not trust an address. GTK's widgets and
@@ -637,7 +637,7 @@ about 11,000 to 15,000 lines of non-test Rust at the median, with its
 Ruby, RBS, and tests on top. What leaves Rust is Tauri's logic, 2,137
 code lines, which becomes Ruby in Tokra.
 
-### Does ADR 011's one native library still hold?
+### Does the former ADR 011 (now ADR 020)'s one native library still hold?
 
 Yes, and the code shows why each crate needs the others' Rust values or
 pointers:
@@ -656,7 +656,7 @@ pointers:
   the same library.
 
 A Rust value cannot enter another gem's Rust API, and a pointer that
-crosses as an Integer is unsound in a crate that follows it (ADR 011;
+crosses as an Integer is unsound in a crate that follows it (the former ADR 011 (now ADR 020);
 Ferro `repository.md`, "Which crates, in which gem"). And tao and
 tray-icon crash as a second copy at every version, wry before 0.54.3,
 and muda with objc2 0.6.3 (`native.md`, "Where each crate lives").
@@ -666,7 +666,7 @@ tray-icon, and window-vibrancy. Ferro's rule is one gem per crate, but
 its `repository.md` already says tray-icon and muda "would share one
 gem". Two shapes fit: one Ferro gem that binds all five crates, or one
 native gem with a small Ruby gem per crate over it, each with its crate
-as its answer key. ADR 011 rejected moving the stack to Ferro because it
+as its answer key. the former ADR 011 (now ADR 020) rejected moving the stack to Ferro because it
 "would give the same native library another name and add a release step
 to every windowing change." With Tauri's logic in Ruby, a windowing
 change to Tokra rarely touches the binding, so that reason no longer
@@ -771,7 +771,7 @@ repository, and its answer key is the crates, not Tokra.
 47. The default flips to the Ferro backend.
 48. `ext/tokra` is deleted, the gemspec loses its extension, and the
     packaging check proves the gem loads with no compiler.
-49. The records: ADR 001, 011, and 012 superseded or amended, and
+49. The records: the former ADR 001 (now ADR 020), 011, and 012 superseded or amended, and
     `native.md` moved to the Ferro gem's design.
 
 Forty-nine steps, seven of them large. The order puts the smallest,
@@ -1011,10 +1011,10 @@ workspace, so spike 2 ran on 4.0.9 only.)
 
 | Where | What it says | What is true |
 |---|---|---|
-| `AGENTS.md:10` | "Rust (rb_sys + magnus, in `ext/`) is a thin binding over tao and wry; Ruby owns all logic (ADR 001)." | The extension binds muda, tray-icon, window-vibrancy, image, png, ico, dirs, and std as well, and 3,383 of its lines (2,137 code) are Tauri's logic: `tauri-runtime-wry`'s event mapping, window placement, web-context store, window-id map, undecorated resizing, and `WindowExt`; `tauri`'s vibrancy, native icons, tray events, accelerator hook, and dev icon; `tauri-codegen`'s icon decoding. |
+| `AGENTS.md:10` | "Rust (rb_sys + magnus, in `ext/`) is a thin binding over tao and wry; Ruby owns all logic (the former ADR 001 (now ADR 020))." | The extension binds muda, tray-icon, window-vibrancy, image, png, ico, dirs, and std as well, and 3,383 of its lines (2,137 code) are Tauri's logic: `tauri-runtime-wry`'s event mapping, window placement, web-context store, window-id map, undecorated resizing, and `WindowExt`; `tauri`'s vibrancy, native icons, tray events, accelerator hook, and dev icon; `tauri-codegen`'s icon decoding. |
 | `doc/contributors/adr/001.md:44-46` | "The Rust layer is a dumb pipe: a magnus extension ... that wraps tao and wry and knows nothing of commands or state, and everything else is Ruby." | It knows nothing of commands. It holds state (the web contexts by data directory, the window labels, the pending responders, the accelerator menus) and the Tauri logic above. |
 | `doc/contributors/adr/001.md:73-74` | "AGENTS.md states the rule, that Rust is a thin binding and Ruby owns all logic". | The rule is stated, and nothing checks it; the code does not follow it (above). |
-| `doc/contributors/design/native.md:20-22` | "The extension wraps platform types and holds no application logic (ADR 001): it passes raw events and messages to Ruby, and Ruby owns command routing, security checks, and state." | Command routing and security checks are Ruby. Events reach Ruby filtered and mapped as Tauri's runtime maps them (`event_loop.rs:402-478`), and the state above is Rust's. |
+| `doc/contributors/design/native.md:20-22` | "The extension wraps platform types and holds no application logic (the former ADR 001 (now ADR 020)): it passes raw events and messages to Ruby, and Ruby owns command routing, security checks, and state." | Command routing and security checks are Ruby. Events reach Ruby filtered and mapped as Tauri's runtime maps them (`event_loop.rs:402-478`), and the state above is Rust's. |
 | `doc/contributors/design/native.md:22-25` | "The Rust side wraps the crate's type in a magnus class under `Tokra::Native` and exposes the crate's own methods". | Many classes expose Tauri's runtime messages rather than the crate's methods: a window opens from one Hash of Tauri's builder rows (`window_builder.rs:79-126`), and its setters are `handle_user_message` arms. |
 | `ext/tokra/src/proxy.rs:4-7`, `:20-21`; `lib.rs:20` | The proxy is "for cross-Ractor communication", "for waking up the event loop from Ractors", "Ractor-safe". | It can be shared with a Ractor, but only the main Ractor can call it: the extension never calls `rb_ext_ractor_safe`, so Ruby raises `Ractor::UnsafeError` for its methods in any other Ractor (`vm_insnhelper.c:3597-3600`), as `native.md:245-247` itself says. Nothing in `test/` starts a Ractor. |
 | `ext/tokra/src/lib.rs:1-5` | "Thin Magnus bindings around `tao` (windowing) and `wry` ... Ruby manages all application logic, state, and routing." | As for `AGENTS.md:10`. Its module list names 14 of 31 modules. |

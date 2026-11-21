@@ -79,7 +79,7 @@ require_relative "tasks/cargo_output"
 # looking at what either prints, so this compiles tokra in a child rake and
 # fails on any warning in its output (CargoOutput). The gate starts here;
 # later compiles are no-ops, and Cargo replays a crate's warnings even then.
-# Plugins carry no Rust (ADR 011): ferro-arboard compiles when Bundler
+# Plugins carry no Rust (ADR 020): ferro-arboard compiles when Bundler
 # installs it.
 desc "Compile the native extension, failing on any rustc or Cargo warning"
 task "compile:strict" do

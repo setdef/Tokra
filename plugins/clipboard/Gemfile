@@ -11,11 +11,11 @@ gemspec
 
 gem "tokra", path: "../.."
 # tokra reads its config's URLs with ferro-url, which is not on
-# RubyGems.org yet, so Bundler takes it from its release tag (ADR 011).
+# RubyGems.org yet, so Bundler takes it from its release tag (ADR 020).
 gem "ferro-url", git: "https://github.com/setdef/Ferro", tag: "ferro-url/v0.1.0", glob: "gems/url/*.gemspec"
 
 # ferro-arboard is not on RubyGems.org yet, so Bundler takes it from its
-# release tag (ADR 011).
+# release tag (ADR 020).
 gem "ferro-arboard", git: "https://github.com/setdef/Ferro", tag: "ferro-arboard/v0.1.0", glob: "gems/arboard/*.gemspec"
 
 group :development, :test do

@@ -24,7 +24,7 @@ require "open3"
 # (rfd 0.17.2 src/backend/xdg_desktop_portal.rs:82-113); the app's bus is
 # one of the test's own, where no portal answers, and dbus-monitor records
 # what rfd asked, so the test sees the window the commands passed as
-# parent (ADR 011).
+# parent (ADR 020).
 class TestDialogWindow < RealApp::TestCase
   FIXTURES = File.expand_path("integration/fixtures", __dir__)
 

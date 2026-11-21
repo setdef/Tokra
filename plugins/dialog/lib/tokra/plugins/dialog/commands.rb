@@ -30,7 +30,7 @@ module Tokra
       # === Deviations
       #
       # * Each dialog's parent is the calling window, as in Tauri, except
-      #   on Wayland: ferro-rfd binds no Wayland handle (ADR 011). Tauri,
+      #   on Wayland: ferro-rfd binds no Wayland handle (ADR 020). Tauri,
       #   too, parents +open+ only on Windows and macOS.
       # * Tauri adds each picked path to the fs plugin's scope and the asset
       #   protocol's scope (commands.rs:156-215, 247-257). Tokra has neither

@@ -28,7 +28,7 @@ require "tmpdir"
 # packaged sources (Plan 017).
 #
 # A dependency that RubyGems cannot install by name, because Bundler took it
-# from a git source (ferro-arboard, ADR 011), comes from the bundle: fast
+# from a git source (ferro-arboard, ADR 020), comes from the bundle: fast
 # mode puts its require paths on the load path, and full mode builds it from
 # its checkout and installs it first.
 #

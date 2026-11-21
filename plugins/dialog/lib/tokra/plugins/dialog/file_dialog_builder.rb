@@ -120,7 +120,7 @@ module Tokra
         # macOS the dialog slides out of that window as a sheet; on X11
         # rfd names the window to the desktop portal. On Wayland the
         # dialog has no parent: ferro-rfd binds no handle rfd follows as a
-        # pointer (ADR 011). Keep the window open until the dialog closes.
+        # pointer (ADR 020). Keep the window open until the dialog closes.
         #
         # === Example
         #

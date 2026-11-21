@@ -11,14 +11,14 @@ how it builds, what it holds, which crates it links and which it leaves
 to Ferro, how a crate's API becomes Ruby, what a window's handles are,
 which thread its objects belong to, and how the event loop shares Ruby's
 GVL with the app's other threads. It is for Tokra's contributors. Why
-crates live where they do is ADR 011, and why the loop keeps the GVL is
+crates live where they do is ADR 020, and why the loop keeps the GVL is
 ADR 012. Each module's own documentation in `ext/tokra/src/` holds the
 sources it rests on.
 
 ## What the extension holds
 
 The extension wraps platform types and holds no application logic
-(ADR 001): it passes raw events and messages to Ruby, and Ruby owns
+(ADR 020): it passes raw events and messages to Ruby, and Ruby owns
 command routing, security checks, and state. A new platform capability
 follows the same split. The Rust side wraps the crate's type in a
 magnus class under `Tokra::Native` and exposes the crate's own methods;

@@ -47,7 +47,7 @@ module Tokra
       # is a sheet on the window; without a parent it is a system alert of
       # its own. On Linux, rfd runs message dialogs through zenity, which
       # takes no parent, and on Wayland Tokra keeps none: ferro-rfd binds no
-      # handle rfd follows as a pointer (ADR 011).
+      # handle rfd follows as a pointer (ADR 020).
       #
       # Mirrors Tauri's <tt>MessageDialogBuilder</tt> (lib.rs:214-369).
       #

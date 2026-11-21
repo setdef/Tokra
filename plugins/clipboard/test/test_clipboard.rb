@@ -698,7 +698,7 @@ class TestClipboard < Minitest::Test
   # Packaging (Plan 016 #8, Plan 021)
   # ==========================================================================
 
-  # The plugin is pure Ruby (ADR 011): no extension of its own.
+  # The plugin is pure Ruby (ADR 020): no extension of its own.
   def test_the_gem_ships_no_native_extension
     spec = Gem::Specification.load(File.expand_path("../tokra-clipboard.gemspec", __dir__))
 

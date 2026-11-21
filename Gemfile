@@ -11,7 +11,7 @@ source "https://rubygems.org"
 # Specify your gem's dependencies in tokra.gemspec
 gemspec
 
-# tokra-clipboard builds on ferro-arboard (ADR 011). Ferro releases are
+# tokra-clipboard builds on ferro-arboard (ADR 020). Ferro releases are
 # tags on its repository; Tokra depends only on released versions, never a
 # path source, so a contributor needs only this clone.
 gem "ferro-arboard", git: "https://github.com/setdef/Ferro", tag: "ferro-arboard/v0.1.0", glob: "gems/arboard/*.gemspec"
