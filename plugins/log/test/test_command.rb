@@ -24,10 +24,14 @@ class TestCommand < Minitest::Test
     @handle = app_handle
     @out = StringIO.new
     logger = ::Logger.new(@out, formatter: -> (_severity, _time, _progname, message) { "#{message}\n" })
-    @plugin = Log::Builder.new.app_handle(@handle).format(RECORD).level(:debug).clear_targets
+    @plugin, _, FORWARDER.to = Log::Builder.new.format(RECORD).level(:debug).clear_targets
       .target(Log::Target.new(Log::TargetKind::Dispatch.new(logger)))
-      .build
+      .split(@handle)
     @handle.plugin(@plugin)
+  end
+
+  def teardown
+    FORWARDER.to = nil
   end
 
   # Runs +command+ with +payload+ and returns whether the plugin claimed
@@ -100,15 +104,36 @@ class TestCommand < Minitest::Test
   def test_the_pages_records_reach_the_webview_target
     payloads = []
     @handle.listen("log://log") { |event| payloads << JSON.parse(event.payload) }
-    plugin = Log::Builder.new.app_handle(@handle).clear_targets.target(Log::Target.new(Log::TargetKind::Webview.new))
-      .build
-    @plugin = plugin
+    @plugin, _, FORWARDER.to = Log::Builder.new.clear_targets.target(Log::Target.new(Log::TargetKind::Webview.new))
+      .split(@handle)
 
     invoke({ "level" => 4, "message" => "careful", "location" => "f@a.js:1:1" })
 
     assert_equal 1, payloads.size
     assert_match(/\A#{STAMP}\[webview:f@a.js:1:1\]\[WARN\] careful\z/o, payloads[0]["message"])
     assert_equal 4, payloads[0]["level"]
+  end
+
+  # The command logs to the process's logger, as Tauri's logs to
+  # log::logger() (commands.rs:40), so a plugin built with skip_logger
+  # still reaches the logger the app attached.
+  def test_the_command_logs_to_the_process_logger
+    @plugin = Log::Builder.new.skip_logger.build
+
+    handled, answer = invoke({ "level" => 3, "message" => "via the global" })
+
+    assert handled
+    assert_equal [true, nil], answer
+    assert_equal ["via the global"], logged.map { |record| record["args"] }
+  end
+
+  # With nothing behind the process's logger the record goes nowhere and
+  # the command still resolves, as Tauri's no-op logger drops it.
+  def test_with_no_logger_the_command_still_resolves
+    FORWARDER.to = nil
+
+    assert_equal [true, [true, nil]], invoke({ "level" => 3, "message" => "dropped" })
+    assert_empty logged
   end
 
   def test_other_commands_are_left_for_the_router

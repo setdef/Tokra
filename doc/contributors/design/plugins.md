@@ -24,7 +24,8 @@ with the same hooks: `name`, `initialize_plugin(app, config)`,
 is the constructor and a plugin is made before the app exists (plan
 064, decision 1). Most plugins are no subclass of their own: as in
 Tauri, `Tokra::Plugin::Builder` makes a `Tokra::Plugin::TauriPlugin`
-from blocks, and a first-party plugin's `init` returns one. A plugin
+from blocks, and a first-party plugin's `init`, or its builder's
+`build`, returns one. A plugin
 that needs no native code is pure Ruby, where every Tauri plugin is
 Rust.
 
@@ -102,6 +103,7 @@ payload and response types, and dispatch the same commands in
 | `tokra-dialog` | `@tauri-apps/plugin-dialog` |
 | `tokra-notification` | `@tauri-apps/plugin-notification` |
 | `tokra-global-shortcut` | `@tauri-apps/plugin-global-shortcut` |
+| `tokra-log` | `@tauri-apps/plugin-log` |
 | `tokra-shell` | `@tauri-apps/plugin-shell` |
 | `tokra-fs` | `@tauri-apps/plugin-fs` |
 | `tokra-http` | `@tauri-apps/plugin-http` |
@@ -110,10 +112,9 @@ payload and response types, and dispatch the same commands in
 | `tokra-updater` | `@tauri-apps/plugin-updater` |
 
 Of these, `tokra-clipboard`, `tokra-dialog`, `tokra-notification`,
-`tokra-global-shortcut`, and `tokra-process` exist today, and so does
-`tokra-log`, which does not yet answer `@tauri-apps/plugin-log`'s
-commands. Each of the five names its Tauri package in its README, which
-tells the app developer to use that package unchanged. Where a Tokra
+`tokra-global-shortcut`, `tokra-log`, and `tokra-process` exist today.
+Each names its Tauri package in its README, which tells the app
+developer to use that package unchanged. Where a Tokra
 plugin ever diverges from Tauri's API, its README says so.
 
 ## Which plugins Tokra ports
@@ -142,8 +143,9 @@ drive them through the IPC as the page does.
 A plugin that needs a Rust crate builds on the Ferro gem that binds it,
 and carries no Rust of its own (ADR 011): `tokra-clipboard` over
 `ferro-arboard`, `tokra-dialog` over `ferro-rfd`, `tokra-global-shortcut`
-over `ferro-global-hotkey`, and `tokra-notification` over
-`ferro-notify-rust`, `ferro-url`, and `ferro-time`. The plugin maps
+over `ferro-global-hotkey`, `tokra-log` over `ferro-time`, and
+`tokra-notification` over `ferro-notify-rust`, `ferro-url`, and
+`ferro-time`. The plugin maps
 Tauri's commands, payloads, and error messages onto the Ferro gem's API.
 Each fix goes to the layer it belongs to: `ferro-arboard` refuses an
 image arboard would panic on, raising the crate's `ConversionFailure`,

@@ -151,16 +151,15 @@ class TestRotatingFile < Minitest::Test
     assert_equal ["app.log"], files
   end
 
-  # Through the plugin, archives are named in the builder's timezone,
+  # Through the logger, archives are named in the builder's timezone,
   # UTC by default (lib.rs:48).
-  def test_the_plugin_names_archives_in_utc_by_default
-    plugin = Log::Builder.new.app_name("app").max_file_size(1)
+  def test_the_logger_names_archives_in_utc_by_default
+    logger = logger_of(Log::Builder.new.max_file_size(1)
       .rotation_strategy(Log::RotationStrategy::KeepAll.new)
-      .clear_targets.target(Log::Target.new(Log::TargetKind::Folder.new(path: @dir)))
-      .build
+      .clear_targets.target(Log::Target.new(Log::TargetKind::Folder.new(path: @dir))), app_handle(product_name: "app"))
     before = Ferro::Time::OffsetDateTime.now_utc.format(Log::LOG_DATE_FORMAT)
-    plugin.info("first")
-    plugin.info("second")
+    logger.info("first")
+    logger.info("second")
     after = Ferro::Time::OffsetDateTime.now_utc.format(Log::LOG_DATE_FORMAT)
 
     archive = files.find { |name| name != "app.log" }
@@ -169,12 +168,11 @@ class TestRotatingFile < Minitest::Test
 
   # Tauri rotates at 40000 bytes with KeepOne unless told otherwise
   # (lib.rs:46-47).
-  def test_the_plugin_rotates_at_forty_thousand_bytes_keeping_one
-    plugin = Log::Builder.new.clear_format.app_name("app")
-      .clear_targets.target(Log::Target.new(Log::TargetKind::Folder.new(path: @dir)))
-      .build
-    plugin.info("a" * 39_998)
-    plugin.info("b")
+  def test_the_logger_rotates_at_forty_thousand_bytes_keeping_one
+    logger = logger_of(Log::Builder.new.clear_format
+      .clear_targets.target(Log::Target.new(Log::TargetKind::Folder.new(path: @dir))), app_handle(product_name: "app"))
+    logger.info("a" * 39_998)
+    logger.info("b")
 
     assert_equal ["app.log"], files
     assert_equal "b\n", read("app.log")

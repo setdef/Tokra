@@ -18,7 +18,7 @@ class TestFormat < Minitest::Test
   def test_the_default_line_is_utc_time_target_level_and_message
     out = nil
     stamps = stamps_around(Log::TimezoneStrategy::UseUtc.new) do
-      out = logged(Log::Builder.new.app_name("demo")) { |log| log.info("hello") }
+      out = logged(Log::Builder.new) { |log| log.info("hello") }
     end
 
     assert_match(/\A#{STAMP}\[demo\]\[INFO\] hello\n\z/o, out)
@@ -27,7 +27,7 @@ class TestFormat < Minitest::Test
 
   # log::Level's Display names each level in capitals (log lib.rs:460).
   def test_each_level_is_named_as_the_log_crate_names_it
-    out = logged(Log::Builder.new.app_name("demo")) do |log|
+    out = logged(Log::Builder.new) do |log|
       log.trace("t")
       log.debug("d")
       log.info("i")
@@ -44,7 +44,7 @@ class TestFormat < Minitest::Test
     local = Log::TimezoneStrategy::UseLocal.new
     out = nil
     stamps = stamps_around(local) do
-      out = logged(Log::Builder.new.app_name("demo").timezone_strategy(local)) { |log| log.warn("careful") }
+      out = logged(Log::Builder.new.timezone_strategy(local)) { |log| log.warn("careful") }
     end
 
     assert_match(/\A#{STAMP}\[WARN\]\[demo\] careful\n\z/o, out)
@@ -61,7 +61,7 @@ class TestFormat < Minitest::Test
   end
 
   def test_timezone_strategy_after_format_replaces_it
-    builder = Log::Builder.new.app_name("demo")
+    builder = Log::Builder.new
       .format(Ractor.shareable_proc { |message, _record| "custom #{message}" })
       .timezone_strategy(Log::TimezoneStrategy::UseUtc.new)
 
@@ -95,10 +95,10 @@ class TestFormat < Minitest::Test
   # (lib.rs:583-585; fern's FormatCallback::finish, log_impl.rs:531-550).
   def test_a_target_format_wraps_the_formatted_line
     target = stdout_target.format(Ractor.shareable_proc { |message, record| "<#{message}|#{record.args}>" })
-    plugin = Log::Builder.new.clear_format.format(Ractor.shareable_proc { |message, _record| "[#{message}]" })
-      .clear_targets.target(target).build
+    logger = logger_of(Log::Builder.new.clear_format.format(Ractor.shareable_proc { |message, _record| "[#{message}]" })
+      .clear_targets.target(target))
 
-    out, = capture_io { plugin.info("x") }
+    out, = capture_io { logger.info("x") }
 
     assert_equal "<[x]|[x]>\n", out
   end
@@ -107,9 +107,9 @@ class TestFormat < Minitest::Test
   def test_one_targets_format_leaves_the_others_alone
     plain = Log::Target.new(Log::TargetKind::Stdout.new)
     loud = Log::Target.new(Log::TargetKind::Stderr.new).format(Ractor.shareable_proc { |message, _| message.upcase })
-    plugin = Log::Builder.new.clear_format.clear_targets.targets([plain, loud]).build
+    logger = logger_of(Log::Builder.new.clear_format.clear_targets.targets([plain, loud]))
 
-    out, err = capture_io { plugin.info("quiet") }
+    out, err = capture_io { logger.info("quiet") }
 
     assert_equal ["quiet\n", "QUIET\n"], [out, err]
   end

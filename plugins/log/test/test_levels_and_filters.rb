@@ -91,14 +91,14 @@ class TestLevelsAndFilters < Minitest::Test
   def test_a_target_filter_chooses_what_reaches_that_target
     webview = Ractor.shareable_proc { |metadata| metadata.target.start_with?(Log::WEBVIEW_TARGET) }
     ruby = Ractor.shareable_proc { |metadata| !metadata.target.start_with?(Log::WEBVIEW_TARGET) }
-    plugin = Log::Builder.new.clear_format.clear_targets.targets([
+    logger = Log::Builder.new.clear_format.clear_targets.targets([
       Log::Target.new(Log::TargetKind::Stdout.new).filter(webview),
       Log::Target.new(Log::TargetKind::Stderr.new).filter(ruby),
-    ]).build
+      ]).then { |builder| logger_of(builder) }
 
     out, err = capture_io do
-      plugin.info("webview:main.js") { "from the page" }
-      plugin.info("from Ruby")
+      logger.info("webview:main.js") { "from the page" }
+      logger.info("from Ruby")
     end
 
     assert_equal ["from the page\n", "from Ruby\n"], [out, err]
