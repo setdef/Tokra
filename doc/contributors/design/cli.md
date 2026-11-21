@@ -10,8 +10,8 @@ This document says what the `tokra` command does: where it lives, how it
 finds a project, how it runs hooks, and what `tokra dev` and `tokra
 build` do with each of tauri-cli's flags. It is for Tokra's
 contributors, and nothing in it is built yet. Why things are so is in
-ADR 015 (the CLI, and packaging through Fledge), which is proposed and
-not yet accepted by the maintainer, and so is everything here. What
+ADR 015 (the CLI, and packaging through Fledge), which the maintainer
+accepted on 2026-11-21. What
 `tokra build` hands Fledge is in [packaging.md](packaging.md).
 
 Tauri citations are to `vendor/tauri` at `9f0306fbc`, under

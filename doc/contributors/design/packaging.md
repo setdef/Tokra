@@ -11,8 +11,7 @@ the packaged context, the `fledge.yml` it writes, what it does with each
 key of Tauri's `bundle`, what each platform needs, and which Fledge
 release it runs. It is for Tokra's contributors, and nothing in it is
 built yet. Why things are so is in ADR 015 (the CLI, and packaging
-through Fledge), which is proposed and not yet accepted by the
-maintainer; so is everything here that follows from it.
+through Fledge), which the maintainer accepted on 2026-11-21.
 The commands themselves are in [cli.md](cli.md).
 
 Tauri citations are to `vendor/tauri` at `9f0306fbc`. Fledge citations
@@ -110,8 +109,7 @@ Fledge refuses one already.
 
 ## Development unless tokra build made it
 
-Proposed, with ADR 015, and not yet accepted by the maintainer: an app
-is in development unless `tokra build` made it. A Tauri app knows
+An app is in development unless `tokra build` made it. A Tauri app knows
 whether it is in development from one flag. `tauri build` turns on the
 Cargo feature `tauri/custom-protocol`
 (`crates/tauri-cli/src/interface/rust.rs:483-490`), which the macro
@@ -133,8 +131,8 @@ after a crash. A default of packaged, with development an opt-in in
 code, was set aside because every developer would edit code to work
 against a dev server; an environment variable or a command-line flag,
 because whoever starts the app would control it. It was proposed on
-2026-11-13 as Tauri's rule; its decider is the maintainer, Kerrick
-Long.
+2026-11-13 as Tauri's rule, and stands since the maintainer accepted
+ADR 015 on 2026-11-21 and left the detail of packaging to the project.
 
 The cost: an app shipped any other way, a hand-run `fledge build`
 included, runs in development and trusts `devUrl`'s origin, as a Tauri
@@ -152,7 +150,7 @@ the gemspec loaded in the checkout and its `files` replaced by the
 staged list. The gem is packaged and the checkout is not, so one rule
 covers every way an app ships. A gem built with plain `gem build` runs
 in development, as the `cargo install` above does. This was decided on
-2026-11-13 by an agent, from the rule above, and is proposed with it.
+2026-11-13 by an agent, from the rule above.
 
 Tests run `generate_context` with and without a packaged context and a
 dev session, a stale session included. `rake test:package` runs the app
@@ -236,7 +234,7 @@ result or refuses, and never gives a different result without a word:
   says so in the config.
 
 These three were decided on 2026-11-13 by an agent, from the rule that
-no key is dropped, and are proposed with ADR 015. A packager that warned
+no key is dropped. A packager that warned
 on, or ignored, a key Fledge lacks would ship an app its developer did
 not ask for.
 
