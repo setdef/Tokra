@@ -10,6 +10,38 @@ This document says how Tokra's plugins are built and shipped. It is for
 Tokra's contributors. Each plugin's README covers its install, usage,
 and differences from Tauri.
 
+## The plugin API
+
+A plugin is a subclass of `Tokra::Plugin`, Tauri's `Plugin` trait as a
+Ruby class with the same hooks: `name`, `initialize(app, config = {})`,
+`initialization_script`, `window_created`, `webview_created`,
+`on_navigation` (not yet called), `on_page_load`, `on_event`, and
+`extend_api`. An app registers one with `AppHandle#plugin`; Tauri's
+`Builder::plugin`, which hands each plugin its slice of
+`config.plugins`, is not ported yet. A plugin that needs no native code
+is pure Ruby, which Tauri's Rust plugins cannot be.
+
+The constructor takes its configuration as a Hash, not keywords, as
+Tauri's plugin takes a `JsonValue`: a subclass receives it through
+`super`, and a plugin may define keys the base class does not know. A
+plugin validates its own keys when it starts.
+
+A plugin keeps its state apart from itself, as Tauri's does: it creates
+the state and hands it to `manage`, and anyone with a manager reaches it
+by class with `state`, which raises `KeyError` where Tauri panics, or
+`try_state`, which answers `nil`. A plugin adds convenience methods to
+every manager, as Tauri's extension traits do, by including a module
+into `Tokra::Manager` when it is required: `tokra-clipboard` includes
+`ClipboardManagerExt`, so `handle.clipboard` answers the managed
+clipboard.
+
+The first-party plugins live in this repository, one gem per folder
+under `plugins/`, beside `tokra`, rather than in a repository of their
+own or one each: changes that cross plugins are one commit, and there is
+one CI workflow and no repository to go stale, as a separate devtools
+repository once did for the same maintainer's ratatui_ruby. This was
+decided on 2026-01-31.
+
 ## Matching Tauri's JavaScript packages
 
 A page uses Tauri's own npm packages against Tokra (ADR 008). For a
