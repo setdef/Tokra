@@ -7,7 +7,7 @@
 
 ## Project
 
-Tokra is a 1:1 port of Tauri to Ruby (>= 4.0.1; development runs 4.1 on Linux and macOS and 4.0 on Windows, Plan 069): desktop apps with a Ruby backend and a web frontend. Rust (rb_sys + magnus, in `ext/`) is a thin binding over tao and wry; Ruby owns all logic (ADR 001). First-party plugins live in `plugins/`. Standalone crate bindings are moving to Ferro, a separate project of 1:1 crate-binding gems.
+Tokra is a 1:1 port of Tauri to Ruby (>= 4.0.1; development runs 4.1 on Linux and macOS and 4.0 on Windows, Plan 069): desktop apps with a Ruby backend and a web frontend. Rust (rb_sys + magnus, in `ext/`) binds tao, wry, muda, and tray-icon. It also still holds some of Tauri's own logic, which goal 6 puts in Ruby; `doc/contributors/research/2026-11-21-rust-in-tokra.md` says which lines, and add no more of it. First-party plugins live in `plugins/`. Standalone crate bindings are moving to Ferro, a separate project of 1:1 crate-binding gems.
 
 Pre-1.0, zero external users. Prefer good design over backward compatibility; record every breaking change in CHANGELOG.md.
 
