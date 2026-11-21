@@ -90,7 +90,7 @@ dereferences it ("Window handles").
 ## Translating a crate's API
 
 Tokra's native values and Ferro's gems translate a crate's API into Ruby
-by one table, after AGENTS.md's design precedence: Rust constructs with
+by one table, after AGENTS.md's goals: Rust constructs with
 no Ruby meaning are translated, never ported.
 
 | Rust | Ruby |

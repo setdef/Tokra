@@ -73,6 +73,6 @@ plan's fidelity table.
 ## Documentation
 
 - Every deviation is listed in the plan and in the RDoc a user reads,
-  with the precedence tier that justifies it.
+  with the AGENTS.md goal that justifies it.
 - Behavioral caveats from Tauri's rustdoc (for example the Linux main-thread
   clipboard deadlock) are ported, not dropped.

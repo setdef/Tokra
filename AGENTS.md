@@ -11,11 +11,17 @@ Tokra is a 1:1 port of Tauri to Ruby (>= 4.0.1): desktop apps with a Ruby backen
 
 Pre-1.0, zero external users. Prefer good design over backward compatibility; record every breaking change in CHANGELOG.md.
 
-## Design precedence
+## Goals
 
-1. **Ruby the language.** What Ruby can and cannot express. Rust constructs with no Ruby meaning (lifetimes, ownership, Cargo feature flags) are translated, not ported. A feature Tauri gates behind a Cargo feature is simply supported when it adds behavior; one that relaxes a safety default stays off, and is exposed only as a code-level opt-in named after the feature.
-2. **Tauri fidelity.** Names, class structure, error messages, wire formats, and behavior MUST match Tauri's Rust source. Do not invent "more Ruby-like" APIs.
-3. **Ruby culture.** Idioms yield to 1 and 2.
+These are the maintainer's goals, in his order. Where two pull against each other, the earlier one wins. Plans written before 2026-11-21 cite an older numbering: their "precedence 1" is goal 2 here, and their "precedence 2" is goal 1.
+
+1. **Fidelity to Tauri reigns supreme above all else.** Names, class structure, error messages, wire formats, and behavior MUST match Tauri's Rust source. What must match is what an app developer can observe: the same behavior reached by another mechanism is faithful. Do not invent "more Ruby-like" APIs.
+2. **Tokra differs from Tauri only where Ruby cannot do what Rust does.** Rust constructs with no Ruby meaning (lifetimes, ownership, Cargo feature flags) are translated, not ported. A feature Tauri gates behind a Cargo feature is simply supported when it adds behavior; one that relaxes a safety default stays off, and is exposed only as a code-level opt-in named after the feature. A behavior Ruby truly cannot produce should be extremely rare. Explore every avenue first: another mechanism, a crate binding, a thread or a Ractor, a newer Ruby. Hard, slow, or costly is not "cannot". Only then keep Tauri's name and raise `NotImplementedError`, with RDoc that says why and a test that asserts the raise; never put an API of your own in its place. To judge any difference, answer one question: what would a Tokra app developer see that a Tauri app developer would not?
+3. **App code never has to block the main thread.** A window that hangs while the app works is a defect, as a page that hangs on a loop is unless the loop runs in a Web Worker. Commands run where Tauri runs them: an ordinary command on the main thread, a command marked async off it. Tokra does not have the async form yet (`doc/contributors/design/ipc.md`, "Where commands run").
+4. **Ractor-ready and Ractor-friendly.** App developers can easily use Ractors with Tokra: what Tokra hands to app code works from a Ractor the app started. Whatever Tauri requires to be safe to share between threads (`Send + Sync`), Tokra requires to be Ractor-shareable. Tokra itself uses Ractors if and only if they serve these goals.
+5. **Opening a desktop app starts no server.** A Rack app, Rails included, talks to Tokra through the Rack interface, never over HTTP or a port on the user's machine.
+6. **As little Rust as possible.** Tauri's own crates are ported to Ruby; only the crates Tauri depends on are bound, one to one. Parity outranks this: what Tauri has is implemented, even when that means Rust.
+7. **Ruby culture.** Idioms yield to everything above.
 
 The authority is the pinned submodule `vendor/tauri` (`git submodule update --init` if empty). For Rust dependencies (wry, tao, arboard, magnus, rb-sys), read the exact locked source Cargo already downloaded; `cargo metadata --format-version 1` gives each package's `manifest_path`. For anything else, such as Tauri's official plugins, use the upstream repository (https://github.com/tauri-apps/plugins-workspace) at the version being ported, and fetch it into an ignored scratch directory if you need it locally. Never guess at a reference's contents. Cite the file and lines you ported, and add an SPDX snippet (Apache-2.0 OR MIT) around any code or prose derived from it.
 
@@ -65,7 +71,7 @@ Each gem keeps its own `CHANGELOG.md`: tokra's at the root, each plugin's in its
 ## Definition of done
 
 1. Every item in the plan is done, or explicitly deferred with a reason.
-2. Behavior matches the cited Tauri source; deviations are justified by the precedence above and documented.
+2. Behavior matches the cited Tauri source; deviations are justified by the goals above and documented.
 3. `bundle exec rake` passes from a clean build (`rm -rf tmp`), zero errors, zero warnings.
 4. RDoc, RBS, `doc/`, README, and CHANGELOG updated where behavior changed.
 5. The work is committed and pushed, per Committing.

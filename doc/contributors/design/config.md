@@ -229,7 +229,7 @@ key: each plugin gem names its manifest key and permission folder in its
 gemspec, read from the gems RubyGems activated, so every plugin gem the
 app depends on contributes its permissions, registered or not, as in
 Tauri. This was decided on 2026-11-13 for plan 062, from AGENTS.md's
-design precedence, with the maintainer accountable. Resolving in
+goals, with the maintainer accountable. Resolving in
 `Builder#build` would leave the `Context` without an authority and give
 a plugin added in `setup` no manifest; a rake or CLI task that writes a
 resolved file is a build step, and stays open only as the form a

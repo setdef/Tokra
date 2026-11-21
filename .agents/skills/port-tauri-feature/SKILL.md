@@ -8,7 +8,7 @@ description: Ports a Tauri feature (a core API, IPC behavior, or an official plu
 
 # Port a Tauri feature
 
-AGENTS.md is the contract: design precedence, RBS and RDoc rules, commands,
+AGENTS.md is the contract: the goals and their order, RBS and RDoc rules, commands,
 changelog, and the definition of done. This skill is the workflow around it.
 Read AGENTS.md first, then `doc/contributors/documentation_style.md` before
 writing prose.
@@ -37,9 +37,9 @@ changes, verification, out of scope, and risks. Audit what already exists
 before adding to it: earlier plans have baked in deviations that a later
 reading of the source overturned.
 
-A decision that breaks a Tauri behavior names the AGENTS.md precedence tier
-that justifies it (Ruby the language over fidelity, never "Ruby culture" over
-fidelity) and lands in the RDoc or design document where a reader will
+A decision that breaks a Tauri behavior names the AGENTS.md goal
+that justifies it (only what Ruby cannot do, goal 2; never "Ruby culture")
+and lands in the RDoc or design document where a reader will
 meet it.
 
 ## 3. Test first, against real collaborators

@@ -129,7 +129,7 @@ format, so a `store` reads the JSON files Tauri's `store` wrote
 `d4613ff0`), and an app can move between Tauri and Tokra and keep them.
 A plugin with no desktop side is out of scope with the rest of mobile.
 This follows from ADR 008, and was recorded on 2026-11-13 by an agent
-applying AGENTS.md's design precedence, with the maintainer accountable.
+applying AGENTS.md's goals, with the maintainer accountable.
 
 `fs` and `http` are large, and both need Tauri's scopes, which wait on
 the access-control port ([config.md](config.md), "Access control"). No

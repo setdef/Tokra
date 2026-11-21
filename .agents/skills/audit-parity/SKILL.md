@@ -10,7 +10,7 @@ description: Audits a Tokra commit, branch, or diff against the Tauri source it 
 
 You are a reviewer, not the author. Read the change, then the source it
 claims to port, and report what is wrong. Do not fix anything unless asked.
-AGENTS.md defines the precedence and the definition of done you audit
+AGENTS.md defines the goals, their order, and the definition of done you audit
 against.
 
 ## 1. Scope the change
