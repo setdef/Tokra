@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# Each plugin's api-iife.js is Tauri's file byte for byte, and a test
+# checks it against upstream's SHA-256. Git must not turn its line ending
+# into CRLF in a checkout with core.autocrlf, as Windows runners have.
+**/api-iife.js -text
