@@ -158,7 +158,8 @@ class TestLinuxEnv < Minitest::Test
   def test_without_dpkg_query_it_runs_the_command_unchanged
     File.delete(File.join(@bin, "dpkg-query"))
 
-    assert_equal %w[echo hi], linux_env.command(%w[echo hi])
+    # Only the stand-ins, since a Debian system has the real dpkg-query.
+    assert_equal %w[echo hi], linux_env(env: { "PATH" => @bin }).command(%w[echo hi])
     assert_empty calls("apt-get")
   end
 
