@@ -129,7 +129,9 @@ class RealAppTest < Minitest::Test
         probe)
       assert_match(/^  0x\h+ class="Static" title="hang-probe-child" thread=\d+ pid=#{pid} visible=false hung=\w+ answers_wm_null=false$/,
         probe)
-      assert_match(/^wait chains:\nthread \d+ nodes=\d+ cycle=(?:true|false)/, probe)
+      # An account that is not an administrator's holds no SeDebugPrivilege,
+      # which the probe says before it walks the chains it can still read.
+      assert_match(/^wait chains:\n(?:SeDebugPrivilege not enabled: .*\n)?thread \d+ nodes=\d+ cycle=(?:true|false)/, probe)
       assert_match(/^threads:\nthread \d+ /, probe)
       assert_match(/^stacks:/, probe)
       assert_match(/^owner stacks: no other process owns a window in the tree$/, probe)
@@ -177,8 +179,14 @@ class RealAppTest < Minitest::Test
 
         assert_match(/^  0x#{adopted.to_s(16)} class="Static" title="hang-probe-adopted" thread=#{owner} pid=#{helper} /,
           probe)
+        # Without the Windows SDK's debugger the probe can read no stacks,
+        # and says so of the other process it found.
+        unless File.exist?(HangProbe::Win32::CDB)
+          assert_match(/^owner stacks: no debugger at /, probe)
+          next
+        end
+
         assert_match(/^owner stacks:\nstacks of pid #{helper} \(window threads #{owner}\):\n/, probe)
-        next unless File.exist?(HangProbe::Win32::CDB)
 
         # ~*kn heads each thread's stack with its "Id: pid.tid" line,
         # which "~ (Thread Status)" shows as "id: 4dc.470", and ~~[tid]kn
