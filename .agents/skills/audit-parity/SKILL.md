@@ -44,7 +44,7 @@ Check the cross-cutting failure modes this project has hit before:
   that only builds inside the repository workspace.
 - Code after a call that never returns.
 - Tauri-derived code or prose without an SPDX snippet and citation.
-- A deviation not recorded in the plan and the ADR or RDoc a user reads.
+- A deviation not recorded in the plan and the RDoc a user reads.
 - Plan items silently skipped, or "done" without the clean-build gate.
 
 ## 3. Run the manual mutation check
@@ -99,7 +99,7 @@ UNVERIFIED: <claim>: <why not checked> (<what would check it>)
 | BUG | Wrong behavior a user can hit: hang, crash, data loss, security hole, broken install |
 | PARITY | Behaves differently from Tauri without a documented, justified deviation |
 | TEST-GAP | Behavior no test would catch if deleted or mutated, or a test that exercises only a stub |
-| DOC | RDoc, RBS, CHANGELOG, ADR, or plan is missing, wrong, or contradicts Tauri's docs |
+| DOC | RDoc, RBS, CHANGELOG, design document, or plan is missing, wrong, or contradicts Tauri's docs |
 | NIT | Style or clarity; never blocks |
 
 Mark anything you inferred but did not read or run as UNVERIFIED, and say

@@ -67,11 +67,11 @@ plan's fidelity table.
 
 - Origin and ACL decisions follow Tauri's `is_local_url` and capability
   checks; any stopgap stricter or looser than Tauri is maintainer-approved
-  and recorded in an ADR.
+  and recorded in the design document for its subject.
 
 ## Documentation
 
-- Every deviation is listed in the plan and in the ADR or RDoc a user reads,
+- Every deviation is listed in the plan and in the RDoc a user reads,
   with the precedence tier that justifies it.
 - Behavioral caveats from Tauri's rustdoc (for example the Linux main-thread
   clipboard deadlock) are ported, not dropped.

@@ -7,7 +7,7 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 # Lessons from earlier ports
 
 Each entry names the mistake, where it was found, and the habit that
-prevents it. The plans and ADRs cited hold the full story.
+prevents it. The plans and documents cited hold the full story.
 
 ## Reading the source
 
@@ -37,7 +37,7 @@ prevents it. The plans and ADRs cited hold the full story.
   catch declarations an ancestor only stubs.
 - **Code only tests can reach is not done.** IPC responses placed in `App`
   were unreachable because real apps ran a second Rack event loop; the fix
-  unified the paths (Plan 014 amendment, ADR 009).
+  unified the paths (Plan 014 amendment; `doc/contributors/design/ipc.md`).
 - **The real client is the proof of a wire format.** A hand-written test
   encodes your reading of the format on both ends. Plan 015 drove `ipc://`
   with the vendored `@tauri-apps/api`.
@@ -73,6 +73,7 @@ prevents it. The plans and ADRs cited hold the full story.
 ## Documentation
 
 - **Undocumented deviations count as bugs.** Plan 016, item 17 moved four of
-  them into ADR 009 and ADR 010.
-- **Stopgaps need the maintainer and an ADR.** The local-origin check is
-  stricter than Tauri until capabilities exist (Plan 016, item 10; ADR 010).
+  them into what is now `doc/contributors/design/ipc.md`.
+- **Stopgaps need the maintainer and a written reason.** The local-origin
+  check differs from Tauri until capabilities exist (Plan 016, item 10;
+  `doc/contributors/design/ipc.md`).

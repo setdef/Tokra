@@ -7,13 +7,13 @@
 
 ## Project
 
-Tokra is a 1:1 port of Tauri to Ruby (>= 4.0.1): desktop apps with a Ruby backend and a web frontend. Rust (rb_sys + magnus, in `ext/`) is a thin binding over tao and wry; Ruby owns all logic (ADR 001, 005). First-party plugins live in `plugins/`. Standalone crate bindings are moving to Ferro, a separate project of 1:1 crate-binding gems.
+Tokra is a 1:1 port of Tauri to Ruby (>= 4.0.1): desktop apps with a Ruby backend and a web frontend. Rust (rb_sys + magnus, in `ext/`) is a thin binding over tao and wry; Ruby owns all logic (ADR 001). First-party plugins live in `plugins/`. Standalone crate bindings are moving to Ferro, a separate project of 1:1 crate-binding gems.
 
 Pre-1.0, zero external users. Prefer good design over backward compatibility; record every breaking change in CHANGELOG.md.
 
 ## Design precedence
 
-1. **Ruby the language.** What Ruby can and cannot express. Rust constructs with no Ruby meaning (lifetimes, ownership, Cargo feature flags) are translated, not ported. A feature Tauri gates behind a Cargo feature is simply supported when it adds behavior; one that relaxes a safety default stays off, and is exposed only as a code-level opt-in named after the feature (ADR 011, amended 2026-10-28).
+1. **Ruby the language.** What Ruby can and cannot express. Rust constructs with no Ruby meaning (lifetimes, ownership, Cargo feature flags) are translated, not ported. A feature Tauri gates behind a Cargo feature is simply supported when it adds behavior; one that relaxes a safety default stays off, and is exposed only as a code-level opt-in named after the feature.
 2. **Tauri fidelity.** Names, class structure, error messages, wire formats, and behavior MUST match Tauri's Rust source. Do not invent "more Ruby-like" APIs.
 3. **Ruby culture.** Idioms yield to 1 and 2.
 
@@ -21,7 +21,7 @@ The authority is the pinned submodule `vendor/tauri` (`git submodule update --in
 
 ## How to work
 
-- Research before designing: read the Tauri source and the relevant ADR in `doc/contributors/adr/` first.
+- Research before designing: read the Tauri source and the relevant ADRs and design documents in `doc/contributors/` first.
 - Root-cause every fix. If you cannot explain why a change fixed the symptom, it is not a fix.
 - Write tests first. A test must fail if the code it covers is deleted or mutated, and must exercise real collaborators, not stubs that hide missing behavior.
 - Design in the spirit of Kent Beck (small steps, Implementation Patterns), Freeman & Pryce (tests drive interfaces), Sandi Metz (duplication over the wrong abstraction), Rebecca Wirfs-Brock (responsibility-driven roles), Martin Fowler (refactor in behavior-preserving steps), and Matz (programmer happiness). Write prose in the style of `doc/contributors/documentation_style.md`.
@@ -33,7 +33,7 @@ The authority is the pinned submodule `vendor/tauri` (`git submodule update --in
 - Every Ruby method has an RBS signature in `sig/` mirroring `lib/`. No `untyped`, no comments in `.rbs`. For `Data.define` classes, declare `self.new` instead of `initialize` (Steep mis-checks `initialize` there); plain classes declare `initialize` as usual.
 - Inside `module Tokra`, a bare `Process` names `Tokra::Process` (Tauri's `process` module), so `lib/` and plugin code write `::Process` or `Tokra::Process`; RuboCop's `Lint/ConstantResolution` and `test/tasks/test_top_level_constants.rb` enforce it (Plan 039, 2026-10-28).
 - RDoc (never YARD) in `.rb` files only. Wrap SPDX headers in `#--` / `#++`.
-- Architectural decisions get an ADR; plans live in `doc/contributors/plan/`.
+- Plans live in `doc/contributors/plan/`, design documents in `doc/contributors/design/`.
 - `examples/` is documentation for app developers: small, focused, and copyable. Never put test hooks, probes, or fixtures there; those live under `test/`.
 
 ## Commands
@@ -52,7 +52,7 @@ The authority is the pinned submodule `vendor/tauri` (`git submodule update --in
 
 ## Committing
 
-- Work on `trunk`, never on a branch, in small steps: sync with `origin/trunk`, make one complete change that keeps the gate green, and commit it with any plan or ADR it produced. Your unpushed commits are your branch, and it lives for minutes, not days. A worktree's branch is only a name for its unpushed commits: push it as `HEAD:trunk`.
+- Work on `trunk`, never on a branch, in small steps: sync with `origin/trunk`, make one complete change that keeps the gate green, and commit it with any plan or document it produced. Your unpushed commits are your branch, and it lives for minutes, not days. A worktree's branch is only a name for its unpushed commits: push it as `HEAD:trunk`.
 - The gate runs before a push, on exactly the commit you push. Push `trunk` once it passes, and never to find out whether CI will: CI is for the systems your machine is not. A red `trunk` comes before any other work: fix it or revert the commit at once.
 - Never force-push, tag, or release. Tags and releases are the maintainer's, and are scripted rake tasks, never hand-run git (Plan 059). Each gem, tokra at the root and each plugin in `plugins/`, has its own version, CHANGELOG, and tags named for it, such as `tokra/v0.1.0` and `tokra-dialog/v0.1.0`; Bundler's `gem_tasks` are not loaded. `rake bump:<gem>:patch` (or `:minor`, `:major`, `:exact[0.2.0]`, or `:current` for a new plugin's first version; a label such as `minor[beta]` makes an opt-in prerelease) sets the gem's version everywhere, releases its CHANGELOG's Unreleased entries, runs the gate, and commits `chore(<gem>): release X.Y.Z`; a tokra release that moves its minor version also moves every plugin's `tokra ~>` floor to it. Versions are plain 0.x before 1.0, written as SemVer in `version.rb`, tags, and CHANGELOG headings (`0.2.0-beta.1` for an opt-in preview, which RubyGems stores as `0.2.0.pre.beta.1`). `rake release:<gem>:tag` tags the release commit and pushes only the tag; `rake release:<gem>:push[X.Y.Z]` pushes a tagged version to RubyGems.org, built from a clean checkout of the tag; `rake release:<gem>` builds, pushes trunk, tags, and pushes the gem in one step.
 - Never commit session transcripts; `doc/contributors/chats/` is a closed archive.

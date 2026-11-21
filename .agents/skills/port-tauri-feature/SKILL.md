@@ -28,7 +28,8 @@ stated as fact.
 
 ## 2. Plan before code
 
-Read the relevant ADRs in `doc/contributors/adr/` and the latest plans in
+Read the relevant ADRs and design documents in `doc/contributors/`, and the
+latest plans in
 `doc/contributors/plan/`. Write the next numbered plan with the SPDX header
 the other plans use. A plan has: context, a fidelity audit table (behavior,
 Tauri with citation, Tokra today, verdict), numbered design decisions, the
@@ -38,7 +39,8 @@ reading of the source overturned.
 
 A decision that breaks a Tauri behavior names the AGENTS.md precedence tier
 that justifies it (Ruby the language over fidelity, never "Ruby culture" over
-fidelity) and lands in the ADR or RDoc where a reader will meet it.
+fidelity) and lands in the RDoc or design document where a reader will
+meet it.
 
 ## 3. Test first, against real collaborators
 
