@@ -101,7 +101,7 @@ class TestSetup < Minitest::Test
     assert_equal [
       "mise install",
       "mise x -- python -m pip install --quiet #{REUSE}",
-      "mise x -- bundle install",
+      "mise x -- bin/linux-env bundle install",
       "mise x -- pre-commit install",
       "mise x -- bundle exec rake rdoc",
     ], calls
@@ -118,7 +118,7 @@ class TestSetup < Minitest::Test
       "mise x -- python -m pip install --quiet #{REUSE}",
       "mise x -- bundle config set --local path vendor/bundle",
       "mise x -- bundle config set --local frozen true",
-      "mise x -- bundle install",
+      "mise x -- bin/linux-env bundle install",
     ], calls
   end
 
@@ -202,6 +202,11 @@ class TestSetup < Minitest::Test
       File.chmod(0o755, File.join(@bin, name))
     end
     File.write(File.join(@repo, ".githooks/pre-push"), File.read(REAL_HOOK))
+    # On Linux the hook runs the gate through bin/linux-env.
+    FileUtils.mkdir_p(File.join(@repo, "bin"))
+    File.write(File.join(@repo, "bin/linux-env"), "#!/bin/sh\nexec \"$@\"\n")
+    File.chmod(0o755, File.join(@repo, "bin/linux-env"))
+    git("add", "bin/linux-env")
     git("commit", "--quiet", "--all", "--message", "the shipped hook")
     remote = File.join(@dir, "remote.git")
     git("init", "--quiet", "--bare", remote, chdir: @dir)

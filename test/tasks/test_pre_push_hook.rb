@@ -29,6 +29,13 @@ class TestPrePushHook < Minitest::Test
     exit "${GATE_STATUS:-0}"
   SH
 
+  # A bin/linux-env that marks the environment it hands on and runs the
+  # command, as the real one does where nothing is missing.
+  LINUX_ENV = <<~SH
+    #!/bin/sh
+    LINUX_ENV_RAN=1 exec "$@"
+  SH
+
   # The variables a git hook passes on, which would point the git commands
   # here at the repository whose hook runs these tests.
   GIT_PLACE = %w[GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX GIT_COMMON_DIR].to_h { |name| [name, nil] }.freeze
@@ -51,6 +58,10 @@ class TestPrePushHook < Minitest::Test
     @repo = File.join(@dir, "repo")
     Dir.mkdir(@repo)
     git("init", "--quiet", "--initial-branch", "trunk")
+    FileUtils.mkdir_p(File.join(@repo, "bin"))
+    File.write(File.join(@repo, "bin/linux-env"), LINUX_ENV)
+    File.chmod(0o755, File.join(@repo, "bin/linux-env"))
+    git("add", "bin/linux-env")
     @first = commit("one")
   end
 
@@ -131,7 +142,7 @@ class TestPrePushHook < Minitest::Test
   def test_the_hook_runs_the_gate_as_ci_runs_it_on_linux_and_elsewhere
     hook = File.read(HOOK)
 
-    assert_includes hook, "    exec #{ci_step('Run the gate under X11')} ;;\n"
+    assert_includes hook, "    exec bin/linux-env #{ci_step('Run the gate under X11')} ;;\n"
     assert_includes hook, "  *) exec #{ci_step('Run the gate')} ;;\n"
   end
 
@@ -146,6 +157,16 @@ class TestPrePushHook < Minitest::Test
     assert_predicate status, :success?, output
     refute_includes gate_env.keys, "WAYLAND_DISPLAY"
     assert_equal "x11", gate_env["GDK_BACKEND"]
+  end
+
+  # bin/linux-env brings ci.yml's packages where the system lacks them.
+  def test_on_linux_the_gate_runs_through_bin_linux_env
+    skip "the hook runs bin/linux-env only on Linux" unless LINUX
+
+    output, status = push("refs/heads/trunk #{@first} refs/heads/trunk #{ZERO}")
+
+    assert_predicate status, :success?, output
+    assert_equal "1", gate_env["LINUX_ENV_RAN"]
   end
 
   def test_a_tag_a_deleted_branch_and_no_ref_at_all_run_no_gate

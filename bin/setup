@@ -4,9 +4,10 @@
 
 # Tokra's development tools, from the pins in mise.toml, and its git hooks.
 # Every step does nothing when it is already satisfied, so it is quick and
-# safe to run again. It asks nothing and never runs sudo. On Linux, install
-# the packages CI installs first (.github/workflows/ci.yml, "Install GTK,
-# WebKitGTK, and a display server").
+# safe to run again. It asks nothing and never runs sudo. On Linux, the
+# packages CI installs (.github/workflows/ci.yml, "Install GTK, WebKitGTK,
+# and a display server") come from bin/linux-env where Debian or Ubuntu
+# lacks them (Plan 068); on another system, install them first.
 
 set -euo pipefail
 IFS=$'\n\t'
@@ -30,7 +31,8 @@ if [ "${CI:-}" = true ]; then
   mise x -- bundle config set --local path vendor/bundle
   mise x -- bundle config set --local frozen true
 fi
-mise x -- bundle install
+# The bundle compiles Rust gems that link the Linux packages.
+mise x -- bin/linux-env bundle install
 
 # The pre-push hook, .githooks/pre-push, runs the gate on the commit you
 # push. The clone's shared hooks folder gets a stub that hands off to it, so

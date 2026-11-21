@@ -1,0 +1,32 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+#--
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#++
+
+# Runs a command with the Linux packages CI installs
+# (.github/workflows/ci.yml, "Install GTK, WebKitGTK, and a display
+# server"), on a Debian or Ubuntu machine where you cannot install them
+# (Plan 068). bin/setup runs bundle install through it, and
+# .githooks/pre-push the gate. Run anything else the same way:
+#
+#   bin/linux-env bundle exec rake test:core
+#
+# Where every package is installed, off Linux, and off Debian's family,
+# it runs the command unchanged. Otherwise it fetches what apt would
+# install with apt-get download, which checks each package against the
+# distribution's signed lists, unpacks them under tmp/linux-env, and runs
+# the command under bubblewrap with them laid over /usr and /etc.
+
+require_relative "../tasks/linux_env"
+
+abort "usage: bin/linux-env COMMAND [ARGUMENT...]" if ARGV.empty?
+begin
+  command = LinuxEnv.new(checkout: File.expand_path("..", __dir__)).command(ARGV)
+rescue LinuxEnv::Failure => e
+  abort "linux-env: #{e.message}"
+end
+# The first argument twice, so a command of one word never goes to a shell.
+exec([command.first, command.first], *command.drop(1))

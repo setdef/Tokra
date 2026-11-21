@@ -352,7 +352,8 @@ class LinuxGate
 
   # The packages ci.yml's install step names after its options: the
   # apt-get install line and the lines its backslashes continue it onto.
-  private def apt_packages
+  # LinuxEnv reads them too (Plan 068).
+  def apt_packages
     lines = workflow_step(APT_STEP).fetch("run").lines(chomp: true)
     start = lines.index { |line| line.match?(/\bapt-get install\b/) } ||
       raise(Failure, "ci.yml's #{APT_STEP.inspect} step runs no apt-get install")

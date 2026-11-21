@@ -60,6 +60,7 @@ case "$(uname -s)" in
     unset WAYLAND_DISPLAY
     GDK_BACKEND=x11
     export GDK_BACKEND
-    exec xvfb-run --auto-servernum dbus-run-session -- bundle exec rake ;;
+    # bin/linux-env brings ci.yml's packages where they are missing.
+    exec bin/linux-env xvfb-run --auto-servernum dbus-run-session -- bundle exec rake ;;
   *) exec bundle exec rake ;;
 esac
