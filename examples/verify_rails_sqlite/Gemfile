@@ -6,8 +6,10 @@ gem "rails", "~> 8.1.2"
 gem "propshaft"
 # Use sqlite3 as the database for Active Record
 gem "sqlite3", ">= 2.1"
-# tokra.rb loads Tokra from this checkout, and Tokra reads its URLs with
-# ferro-url.
+# Tokra from this checkout. Once it is on RubyGems.org, the line is just
+# gem "tokra". Tokra reads its URLs with ferro-url, which comes from its
+# release tag until it is on RubyGems.org.
+gem "tokra", path: "../.."
 gem "ferro-url", git: "https://github.com/setdef/Ferro", tag: "ferro-url/v0.1.0", glob: "gems/url/*.gemspec"
 # Use the Puma web server [https://github.com/puma/puma]
 gem "puma", ">= 5.0"

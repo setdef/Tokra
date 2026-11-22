@@ -8,7 +8,7 @@
 #!/usr/bin/env ruby
 # Tokra Rails Runner - Direct, no middleware
 
-require_relative "../../lib/tokra"
+require "tokra"
 require "securerandom"
 
 # Rails signs cookies with secret_key_base. A desktop app has no deploy
