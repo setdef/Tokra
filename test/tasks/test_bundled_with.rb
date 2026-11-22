@@ -18,7 +18,9 @@ require "test_helper"
 #
 # Each lockfile is read as git's index holds it: the gate installs each
 # plugin's bundle before these tests run, and Bundler may write its own
-# version into a plugin's lockfile there (Plan 061).
+# version into a plugin's lockfile there (Plan 061). vendor/ holds other
+# projects' files as they publish them, magnus's lockfile among them (Plan
+# 071), which no bundle command of Tokra's reads.
 class TestBundledWith < Minitest::Test
   ROOT = File.expand_path("../..", __dir__)
   FIRST_ON_RUBY_4_1 = Gem::Version.new("4.0.12")
@@ -46,7 +48,7 @@ class TestBundledWith < Minitest::Test
   end
 
   private def lockfiles
-    paths = IO.popen(["git", "ls-files", "-z", "--", "*Gemfile.lock"], chdir: ROOT, &:read).split("\0")
+    paths = IO.popen(["git", "ls-files", "-z", "--", "*Gemfile.lock", ":!vendor/"], chdir: ROOT, &:read).split("\0")
     refute_empty paths
     paths
   end

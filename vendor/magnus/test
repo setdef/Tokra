@@ -1,0 +1,20 @@
+#!/bin/sh
+
+RUBY_VERSIONS="3.2.9 3.3.9 3.4.5 4.0.1"
+ERRORS=""
+
+for VERSION in $RUBY_VERSIONS; do
+  eval "$(rbenv init - sh)"
+  rbenv shell $VERSION
+  printf "testing Ruby $VERSION..."
+  if OUTPUT=$(env RUBY="$(rbenv which ruby)" cargo +1.85 test --workspace 2>&1); then
+    echo ✅
+  else
+    ERRORS="$ERRORS\n\n\n$VERSION\n\n$OUTPUT"
+    echo ❌
+  fi
+done
+if [ -n "$ERRORS" ]; then
+  printf "$ERRORS"
+  exit 1
+fi

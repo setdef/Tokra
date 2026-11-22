@@ -24,7 +24,7 @@ PACKAGES = [
   PackageCheck::Target.new(
     name: "tokra",
     dir: ".",
-    packaged: %w[lib sig ext/tokra Cargo.toml Cargo.lock README.rdoc CHANGELOG.md LICENSE LICENSES],
+    packaged: %w[lib sig ext/tokra vendor/magnus Cargo.toml Cargo.lock README.rdoc CHANGELOG.md LICENSE LICENSES],
     generated: ["lib/tokra/js/*"],
     crate: "ext/tokra",
     extension: "lib/tokra/tokra",

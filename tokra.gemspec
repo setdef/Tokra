@@ -31,10 +31,11 @@ Gem::Specification.new do |spec|
 
   # Ship what an installed app loads and what compiles the native extension:
   # the Ruby library, its signatures, the crate, and the Cargo workspace and
-  # lockfile that pin the crate's dependencies (Plan 017). Listing paths keeps
+  # lockfile that pin the crate's dependencies (Plan 017), with the patched
+  # magnus that lockfile names (Plan 071). Listing paths keeps
   # development files (plans, chats, tasks, tests, tool configuration) out
   # without a deny list that every new file has to remember.
-  packaged = %w[lib sig ext/tokra Cargo.toml Cargo.lock README.rdoc CHANGELOG.md LICENSE LICENSES]
+  packaged = %w[lib sig ext/tokra vendor/magnus Cargo.toml Cargo.lock README.rdoc CHANGELOG.md LICENSE LICENSES]
   spec.files = IO.popen(["git", "ls-files", "-z", "--", *packaged], chdir: __dir__, err: IO::NULL) do |ls|
     ls.readlines("\x0", chomp: true)
   end

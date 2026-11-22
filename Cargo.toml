@@ -9,8 +9,16 @@
 
 [workspace]
 members = ["ext/tokra"]
-exclude = ["plugins"]
+exclude = ["plugins", "vendor"]
 resolver = "2"
+
+# magnus 0.9.3 as crates.io serves it, with the change
+# doc/contributors/upstream/magnus-rb-len-t.patch makes, so that it passes
+# Ruby 4.1's lengths and indices as rb_len_t, 64 bits on RubyInstaller's
+# Ruby, where long is 32 (Plan 071). It goes when a magnus release has the
+# change. The gem ships the folder, so an installed gem builds the same.
+[patch.crates-io]
+magnus = { path = "vendor/magnus" }
 
 # Lints live in each member crate (see ext/tokra/Cargo.toml), so a crate
 # never depends on a workspace table for them.

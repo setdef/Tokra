@@ -21,6 +21,8 @@ AllCops:
     - "tmp/**/*"
     # Tauri submodule contains non-Ruby template files
     - "vendor/tauri/**/*"
+    # magnus as crates.io serves it, patched (Plan 071)
+    - "vendor/magnus/**/*"
     # setup-ruby's bundler-cache installs the bundle here in CI
     - "vendor/bundle/**/*"
 # The repository holds LF. On Windows git writes the working tree with CRLF

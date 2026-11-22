@@ -1,0 +1,453 @@
+//! Types and functions for working with Ruby's Struct class.
+//!
+//! See also [`Ruby`](Ruby#struct) for more Struct related methods.
+
+use std::{
+    borrow::Cow,
+    ffi::{CString, c_char},
+    fmt,
+    ptr::null,
+};
+
+#[cfg(ruby_gte_3_3)]
+use rb_sys::rb_data_define;
+use rb_sys::{
+    VALUE, rb_struct_aref, rb_struct_aset, rb_struct_define, rb_struct_getmember,
+    rb_struct_members, rb_struct_size, ruby_value_type,
+};
+use seq_macro::seq;
+
+use crate::{
+    Ruby,
+    class::RClass,
+    error::{Error, protect},
+    into_value::IntoValue,
+    object::Object,
+    r_array::RArray,
+    symbol::Symbol,
+    try_convert::TryConvert,
+    value::{self, IntoId, NonZeroValue, ReprValue, Value, private::ReprValue as _},
+};
+
+/// A Value pointer to a RStruct struct, Ruby’s internal representation of
+/// 'Structs'.
+///
+/// See the [`ReprValue`] and [`Object`] traits for additional methods
+/// available on this type.
+#[derive(Clone, Copy)]
+#[repr(transparent)]
+pub struct RStruct(NonZeroValue);
+
+impl RStruct {
+    /// Return `Some(RStruct)` if `val` is a `RStruct`, `None` otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use magnus::{Error, RStruct, Ruby};
+    ///
+    /// fn example(ruby: &Ruby) -> Result<(), Error> {
+    ///     let struct_class = ruby.define_struct(None, ("foo", "bar"))?;
+    ///     ruby.define_global_const("Example", struct_class)?;
+    ///
+    ///     assert!(RStruct::from_value(ruby.eval(r#"Example.new(1, 2)"#)?).is_some());
+    ///     assert!(RStruct::from_value(ruby.eval(r#"Object.new"#)?).is_none());
+    ///
+    ///     Ok(())
+    /// }
+    /// # Ruby::init(example).unwrap()
+    /// ```
+    #[inline]
+    pub fn from_value(val: Value) -> Option<Self> {
+        unsafe {
+            (val.rb_type() == ruby_value_type::RUBY_T_STRUCT)
+                .then(|| Self(NonZeroValue::new_unchecked(val)))
+        }
+    }
+
+    pub(crate) unsafe fn from_rb_value_unchecked(val: VALUE) -> Self {
+        unsafe { Self(NonZeroValue::new_unchecked(Value::new(val))) }
+    }
+
+    /// Return the value for the member at `index`.
+    ///
+    /// `index` may be an integer, string, or [`Symbol`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use magnus::{Error, RStruct, Ruby, prelude::*};
+    ///
+    /// fn example(ruby: &Ruby) -> Result<(), Error> {
+    ///     let struct_class = ruby.define_struct(None, ("foo", "bar", "baz"))?;
+    ///     let instance = RStruct::from_value(struct_class.new_instance((1, 2, 3))?).unwrap();
+    ///     assert_eq!(instance.aref::<_, i64>(0)?, 1);
+    ///     assert_eq!(instance.aref::<_, i64>("bar")?, 2);
+    ///     assert_eq!(instance.aref::<_, i64>(ruby.to_symbol("baz"))?, 3);
+    ///
+    ///     Ok(())
+    /// }
+    /// # Ruby::init(example).unwrap()
+    /// ```
+    pub fn aref<T, U>(self, index: T) -> Result<U, Error>
+    where
+        T: IntoValue,
+        U: TryConvert,
+    {
+        let index = Ruby::get_with(self).into_value(index);
+        protect(|| unsafe { Value::new(rb_struct_aref(self.as_rb_value(), index.as_rb_value())) })
+            .and_then(TryConvert::try_convert)
+    }
+
+    /// Set the value for the member at `index`.
+    ///
+    /// `index` may be an integer, string, or [`Symbol`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use magnus::{Error, RStruct, Ruby, prelude::*, rb_assert};
+    ///
+    /// fn example(ruby: &Ruby) -> Result<(), Error> {
+    ///     let struct_class = ruby.define_struct(None, ("foo", "bar", "baz"))?;
+    ///     let instance = RStruct::from_value(struct_class.new_instance((1, 2, 3))?).unwrap();
+    ///
+    ///     instance.aset(0, 4)?;
+    ///     rb_assert!("instance.foo == 4", instance);
+    ///
+    ///     instance.aset("bar", 5)?;
+    ///     rb_assert!("instance.bar == 5", instance);
+    ///
+    ///     instance.aset(ruby.to_symbol("baz"), 6)?;
+    ///     rb_assert!("instance.baz == 6", instance);
+    ///
+    ///     Ok(())
+    /// }
+    /// # Ruby::init(example).unwrap()
+    /// ```
+    pub fn aset<T, U>(self, index: T, val: U) -> Result<(), Error>
+    where
+        T: IntoValue,
+        U: IntoValue,
+    {
+        let handle = Ruby::get_with(self);
+        let index = handle.into_value(index);
+        let val = handle.into_value(val);
+        unsafe {
+            protect(|| {
+                Value::new(rb_struct_aset(
+                    self.as_rb_value(),
+                    index.as_rb_value(),
+                    val.as_rb_value(),
+                ))
+            })?;
+        }
+        Ok(())
+    }
+
+    /// Returns the count of members this struct has.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use magnus::{Error, RStruct, Ruby, prelude::*};
+    ///
+    /// fn example(ruby: &Ruby) -> Result<(), Error> {
+    ///     let struct_class = ruby.define_struct(None, ("foo", "bar", "baz"))?;
+    ///     let instance = RStruct::from_value(struct_class.new_instance(())?).unwrap();
+    ///
+    ///     assert_eq!(instance.size(), 3);
+    ///
+    ///     Ok(())
+    /// }
+    /// # Ruby::init(example).unwrap()
+    /// ```
+    pub fn size(self) -> usize {
+        unsafe { usize::try_convert(Value::new(rb_struct_size(self.as_rb_value()))).unwrap() }
+    }
+
+    /// Returns the member names for this struct.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use magnus::{Error, RStruct, Ruby, prelude::*};
+    ///
+    /// fn example(ruby: &Ruby) -> Result<(), Error> {
+    ///     let struct_class = ruby.define_struct(None, ("foo", "bar", "baz"))?;
+    ///     let instance = RStruct::from_value(struct_class.new_instance(())?).unwrap();
+    ///
+    ///     assert_eq!(instance.members()?, &["foo", "bar", "baz"]);
+    ///
+    ///     Ok(())
+    /// }
+    /// # Ruby::init(example).unwrap()
+    /// ```
+    pub fn members(self) -> Result<Vec<Cow<'static, str>>, Error> {
+        unsafe {
+            let array = RArray::from_rb_value_unchecked(rb_struct_members(self.as_rb_value()));
+            array
+                .as_slice()
+                .iter()
+                .map(|v| Symbol::from_value(*v).unwrap().name())
+                .collect()
+        }
+    }
+
+    /// Return the value for the member named `id`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use magnus::{Error, RStruct, Ruby, prelude::*};
+    ///
+    /// fn example(ruby: &Ruby) -> Result<(), Error> {
+    ///     let struct_class = ruby.define_struct(None, ("foo", "bar"))?;
+    ///     let instance = RStruct::from_value(struct_class.new_instance((1, 2))?).unwrap();
+    ///     assert_eq!(instance.getmember::<_, i64>("foo")?, 1);
+    ///     assert_eq!(instance.getmember::<_, i64>("bar")?, 2);
+    ///
+    ///     Ok(())
+    /// }
+    /// # Ruby::init(example).unwrap()
+    /// ```
+    pub fn getmember<T, U>(self, id: T) -> Result<U, Error>
+    where
+        T: IntoId,
+        U: TryConvert,
+    {
+        let id = id.into_id_with(&Ruby::get_with(self));
+        protect(|| unsafe { Value::new(rb_struct_getmember(self.as_rb_value(), id.as_rb_id())) })
+            .and_then(TryConvert::try_convert)
+    }
+}
+
+impl fmt::Display for RStruct {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", unsafe { self.to_s_infallible() })
+    }
+}
+
+impl fmt::Debug for RStruct {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.inspect())
+    }
+}
+
+impl IntoValue for RStruct {
+    #[inline]
+    fn into_value_with(self, _: &Ruby) -> Value {
+        self.0.get()
+    }
+}
+
+impl Object for RStruct {}
+
+unsafe impl value::private::ReprValue for RStruct {}
+
+impl ReprValue for RStruct {}
+
+impl TryConvert for RStruct {
+    fn try_convert(val: Value) -> Result<Self, Error> {
+        Self::from_value(val).ok_or_else(|| {
+            Error::new(
+                Ruby::get_with(val).exception_type_error(),
+                format!("no implicit conversion of {} into Struct", unsafe {
+                    val.classname()
+                },),
+            )
+        })
+    }
+}
+
+/// # `Struct`
+///
+/// Functions that can be used to create Ruby `Struct` classes.
+///
+/// See also the [`struct`](self) module.
+impl Ruby {
+    /// Define a Ruby Struct class.
+    ///
+    /// `members` is a tuple of `&str`, of between lengths 1 to 12 inclusive.
+    ///
+    /// # Examples
+    ///
+    /// When providing `None` for the `name` the struct class's name will be
+    /// taken from the first constant it is assigned to:
+    ///
+    /// ```
+    /// use magnus::{Error, Ruby, prelude::*};
+    ///
+    /// fn example(ruby: &Ruby) -> Result<(), Error> {
+    ///     let struct_class = ruby.define_struct(None, ("foo", "bar"))?;
+    ///     ruby.define_global_const("Example", struct_class)?;
+    ///
+    ///     assert_eq!(unsafe { struct_class.name().to_owned() }, "Example");
+    ///
+    ///     let instance = struct_class.new_instance((1, 2))?;
+    ///     assert_eq!(instance.inspect(), "#<struct Example foo=1, bar=2>");
+    ///
+    ///     Ok(())
+    /// }
+    /// # Ruby::init(example).unwrap()
+    /// ```
+    ///
+    /// When providing `Some("Name")` for the `name` the struct will be defined
+    /// under `Struct`:
+    ///
+    /// ```
+    /// use magnus::{Error, Ruby, prelude::*};
+    ///
+    /// fn example(ruby: &Ruby) -> Result<(), Error> {
+    ///     let struct_class = ruby.define_struct(Some("Example"), ("foo", "bar"))?;
+    ///
+    ///     assert_eq!(unsafe { struct_class.name().to_owned() }, "Struct::Example");
+    ///
+    ///     let instance = struct_class.new_instance((1, 2))?;
+    ///     assert_eq!(instance.inspect(), "#<struct Struct::Example foo=1, bar=2>");
+    ///
+    ///     Ok(())
+    /// }
+    /// # Ruby::init(example).unwrap()
+    /// ```
+    pub fn define_struct<T>(&self, name: Option<&str>, members: T) -> Result<RClass, Error>
+    where
+        T: StructMembers,
+    {
+        members.define(name)
+    }
+
+    /// Define a Ruby Data class.
+    ///
+    /// If provided, `super_class` must be a subclass of Ruby's `Data` class
+    /// (or `Data` itself).
+    ///
+    /// `members` is a tuple of `&str`, of between lengths 1 to 12 inclusive.
+    ///
+    /// ```
+    /// use magnus::{kwargs, prelude::*, Error, Ruby};
+    ///
+    /// fn example(ruby: &Ruby) -> Result<(), Error> {
+    ///     let data_class = ruby.define_data(None, ("foo", "bar"))?;
+    ///     ruby.define_global_const("Example", data_class)?;
+    ///
+    ///     assert_eq!(unsafe { data_class.name().to_owned() }, "Example");
+    ///
+    ///     let instance = data_class.new_instance((kwargs!("foo" => 1, "bar" => 2),))?;
+    ///     assert_eq!(instance.inspect(), "#<data Example foo=1, bar=2>");
+    ///
+    ///     Ok(())
+    /// }
+    /// # Ruby::init(example).unwrap()
+    /// ```
+    #[cfg(any(ruby_gte_3_3, docsrs))]
+    #[cfg_attr(docsrs, doc(cfg(ruby_gte_3_3)))]
+    pub fn define_data<T>(&self, super_class: Option<RClass>, members: T) -> Result<RClass, Error>
+    where
+        T: StructMembers,
+    {
+        members.define_data(super_class)
+    }
+}
+
+/// Define a Ruby Struct class.
+///
+/// `members` is a tuple of `&str`, of between lengths 1 to 12 inclusive.
+///
+/// # Panics
+///
+/// Panics if called from a non-Ruby thread. See [`Ruby::define_struct`] for
+/// the non-panicking version.
+///
+/// # Examples
+///
+/// When providing `None` for the `name` the struct class's name will be taken
+/// from the first constant it is assigned to:
+///
+/// ```
+/// # #![allow(deprecated)]
+/// use magnus::{define_global_const, prelude::*, r_struct::define_struct};
+/// # let _cleanup = unsafe { magnus::embed::init() };
+///
+/// let struct_class = define_struct(None, ("foo", "bar")).unwrap();
+/// define_global_const("Example", struct_class).unwrap();
+///
+/// assert_eq!(unsafe { struct_class.name().to_owned() }, "Example");
+///
+/// let instance = struct_class.new_instance((1, 2)).unwrap();
+/// assert_eq!(instance.inspect(), "#<struct Example foo=1, bar=2>")
+/// ```
+///
+/// When providing `Some("Name")` for the `name` the struct will be defined
+/// under `Struct`:
+///
+/// ```
+/// # #![allow(deprecated)]
+/// use magnus::{prelude::*, r_struct::define_struct};
+/// # let _cleanup = unsafe { magnus::embed::init() };
+///
+/// let struct_class = define_struct(Some("Example"), ("foo", "bar")).unwrap();
+///
+/// assert_eq!(unsafe { struct_class.name().to_owned() }, "Struct::Example");
+///
+/// let instance = struct_class.new_instance((1, 2)).unwrap();
+/// assert_eq!(instance.inspect(), "#<struct Struct::Example foo=1, bar=2>")
+/// ```
+#[deprecated(note = "please use `Ruby::define_struct` instead")]
+#[cfg(feature = "old-api")]
+#[cfg_attr(docsrs, doc(cfg(feature = "old-api")))]
+#[inline]
+pub fn define_struct<T>(name: Option<&str>, members: T) -> Result<RClass, Error>
+where
+    T: StructMembers,
+{
+    get_ruby!().define_struct(name, members)
+}
+
+mod private {
+    use super::*;
+
+    pub trait StructMembers {
+        fn define(self, name: Option<&str>) -> Result<RClass, Error>;
+
+        #[cfg(ruby_gte_3_3)]
+        fn define_data(self, super_class: Option<RClass>) -> Result<RClass, Error>;
+    }
+}
+use private::StructMembers;
+
+macro_rules! impl_struct_members {
+    ($n:literal) => {
+        seq!(N in 0..$n {
+            impl StructMembers for (#(&str,)*) {
+                fn define(self, name: Option<&str>) -> Result<RClass, Error> {
+                    let name = name.map(|n| CString::new(n).unwrap());
+                    #(let arg~N = CString::new(self.N).unwrap();)*
+                    protect(|| unsafe {
+                        RClass::from_rb_value_unchecked(rb_struct_define(
+                            name.as_ref().map(|n| n.as_ptr()).unwrap_or_else(null),
+                            #(arg~N.as_ptr(),)*
+                            null::<c_char>(),
+                        ))
+                    })
+                }
+
+                #[cfg(ruby_gte_3_3)]
+                fn define_data(self, super_class: Option<RClass>) -> Result<RClass, Error> {
+                    #(let arg~N = CString::new(self.N).unwrap();)*
+                    protect(|| unsafe {
+                        RClass::from_rb_value_unchecked(rb_data_define(
+                            super_class.map(|s| s.as_rb_value()).unwrap_or(0),
+                            #(arg~N.as_ptr(),)*
+                            null::<c_char>(),
+                        ))
+                    })
+                }
+            }
+        });
+    }
+}
+
+seq!(N in 1..=12 {
+    impl_struct_members!(N);
+});
