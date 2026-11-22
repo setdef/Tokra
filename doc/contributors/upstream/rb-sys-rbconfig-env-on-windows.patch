@@ -1,0 +1,70 @@
+diff --git a/gem/lib/rb_sys/cargo_builder.rb b/gem/lib/rb_sys/cargo_builder.rb
+index f50190bd..e3c195b6 100644
+--- a/gem/lib/rb_sys/cargo_builder.rb
++++ b/gem/lib/rb_sys/cargo_builder.rb
+@@ -120,9 +120,25 @@ module RbSys
+     def rb_config_env
+       result = {}
+       RbConfig::CONFIG.each { |k, v| result["RBCONFIG_#{k}"] = v }
++      case_ambiguous_rb_config_env.each { |k| result.delete(k) }
+       result
+     end
+ 
++    # Windows treats environment variable names case-insensitively, so keys
++    # like `CPPFLAGS` and `cppflags` would collapse into one variable and the
++    # build script would read whichever value won. Leave those out there; the
++    # build script then reads them from `RbConfig` itself.
++    def case_ambiguous_rb_config_env
++      return [] unless Gem.win_platform?
++
++      RbConfig::CONFIG.keys
++        .group_by(&:downcase)
++        .values
++        .select { |keys| keys.size > 1 }
++        .flatten
++        .map { |k| "RBCONFIG_#{k}" }
++    end
++
+     def rustc_args(dest_dir)
+       [
+         *linker_args,
+diff --git a/gem/test/test_cargo_builder.rb b/gem/test/test_cargo_builder.rb
+new file mode 100644
+index 00000000..0714a00f
+--- /dev/null
++++ b/gem/test/test_cargo_builder.rb
+@@ -0,0 +1,34 @@
++# frozen_string_literal: true
++
++require "test_helper"
++require "minitest/mock"
++require "rb_sys/cargo_builder"
++
++class TestCargoBuilder < Minitest::Test
++  def test_build_env_passes_every_rbconfig_key
++    Gem.stub(:win_platform?, false) do
++      env = builder.build_env
++
++      assert_equal RbConfig::CONFIG["CPPFLAGS"], env["RBCONFIG_CPPFLAGS"]
++      assert_equal RbConfig::CONFIG["cppflags"], env["RBCONFIG_cppflags"]
++    end
++  end
++
++  def test_build_env_on_windows_leaves_out_keys_that_differ_only_in_case
++    Gem.stub(:win_platform?, true) do
++      env = builder.build_env
++
++      refute env.key?("RBCONFIG_CPPFLAGS")
++      refute env.key?("RBCONFIG_cppflags")
++      refute env.key?("RBCONFIG_CFLAGS")
++      refute env.key?("RBCONFIG_cflags")
++      assert_equal RbConfig::CONFIG["ruby_version"], env["RBCONFIG_ruby_version"]
++    end
++  end
++
++  private
++
++  def builder
++    RbSys::CargoBuilder.new(Gem::Specification.new { |s| s.name = "test" })
++  end
++end

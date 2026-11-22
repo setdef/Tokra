@@ -63,3 +63,23 @@ SPDX-License-Identifier = "CC0-1.0"
 path = ['test/integration/fixtures/*/tokra.conf.json', 'plugins/*/test/integration/fixtures/*/tokra.conf.json']
 SPDX-FileCopyrightText = "2026 Kerrick Long <me@kerricklong.com>"
 SPDX-License-Identifier = "CC0-1.0"
+
+# magnus 0.9.3 as crates.io serves it, with the change of
+# doc/contributors/upstream/magnus-rb-len-t.patch (Plan 071). Its LICENSE
+# is MIT.
+[[annotations]]
+path = 'vendor/magnus/**'
+SPDX-FileCopyrightText = "2021-2023 Matthew Sadler"
+SPDX-License-Identifier = "MIT"
+
+# Changes Tokra would send upstream (Plan 071), under each project's own
+# license, so they could be applied there as they stand.
+[[annotations]]
+path = 'doc/contributors/upstream/magnus-rb-len-t.patch'
+SPDX-FileCopyrightText = ["2021-2023 Matthew Sadler", "2026 Kerrick Long <me@kerricklong.com>"]
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = 'doc/contributors/upstream/rb-sys-rbconfig-env-on-windows.patch'
+SPDX-FileCopyrightText = ["2021-2022 Ian Ker-Seymer", "2026 Kerrick Long <me@kerricklong.com>"]
+SPDX-License-Identifier = "MIT OR Apache-2.0"

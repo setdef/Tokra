@@ -1,0 +1,511 @@
+diff --git a/src/debug.rs b/src/debug.rs
+index 0ae1c04..40c6d93 100644
+--- a/src/debug.rs
++++ b/src/debug.rs
+@@ -5,7 +5,7 @@
+ #[cfg(ruby_gte_3_3)]
+ use std::panic::{AssertUnwindSafe, catch_unwind};
+ use std::{
+-    ffi::{c_int, c_long, c_void},
++    ffi::{c_int, c_void},
+     fmt,
+     marker::PhantomData,
+     num::NonZero,
+@@ -49,6 +49,7 @@ use crate::error::bug_from_panic;
+ #[cfg(feature = "thread")]
+ use crate::thread::Thread;
+ use crate::{
++    Len,
+     api::Ruby,
+     class::RClass,
+     error::{Error, protect},
+@@ -936,9 +937,7 @@ impl<'a> DebugInspector<'a> {
+ 
+     /// Get Ruby's `self` for the frame at `index`.
+     pub fn frame_self_get(self, index: usize) -> Result<Value, Error> {
+-        protect(|| unsafe {
+-            Value::new(rb_debug_inspector_frame_self_get(self.ptr, index as c_long))
+-        })
++        protect(|| unsafe { Value::new(rb_debug_inspector_frame_self_get(self.ptr, index as Len)) })
+     }
+ 
+     /// Get the Ruby class for the frame at `index`.
+@@ -946,7 +945,7 @@ impl<'a> DebugInspector<'a> {
+         protect(|| unsafe {
+             RClass::from_rb_value_unchecked(rb_debug_inspector_frame_class_get(
+                 self.ptr,
+-                index as c_long,
++                index as Len,
+             ))
+         })
+     }
+@@ -954,19 +953,14 @@ impl<'a> DebugInspector<'a> {
+     /// Get the Ruby `Binding` object for the frame at `index`.
+     pub fn frame_binding_get(self, index: usize) -> Result<Value, Error> {
+         protect(|| unsafe {
+-            Value::new(rb_debug_inspector_frame_binding_get(
+-                self.ptr,
+-                index as c_long,
+-            ))
++            Value::new(rb_debug_inspector_frame_binding_get(self.ptr, index as Len))
+         })
+     }
+ 
+     /// Get the `RubyVM::InstructionSequence` for the frame at `index`.
+     pub fn frame_iseq_get(self, index: usize) -> Result<Option<Value>, Error> {
+-        protect(|| unsafe {
+-            Value::new(rb_debug_inspector_frame_iseq_get(self.ptr, index as c_long))
+-        })
+-        .map(|v| (!v.is_nil()).then_some(v))
++        protect(|| unsafe { Value::new(rb_debug_inspector_frame_iseq_get(self.ptr, index as Len)) })
++            .map(|v| (!v.is_nil()).then_some(v))
+     }
+ 
+     /// Return the depth of the frame at `index`.
+@@ -977,10 +971,7 @@ impl<'a> DebugInspector<'a> {
+     #[cfg_attr(docsrs, doc(cfg(ruby_gte_3_2)))]
+     pub fn frame_depth(self, index: usize) -> Result<usize, Error> {
+         protect(|| unsafe {
+-            Integer::from_rb_value_unchecked(rb_debug_inspector_frame_depth(
+-                self.ptr,
+-                index as c_long,
+-            ))
++            Integer::from_rb_value_unchecked(rb_debug_inspector_frame_depth(self.ptr, index as Len))
+         })
+         .and_then(|i| i.to_usize())
+     }
+diff --git a/src/lib.rs b/src/lib.rs
+index 0096485..e45be58 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1926,6 +1926,18 @@ use ::rb_sys::{
+ };
+ pub use magnus_macros::{DataTypeFunctions, TypedData, init, wrap};
+ 
++/// The C type of the lengths and indices Ruby's API takes and returns, such
++/// as a String's length or an Array's index.
++///
++/// Ruby 4.1 names it `rb_len_t`. It is `long`, except where Ruby is built
++/// with `SIZEOF_RB_LEN_T` wider than `long`, as on 64-bit mswin and
++/// RubyInstaller's MinGW builds, where `long` is 32 bits and `rb_len_t` is
++/// 64. Earlier Rubies take `long`.
++#[cfg(ruby_gte_4_1)]
++pub(crate) type Len = ::rb_sys::rb_len_t;
++#[cfg(ruby_lt_4_1)]
++pub(crate) type Len = std::ffi::c_long;
++
+ #[cfg(feature = "fiber")]
+ #[cfg_attr(docsrs, doc(cfg(feature = "fiber")))]
+ pub use crate::fiber::Fiber;
+diff --git a/src/r_array.rs b/src/r_array.rs
+index 13c4ce6..13baf3d 100644
+--- a/src/r_array.rs
++++ b/src/r_array.rs
+@@ -1,6 +1,6 @@
+ //! Types and functions for working with Ruby’s Array class.
+ 
+-use std::{cmp::Ordering, convert::Infallible, ffi::c_long, fmt, marker::PhantomData, slice};
++use std::{cmp::Ordering, convert::Infallible, fmt, marker::PhantomData, slice};
+ 
+ #[cfg(ruby_gte_3_2)]
+ use rb_sys::rb_ary_hidden_new;
+@@ -18,7 +18,7 @@ use rb_sys::{
+ use seq_macro::seq;
+ 
+ use crate::{
+-    Ruby,
++    Len, Ruby,
+     error::{Error, protect},
+     gc,
+     into_value::{IntoValue, IntoValueFromNative},
+@@ -73,7 +73,7 @@ impl Ruby {
+     /// # Ruby::init(example).unwrap()
+     /// ```
+     pub fn ary_new_capa(&self, n: usize) -> RArray {
+-        unsafe { RArray::from_rb_value_unchecked(rb_ary_new_capa(n as c_long)) }
++        unsafe { RArray::from_rb_value_unchecked(rb_ary_new_capa(n as Len)) }
+     }
+ 
+     /// Create a new `RArray` from a Rust vector.
+@@ -138,9 +138,7 @@ impl Ruby {
+         T: ReprValue,
+     {
+         let ptr = slice.as_ptr() as *const VALUE;
+-        unsafe {
+-            RArray::from_rb_value_unchecked(rb_ary_new_from_values(slice.len() as c_long, ptr))
+-        }
++        unsafe { RArray::from_rb_value_unchecked(rb_ary_new_from_values(slice.len() as Len, ptr)) }
+     }
+ 
+     /// Create a new `RArray` from a Rust iterator.
+@@ -430,7 +428,7 @@ impl RArray {
+     /// ```
+     pub fn dup(self) -> Self {
+         // rb_ary_subseq does a cheap copy-on-write
+-        unsafe { Self::from_rb_value_unchecked(rb_ary_subseq(self.as_rb_value(), 0, c_long::MAX)) }
++        unsafe { Self::from_rb_value_unchecked(rb_ary_subseq(self.as_rb_value(), 0, Len::MAX)) }
+     }
+ 
+     /// Return the number of entries in `self` as a Rust [`usize`].
+@@ -551,7 +549,7 @@ impl RArray {
+         T: ReprValue,
+     {
+         let ptr = s.as_ptr() as *const VALUE;
+-        protect(|| unsafe { Value::new(rb_ary_cat(self.as_rb_value(), ptr, s.len() as c_long)) })?;
++        protect(|| unsafe { Value::new(rb_ary_cat(self.as_rb_value(), ptr, s.len() as Len)) })?;
+         Ok(())
+     }
+ 
+@@ -808,7 +806,7 @@ impl RArray {
+     where
+         T: TryConvert,
+     {
+-        protect(|| unsafe { Value::new(rb_ary_delete_at(self.as_rb_value(), index as c_long)) })
++        protect(|| unsafe { Value::new(rb_ary_delete_at(self.as_rb_value(), index as Len)) })
+             .and_then(TryConvert::try_convert)
+     }
+ 
+@@ -860,7 +858,7 @@ impl RArray {
+     /// # Ruby::init(example).unwrap()
+     /// ```
+     pub fn resize(self, len: usize) -> Result<(), Error> {
+-        protect(|| unsafe { Value::new(rb_ary_resize(self.as_rb_value(), len as c_long)) })?;
++        protect(|| unsafe { Value::new(rb_ary_resize(self.as_rb_value(), len as Len)) })?;
+         Ok(())
+     }
+ 
+@@ -922,7 +920,7 @@ impl RArray {
+     /// # Ruby::init(example).unwrap()
+     /// ```
+     pub fn rotate(self, rot: isize) -> Result<(), Error> {
+-        protect(|| unsafe { Value::new(rb_ary_rotate(self.as_rb_value(), rot as c_long)) })?;
++        protect(|| unsafe { Value::new(rb_ary_rotate(self.as_rb_value(), rot as Len)) })?;
+         Ok(())
+     }
+ 
+@@ -1155,12 +1153,7 @@ impl RArray {
+     where
+         T: TryConvert,
+     {
+-        unsafe {
+-            T::try_convert(Value::new(rb_ary_entry(
+-                self.as_rb_value(),
+-                offset as c_long,
+-            )))
+-        }
++        unsafe { T::try_convert(Value::new(rb_ary_entry(self.as_rb_value(), offset as Len))) }
+     }
+ 
+     /// Set the element at `offset`.
+@@ -1198,7 +1191,7 @@ impl RArray {
+         let handle = Ruby::get_with(self);
+         let val = handle.into_value(val);
+         protect(|| {
+-            unsafe { rb_ary_store(self.as_rb_value(), offset as c_long, val.as_rb_value()) };
++            unsafe { rb_ary_store(self.as_rb_value(), offset as Len, val.as_rb_value()) };
+             handle.qnil()
+         })?;
+         Ok(())
+@@ -1302,8 +1295,8 @@ impl RArray {
+         unsafe {
+             let val = Value::new(rb_ary_subseq(
+                 self.as_rb_value(),
+-                offset as c_long,
+-                length as c_long,
++                offset as Len,
++                length as Len,
+             ));
+             (!val.is_nil()).then(|| Self::from_rb_value_unchecked(val.as_rb_value()))
+         }
+diff --git a/src/r_hash.rs b/src/r_hash.rs
+index 7ec9b14..013f7f3 100644
+--- a/src/r_hash.rs
++++ b/src/r_hash.rs
+@@ -3,7 +3,7 @@
+ use std::{
+     collections::{BTreeMap, HashMap},
+     convert::Infallible,
+-    ffi::{c_int, c_long},
++    ffi::c_int,
+     fmt,
+     hash::Hash,
+     panic::AssertUnwindSafe,
+@@ -18,7 +18,7 @@ use rb_sys::{
+ };
+ 
+ use crate::{
+-    Ruby,
++    Len, Ruby,
+     error::{Error, protect, raise},
+     into_value::{IntoValue, IntoValueFromNative},
+     object::Object,
+@@ -129,7 +129,7 @@ impl Ruby {
+     #[cfg(any(ruby_gte_3_2, docsrs))]
+     #[cfg_attr(docsrs, doc(cfg(ruby_gte_3_2)))]
+     pub fn hash_new_capa(&self, n: usize) -> RHash {
+-        unsafe { RHash::from_rb_value_unchecked(rb_hash_new_capa(n as c_long)) }
++        unsafe { RHash::from_rb_value_unchecked(rb_hash_new_capa(n as Len)) }
+     }
+ 
+     /// Create a new `RHash` from a Rust iterator.
+@@ -345,7 +345,7 @@ impl RHash {
+     {
+         let ptr = slice.as_ptr() as *const VALUE;
+         protect(|| {
+-            unsafe { rb_hash_bulk_insert(slice.len() as c_long, ptr, self.as_rb_value()) };
++            unsafe { rb_hash_bulk_insert(slice.len() as Len, ptr, self.as_rb_value()) };
+             Ruby::get_with(self).qnil()
+         })?;
+         Ok(())
+diff --git a/src/r_regexp.rs b/src/r_regexp.rs
+index fe21bb4..d6cff6e 100644
+--- a/src/r_regexp.rs
++++ b/src/r_regexp.rs
+@@ -1,7 +1,7 @@
+ //! Types for working with Ruby’s Regexp class.
+ 
+ use std::{
+-    ffi::{c_char, c_int, c_long, c_uint},
++    ffi::{c_char, c_int, c_uint},
+     fmt,
+ };
+ 
+@@ -10,7 +10,7 @@ use rb_sys::{
+ };
+ 
+ use crate::{
+-    Ruby,
++    Len, Ruby,
+     encoding::EncodingCapable,
+     error::{Error, protect},
+     into_value::IntoValue,
+@@ -49,7 +49,7 @@ impl Ruby {
+         protect(|| unsafe {
+             RRegexp::from_rb_value_unchecked(rb_enc_reg_new(
+                 pattern.as_ptr() as *const c_char,
+-                pattern.len() as c_long,
++                pattern.len() as Len,
+                 self.utf8_encoding().as_ptr(),
+                 opts.0 as c_int,
+             ))
+diff --git a/src/r_string.rs b/src/r_string.rs
+index 23e665c..dfdfb51 100644
+--- a/src/r_string.rs
++++ b/src/r_string.rs
+@@ -3,7 +3,7 @@
+ use std::{
+     borrow::Cow,
+     cmp::Ordering,
+-    ffi::{CStr, CString, c_char, c_long},
++    ffi::{CStr, CString, c_char},
+     fmt, io,
+     iter::Iterator,
+     mem::transmute,
+@@ -23,7 +23,7 @@ use rb_sys::{
+ };
+ 
+ use crate::{
+-    Ruby,
++    Len, Ruby,
+     encoding::{Coderange, EncodingCapable, RbEncoding},
+     error::{Error, protect},
+     into_value::{IntoValue, IntoValueFromNative},
+@@ -63,7 +63,7 @@ impl Ruby {
+         let len = s.len();
+         let ptr = s.as_ptr();
+         unsafe {
+-            RString::from_rb_value_unchecked(rb_utf8_str_new(ptr as *const c_char, len as c_long))
++            RString::from_rb_value_unchecked(rb_utf8_str_new(ptr as *const c_char, len as Len))
+         }
+     }
+ 
+@@ -89,7 +89,7 @@ impl Ruby {
+         let len = s.count_bytes();
+         let ptr = s.as_ptr();
+         unsafe {
+-            RString::from_rb_value_unchecked(rb_str_new_static(ptr as *const c_char, len as c_long))
++            RString::from_rb_value_unchecked(rb_str_new_static(ptr as *const c_char, len as Len))
+         }
+     }
+ 
+@@ -117,7 +117,7 @@ impl Ruby {
+         unsafe {
+             RString::from_rb_value_unchecked(rb_utf8_str_new_static(
+                 ptr as *const c_char,
+-                len as c_long,
++                len as Len,
+             ))
+         }
+     }
+@@ -149,7 +149,7 @@ impl Ruby {
+         unsafe {
+             RString::from_rb_value_unchecked(rb_enc_str_new_static(
+                 ptr as *const c_char,
+-                len as c_long,
++                len as Len,
+                 enc.into().as_ptr(),
+             ))
+         }
+@@ -175,7 +175,7 @@ impl Ruby {
+     /// # Ruby::init(example).unwrap()
+     /// ```
+     pub fn str_buf_new(&self, n: usize) -> RString {
+-        unsafe { RString::from_rb_value_unchecked(rb_str_buf_new(n as c_long)) }
++        unsafe { RString::from_rb_value_unchecked(rb_str_buf_new(n as Len)) }
+     }
+ 
+     /// Create a new Ruby string with capacity `n`.
+@@ -225,7 +225,7 @@ impl Ruby {
+     pub fn str_from_slice(&self, s: &[u8]) -> RString {
+         let len = s.len();
+         let ptr = s.as_ptr();
+-        unsafe { RString::from_rb_value_unchecked(rb_str_new(ptr as *const c_char, len as c_long)) }
++        unsafe { RString::from_rb_value_unchecked(rb_str_new(ptr as *const c_char, len as Len)) }
+     }
+ 
+     /// Create a new Ruby string from the Rust C string `s`.
+@@ -290,7 +290,7 @@ impl Ruby {
+         unsafe {
+             RString::from_rb_value_unchecked(rb_enc_str_new(
+                 ptr as *const c_char,
+-                len as c_long,
++                len as Len,
+                 enc.into().as_ptr(),
+             ))
+         }
+@@ -605,7 +605,7 @@ impl RString {
+     /// # Ruby::init(example).unwrap()
+     /// ```
+     pub fn offset(self, pos: usize) -> usize {
+-        unsafe { rb_str_offset(self.as_rb_value(), pos as c_long) as usize }
++        unsafe { rb_str_offset(self.as_rb_value(), pos as Len) as usize }
+     }
+ 
+     /// Returns true if the encoding for this string is UTF-8 or US-ASCII,
+@@ -1262,7 +1262,7 @@ impl RString {
+         let len = buf.len();
+         let ptr = buf.as_ptr();
+         unsafe {
+-            rb_str_cat(self.as_rb_value(), ptr as *const c_char, len as c_long);
++            rb_str_cat(self.as_rb_value(), ptr as *const c_char, len as Len);
+         }
+     }
+ 
+@@ -1360,8 +1360,8 @@ impl RString {
+             unsafe {
+                 rb_str_update(
+                     self.as_rb_value(),
+-                    beg as c_long,
+-                    len as c_long,
++                    beg as Len,
++                    len as Len,
+                     other.as_rb_value(),
+                 )
+             };
+@@ -1433,7 +1433,7 @@ impl RString {
+     /// ```
+     pub fn drop_bytes(self, len: usize) -> Result<(), Error> {
+         protect(|| {
+-            unsafe { rb_str_drop_bytes(self.as_rb_value(), len as c_long) };
++            unsafe { rb_str_drop_bytes(self.as_rb_value(), len as Len) };
+             Ruby::get_with(self).qnil()
+         })?;
+         Ok(())
+@@ -1525,7 +1525,7 @@ impl RString {
+     pub fn modify_expand(self, capa: usize) -> Result<(), Error> {
+         protect(|| {
+             unsafe {
+-                rb_str_modify_expand(self.as_rb_value(), capa as c_long);
++                rb_str_modify_expand(self.as_rb_value(), capa as Len);
+             }
+             Ruby::get_with(self).qnil()
+         })?;
+@@ -1613,7 +1613,7 @@ impl RString {
+     /// ```
+     pub fn ellipsize(self, len: usize) -> Self {
+         unsafe {
+-            RString::from_rb_value_unchecked(rb_str_ellipsize(self.as_rb_value(), len as c_long))
++            RString::from_rb_value_unchecked(rb_str_ellipsize(self.as_rb_value(), len as Len))
+         }
+     }
+ 
+diff --git a/src/range.rs b/src/range.rs
+index baf4b0b..5b156bb 100644
+--- a/src/range.rs
++++ b/src/range.rs
+@@ -1,7 +1,7 @@
+ //! Types for working with Ruby ranges.
+ 
+ use std::{
+-    ffi::{c_int, c_long},
++    ffi::c_int,
+     fmt,
+     ops::{Range as StdRange, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive},
+ };
+@@ -9,7 +9,7 @@ use std::{
+ use rb_sys::{rb_range_beg_len, rb_range_new};
+ 
+ use crate::{
+-    Ruby,
++    Len, Ruby,
+     error::{Error, protect},
+     into_value::{IntoValue, IntoValueFromNative},
+     object::Object,
+@@ -198,14 +198,14 @@ impl Range {
+     /// assert_eq!(range.beg_len(10).unwrap(), (7, 3));
+     /// ```
+     pub fn beg_len(self, length: usize) -> Result<(usize, usize), Error> {
+-        let mut begp: c_long = 0;
+-        let mut lenp: c_long = 0;
++        let mut begp: Len = 0;
++        let mut lenp: Len = 0;
+         protect(|| unsafe {
+             Value::new(rb_range_beg_len(
+                 self.as_rb_value(),
+                 &mut begp as *mut _,
+                 &mut lenp as *mut _,
+-                length as c_long,
++                length as Len,
+                 1,
+             ))
+         })?;
+diff --git a/src/value.rs b/src/value.rs
+index ee6c11d..8b26e04 100644
+--- a/src/value.rs
++++ b/src/value.rs
+@@ -39,7 +39,7 @@ const RUBY_FIXNUM_MIN: c_long = c_long::MIN / 2;
+ #[cfg(feature = "numeric")]
+ use crate::numeric::Numeric;
+ use crate::{
+-    Ruby,
++    Len, Ruby,
+     class::RClass,
+     encoding::EncodingCapable,
+     enumerator::Enumerator,
+@@ -2826,7 +2826,7 @@ impl Ruby {
+         unsafe {
+             let res = Value::new(rb_check_symbol_cstr(
+                 name.as_ptr() as *mut c_char,
+-                name.len() as c_long,
++                name.len() as Len,
+                 self.utf8_encoding().as_ptr(),
+             ));
+             (!res.is_nil()).then(|| StaticSymbol::from_rb_value_unchecked(res.as_rb_value()))
+@@ -3006,7 +3006,7 @@ impl Ruby {
+         Id::from_rb_id(unsafe {
+             rb_intern3(
+                 name.as_ptr() as *const c_char,
+-                name.len() as c_long,
++                name.len() as Len,
+                 self.utf8_encoding().as_ptr(),
+             )
+         })
+@@ -3032,7 +3032,7 @@ impl Ruby {
+         let res = unsafe {
+             rb_check_id_cstr(
+                 name.as_ptr() as *mut c_char,
+-                name.len() as c_long,
++                name.len() as Len,
+                 self.utf8_encoding().as_ptr(),
+             )
+         };
