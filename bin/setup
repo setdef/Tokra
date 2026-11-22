@@ -63,6 +63,12 @@ fi
 # Gemfile.lock, in vendor/bundle, which a runner that keeps its checkout
 # or caches that folder has from its last run.
 if [ "${CI:-}" = true ]; then
+  # A bundle left half written, a gem's specification without its files,
+  # stops Bundler from starting at all once the Bundler the lockfile
+  # names is among them: RubyGems finds the specification and cannot load
+  # the gem. Nothing repairs that in place, so the folder goes, and the
+  # install below makes it again.
+  mise x -- bundle --version > /dev/null 2>&1 || rm -rf vendor/bundle
   mise x -- bundle config set --local path vendor/bundle
   mise x -- bundle config set --local frozen true
 fi
