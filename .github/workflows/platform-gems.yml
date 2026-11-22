@@ -1,0 +1,113 @@
+# SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# Builds tokra's precompiled gems, one per platform, each on its own
+# platform with the Ruby mise.toml pins there, installs each with no Rust
+# on PATH, loads it, and keeps it as a workflow artifact (Plan 072). It
+# gates nothing. It runs when the maintainer dispatches it, on the branch
+# or tag chosen there, and for each tokra release tag. It publishes
+# nothing: no release, no tag, and no push to RubyGems.org; the maintainer
+# takes the gems from the run's artifacts.
+
+name: Platform gems
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["tokra/v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # Each gem is built natively: the extension links the system's
+        # WebKitGTK and GTK on Linux, so a Linux gem needs at least the
+        # glibc and the libraries of the system it was built on, and
+        # Ubuntu 22.04 is the oldest runner with WebKitGTK 4.1. No musl
+        # gem: an Alpine app compiles the source gem. No Windows gem yet:
+        # no Ruby 4.1 builds the extension soundly there (Plan 069).
+        include:
+          - runner: macos-15
+            platform: arm64-darwin
+          - runner: ubuntu-22.04
+            platform: x86_64-linux-gnu
+          - runner: ubuntu-22.04-arm
+            platform: aarch64-linux-gnu
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # sync:tauri extracts the JavaScript templates the gem carries from
+      # the vendor/tauri submodule.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+
+      # The Ruby is exactly the one mise.toml pins on Linux and macOS, not
+      # the newest of its series: a gem built on a Ruby preview loads only
+      # on that preview (tasks/platform_gem.rb).
+      - name: Read the toolchain pins
+        id: pins
+        run: |
+          rust=$(sed -n 's/^rust = "\(.*\)"$/\1/p' mise.toml)
+          ruby=$(sed -n '/^ruby = \[/,/^\]/s/.*{ version = "\([^"]*\)", os = \["linux", "macos"\] }.*/\1/p' mise.toml)
+          test -n "$rust" || { echo "::error::no Rust pin in mise.toml"; exit 1; }
+          test -n "$ruby" || { echo "::error::no Ruby pin for Linux and macOS in mise.toml"; exit 1; }
+          {
+            echo "rust=$rust"
+            echo "ruby=$ruby"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: ${{ steps.pins.outputs.rust }}
+
+      # What the build links (ci.yml says what each is for), less the
+      # display server and what only the tests use. bundle install compiles
+      # the Ferro gems, which need libclang, and ferro-rfd libwayland.
+      - name: Install GTK and WebKitGTK
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
+            pkg-config libclang-dev libwayland-dev libxdo-dev
+
+      - uses: ruby/setup-ruby@7f797815d8adceb1c412e7abefdd1ab4abc47a5f # v1.335.0
+        with:
+          ruby-version: ${{ steps.pins.outputs.ruby }}
+
+      - name: Install the bundle
+        run: |
+          ruby -v
+          bundle config set --local path vendor/bundle
+          bundle config set --local frozen true
+          bundle install --jobs 4
+
+      - name: Build the gem
+        run: bundle exec rake package:native
+
+      # From an empty GEM_HOME, with no Rust on PATH, then require "tokra"
+      # and a smoke script (tasks/package_check.rb, #precompiled).
+      - name: Install and load the gem
+        run: bundle exec rake package:deliver
+
+      - name: Record the gem's SHA-256
+        working-directory: pkg
+        run: shasum -a 256 ./*.gem | tee "tokra-${{ matrix.platform }}.sha256"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tokra-${{ matrix.platform }}
+          path: |
+            pkg/*.gem
+            pkg/*.sha256
+          if-no-files-found: error
