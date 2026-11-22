@@ -14,6 +14,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Runs on Ruby 4.1, its preview included, on Linux and macOS, beside 4.0;
   not yet on Windows
+- Precompiled gems for Ruby 4.1.0-preview1 on `arm64-darwin`,
+  `x86_64-linux-gnu`, and `aarch64-linux-gnu`, which install with no Rust
+  and no development packages; other Rubies and platforms compile the
+  source gem
 - Tauri's event system: `Listener` (`listen`, `once`, `unlisten`,
   `listen_any`, `once_any`) and `Emitter` (`emit`, `emit_str`, `emit_to`,
   `emit_str_to`, `emit_filter`, `emit_str_filter`) on `App`, `AppHandle`,

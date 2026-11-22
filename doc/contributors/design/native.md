@@ -45,6 +45,41 @@ libclang and Ruby's headers; the platform's own build tools and
 libraries, which the README lists, are still the developer's to
 install.
 
+### Precompiled gems
+
+Besides the source gem, `rake package:native` builds a precompiled gem
+of tokra for the platform and Ruby it runs on (Plan 072,
+`tasks/platform_gem.rb`). It carries the extension `rake compile`
+built, with the DLLs installed beside it, and every file of the source
+gem, the crate included; it has no extension to compile and no `rb_sys`
+dependency. Installing it needs no Rust, no libclang, and no
+development packages, only the libraries the extension links: WebKitGTK
+and GTK on Linux, as any Tauri app needs, and WebView2 on Windows.
+
+Each platform builds its own gem natively, as rove_2d and ratatui_ruby
+build theirs: cross-compiling would still need the target's WebKitGTK,
+and gains nothing a runner of that platform does not give. The gem's
+platform drops a Mac's darwin version (`arm64-darwin`) and names a
+Linux gem's C library (`x86_64-linux-gnu`), so RubyGems never offers a
+glibc build on musl. Its Ruby requirement is the source gem's, narrowed
+to the ABI the extension was built for. A Ruby release keeps its ABI
+across teeny versions, so a gem built on 4.1.x serves `>= 4.1, <
+4.2.dev`. A preview or a build of Ruby's master has an ABI version of
+its own (`include/ruby/internal/abi.h`), and Ruby refuses, on every
+system but Windows, an extension built for another (`dln.c`,
+`dln_load_and_init`, which reads the `ruby_abi_version` rb-sys
+exports). So a gem built on 4.1.0-preview1 requires exactly
+`4.1.0.preview1`, and one built on master exactly `4.1.0.dev`, which
+`Gem.ruby_version` cannot tell apart by ABI. On any other Ruby, Bundler
+skips the precompiled gem and compiles the source gem.
+
+`rake package:deliver` installs a precompiled gem into an empty
+`GEM_HOME` with no Rust on `PATH`, fails if anything compiles, and runs
+the packaging check's smoke script from the installed gem
+(`PackageCheck#precompiled`). The Platform gems workflow builds and
+checks the gems on GitHub's runners, on a dispatch or a tokra tag, and
+keeps them as artifacts; it publishes nothing.
+
 ## Where each crate lives
 
 Tokra's extension links the windowing stack: tao, wry, muda, and
