@@ -175,6 +175,55 @@ class PackageCheck
     end
   end
 
+  # Installs +package+, a precompiled gem of +gem+ (PlatformGem), into an
+  # empty GEM_HOME, as an app installs it, then smoke-tests the installed
+  # gem as #full does (Plan 072). The gem must hold its compiled extension
+  # and nothing to compile, and installs with no Rust toolchain on PATH.
+  # Its dependencies that Bundler took from a git source are built from
+  # their checkouts and installed first, as #full installs them, compiling
+  # their own extensions.
+  def precompiled(gem, package)
+    Dir.mktmpdir("tokra-package") do |work|
+      home = File.join(work, "gems")
+      spec = Gem::Package.new(package).spec
+      verify_precompiled(gem, spec)
+      specs = { gem.name => spec }
+      allowed = dependency_closure(gem.name, specs)
+      env = isolated_env(home)
+      bundled = bundled_dependencies(allowed, specs)
+      # What the bundled dependencies need to build, such as ferro-url's
+      # rb_sys, which the precompiled gem no longer brings: each from the
+      # package Bundler cached, since the bundle may sit outside GEM_PATH.
+      cached_dependencies(bundled).each do |dependency|
+        run!(env, Gem.ruby, "-S", "gem", "install", "--local", "--no-document", dependency.cache_file, chdir: work)
+      end
+      bundled.each do |dependency|
+        built = build_bundled(dependency, work)
+        @out.puts "Installing #{File.basename(built)} from its bundled source (compiling)..."
+        run!(env, Gem.ruby, "-S", "gem", "install", "--local", "--no-document", built, chdir: work)
+      end
+      @out.puts "Installing #{File.basename(package)} with no Rust toolchain on PATH..."
+      output = run!(env.merge("PATH" => self.class.path_without_rust), Gem.ruby, "-S", "gem", "install", "--local",
+        "--no-document", File.expand_path(package), chdir: work)
+      if output.include?("Building native extensions")
+        raise Failure, "#{File.basename(package)} built an extension as it installed:\n#{output}"
+      end
+
+      dir = Dir.glob(File.join(home, "gems", "#{gem.name}-[0-9]*")).first
+      raise Failure, "#{gem.name} did not install into #{home}" unless dir
+
+      smoke(gem, env:, load_paths: [], dir:, mode: "full", allowed:, work:)
+    end
+  end
+
+  # PATH less each directory that holds cargo or rustc.
+  def self.path_without_rust(path = ENV.fetch("PATH", ""))
+    tools = %w[cargo rustc].flat_map { |tool| [tool, "#{tool}.exe"] }
+    path.split(File::PATH_SEPARATOR).reject do |dir|
+      tools.any? { |tool| File.file?(File.join(dir, tool)) }
+    end.join(File::PATH_SEPARATOR)
+  end
+
   # Packaged paths that fall outside the gem's +packaged+ list.
   def self.unexpected_files(gem, contents)
     contents.reject do |path|
@@ -195,6 +244,27 @@ class PackageCheck
       .reject { |spec| spec.default_gem? || File.exist?(spec.cache_file) }
   end
 
+  # The runtime dependencies of +specs+, transitively, that RubyGems can
+  # install from a cached package, dependencies first; default gems and
+  # +specs+ themselves are left out.
+  private def cached_dependencies(specs)
+    names = specs.map(&:name)
+    ordered = []
+    seen = []
+    visit = lambda do |spec|
+      spec.runtime_dependencies.each do |dependency|
+        found = @find_spec.call(dependency.name)
+        next if !found || found.default_gem? || names.include?(found.name) || seen.include?(found.name)
+
+        seen << found.name
+        visit.call(found)
+        ordered << found if File.exist?(found.cache_file)
+      end
+    end
+    specs.each(&visit)
+    ordered
+  end
+
   # Builds a bundled dependency's package from its checkout.
   private def build_bundled(spec, work)
     output = File.join(work, "#{spec.full_name}.gem")
@@ -203,6 +273,20 @@ class PackageCheck
 
     run!(UNBUNDLED, Gem.ruby, "-S", "gem", "build", gemspec, "--output", output, chdir: spec.full_gem_path)
     output
+  end
+
+  # Refuses a precompiled package that is not for a platform, has an
+  # extension to compile, or lacks its compiled extension.
+  private def verify_precompiled(gem, spec)
+    problems = []
+    problems << "is for every platform" if spec.platform == Gem::Platform::RUBY
+    problems << "has extensions to compile: #{spec.extensions.join(', ')}" if spec.extensions.any?
+    if gem.extension && spec.files.none? { |file| file.start_with?("#{gem.extension}.") }
+      problems << "lacks its compiled extension, #{gem.extension}"
+    end
+    raise Failure, "#{spec.full_name} #{problems.join('; ')}" if problems.any?
+
+    @out.puts "✅ #{spec.full_name}: precompiled, for Ruby #{spec.required_ruby_version}"
   end
 
   private def build(gem, work)
