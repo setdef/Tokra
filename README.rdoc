@@ -88,8 +88,9 @@ Tokra runs on macOS, Windows, and Linux, and CI runs its tests on all
 three for every change. Installing tokra compiles a Rust extension, so
 the machine that installs it needs a Rust toolchain.
 
-* Ruby 4.0.1 or newer, 4.1's preview included. On Windows, not yet 4.1:
-  no build of it there compiles Tokra's extension soundly.
+* Ruby 4.0.1 or newer, 4.1's preview included. On Windows, Ruby 4.1 is
+  RubyInstaller's build of Ruby's master until RubyInstaller releases
+  4.1.0.
 * Rust 1.88 or newer, the highest +rust-version+ among the locked
   dependencies.
 * On macOS, the Xcode Command Line Tools.

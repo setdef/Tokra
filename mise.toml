@@ -1,6 +1,13 @@
 # SPDX-FileCopyrightText: 2025 Kerrick Long <me@kerricklong.com>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+# The oldest mise that installs and runs these tools from a folder it has
+# never trusted, as a fresh checkout or a CI runner is: since 2026.8.9,
+# mise install and mise exec trust the config they load (mise's
+# CHANGELOG, jdx/mise#12107), and the [env] below is a template, which an
+# untrusted config may not use.
+min_version = "2026.10.11"
+
 # SPDX-SnippetBegin
 # SPDX-License-Identifier: MIT
 # SPDX-SnippetCopyrightText: 2026 setdef <kerrick@setdef.com>
@@ -24,16 +31,80 @@ ruby.compile = false
 # SPDX-SnippetEnd
 
 [tools]
-# Ruby 4.1's first preview on Linux and macOS, and 4.0 on Windows, where
-# no Ruby 4.1 builds Tokra's extension soundly yet (Plan 069). Tokra
-# supports both, and CI runs each wherever it builds.
-ruby = [
-  { version = "4.1.0-preview1", os = ["linux", "macos"] },
-  { version = "4.0.9", os = ["windows"] },
-]
+# Ruby 4.1 on every system (Plans 069 and 071): its first preview on
+# Linux and macOS. On Windows mise's ruby installs RubyInstaller's build
+# of a version, and RubyInstaller builds no preview, so there the tables
+# at the end install RubyInstaller's build of Ruby's master instead.
+# Tokra supports 4.0 too, and CI runs it on every system.
+ruby = { version = "4.1.0-preview1", os = ["linux", "macos"] }
 python = "3.12"
 # pre-commit runs a person's commit hook, which bin/setup installs on
 # Linux and macOS; on Windows mise can install it only through pipx, and
 # bin/setup.ps1 installs no commit hook.
 pre-commit = { version = "4.7.0", os = ["linux", "macos"] }
 rust = "1.99.1"
+
+# SPDX-SnippetBegin
+# SPDX-License-Identifier: MIT
+# SPDX-SnippetCopyrightText: 2026 setdef <kerrick@setdef.com>
+# SPDX-SnippetComment: Adapted from Fledge's mise.toml at d48f365f
+#   (setdef/Fledge), its tables http:rubyinstaller-head, http:msys2-zlib,
+#   http:msys2-libgcc, and http:msys2, and its [env]'s MSYS2_PATH,
+#   RI_DEVKIT, and RUBY_DLL_PATH, for x64 alone.
+#
+# On Windows, RubyInstaller's head build of 2026-11-10, ruby 4.1.0dev
+# (master 0e25874222), the build Fledge's Windows runtimes come from, so
+# a Tokra app is tested on the Ruby Fledge packages it with.
+# RubyInstaller serves each day's head build in place of the last, so
+# Fledge keeps that day's files, byte for byte with RubyInstaller's PGP
+# signatures, as a pre-release of its own repository; this pins Fledge's
+# copy by the SHA-256 of the archive whose signature Fledge checked (its
+# runtime/sources.yml). mise's http backend refuses a download whose
+# SHA-256 differs, unpacks the 7-Zip archive, and puts its bin/ on PATH.
+# The table goes when RubyInstaller releases RubyInstaller-4.1.0-1, and
+# mise's own ruby then installs it on Windows too.
+[tools."http:rubyinstaller-head"]
+version = "20261110"
+os = ["windows"]
+platforms.windows-x64 = { url = "https://github.com/setdef/Fledge/releases/download/inputs-rubyinstaller-head-20261110/rubyinstaller-head-x64.7z", checksum = "sha256:901473edafd6b174d79978fc109d3df3ab73b1436719233f35c1a31b5b18bf58" }
+
+# The head build's zlib.so imports libz-1.dll, and its digest/blake3.so
+# libgcc_s_seh-1.dll, neither of which the build ships, so Ruby's zlib,
+# and with it Bundler, does not load. These are the MSYS2 packages they
+# come from, and RUBY_DLL_PATH, which RubyInstaller reads at boot
+# (RubyInstaller::Runtime.enable_dll_search_paths), names their folders.
+# Ruby searches no other folder on PATH for a DLL.
+[tools."http:msys2-zlib"]
+version = "1.4-2"
+os = ["windows"]
+platforms.windows-x64 = { url = "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-zlib-1.4-2-any.pkg.tar.zst", checksum = "sha256:172541cf5e2391a402f092104988699b0163129d22be1d6b4b201bfb84af6fcf", bin_path = "ucrt64/bin" }
+
+[tools."http:msys2-libgcc"]
+version = "16.2.0-6"
+os = ["windows"]
+platforms.windows-x64 = { url = "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libgcc-16.2.0-6-any.pkg.tar.zst", checksum = "sha256:80b2497f019977dd9528b1abc8621b1328a0115ab1f724047ccbb56bf323f11d", bin_path = "ucrt64/bin" }
+
+# MSYS2 with its UCRT64 compiler and make, which compile a gem's C and
+# Tokra's extension for RubyInstaller's Ruby: the build
+# ruby/setup-msys2-gcc made on 2026-11-12, the one ruby/setup-ruby
+# installs for RubyInstaller's head build, pinned to that day's release
+# and the SHA-256 GitHub records for it. MSYS2_PATH points RubyInstaller
+# at it before any other MSYS2 (RubyInstaller::Runtime::Msys2Installation),
+# and its compiler's folder is on PATH, as setup-ruby puts it there. The
+# packages it holds are listed in the release's msys2-ucrt64.packages.txt.
+[tools."http:msys2"]
+version = "20261112.002116"
+os = ["windows"]
+platforms.windows-x64 = { url = "https://github.com/ruby/setup-msys2-gcc/releases/download/v20261112.002116/msys2-ucrt64.7z", checksum = "sha256:2b1b2508f754bfed6e343b7a1f8211646c8df3bb7fb9cb5a42592929f11f1499", bin_path = "ucrt64/bin" }
+
+[env]
+# On Windows, what `ridk enable` sets for that MSYS2: RI_DEVKIT here, and
+# the variables of its UCRT64 environment in .config/mise/windows-x64.env
+# (no file exists for another system, and mise reads none). Elsewhere
+# mise sets the three variables below empty, and only RubyInstaller reads
+# them.
+_.file = { path = ".config/mise/{{ os() }}-{{ arch() }}.env", tools = true }
+MSYS2_PATH = { value = '{% if os() == "windows" %}{{ tools["http:msys2"].path }}{% endif %}', tools = true }
+RI_DEVKIT = { value = '{% if os() == "windows" %}{{ tools["http:msys2"].path }}{% endif %}', tools = true }
+RUBY_DLL_PATH = { value = '{% if os() == "windows" %}{{ tools["http:msys2-zlib"].path }}/ucrt64/bin;{{ tools["http:msys2-libgcc"].path }}/ucrt64/bin{% endif %}', tools = true }
+# SPDX-SnippetEnd

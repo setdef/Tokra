@@ -214,7 +214,7 @@ class TestLinuxGate < Minitest::Test
 
     # The image holds one Ruby, the one a Linux machine's mise installs,
     # so test:linux runs the matrix's job in that Ruby's series.
-    assert_equal mise[/^\s*\{ version = "([^"]+)", os = \[[^\]]*"linux"/, 1], ruby
+    assert_equal mise[/^ruby = \{ version = "([^"]+)", os = \[[^\]]*"linux"/, 1], ruby
     assert(matrix.any? { |series| ruby.start_with?("#{series}.") }, "#{ruby} is in none of ci.yml's series #{matrix.inspect}")
     assert_match(/^ARG RUBY_SHA256=\h{64}$/, dockerfile)
     # Ubuntu 24.04's python3 is 3.12; a new pin needs another source.

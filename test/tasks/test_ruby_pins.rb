@@ -10,14 +10,19 @@ require "yaml"
 
 # Tests that the Ruby mise.toml pins on each system, the one bin/setup
 # installs and the pre-push hook runs the gate on, is one CI runs on that
-# system and one tokra.gemspec admits (Plan 069). Linux and macOS run Ruby
-# 4.1 and Windows 4.0, so a pin that moves on one system and not in CI's
-# matrix would leave the hook testing a Ruby CI never runs there.
+# system and one tokra.gemspec admits (Plans 069 and 071). Linux and macOS
+# run Ruby 4.1's preview, and Windows RubyInstaller's build of Ruby's
+# master, which is 4.1.0dev, so a pin that moves on one system and not in
+# CI's matrix would leave the hook testing a Ruby CI never runs there.
 class TestRubyPins < Minitest::Test
   ROOT = File.expand_path("../..", __dir__)
 
   # mise's name for each system, and the runner ci.yml runs it on.
   RUNNERS = { "linux" => "ubuntu-latest", "macos" => "macos-latest", "windows" => "windows-latest" }.freeze
+
+  # The Ruby that RubyInstaller's head build of 2026-11-10 is: its
+  # RUBY_VERSION, 4.1.0, with the "dev" of its version string.
+  HEAD_BUILD = "4.1.0.dev"
 
   def test_mise_pins_one_ruby_on_each_system
     assert_equal RUNNERS.keys.sort, pins.keys.sort
@@ -39,14 +44,17 @@ class TestRubyPins < Minitest::Test
     end
   end
 
-  # Each system's Ruby, from mise.toml's list of a version for each set of
-  # systems.
+  # Each system's Ruby: mise's ruby on the systems its os key names, and
+  # RubyInstaller's head build on those the http:rubyinstaller-head table
+  # names.
   private def pins
-    list = File.read(File.join(ROOT, "mise.toml"))[/^ruby = \[\n(.*?)^\]$/m, 1] || flunk("mise.toml pins no Ruby for each system")
-    list.scan(/\{ version = "([^"]+)", os = \[([^\]]*)\] \}/).each_with_object({}) do |(version, systems), pins|
-      systems.scan(/"(\w+)"/).flatten.each do |system|
+    mise = File.read(File.join(ROOT, "mise.toml"))
+    version, systems = mise.match(/^ruby = \{ version = "([^"]+)", os = \[([^\]]*)\] \}$/)&.captures || flunk("mise.toml pins no Ruby for a list of systems")
+    head = mise[/^\[tools\."http:rubyinstaller-head"\]\n(?:[^\[].*\n)*?os = \[([^\]]*)\]$/, 1] || flunk("mise.toml has no http:rubyinstaller-head table with an os key")
+    { version => systems, HEAD_BUILD => head }.each_with_object({}) do |(pin, names), pins|
+      names.scan(/"(\w+)"/).flatten.each do |system|
         assert_nil pins[system], "mise.toml pins two Rubies on #{system}"
-        pins[system] = version
+        pins[system] = pin
       end
     end
   end

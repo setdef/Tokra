@@ -68,7 +68,11 @@ class TestWindowsEnv < Minitest::Test
   end
 
   private def run_script(*, extra: {})
-    env = { "PATH" => "#{@bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}", "XDG_CACHE_HOME" => File.join(@dir, "cache") }.merge(extra)
+    # mise.toml's [env] sets MSYS2_PATH for every command mise runs, empty
+    # off Windows (Plan 071), and these tests run under mise: the script
+    # starts with none unless a test gives it one.
+    env = { "PATH" => "#{@bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}", "XDG_CACHE_HOME" => File.join(@dir, "cache"),
+            "MSYS2_PATH" => nil }.merge(extra)
     Open3.capture2e(env, File.join(@bin, "windows-env"), *, chdir: @dir)
   end
 

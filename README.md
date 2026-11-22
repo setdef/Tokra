@@ -128,7 +128,7 @@ for every change, on GitHub's `macos-latest` (Apple silicon),
 
 | | macOS | Windows | Linux |
 |---|---|---|---|
-| Ruby | 4.0.1 or newer, 4.1's preview included | 4.0.1 or newer, from [RubyInstaller](https://rubyinstaller.org); not yet 4.1 | 4.0.1 or newer, 4.1's preview included |
+| Ruby | 4.0.1 or newer, 4.1's preview included | 4.0.1 or newer, from [RubyInstaller](https://rubyinstaller.org); 4.1 as its build of Ruby's master until it releases 4.1.0 | 4.0.1 or newer, 4.1's preview included |
 | [Rust](https://www.rust-lang.org/tools/install) | 1.88 or newer | 1.88 or newer, GNU toolchain (`x86_64-pc-windows-gnu`) | 1.88 or newer |
 | Web view | WKWebView | WebView2 | WebKitGTK 4.1, version 2.40 or newer |
 | To build | the Xcode Command Line Tools | libclang and RubyInstaller's MSYS2 tools | `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `libxdo-dev`, `libclang-dev`, `pkg-config` |

@@ -21,10 +21,11 @@
 #
 # RubyInstaller looks for its MSYS2 in MSYS2_PATH, beside Ruby, at
 # C:\msys64, in the registry, and among PATH's entries for an MSYS2's
-# root, and mise installs Ruby beside none of them. So when MSYS2_PATH is
-# unset and the MSYS2 whose bash runs this has the UCRT64 compiler, Ruby
-# builds gems with that one. Git for Windows' bash is an MSYS2 too, with
-# no compiler, so there Ruby keeps its own lookup.
+# root. Under mise, MSYS2_PATH names the MSYS2 mise.toml pins (Plan 071).
+# When it is unset, as for a Ruby of your own, and the MSYS2 whose bash
+# runs this has the UCRT64 compiler, Ruby builds gems with that one. Git
+# for Windows' bash is an MSYS2 too, with no compiler, so there Ruby keeps
+# its own lookup.
 set -e
 here=$(dirname "$0")
 rust=$(sed -n 's/^rust = "\(.*\)"$/\1/p' "$here/../mise.toml")

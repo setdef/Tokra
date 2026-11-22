@@ -36,18 +36,13 @@ jobs:
         # Each supported Ruby release, one per line (tokra.gemspec requires
         # 4.0.1 or newer). setup-ruby picks the newest of each series,
         # preferring a release to a preview: 4.0's latest patch, and
-        # 4.1.0-preview1 until 4.1.0 ships. Add a release when it ships,
-        # and remove one only at its end of life.
+        # 4.1.0-preview1 until 4.1.0 ships. On Windows setup-ruby has no
+        # 4.1 it can pin, so there 4.1 is mise.toml's: RubyInstaller's head
+        # build, the Ruby Fledge packages Windows apps with (Plan 071). Add
+        # a release when it ships, and remove one only at its end of life.
         ruby:
           - "4.0"
           - "4.1"
-        # No Ruby 4.1 builds the extension soundly on Windows yet: on
-        # RubyInstaller's builds of it, magnus does not compile against
-        # Ruby's 64-bit lengths, or, where bindgen misses the define that
-        # makes them so, compiles against the wrong ones (Plan 069).
-        exclude:
-          - os: windows-latest
-            ruby: "4.1"
     defaults:
       run:
         shell: bash
@@ -150,14 +145,48 @@ jobs:
       # (windows.js:133-136, fs.symlinkSync onto the junction the first run
       # made), so the bundle is installed and cached by the steps below.
       - uses: ruby/setup-ruby@7f797815d8adceb1c412e7abefdd1ab4abc47a5f # v1.335.0
+        if: runner.os != 'Windows' || matrix.ruby != '4.1'
         with:
           ruby-version: ${{ matrix.ruby }}
 
+      # SPDX-SnippetBegin
+      # SPDX-License-Identifier: MIT
+      # SPDX-SnippetCopyrightText: 2026 setdef <kerrick@setdef.com>
+      # SPDX-SnippetComment: Adapted from Fledge's .github/workflows/ci.yml
+      #   at d48f365f (setdef/Fledge), its job test-windows.
+      #
+      # Ruby 4.1 on Windows, as bin/setup installs it there: RubyInstaller's
+      # head build, the DLLs it lacks, and the MSYS2 that compiles gems for
+      # it, at mise.toml's pins, with the environment mise.toml sets (Plan
+      # 071). PATH holds the tools' own folders, not mise's shims, so
+      # ruby.exe is RubyInstaller's. mise-action unpacks mise under
+      # os.tmpdir(), which is TEMP on Windows, then renames it into
+      # mise_dir; a rename cannot leave its drive, so the unpacking happens
+      # on mise_dir's drive too.
+      - uses: jdx/mise-action@82a612c5ab8bcda7cc5db6b7e81a8e7584c3dc6e # v5.2.3
+        if: runner.os == 'Windows' && matrix.ruby == '4.1'
+        env:
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
+        with:
+          version: 2026.10.11
+          install_args: http:rubyinstaller-head http:msys2-zlib http:msys2-libgcc http:msys2
+          add_shims_to_path: false
+          mise_dir: ${{ runner.temp }}\mise
+
+      # What setup-ruby gives a Windows job beyond mise.toml's environment
+      # (TMPDIR above all), so builds see what they see under it.
+      - name: Give Windows' Ruby the rest of setup-ruby's environment
+        if: runner.os == 'Windows' && matrix.ruby == '4.1'
+        run: .github/scripts/windows-ruby-env.sh
+      # SPDX-SnippetEnd
+
       # bindgen parses Ruby's MinGW headers, so clang must target MinGW and
-      # find the MSYS2 tree setup-ruby installs beside Ruby. setup-ruby
-      # exports what RubyInstaller's ridk enable sets (windows.js:138-140):
-      # the tree as RI_DEVKIT and its prefix as MSYSTEM_PREFIX, /ucrt64 for
-      # Ruby 4.0. RbConfig's host_os does not say ucrt. This follows
+      # find the MSYS2 tree Ruby builds gems with. setup-ruby, and for 4.1
+      # mise.toml, export what RubyInstaller's ridk enable sets
+      # (setup-ruby's windows.js:138-140): the tree as RI_DEVKIT and its
+      # prefix as MSYSTEM_PREFIX, /ucrt64. RbConfig's host_os does not say
+      # ucrt. This follows
       # oxidize-rb/actions' setup-ruby-and-rust, including its two AVX-512
       # defines, which keep clang from parsing intrinsics headers bindgen
       # cannot handle (rust-bindgen #2500). libclang comes from the LLVM the
@@ -165,7 +194,7 @@ jobs:
       - name: Point bindgen at Ruby's MSYS2 headers
         if: runner.os == 'Windows'
         run: |
-          sysroot="${RI_DEVKIT//\\//}${MSYSTEM_PREFIX:?setup-ruby did not set MSYSTEM_PREFIX}"
+          sysroot="${RI_DEVKIT//\\//}${MSYSTEM_PREFIX:?neither setup-ruby nor mise set MSYSTEM_PREFIX}"
           libclang="C:/Program Files/LLVM/bin"
           test -f "$sysroot/include/stdio.h" || { echo "::error::no C headers (stdio.h) in $sysroot/include"; exit 1; }
           test -f "$libclang/libclang.dll" || { echo "::error::no libclang.dll in $libclang"; exit 1; }

@@ -6,11 +6,9 @@
 # with. Run it from PowerShell, as often as you like; it asks nothing and
 # needs no administrator rights.
 #
-# It needs mise (https://mise.jdx.dev). mise installs RubyInstaller's Ruby,
-# which builds gems with an MSYS2 it finds on its own, C:\msys64 among
-# other places, and Tokra's gems need that MSYS2's UCRT64 compiler. If
-# either is missing, install it with RubyInstaller's ridk install, as
-# RubyInstaller's own installer does, and run this again.
+# It needs mise (https://mise.jdx.dev). mise installs RubyInstaller's Ruby
+# and the MSYS2, with its UCRT64 compiler, that Ruby builds gems with,
+# both at mise.toml's pins, and points Ruby at that MSYS2 (Plan 071).
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 Set-Location (Split-Path -Parent $PSScriptRoot)
@@ -26,12 +24,12 @@ mise install
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $msys = mise x -- ruby -e "print RubyInstaller::Runtime.msys2_installation.msys_path"
 if ($LASTEXITCODE -ne 0 -or -not $msys) {
-  [Console]::Error.WriteLine("RubyInstaller's Ruby found no MSYS2. Install one with: mise x -- ridk install 1 3")
+  [Console]::Error.WriteLine("RubyInstaller's Ruby found no MSYS2, which mise.toml pins. Run: mise install")
   exit 1
 }
 $ucrt64 = Join-Path $msys "ucrt64\bin"
 if (-not (Test-Path (Join-Path $ucrt64 "gcc.exe"))) {
-  [Console]::Error.WriteLine("$msys has no UCRT64 compiler. Install it with: mise x -- ridk install 3")
+  [Console]::Error.WriteLine("$msys, mise.toml's MSYS2, has no UCRT64 compiler. Run: mise install --force http:msys2")
   exit 1
 }
 

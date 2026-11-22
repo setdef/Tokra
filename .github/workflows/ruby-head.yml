@@ -9,10 +9,9 @@
 # cannot be pinned, so a failure here is news to read: it blocks no push
 # and does not make trunk red.
 #
-# Windows is left out. RubyInstaller builds its head Ruby with 64-bit
-# lengths, so there the gate fails at cargo test every day for that known
-# reason, and a pass could come from an extension compiled against the
-# wrong lengths (Plan 069, "Why Windows stays on 4.0").
+# Windows is left out for now. ci.yml's Windows job on 4.1 already runs
+# RubyInstaller's head build, one pinned day of it (Plan 071); running
+# today's here too is left for later.
 
 name: Ruby head
 
