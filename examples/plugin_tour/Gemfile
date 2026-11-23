@@ -26,4 +26,4 @@ gem "ferro-notify-rust", git: "https://github.com/setdef/Ferro", tag: "ferro-not
   glob: "gems/notify-rust/*.gemspec"
 gem "ferro-rfd", git: "https://github.com/setdef/Ferro", tag: "ferro-rfd/v0.1.0", glob: "gems/rfd/*.gemspec"
 gem "ferro-time", git: "https://github.com/setdef/Ferro", tag: "ferro-time/v0.1.0", glob: "gems/time/*.gemspec"
-gem "ferro-url", git: "https://github.com/setdef/Ferro", tag: "ferro-url/v0.1.1", glob: "gems/url/*.gemspec"
+gem "ferro-url", git: "https://github.com/setdef/Ferro", tag: "ferro-url/v0.1.2", glob: "gems/url/*.gemspec"

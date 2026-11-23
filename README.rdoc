@@ -134,7 +134,7 @@ from its release tag:
 
   gem "tokra", path: "../Tokra"
   gem "ferro-url", git: "https://github.com/setdef/Ferro",
-    tag: "ferro-url/v0.1.1", glob: "gems/url/*.gemspec"
+    tag: "ferro-url/v0.1.2", glob: "gems/url/*.gemspec"
 
 Run <tt>bundle install</tt> in your app's folder. Bundler compiles
 ferro-url's Rust extension as it installs the gem.

@@ -9,18 +9,18 @@ GIT
 
 GIT
   remote: https://github.com/setdef/Ferro
-  revision: d9471f5d0538ca69dec2049b43d5b13724392e71
-  tag: ferro-url/v0.1.1
+  revision: bbb182fb48c8bcb72d4de57c74fcc772ec8e025a
+  tag: ferro-url/v0.1.2
   glob: gems/url/*.gemspec
   specs:
-    ferro-url (0.1.1)
+    ferro-url (0.1.2)
       rb_sys (~> 0.9.129)
 
 PATH
   remote: ../..
   specs:
     tokra (0.0.1.pre.2)
-      ferro-url (= 0.1.1)
+      ferro-url (= 0.1.2)
       rb_sys (~> 0.9.129)
 
 PATH
@@ -59,7 +59,7 @@ DEPENDENCIES
 CHECKSUMS
   bundler (4.0.24) sha256=16ca64e20816a0cf151a948fb141d788602996d2b4d73577b74388fe84fa98bc
   ferro-arboard (0.1.0)
-  ferro-url (0.1.1)
+  ferro-url (0.1.2)
   minitest (6.0.1) sha256=7854c74f48e2e975969062833adc4013f249a4b212f5e7b9d5c040bf838d54bb
   minitest-mock (5.27.0) sha256=7040ed7185417a966920987eaa6eaf1be4ea1fc5b25bb03ff4703f98564a55b0
   prism (1.9.0) sha256=7b530c6a9f92c24300014919c9dcbc055bf4cdf51ec30aed099b06cd6674ef85
