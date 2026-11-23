@@ -24,7 +24,8 @@ require "shellwords"
 #
 # Every step does nothing when it is already satisfied, so it is quick and
 # safe to run again, and it prints a command only when the command does
-# something. A command that fails ends it there, with that command's
+# something, showing what it printed only if it changed something or
+# failed. A command that fails ends it there, with that command's
 # status, after the command and what it printed.
 #
 # With --gate it installs only what the gate needs, and leaves the git
@@ -225,9 +226,10 @@ class Setup
     run("git", "submodule", "update", "--init")
   end
 
-  # Two setups at once in one cache break mise's download store, so the
-  # tools install one setup at a time, under a lock on a file in the cache
-  # folder.
+  # Two setups at once in one cache break mise's download store, so what
+  # this file installs itself goes one setup at a time, under a lock on a
+  # file in the cache folder. mise x installed the missing tools before
+  # this file started, so no lock of this file's covers that first step.
   private def locked(&)
     lock = File.join(cache_home, "tokra", "setup.lock")
     FileUtils.mkdir_p(File.dirname(lock))
@@ -239,8 +241,8 @@ class Setup
 
   private def install_tools
     # Ruby, Rust, and Python, pinned in mise.toml. mise x installed what
-    # was missing before this ran; this makes sure of it. Naming no tool
-    # installs each pin, whatever its os says.
+    # was missing before this ran, so this matters for a run that is not
+    # under mise x. Naming no tool installs each pin, whatever its os says.
     run("mise", "install") unless probe("mise", "ls", "--missing").strip.empty?
     install_gnu_toolchain if windows?
     install_python_package("reuse", REUSE, REUSE[/==(.*)/, 1])
@@ -287,11 +289,10 @@ class Setup
   # bin/windows-env sets.
   private def install_bundle
     configure_ci_bundle if ci?
-    if windows?
-      mise("sh", "bin/windows-env", "bundle", "install")
-    else
-      mise("bin/linux-env", "bundle", "install")
-    end
+    through = windows? ? ["sh", "bin/windows-env"] : ["bin/linux-env"]
+    return if probe_status("mise", "x", "--", *through, "bundle", "check").zero?
+
+    mise(*through, "bundle", "install")
   end
 
   private def configure_ci_bundle

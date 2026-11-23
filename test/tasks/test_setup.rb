@@ -115,6 +115,8 @@ class TestSetup < Minitest::Test
   private def recorder
     @recorder ||= Recorder.new(Setup::Shell.new(env: @git_env)).tap do |recorded|
       recorded.answer("mise ls --missing", output: "ruby  4.1.0-preview1  (missing)\n")
+      recorded.answer("mise x -- bin/linux-env bundle check", status: 1)
+      recorded.answer("mise x -- sh bin/windows-env bundle check", status: 1)
     end
   end
 
@@ -150,6 +152,7 @@ class TestSetup < Minitest::Test
       "mise install",
       "mise x -- python -m pip show reuse",
       "mise x -- python -m pip install --quiet #{REUSE}",
+      "mise x -- bin/linux-env bundle check",
       "mise x -- bin/linux-env bundle install",
       "mise x -- pre-commit install",
       "mise x -- bundle exec rake rdoc",
@@ -170,6 +173,7 @@ class TestSetup < Minitest::Test
       "mise x -- bundle --version",
       "mise x -- bundle config set --local path vendor/bundle",
       "mise x -- bundle config set --local frozen true",
+      "mise x -- bin/linux-env bundle check",
       "mise x -- bin/linux-env bundle install",
     ], calls
   end
@@ -241,6 +245,7 @@ class TestSetup < Minitest::Test
       "mise install",
       "mise x -- python -m pip show reuse",
       "mise x -- python -m pip install --quiet #{REUSE}",
+      "mise x -- bin/linux-env bundle check",
       "mise x -- bin/linux-env bundle install",
     ], calls
     refute_path_exists @stub
@@ -258,6 +263,7 @@ class TestSetup < Minitest::Test
       "mise x -- bundle --version",
       "mise x -- bundle config set --local path vendor/bundle",
       "mise x -- bundle config set --local frozen true",
+      "mise x -- bin/linux-env bundle check",
       "mise x -- bin/linux-env bundle install",
     ], calls
     refute_path_exists @stub
@@ -271,18 +277,29 @@ class TestSetup < Minitest::Test
     assert_empty calls
   end
 
-  # Nothing is missing on a machine that has been set up, and then what it
-  # runs is the bundle's install alone, which a changed Gemfile.lock makes
-  # work, and says so.
-  def test_where_nothing_is_missing_it_runs_and_prints_the_bundle_install_alone
+  # Nothing is missing on a machine that has been set up, and then it asks
+  # what it needs to know and runs, and prints, nothing.
+  def test_where_nothing_is_missing_it_runs_and_prints_nothing
     recorder.answer("mise ls --missing")
     installed("reuse", "6.2.0")
+    recorder.answer("mise x -- bin/linux-env bundle check")
 
     status = run_setup({}, "--gate")
 
     assert_equal 0, status, @err.string
-    assert_equal ["mise ls --missing", "mise x -- python -m pip show reuse", "mise x -- bin/linux-env bundle install"], calls
-    assert_equal ["mise x -- bin/linux-env bundle install"], printed
+    assert_equal ["mise ls --missing", "mise x -- python -m pip show reuse", "mise x -- bin/linux-env bundle check"], calls
+    assert_empty @out.string
+    assert_empty @err.string
+  end
+
+  # A bundle that is not complete is installed, which a changed
+  # Gemfile.lock makes work.
+  def test_a_bundle_that_is_not_complete_is_installed_and_the_command_printed
+    recorder.answer("mise ls --missing")
+    installed("reuse", "6.2.0")
+
+    run_setup({}, "--gate")
+
     assert_equal ["+ mise x -- bin/linux-env bundle install"], @out.string.lines(chomp: true)
   end
 
@@ -364,6 +381,7 @@ class TestSetup < Minitest::Test
       "mise x -- python -m pip show libclang",
       "mise x -- python -m pip install --quiet #{LIBCLANG}",
       "mise x -- sh bin/clang-headers",
+      "mise x -- sh bin/windows-env bundle check",
       "mise x -- sh bin/windows-env bundle install",
       "mise x -- bundle exec rake rdoc",
     ], calls
@@ -387,6 +405,7 @@ class TestSetup < Minitest::Test
       "mise x -- bundle --version",
       "mise x -- bundle config set --local path vendor/bundle",
       "mise x -- bundle config set --local frozen true",
+      "mise x -- sh bin/windows-env bundle check",
       "mise x -- sh bin/windows-env bundle install",
     ], calls
   end
@@ -542,9 +561,11 @@ class TestSetup < Minitest::Test
     assert_includes @err.string, "#{@stub} exists and is not Tokra's; leaving it, so git push will not run .githooks/pre-push."
   end
 
-  # Two setups at once in one cache break mise's download store, so the
-  # tools install under a lock on a file in the cache folder: while
-  # mise install runs, nobody else can take it.
+  # Two setups at once in one cache break mise's download store, so what
+  # the file installs itself goes under a lock on a file in the cache
+  # folder: while mise install runs, nobody else can take it. (mise x
+  # installs the missing tools before the file starts, which no lock of
+  # the file's covers.)
   def test_the_tools_install_under_a_lock_on_a_file_in_the_cache_folder
     taken = nil
     recorder.on("mise install") do
@@ -640,11 +661,23 @@ class TestSetup < Minitest::Test
     assert_equal LIBCLANG, "libclang==#{Setup::LIBCLANG_VERSION}"
   end
 
-  # It runs before the bundle exists, so it loads what Ruby ships.
-  def test_it_requires_nothing_that_ruby_4_makes_a_bundled_gem
+  # It runs before the bundle exists, so it loads what Ruby ships. The
+  # list is pinned: Gem::Specification.default_gem? misleads under Bundler.
+  DEFAULT_GEMS = %w[fileutils open3 shellwords].freeze
+
+  def test_it_requires_only_default_gems
     required = File.read(SETUP).scan(/^require "(\w+)"/).flatten
 
-    assert_empty required - %w[fileutils open3 shellwords], "setup.rb requires #{required.inspect}"
+    assert_equal DEFAULT_GEMS, required.sort
+  end
+
+  # And it loads in a Ruby with no gems at all, started outside the
+  # repository, where no Gemfile and no bundle can help it.
+  def test_it_loads_in_a_ruby_with_no_gems_outside_the_repository
+    output, status = Open3.capture2e(Gem.ruby, "--disable-gems", "-e", "require ARGV.fetch(0); puts Setup::REUSE", SETUP, chdir: @dir)
+
+    assert_predicate status, :success?, output
+    assert_equal "#{REUSE}\n", output
   end
 
   # The one place a shell could be asked for is a command string, so none
