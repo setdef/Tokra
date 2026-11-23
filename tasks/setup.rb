@@ -103,6 +103,10 @@ class Setup
   # ci.yml's Rust components, which the Windows GNU toolchain gets too.
   COMPONENTS = %w[clippy rustfmt].freeze
 
+  # The target of the Rust toolchain a RubyInstaller Ruby's gems build
+  # with on Windows.
+  GNU_TARGET = "x86_64-pc-windows-gnu"
+
   # What the stub in a clone's hooks folder says about itself. A hook of
   # anyone else's has no such line.
   MARKER = "# tokra pre-push stub, written by bin/setup"
@@ -276,7 +280,7 @@ class Setup
   # toolchain pins"). bin/windows-env selects it.
   private def install_gnu_toolchain
     rust = File.read(File.join(@root, "mise.toml"))[/^rust = "([^"]*)"/, 1]
-    toolchain = "#{rust}-x86_64-pc-windows-gnu"
+    toolchain = "#{rust}-#{GNU_TARGET}"
     listed = probe("mise", "x", "--", "rustup", "toolchain", "list").lines.map { |line| line.split.first }
     return if listed.include?(toolchain) && components_installed?(toolchain)
 
@@ -284,9 +288,12 @@ class Setup
     mise("rustup", "toolchain", "install", toolchain, "--profile", "minimal", *args)
   end
 
+  # rustup names an installed component by its target, with no version:
+  # clippy-x86_64-pc-windows-gnu for the toolchain
+  # 1.99.1-x86_64-pc-windows-gnu.
   private def components_installed?(toolchain)
-    installed = probe("mise", "x", "--", "rustup", "component", "list", "--installed", "--toolchain", toolchain)
-    COMPONENTS.all? { |name| installed.include?("#{name}-#{toolchain}") }
+    installed = probe("mise", "x", "--", "rustup", "component", "list", "--installed", "--toolchain", toolchain).lines.map(&:strip)
+    COMPONENTS.all? { |name| installed.include?("#{name}-#{GNU_TARGET}") }
   end
 
   private def install_python_package(name, requirement, version)

@@ -432,7 +432,8 @@ class TestSetup < Minitest::Test
     toolchain = "1.2.3-x86_64-pc-windows-gnu"
     recorder.answer("mise ls --missing")
     recorder.answer("mise x -- rustup toolchain list", output: "stable-x86_64-pc-windows-msvc (default)\n#{toolchain}\n")
-    components = %w[cargo clippy rustfmt rustc].map { |name| "#{name}-#{toolchain}\n" }.join
+    # As rustup prints them: a component's name and its target, no version.
+    components = %w[cargo clippy rust-mingw rust-std rustc rustfmt].map { |name| "#{name}-x86_64-pc-windows-gnu\n" }.join
     recorder.answer("mise x -- rustup component list --installed --toolchain #{toolchain}", output: components)
     installed("reuse", "6.2.0")
     installed("libclang", "18.1.1")
@@ -451,7 +452,7 @@ class TestSetup < Minitest::Test
     as_windows
     toolchain = "1.2.3-x86_64-pc-windows-gnu"
     recorder.answer("mise x -- rustup toolchain list", output: "#{toolchain}\n")
-    recorder.answer("mise x -- rustup component list --installed --toolchain #{toolchain}", output: "cargo-#{toolchain}\nclippy-#{toolchain}\n")
+    recorder.answer("mise x -- rustup component list --installed --toolchain #{toolchain}", output: "cargo-x86_64-pc-windows-gnu\nclippy-x86_64-pc-windows-gnu\n")
 
     run_setup(WINDOWS, "--gate", host_os: "mingw-ucrt")
 
