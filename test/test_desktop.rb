@@ -33,6 +33,13 @@ class TestDesktop < Minitest::Test
     assert_same cursor, Desktop.cursor_unavailable_reason
   end
 
+  # Off Windows no window is needed beside a fixture's, and none opens.
+  def test_off_windows_beside_a_window_only_runs_the_block
+    skip "on Windows it shows a window, which WindowHandleTest relies on" if Desktop.windows?
+
+    assert_equal :ran, Desktop.beside_a_window { :ran }
+  end
+
   def test_off_macos_no_session_is_missing
     skip "Desktop asks launchd here" if Desktop.macos?
 

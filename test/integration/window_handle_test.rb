@@ -31,7 +31,10 @@ class WindowHandleTest < RealApp::TestCase
 
   def setup
     super
-    @run = self.class.fixture_run { RealApp.launch("window_handle") }
+    # Beside another window, as on any desktop a person signs in to, so
+    # Windows lets the fixture's window go topmost
+    # (Desktop.beside_a_window).
+    @run = self.class.fixture_run { Desktop.beside_a_window { RealApp.launch("window_handle") } }
     assert_finished @run
     assert_equal 0, @run.status, @run.describe
     @report = @run.report
