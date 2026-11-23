@@ -46,6 +46,10 @@ class Setup
     end
   end
 
+  # What a command printed on stdout and on stderr, apart, and its exit
+  # status.
+  Answer = Data.define(:output, :error, :status)
+
   # Runs commands for real, from an argument list, never a shell string. A
   # command that cannot start has the status 127, as a shell gives it.
   class Shell
@@ -60,6 +64,15 @@ class Setup
       Result.new(output:, status: status.exitstatus || 1)
     rescue SystemCallError => e
       Result.new(output: "#{argv.first}: #{e.message}\n", status: 127)
+    end
+
+    # Runs +argv+ like #capture, but returns what it printed on stdout and
+    # on stderr apart, as an Answer, for a command whose stdout is a value.
+    def capture_separately(*argv, chdir:, env: {})
+      output, error, status = Open3.capture3(@env.merge(env), [argv.first, argv.first], *argv.drop(1), chdir:)
+      Answer.new(output:, error:, status: status.exitstatus || 1)
+    rescue SystemCallError => e
+      Answer.new(output: "", error: "#{argv.first}: #{e.message}\n", status: 127)
     end
 
     # Runs +argv+ in +chdir+, with +env+ added to the environment and its
@@ -83,8 +96,8 @@ class Setup
   # The REUSE tool, at CI's version (ci.yml, "Install the REUSE tool").
   REUSE = "reuse[charset-normalizer]==6.2.0"
 
-  # The libclang wheel's version, which bin/clang-headers unpacks the
-  # headers of.
+  # The libclang wheel's version, which bin/clang-headers (ClangHeaders)
+  # unpacks the headers of.
   LIBCLANG_VERSION = "18.1.1"
 
   # ci.yml's Rust components, which the Windows GNU toolchain gets too.
@@ -220,26 +233,6 @@ class Setup
     run("mise", "x", "--", *argv, env:)
   end
 
-  # What bin/clang-headers and bin/windows-env, which are sh scripts, need
-  # on Windows: an sh and the tools beside it. A person's cmd.exe or
-  # PowerShell has none on its PATH, unlike the MSYS2 bash this once ran
-  # from, so where none is there, the sh of Git for Windows, which git
-  # needs and a person has installed, goes ahead of the PATH, found from
-  # the git on it. mise x puts its own tools ahead of both.
-  private def sh_env
-    return {} unless windows?
-
-    path = @env["PATH"].to_s.split(";")
-    return {} if path.any? { |dir| File.exist?(File.join(dir, "sh.exe")) }
-
-    git = path.find { |dir| File.exist?(File.join(dir, "git.exe")) }
-    return {} unless git
-
-    bin = [File.join(git, ".."), File.join(git, "..", "..")].map { |root| File.expand_path(File.join(root, "usr", "bin")) }
-      .find { |dir| File.exist?(File.join(dir, "sh.exe")) }
-    bin ? { "PATH" => [bin.tr("/", "\\"), *path].join(";") } : {}
-  end
-
   # vendor/tauri, which rake sync:tauri reads Tauri's JavaScript from.
   private def submodules
     return unless probe("git", "submodule", "status").each_line.any? { |line| line.start_with?("-", "+") }
@@ -274,7 +267,7 @@ class Setup
     # wheel holds libclang alone, so clang's own headers come from LLVM's
     # clang source release of the same version (bin/clang-headers).
     install_python_package("libclang", "libclang==#{LIBCLANG_VERSION}", LIBCLANG_VERSION)
-    mise("sh", "bin/clang-headers", env: sh_env) unless File.exist?(File.join(clang_headers_dir, "include", "stddef.h"))
+    mise("ruby", "bin/clang-headers") unless File.exist?(File.join(clang_headers_dir, "include", "stddef.h"))
   end
 
   # On Windows, mise's Ruby is RubyInstaller's, a MinGW build, which rb-sys
@@ -310,10 +303,10 @@ class Setup
   # bin/windows-env sets.
   private def install_bundle
     configure_ci_bundle if ci?
-    through = windows? ? ["sh", "bin/windows-env"] : ["bin/linux-env"]
-    return if probe_status("mise", "x", "--", *through, "bundle", "check", env: sh_env).zero?
+    through = windows? ? ["ruby", "bin/windows-env"] : ["bin/linux-env"]
+    return if probe_status("mise", "x", "--", *through, "bundle", "check").zero?
 
-    mise(*through, "bundle", "install", env: sh_env)
+    mise(*through, "bundle", "install")
   end
 
   private def configure_ci_bundle

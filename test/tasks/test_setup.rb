@@ -11,6 +11,7 @@ require "open3"
 require "stringio"
 require "tmpdir"
 require "yaml"
+require_relative "../../tasks/clang_headers"
 require_relative "../../tasks/setup"
 
 # Tests tasks/setup.rb (Plans 061 and 073): what it installs for a person,
@@ -118,7 +119,7 @@ class TestSetup < Minitest::Test
     @recorder ||= Recorder.new(Setup::Shell.new(env: @git_env)).tap do |recorded|
       recorded.answer("mise ls --missing", output: "ruby  4.1.0-preview1  (missing)\n")
       recorded.answer("mise x -- bin/linux-env bundle check", status: 1)
-      recorded.answer("mise x -- sh bin/windows-env bundle check", status: 1)
+      recorded.answer("mise x -- ruby bin/windows-env bundle check", status: 1)
     end
   end
 
@@ -382,54 +383,23 @@ class TestSetup < Minitest::Test
       "mise x -- python -m pip install --quiet #{REUSE}",
       "mise x -- python -m pip show libclang",
       "mise x -- python -m pip install --quiet #{LIBCLANG}",
-      "mise x -- sh bin/clang-headers",
-      "mise x -- sh bin/windows-env bundle check",
-      "mise x -- sh bin/windows-env bundle install",
+      "mise x -- ruby bin/clang-headers",
+      "mise x -- ruby bin/windows-env bundle check",
+      "mise x -- ruby bin/windows-env bundle install",
       "mise x -- bundle exec rake rdoc",
     ], calls
   end
 
-  # A person's cmd.exe or PowerShell has no sh, which bin/windows-env and
-  # bin/clang-headers need, so those two run with the sh of Git for
-  # Windows, which git's own folder leads to, ahead of the PATH.
-  private def git_for_windows
-    root = File.join(@dir, "Git")
-    FileUtils.mkdir_p([File.join(root, "cmd"), File.join(root, "usr/bin")])
-    FileUtils.touch([File.join(root, "cmd/git.exe"), File.join(root, "usr/bin/sh.exe")])
-    root
-  end
-
-  def test_on_windows_the_sh_scripts_run_with_the_sh_of_git_for_windows_ahead_of_the_path
-    as_windows
-    root = git_for_windows
-    path = "#{File.join(root, 'cmd')};C:\\Windows"
-
-    run_setup(WINDOWS.merge("PATH" => path), "--gate", host_os: "mingw-ucrt")
-    expected = { "PATH" => "#{File.expand_path(File.join(root, 'usr/bin')).tr('/', '\\')};#{path}" }
-
-    assert_equal expected, recorder.envs["mise x -- sh bin/clang-headers"]
-    assert_equal expected, recorder.envs["mise x -- sh bin/windows-env bundle check"]
-    assert_equal expected, recorder.envs["mise x -- sh bin/windows-env bundle install"]
-    assert_empty recorder.envs["mise x -- python -m pip show reuse"]
-  end
-
-  # In an MSYS2 bash, as a build machine's runs are, sh is on the PATH.
-  def test_where_sh_is_on_the_path_the_sh_scripts_get_the_environment_as_it_is
-    as_windows
-    root = git_for_windows
-    FileUtils.touch(File.join(root, "cmd/sh.exe"))
-
-    run_setup(WINDOWS.merge("PATH" => File.join(root, "cmd")), "--gate", host_os: "mingw-ucrt")
-
-    assert_empty recorder.envs["mise x -- sh bin/windows-env bundle install"]
-  end
-
-  def test_where_there_is_no_git_for_windows_the_sh_scripts_get_the_environment_as_it_is
+  # Neither ruby file runs through a shell, so a person's cmd.exe or
+  # PowerShell, which has no sh on its PATH, runs them as it runs the rest,
+  # and setup gives them the environment as it is.
+  def test_on_windows_no_command_needs_a_shell_or_an_environment_of_its_own
     as_windows
 
     run_setup(WINDOWS.merge("PATH" => "C:\\Windows"), "--gate", host_os: "mingw-ucrt")
 
-    assert_empty recorder.envs["mise x -- sh bin/windows-env bundle install"]
+    refute_includes recorder.calls.flat_map(&:split), "sh"
+    assert_equal({}, recorder.envs.values.reduce({}) { |all, env| all.merge(env) })
   end
 
   def test_on_windows_a_ci_runner_installs_the_bundle_as_ci_does_through_windows_env
@@ -446,12 +416,12 @@ class TestSetup < Minitest::Test
       "mise x -- python -m pip install --quiet #{REUSE}",
       "mise x -- python -m pip show libclang",
       "mise x -- python -m pip install --quiet #{LIBCLANG}",
-      "mise x -- sh bin/clang-headers",
+      "mise x -- ruby bin/clang-headers",
       "mise x -- bundle --version",
       "mise x -- bundle config set --local path vendor/bundle",
       "mise x -- bundle config set --local frozen true",
-      "mise x -- sh bin/windows-env bundle check",
-      "mise x -- sh bin/windows-env bundle install",
+      "mise x -- ruby bin/windows-env bundle check",
+      "mise x -- ruby bin/windows-env bundle install",
     ], calls
   end
 
@@ -466,13 +436,14 @@ class TestSetup < Minitest::Test
     recorder.answer("mise x -- rustup component list --installed --toolchain #{toolchain}", output: components)
     installed("reuse", "6.2.0")
     installed("libclang", "18.1.1")
-    FileUtils.mkdir_p(File.join(@cache, "tokra/clang-18.1.1/include"))
-    FileUtils.touch(File.join(@cache, "tokra/clang-18.1.1/include/stddef.h"))
+    headers = File.join(ClangHeaders.directory({ "XDG_CACHE_HOME" => @cache }), "include")
+    FileUtils.mkdir_p(headers)
+    FileUtils.touch(File.join(headers, "stddef.h"))
 
     status = run_setup(WINDOWS, "--gate", host_os: "mingw-ucrt")
 
     assert_equal 0, status, @err.string
-    assert_equal ["mise x -- sh bin/windows-env bundle install"], printed
+    assert_equal ["mise x -- ruby bin/windows-env bundle install"], printed
   end
 
   # A toolchain installed without a component CI has is installed again.
@@ -697,12 +668,10 @@ class TestSetup < Minitest::Test
     assert_equal %w[100755], listed.lines.map { |line| line.split.first }
   end
 
-  # Its version is clang-headers', which unpacks the headers of the
-  # libclang wheel's version.
+  # Its version is ClangHeaders', which unpacks the headers of the libclang
+  # wheel's version.
   def test_the_libclang_it_installs_is_the_version_clang_headers_unpacks
-    headers = File.read(File.join(ROOT, "bin/clang-headers"))
-
-    assert_match(/^version=#{Regexp.escape(Setup::LIBCLANG_VERSION)}$/, headers)
+    assert_equal ClangHeaders::VERSION, Setup::LIBCLANG_VERSION
     assert_equal LIBCLANG, "libclang==#{Setup::LIBCLANG_VERSION}"
   end
 
@@ -758,5 +727,23 @@ class TestSetup < Minitest::Test
 
     assert_equal 127, shell.capture("tokra-no-such-command", chdir: @dir).status
     assert_equal 127, shell.stream("tokra-no-such-command", chdir: @dir)
+  end
+
+  def test_the_runner_keeps_stdout_and_stderr_apart_when_asked
+    answer = Setup::Shell.new(env: { "SETUP_TEST" => "seen" }).capture_separately(
+      Gem.ruby, "-e", %q(print ENV.fetch("SETUP_TEST"); warn "and this"; exit 3), chdir: @dir
+    )
+
+    assert_equal "seen", answer.output
+    assert_equal "and this", answer.error.strip
+    assert_equal 3, answer.status
+  end
+
+  def test_the_runner_says_127_of_a_command_that_is_not_there_when_asked_apart
+    answer = Setup::Shell.new(env: {}).capture_separately("tokra-no-such-command", chdir: @dir)
+
+    assert_equal 127, answer.status
+    assert_includes answer.error, "tokra-no-such-command"
+    assert_empty answer.output
   end
 end

@@ -6,36 +6,58 @@
 #++
 
 require "test_helper"
+require "fileutils"
 require "open3"
+require "stringio"
 require "tmpdir"
 require "yaml"
+require_relative "../../tasks/windows_env"
 
-# Tests bin/windows-env (Plan 061): the command it runs gets what CI's
-# Windows job sets for Rust and bindgen (.github/workflows/ci.yml), worked
-# out from the Ruby, the Python, and the Rust pin of the checkout. Each
-# test runs the real script, from a copy beside a mise.toml of its own,
-# with stand-ins for ruby and python that print where RubyInstaller's
-# MSYS2 and the libclang wheel would be, the way Windows spells a path.
+# Tests tasks/windows_env.rb (Plans 061 and 074): the command it runs gets
+# what CI's Windows job sets for Rust and bindgen
+# (.github/workflows/ci.yml), worked out from the Ruby, the Python, and the
+# Rust pin of the checkout. WindowsEnv runs in folders of its own, beside a
+# mise.toml of its own, with a runner that answers ruby and python by
+# printing where RubyInstaller's MSYS2 and the libclang wheel would be, the
+# way Windows spells a path, and records the command, so the tests run on
+# every system and start nothing.
 class TestWindowsEnv < Minitest::Test
   ROOT = File.expand_path("../..", __dir__)
-  SCRIPT = File.join(ROOT, "bin/windows-env")
 
-  # A command that keeps the environment it was given and its arguments.
-  RECORDER = <<~'SH'
-    #!/bin/sh
-    env > "$(dirname "$0")/env"
-    printf '%s\n' "$@" > "$(dirname "$0")/args"
-  SH
+  # Answers ruby and python as told, and records every command with the
+  # environment it was given.
+  class Runner
+    attr_reader :asked, :streamed
+    attr_accessor :status
+
+    def initialize
+      @asked = []
+      @streamed = []
+      @answers = {}
+      @status = 0
+    end
+
+    # Makes the command that starts with +program+ print +output+, or fail
+    # with +error+ and +status+.
+    def answer(program, output: "", error: "", status: 0)
+      @answers[program] = Setup::Answer.new(output:, error:, status:)
+    end
+
+    def capture_separately(*argv, chdir:, env: {})
+      @asked << [argv, chdir, env]
+      @answers.fetch(argv.first)
+    end
+
+    def stream(*argv, chdir:, env: {})
+      @streamed << [argv, chdir, env]
+      @status
+    end
+  end
 
   def setup
-    skip "Ruby on Windows cannot run bin/windows-env or its stand-ins as commands; these tests stand in for Windows elsewhere" if Gem.win_platform?
-
     @dir = File.realpath(Dir.mktmpdir("windows_env"))
-    @bin = File.join(@dir, "bin")
-    FileUtils.mkdir_p(@bin)
-    FileUtils.cp(SCRIPT, @bin)
-    FileUtils.cp(File.join(ROOT, "bin/clang-headers"), @bin)
-    @resource = File.join(@dir, "cache/tokra/clang-18.1.1")
+    @cache = File.join(@dir, "cache")
+    @resource = File.join(@cache, "tokra/clang-18.1.1")
     FileUtils.mkdir_p(File.join(@resource, "include"))
     File.write(File.join(@resource, "include/stddef.h"), "")
     File.write(File.join(@dir, "mise.toml"), %([tools]\nruby = "4.0.9"\nrust = "1.2.3"\n))
@@ -47,11 +69,12 @@ class TestWindowsEnv < Minitest::Test
     File.write(File.join(@libclang, "libclang.dll"), "")
     @msys = File.join(@dir, "msys64")
     FileUtils.mkdir_p(File.join(@msys, "ucrt64/bin"))
+    FileUtils.mkdir_p(File.join(@msys, "usr/bin"))
     File.write(File.join(@msys, "ucrt64/bin/gcc.exe"), "")
-    stand_in("cygpath", "if [ \"$*\" = '-m /' ]; then printf '%s/\\n' '#{@msys}'; else printf '%s\\n' \"$2\"; fi")
-    stand_in("ruby", "printf '%s' \"$MSYS2_PATH\" > \"$(dirname \"$0\")/ruby_msys2_path\"; printf '%s' '#{windows(@sysroot)}'")
-    stand_in("python", "printf '%s\\r\\n' '#{windows(@libclang)}'")
-    stand_in("recorder", RECORDER.lines.drop(1).join)
+    @runner = Runner.new
+    @runner.answer("ruby", output: windows(@sysroot))
+    @runner.answer("python", output: "#{windows(@libclang)}\r\n")
+    @env = { "XDG_CACHE_HOME" => @cache, "PATH" => File.join(@msys, "usr/bin") }
   end
 
   def teardown
@@ -61,24 +84,16 @@ class TestWindowsEnv < Minitest::Test
   # How RubyInstaller and Python print a path on Windows: backslashes.
   private def windows(path) = path.tr("/", "\\")
 
-  private def stand_in(name, body)
-    path = File.join(@bin, name)
-    File.write(path, "#!/bin/sh\n#{body}\n")
-    File.chmod(0o755, path)
+  private def windows_env
+    @err = StringIO.new
+    WindowsEnv.new(checkout: @dir, env: @env, runner: @runner, err: @err)
   end
 
-  private def run_script(*, extra: {})
-    # mise.toml's [env] sets MSYS2_PATH for every command mise runs, empty
-    # off Windows (Plan 071), and these tests run under mise: the script
-    # starts with none unless a test gives it one.
-    env = { "PATH" => "#{@bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}", "XDG_CACHE_HOME" => File.join(@dir, "cache"),
-            "MSYS2_PATH" => nil }.merge(extra)
-    Open3.capture2e(env, File.join(@bin, "windows-env"), *, chdir: @dir)
+  private def run_env(*argv)
+    windows_env.call(argv)
   end
 
-  private def recorded_env
-    File.readlines(File.join(@bin, "env"), chomp: true).to_h { |line| line.split("=", 2) }
-  end
+  private def added = @runner.streamed.last[2]
 
   private def ci_step(name)
     workflow = YAML.safe_load_file(File.join(ROOT, ".github/workflows/ci.yml"))
@@ -86,103 +101,151 @@ class TestWindowsEnv < Minitest::Test
   end
 
   def test_the_command_runs_with_its_arguments_and_the_rust_pin_on_the_gnu_host
-    output, status = run_script("recorder", "exec", "rake", "two words")
+    status = run_env("bundle", "exec", "rake", "two words")
 
-    assert_predicate status, :success?, output
-    assert_equal ["exec", "rake", "two words"], File.readlines(File.join(@bin, "args"), chomp: true)
-    assert_equal "1.2.3-x86_64-pc-windows-gnu", recorded_env["RUSTUP_TOOLCHAIN"]
+    assert_equal 0, status, @err.string
+    assert_equal [["bundle", "exec", "rake", "two words"]], @runner.streamed.map(&:first)
+    assert_equal Dir.pwd, @runner.streamed.last[1]
+    assert_equal "1.2.3-x86_64-pc-windows-gnu", added["RUSTUP_TOOLCHAIN"]
   end
 
   # The same clang arguments ci.yml's step writes, at Ruby's own MSYS2,
-  # and libclang from the wheel bin/setup installs, with forward slashes
-  # as ci.yml writes them. The wheel has none of the headers a full LLVM
-  # has beside libclang, so clang also gets the resource folder
-  # bin/clang-headers unpacks.
+  # and libclang from the wheel setup installs, with forward slashes as
+  # ci.yml writes them. The wheel has none of the headers a full LLVM has
+  # beside libclang, so clang also gets the resource folder ClangHeaders
+  # unpacks.
   def test_bindgen_gets_ci_s_arguments_at_ruby_s_msys2_and_the_wheel_s_libclang
-    output, status = run_script("recorder")
+    status = run_env("recorder")
 
-    assert_predicate status, :success?, output
+    assert_equal 0, status, @err.string
     ci = ci_step("Point bindgen at Ruby's MSYS2 headers")[/BINDGEN_EXTRA_CLANG_ARGS=(.*)" >>/, 1]
 
-    assert_equal "#{ci.sub('$sysroot', @sysroot)} -resource-dir=#{@resource}", recorded_env["BINDGEN_EXTRA_CLANG_ARGS"]
-    assert_equal @libclang, recorded_env["LIBCLANG_PATH"]
+    assert_equal "#{ci.sub('$sysroot', @sysroot)} -resource-dir=#{@resource}", added["BINDGEN_EXTRA_CLANG_ARGS"]
+    assert_equal @libclang, added["LIBCLANG_PATH"]
+  end
+
+  def test_ruby_and_python_are_asked_from_the_checkout
+    run_env("recorder")
+    ruby, python = @runner.asked
+
+    assert_equal ["ruby", "-e", WindowsEnv::SYSROOT], ruby[0]
+    assert_includes ruby[0].last, "msys2_installation"
+    assert_equal ["python", "-c", WindowsEnv::LIBCLANG], python[0]
+    assert_includes python[0].last, "clang.__file__"
+    assert_equal [@dir, @dir], [ruby[1], python[1]]
   end
 
   # A Ruby with no MSYS2 beside it, or a Python without the wheel, would
-  # fail deep in a build script; this says which.
+  # fail deep in a build script; this says which, in the order a build
+  # needs them.
   def test_missing_c_headers_libclang_or_clang_s_headers_stop_it_before_the_command
     File.delete(File.join(@sysroot, "include/stdio.h"))
-    output, status = run_script("recorder")
 
-    refute_predicate status, :success?
-    assert_includes output, "windows-env: no C headers (stdio.h) in #{@sysroot}/include"
-    refute_path_exists File.join(@bin, "env")
+    refute_equal 0, run_env("recorder")
+    assert_includes @err.string, "windows-env: no C headers (stdio.h) in #{@sysroot}/include, Ruby's MSYS2; run ridk install."
+    assert_empty @runner.streamed
 
     File.write(File.join(@sysroot, "include/stdio.h"), "")
     File.delete(File.join(@libclang, "libclang.dll"))
-    output, status = run_script("recorder")
 
-    refute_predicate status, :success?
-    assert_includes output, "windows-env: no libclang.dll in #{@libclang}"
-    refute_path_exists File.join(@bin, "env")
+    refute_equal 0, run_env("recorder")
+    assert_includes @err.string, "windows-env: no libclang.dll in #{@libclang}; run bin/setup."
+    assert_empty @runner.streamed
 
     File.write(File.join(@libclang, "libclang.dll"), "")
     File.delete(File.join(@resource, "include/stddef.h"))
-    output, status = run_script("recorder")
 
-    refute_predicate status, :success?
-    assert_includes output, "windows-env: no clang headers (stddef.h) in #{@resource}/include; run bin/setup."
-    refute_path_exists File.join(@bin, "env")
+    refute_equal 0, run_env("recorder")
+    assert_includes @err.string, "windows-env: no clang headers (stddef.h) in #{@resource}/include; run bin/setup."
+    assert_empty @runner.streamed
   end
 
   # RubyInstaller finds an MSYS2 by MSYS2_PATH, beside Ruby, at C:\msys64,
-  # in the registry, or as a PATH entry that is an MSYS2's root, and
-  # mise's Ruby is beside none. The bash running this script is an MSYS2's,
-  # and when that MSYS2 has the UCRT64 compiler, Ruby gets it.
-  def test_ruby_finds_the_msys2_this_runs_in_when_it_has_the_ucrt64_compiler
-    output, status = run_script("recorder")
+  # in the registry, or as a PATH entry that is an MSYS2's root, and mise's
+  # Ruby is beside none. Where PATH leads to an MSYS2 with the UCRT64
+  # compiler, as an MSYS2's own bash does, Ruby gets it.
+  def test_ruby_finds_the_msys2_that_path_leads_to_when_it_has_the_ucrt64_compiler
+    status = run_env("recorder")
 
-    assert_predicate status, :success?, output
-    assert_equal @msys, File.read(File.join(@bin, "ruby_msys2_path"))
-    assert_equal @msys, recorded_env["MSYS2_PATH"]
+    assert_equal 0, status, @err.string
+    assert_equal({ "MSYS2_PATH" => @msys }, @runner.asked.first.last)
+    assert_equal @msys, added["MSYS2_PATH"]
   end
 
-  # Git for Windows' bash is an MSYS2 with no compiler, and an MSYS2_PATH
-  # of your own names the MSYS2 you chose.
+  def test_the_msys2_may_be_found_by_its_ucrt64_folder_or_a_windows_spelling_and_the_first_with_the_compiler_wins
+    git = File.join(@dir, "Git")
+    FileUtils.mkdir_p(File.join(git, "usr/bin"))
+    @env["PATH"] = [File.join(git, "usr/bin"), windows(File.join(@msys, "ucrt64/bin"))].join(File::PATH_SEPARATOR)
+    run_env("recorder")
+
+    assert_equal @msys, added["MSYS2_PATH"]
+  end
+
+  # Git for Windows' usr/bin is an MSYS2's with no compiler, and an
+  # MSYS2_PATH of your own names the MSYS2 you chose.
   def test_ruby_keeps_its_own_lookup_without_that_compiler_or_with_msys2_path_set
     File.delete(File.join(@msys, "ucrt64/bin/gcc.exe"))
-    output, status = run_script("recorder")
+    status = run_env("recorder")
 
-    assert_predicate status, :success?, output
-    assert_empty File.read(File.join(@bin, "ruby_msys2_path"))
-    refute recorded_env.key?("MSYS2_PATH")
+    assert_equal 0, status, @err.string
+    assert_empty @runner.asked.first.last
+    refute added.key?("MSYS2_PATH")
 
-    output, status = run_script("recorder", extra: { "MSYS2_PATH" => "D:/msys64" })
+    @env["MSYS2_PATH"] = "D:/msys64"
+    File.write(File.join(@msys, "ucrt64/bin/gcc.exe"), "")
+    run_env("recorder")
 
-    assert_predicate status, :success?, output
-    assert_equal "D:/msys64", recorded_env["MSYS2_PATH"]
+    assert_empty @runner.asked.last.last
+    refute added.key?("MSYS2_PATH")
+  end
+
+  # mise.toml's [env] sets MSYS2_PATH to nothing off Windows (Plan 071),
+  # which is as good as unset.
+  def test_an_empty_msys2_path_is_unset
+    @env["MSYS2_PATH"] = ""
+    run_env("recorder")
+
+    assert_equal @msys, added["MSYS2_PATH"]
   end
 
   # A Ruby that finds no MSYS2 says so itself, and nothing runs after it.
   def test_a_ruby_that_finds_no_msys2_stops_it_before_the_command
-    stand_in("ruby", "echo 'MSYS2 could not be found' >&2; exit 1")
-    output, status = run_script("recorder")
+    @runner.answer("ruby", error: "MSYS2 could not be found\n", status: 1)
+    status = run_env("recorder")
 
-    refute_predicate status, :success?
-    assert_includes output, "MSYS2 could not be found"
-    refute_includes output, "no C headers"
-    refute_path_exists File.join(@bin, "env")
+    assert_equal 1, status
+    assert_includes @err.string, "windows-env: MSYS2 could not be found"
+    refute_includes @err.string, "no C headers"
+    assert_empty @runner.streamed
+  end
+
+  def test_a_python_that_fails_with_no_message_says_which_program_and_status
+    @runner.answer("python", status: 9)
+    status = run_env("recorder")
+
+    assert_equal 1, status
+    assert_includes @err.string, "windows-env: python failed with status 9"
+    assert_empty @runner.streamed
   end
 
   def test_the_command_s_status_is_its_own
-    stand_in("failing", "exit 5")
-    _, status = run_script("failing")
+    @runner.status = 5
 
-    assert_equal 5, status.exitstatus
+    assert_equal 5, run_env("failing")
   end
 
+  def test_with_no_command_it_says_how_to_use_it_and_runs_nothing
+    status = run_env
+
+    assert_equal 2, status
+    assert_equal "usage: bin/windows-env COMMAND [ARGUMENT...]\n", @err.string
+    assert_empty @runner.asked
+    assert_empty @runner.streamed
+  end
+
+  # The mode the commit records, since a Windows checkout records none.
   def test_it_is_tracked_as_executable
-    listed, status = Open3.capture2("git", "ls-files", "--stage", "--", "bin/windows-env", chdir: ROOT)
+    listed, status = Open3.capture2("git", "ls-tree", "HEAD", "--", "bin/windows-env", chdir: ROOT)
 
     assert_predicate status, :success?
     assert_match(/\A100755 /, listed)

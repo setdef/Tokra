@@ -57,6 +57,15 @@ class TestPrePushHook < Minitest::Test
     exit Integer(ENV.fetch("SETUP_STATUS", "0"))
   RUBY
 
+  # A bin/windows-env, which is a Ruby file that the hook starts through
+  # mise x -- ruby, as it does on Windows: it logs its arguments, keeps
+  # its environment, and exits with GATE_STATUS, or 0.
+  WINDOWS_ENV = <<~'RUBY'
+    File.open(ENV.fetch("LOG"), "a") { |log| log.puts(["windows-env", *ARGV].join(" ")) }
+    File.write(File.join(File.dirname(ENV.fetch("LOG")), "env"), ENV.map { |name, value| "#{name}=#{value}\n" }.join)
+    exit Integer(ENV.fetch("GATE_STATUS", "0"))
+  RUBY
+
   # The variables a git hook passes on, which would point the git commands
   # here at the repository whose hook runs these tests.
   GIT_PLACE = %w[GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX GIT_COMMON_DIR].to_h { |name| [name, nil] }.freeze
@@ -217,14 +226,14 @@ class TestPrePushHook < Minitest::Test
   # the step's own variables for Windows.
   def test_on_windows_the_gate_runs_through_windows_env_with_ci_s_variables
     FileUtils.mkdir_p(File.join(@repo, "bin"))
-    File.write(File.join(@repo, "bin/windows-env"), LOGGER.gsub('"$(dirname "$0")', "\"#{@bin}"))
+    File.write(File.join(@repo, "bin/windows-env"), WINDOWS_ENV)
     git("add", "bin/windows-env")
     git("commit", "--quiet", "--message", "windows-env")
     head = git("rev-parse", "HEAD")
     output, status = push("refs/heads/trunk #{head} refs/heads/trunk #{@first}", extra: { "OS" => "Windows_NT" })
 
     assert_predicate status, :success?, output
-    assert_equal [*setup_calls, "mise x -- sh bin/windows-env bundle exec rake", "windows-env bundle exec rake"], calls
+    assert_equal [*setup_calls, "mise x -- ruby bin/windows-env bundle exec rake", "windows-env bundle exec rake"], calls
     step = ci_env("Run the gate")
 
     assert_equal step.fetch("A")[/'Windows' && '(.*?)'/, 1], gate_env["A"]

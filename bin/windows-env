@@ -1,64 +1,23 @@
-#!/bin/sh
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+#--
 # SPDX-FileCopyrightText: 2026 Kerrick Long <me@kerricklong.com>
 # SPDX-License-Identifier: AGPL-3.0-or-later
-#
+#++
+
 # Runs a command on Windows with what Rust needs to build Tokra for
 # RubyInstaller's Ruby, as CI's Windows job sets it
-# (.github/workflows/ci.yml): bin/setup runs bundle install through it,
-# and .githooks/pre-push the gate. Run it yourself the same way, from a
-# bash with mise's tools on PATH:
+# (.github/workflows/ci.yml): tasks/setup.rb runs bundle install through
+# it, and .githooks/pre-push the gate. Run anything else the same way,
+# from cmd.exe, PowerShell, or bash, through mise, which a file with no
+# extension needs for Ruby to start it:
 #
-#   bin/windows-env bundle exec rake test:core
+#   mise x -- ruby bin/windows-env bundle exec rake test:core
 #
-# RubyInstaller's Ruby is a MinGW build, and rb-sys refuses to build it
-# with Rust's MSVC target, so Cargo runs the GNU host toolchain of
-# mise.toml's Rust, which bin/setup installs. bindgen parses Ruby's
-# headers with clang targeting MinGW, against the MSYS2 tree Ruby builds
-# gems with, and loads libclang from the PyPI wheel bin/setup installs
-# into mise's Python, with clang's own headers from bin/clang-headers.
-# The two AVX-512 defines are CI's: they keep clang from parsing
-# intrinsics headers bindgen cannot handle (rust-bindgen #2500).
-#
-# RubyInstaller looks for its MSYS2 in MSYS2_PATH, beside Ruby, at
-# C:\msys64, in the registry, and among PATH's entries for an MSYS2's
-# root. Under mise, MSYS2_PATH names the MSYS2 mise.toml pins (Plan 071).
-# When it is unset, as for a Ruby of your own, and the MSYS2 whose bash
-# runs this has the UCRT64 compiler, Ruby builds gems with that one. Git
-# for Windows' bash is an MSYS2 too, with no compiler, so there Ruby keeps
-# its own lookup.
-set -e
-here=$(dirname "$0")
-rust=$(sed -n 's/^rust = "\(.*\)"$/\1/p' "$here/../mise.toml")
-if [ -z "${MSYS2_PATH:-}" ] && command -v cygpath >/dev/null 2>&1; then
-  msys=$(cygpath -m / | tr -d '\r')
-  msys=${msys%/}
-  if [ -f "$msys/ucrt64/bin/gcc.exe" ]; then
-    MSYS2_PATH=$msys
-    export MSYS2_PATH
-  fi
-fi
-sysroot=$(ruby -e 'm = RubyInstaller::Runtime.msys2_installation; print File.join(m.msys_path, m.mingw_prefix)')
-sysroot=$(printf '%s' "$sysroot" | tr -d '\r' | tr '\\' /)
-libclang=$(python -c 'import clang, os; print(os.path.join(os.path.dirname(clang.__file__), "native"))' | tr -d '\r' | tr '\\' /)
-if [ ! -f "$sysroot/include/stdio.h" ]; then
-  echo "windows-env: no C headers (stdio.h) in $sysroot/include, Ruby's MSYS2; run ridk install." >&2
-  exit 1
-fi
-if [ ! -f "$libclang/libclang.dll" ]; then
-  echo "windows-env: no libclang.dll in $libclang; run bin/setup." >&2
-  exit 1
-fi
-clang=$(sed -n 's/^version=//p' "$here/clang-headers")
-resource="${XDG_CACHE_HOME:-$HOME/.cache}/tokra/clang-$clang"
-if [ ! -f "$resource/include/stddef.h" ]; then
-  echo "windows-env: no clang headers (stddef.h) in $resource/include; run bin/setup." >&2
-  exit 1
-fi
-if command -v cygpath >/dev/null 2>&1; then
-  resource=$(cygpath -m "$resource" | tr -d '\r')
-fi
-RUSTUP_TOOLCHAIN="$rust-x86_64-pc-windows-gnu"
-BINDGEN_EXTRA_CLANG_ARGS="--target=x86_64-pc-windows-gnu --sysroot=$sysroot -D__AVX512VLFP16INTRIN_H -D__AVX512FP16INTRIN_H -resource-dir=$resource"
-LIBCLANG_PATH=$libclang
-export RUSTUP_TOOLCHAIN BINDGEN_EXTRA_CLANG_ARGS LIBCLANG_PATH
-exec "$@"
+# See tasks/windows_env.rb.
+
+require_relative "../tasks/windows_env"
+
+$stdout.sync = true
+exit WindowsEnv.new(checkout: File.expand_path("..", __dir__)).call(ARGV)

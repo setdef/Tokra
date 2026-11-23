@@ -7,54 +7,61 @@
 
 require "test_helper"
 require "digest"
+require "fileutils"
 require "open3"
+require "stringio"
 require "tmpdir"
+require_relative "../../tasks/clang_headers"
 
-# Tests bin/clang-headers (Plan 061): on Windows, clang's own headers,
-# which the libclang wheel leaves out, from LLVM's clang source release,
-# checked against its SHA-256 and unpacked as a resource folder in your
-# cache. Each test runs a copy of the real script with a stand-in for curl
-# that hands over a small archive shaped like LLVM's, and the copy pins
-# that archive's SHA-256 in place of the release's.
+# Tests tasks/clang_headers.rb (Plans 061 and 074): on Windows, clang's own
+# headers, which the libclang wheel leaves out, from LLVM's clang source
+# release, checked against its SHA-256 and unpacked as a resource folder in
+# your cache. Each test runs ClangHeaders in folders of its own with a
+# runner that answers curl by copying a small archive shaped like LLVM's,
+# and runs everything else, tar above all, for real, so they run on every
+# system and download nothing. The class pins that archive's SHA-256 in
+# place of the release's.
 class TestClangHeaders < Minitest::Test
   ROOT = File.expand_path("../..", __dir__)
-  SCRIPT = File.join(ROOT, "bin/clang-headers")
   VERSION = "18.1.1"
+  URL = "https://github.com/llvm/llvm-project/releases/download/llvmorg-#{VERSION}/clang-#{VERSION}.src.tar.xz".freeze
+
+  # Stands in for curl: it records each command, and copies the archive to
+  # the file named by --output. Any other command runs for real, and what
+  # it prints is not shown.
+  class Downloader
+    attr_reader :calls
+
+    def initialize(archive)
+      @archive = archive
+      @calls = []
+      @shell = Setup::Shell.new(env: {})
+    end
+
+    def stream(*argv, chdir:, env: {})
+      return @shell.capture(*argv, chdir:, env:).status unless argv.first == "curl"
+
+      @calls << argv
+      FileUtils.cp(@archive, argv[argv.index("--output") + 1])
+      0
+    end
+  end
 
   def setup
-    skip "Ruby on Windows cannot run bin/clang-headers or its stand-ins as commands" if Gem.win_platform?
-
     @dir = File.realpath(Dir.mktmpdir("clang_headers"))
-    @bin = File.join(@dir, "bin")
-    FileUtils.mkdir_p(@bin)
     @cache = File.join(@dir, "cache")
     @archive = build_archive
-    @script = File.join(@bin, "clang-headers")
-    File.write(@script, File.read(SCRIPT).sub(/^sha256=\h{64}$/, "sha256=#{Digest::SHA256.file(@archive).hexdigest}"))
-    File.chmod(0o755, @script)
-    stand_in("curl", <<~SH)
-      printf '%s\\n' "$*" >> "#{@dir}/curl.log"
-      while [ $# -gt 1 ]; do [ "$1" = --output ] && cp "#{@archive}" "$2"; shift; done
-    SH
-    stand_in("sha256sum", 'exec shasum -a 256 "$@"') unless which("sha256sum")
+    @sha256 = Digest::SHA256.file(@archive).hexdigest
   end
 
   def teardown
     FileUtils.rm_rf(@dir) if @dir
   end
 
-  private def which(program)
-    ENV.fetch("PATH").split(File::PATH_SEPARATOR).any? { |path| File.executable?(File.join(path, program)) }
-  end
-
-  private def stand_in(name, body)
-    path = File.join(@bin, name)
-    File.write(path, "#!/bin/sh\n#{body}\n")
-    File.chmod(0o755, path)
-  end
-
   # An archive laid out as LLVM's clang source release is, with a header
-  # in lib/Headers, one in a folder under it, and a file outside it.
+  # in lib/Headers, one in a folder under it, and a file outside it. tar
+  # gets names relative to the folder it runs in, since GNU tar reads a
+  # name like C:/... as another host's file.
   private def build_archive
     tree = File.join(@dir, "tree")
     source = File.join(tree, "clang-#{VERSION}.src")
@@ -63,23 +70,26 @@ class TestClangHeaders < Minitest::Test
     File.write(File.join(source, "lib/Headers/cuda_wrappers/new"), "new\n")
     File.write(File.join(source, "README.md"), "readme\n")
     archive = File.join(@dir, "clang-#{VERSION}.src.tar.xz")
-    _, status = Open3.capture2e("tar", "-cJf", archive, "-C", tree, "clang-#{VERSION}.src")
+    output, status = Open3.capture2e("tar", "-cJf", "../clang-#{VERSION}.src.tar.xz", "clang-#{VERSION}.src", chdir: tree)
 
-    assert_predicate status, :success?
+    assert_predicate status, :success?, output
     archive
   end
 
-  private def run_script(script = @script)
-    env = { "PATH" => "#{@bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}", "XDG_CACHE_HOME" => @cache }
-    Open3.capture2e(env, script, chdir: @dir)
+  private def downloader = @downloader ||= Downloader.new(@archive)
+
+  private def clang_headers(sha256: @sha256)
+    @out = StringIO.new
+    @err = StringIO.new
+    ClangHeaders.new(env: { "XDG_CACHE_HOME" => @cache }, runner: downloader, sha256:, out: @out, err: @err)
   end
 
   private def resource = File.join(@cache, "tokra/clang-#{VERSION}")
 
   def test_it_unpacks_only_the_headers_as_a_resource_folder_in_the_cache
-    output, status = run_script
+    status = clang_headers.call
 
-    assert_predicate status, :success?, output
+    assert_equal 0, status, @err.string
     assert_equal "stddef\n", File.read(File.join(resource, "include/stddef.h"))
     assert_equal "new\n", File.read(File.join(resource, "include/cuda_wrappers/new"))
     assert_equal %w[include], Dir.children(resource)
@@ -87,40 +97,70 @@ class TestClangHeaders < Minitest::Test
   end
 
   def test_it_downloads_llvm_s_release_of_its_version
-    run_script
+    clang_headers.call
 
-    assert_includes File.read(File.join(@dir, "curl.log")),
-      "https://github.com/llvm/llvm-project/releases/download/llvmorg-#{VERSION}/clang-#{VERSION}.src.tar.xz"
+    assert_equal 1, downloader.calls.size
+    assert_equal URL, downloader.calls.first.last
+    assert_includes downloader.calls.first, "--fail"
+    assert_equal "3", downloader.calls.first[downloader.calls.first.index("--retry") + 1]
   end
 
   def test_run_again_it_downloads_nothing
-    run_script
-    File.delete(File.join(@dir, "curl.log"))
-    output, status = run_script
+    clang_headers.call
+    status = clang_headers.call
 
-    assert_predicate status, :success?, output
-    refute_path_exists File.join(@dir, "curl.log")
+    assert_equal 0, status
+    assert_equal 1, downloader.calls.size
   end
 
-  # The real script's own SHA-256 is the release's, which the stand-in's
-  # archive does not have.
+  # The class's own SHA-256 is the release's, which the stand-in's archive
+  # does not have.
   def test_an_archive_that_does_not_match_the_pinned_sha256_is_refused
-    real = File.join(@bin, "real-clang-headers")
-    FileUtils.cp(SCRIPT, real)
-    output, status = run_script(real)
+    status = clang_headers(sha256: ClangHeaders::SHA256).call
 
-    refute_predicate status, :success?
-    assert_includes output, "clang-headers: https://github.com/llvm/llvm-project/releases/download/llvmorg-#{VERSION}/clang-#{VERSION}.src.tar.xz does not match its SHA-256"
+    refute_equal 0, status
+    assert_includes @err.string, "clang-headers: #{URL} does not match its SHA-256, #{ClangHeaders::SHA256}."
+    refute_path_exists resource
+    assert_empty Dir.children(File.join(@cache, "tokra"))
+  end
+
+  # A tar that fails, as on an archive that is not one, ends it with a
+  # message, and leaves nothing behind.
+  def test_an_archive_tar_cannot_read_stops_it_and_leaves_nothing
+    File.write(@archive, "not an archive")
+    status = clang_headers(sha256: Digest::SHA256.file(@archive).hexdigest).call
+
+    refute_equal 0, status
+    assert_includes @err.string, "clang-headers: tar"
+    refute_path_exists resource
+    assert_empty Dir.children(File.join(@cache, "tokra"))
+  end
+
+  # A curl that fails says so, and nothing is unpacked.
+  def test_a_download_that_fails_stops_it
+    failing = Object.new
+    def failing.stream(*, **) = 22
+    status = ClangHeaders.new(env: { "XDG_CACHE_HOME" => @cache }, runner: failing, out: StringIO.new, err: @err = StringIO.new).call
+
+    assert_equal 22, status
+    assert_includes @err.string, "clang-headers: curl"
     refute_path_exists resource
   end
 
-  def test_its_version_is_the_libclang_wheel_s
-    assert_match(/^version=#{Regexp.escape(VERSION)}$/, File.read(SCRIPT))
-    assert_includes File.read(File.join(ROOT, "tasks/setup.rb")), %(LIBCLANG_VERSION = "#{VERSION}")
+  def test_the_folder_is_in_the_xdg_cache_or_else_the_home_s_dot_cache
+    assert_equal File.join(@cache, "tokra/clang-#{VERSION}"), ClangHeaders.directory({ "XDG_CACHE_HOME" => @cache, "HOME" => "/h" })
+    assert_equal "/h/.cache/tokra/clang-#{VERSION}", ClangHeaders.directory({ "XDG_CACHE_HOME" => "", "HOME" => "/h" })
+    assert_equal "/u/.cache/tokra/clang-#{VERSION}", ClangHeaders.directory({ "USERPROFILE" => "/u" })
   end
 
+  def test_its_version_is_the_libclang_wheel_s
+    assert_equal VERSION, ClangHeaders::VERSION
+    assert_equal VERSION, Setup::LIBCLANG_VERSION
+  end
+
+  # The mode the commit records, since a Windows checkout records none.
   def test_it_is_tracked_as_executable
-    listed, status = Open3.capture2("git", "ls-files", "--stage", "--", "bin/clang-headers", chdir: ROOT)
+    listed, status = Open3.capture2("git", "ls-tree", "HEAD", "--", "bin/clang-headers", chdir: ROOT)
 
     assert_predicate status, :success?
     assert_match(/\A100755 /, listed)

@@ -14,7 +14,7 @@
 # not even in a fresh checkout: only mise. On Linux the gate runs as CI
 # runs it (.github/workflows/ci.yml), under Xvfb and a D-Bus session of
 # its own, so its windows open on no one's desktop. On Windows it runs
-# from MSYS2's bash, as CI's Windows job does.
+# through bin/windows-env, which sets what CI's Windows job sets.
 root=$(git rev-parse --show-toplevel) || exit 1
 cd "$root" || exit 1
 # git points a hook's commands at its own repository through these, from a
@@ -78,7 +78,7 @@ mkdir -p tmp || exit 1
 # Nothing need have activated mise, so the gate runs with the tools it
 # pins through mise x.
 #
-# Windows sets OS for every process, and MSYS2's bash passes it on.
+# Windows sets OS for every process, and the sh git runs this with passes it on.
 # bin/windows-env sets what CI's earlier steps set for Rust and bindgen,
 # and A and RUST_BACKTRACE are the gate step's own on Windows: each test
 # prints its name, and a Rust panic its backtrace.
@@ -86,7 +86,7 @@ if [ "${OS:-}" = Windows_NT ]; then
   A=--verbose
   RUST_BACKTRACE=1
   export A RUST_BACKTRACE
-  exec mise x -- sh bin/windows-env bundle exec rake
+  exec mise x -- ruby bin/windows-env bundle exec rake
 fi
 case "$(uname -s)" in
   Linux)
