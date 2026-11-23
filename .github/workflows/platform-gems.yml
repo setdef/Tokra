@@ -31,8 +31,9 @@ jobs:
         # WebKitGTK and GTK on Linux, so a Linux gem needs at least the
         # glibc and the libraries of the system it was built on, and
         # Ubuntu 22.04 is the oldest runner with WebKitGTK 4.1. No musl
-        # gem: an Alpine app compiles the source gem. No Windows gem yet:
-        # no Ruby 4.1 builds the extension soundly there (Plan 069).
+        # gem: an Alpine app compiles the source gem. No Windows gem here
+        # yet: one builds with these tasks on Windows' pinned Ruby 4.1
+        # (Plan 071), and this workflow has no job that installs it.
         include:
           - runner: macos-15
             platform: arm64-darwin
@@ -58,7 +59,7 @@ jobs:
         id: pins
         run: |
           rust=$(sed -n 's/^rust = "\(.*\)"$/\1/p' mise.toml)
-          ruby=$(sed -n '/^ruby = \[/,/^\]/s/.*{ version = "\([^"]*\)", os = \["linux", "macos"\] }.*/\1/p' mise.toml)
+          ruby=$(sed -n 's/.*{ version = "\([^"]*\)", os = \["linux", "macos"\] }.*/\1/p' mise.toml | head -n 1)
           test -n "$rust" || { echo "::error::no Rust pin in mise.toml"; exit 1; }
           test -n "$ruby" || { echo "::error::no Ruby pin for Linux and macOS in mise.toml"; exit 1; }
           {

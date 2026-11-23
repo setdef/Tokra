@@ -7,6 +7,8 @@
 
 require "test_helper"
 require "yaml"
+require "open3"
+require "tmpdir"
 
 # Tests that the Ruby mise.toml pins on each system, the one bin/setup
 # installs and the pre-push hook runs the gate on, is one CI runs on that
@@ -41,6 +43,28 @@ class TestRubyPins < Minitest::Test
 
     pins.each do |system, version|
       assert requirement.satisfied_by?(Gem::Version.new(version.tr("-", "."))), "tokra.gemspec requires Ruby #{requirement}, but mise.toml pins #{version} on #{system}"
+    end
+  end
+
+  # The workflow that builds the precompiled gems reads the Ruby and the
+  # Rust it builds with out of mise.toml, with a shell step of its own. A
+  # gem built on a Ruby preview loads only on that preview, so the step
+  # has to find exactly the pin, and to fail when mise.toml words it
+  # another way (Plan 072).
+  def test_the_platform_gems_workflow_reads_the_linux_and_macos_pin
+    workflow = YAML.safe_load_file(File.join(ROOT, ".github/workflows/platform-gems.yml"))
+    step = workflow.dig("jobs", "build", "steps").find { |entry| entry["name"] == "Read the toolchain pins" } || flunk("the workflow has no step that reads the pins")
+
+    Dir.mktmpdir("pins") do |dir|
+      output = File.join(dir, "output")
+      printed, status = Open3.capture2e({ "GITHUB_OUTPUT" => output }, "bash", "-c", step.fetch("run"), chdir: ROOT)
+
+      assert_predicate status, :success?, printed
+      read = File.readlines(output, chomp: true).to_h { |line| line.split("=", 2) }
+
+      assert_equal pins.fetch("linux"), read["ruby"]
+      assert_equal pins.fetch("macos"), read["ruby"]
+      assert_equal File.read(File.join(ROOT, "mise.toml"))[/^rust = "([^"]+)"$/, 1], read["rust"]
     end
   end
 
