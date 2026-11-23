@@ -48,11 +48,12 @@ class TestSetup < Minitest::Test
   # runs for real, in the test's repository, which is where the stub and the
   # submodule are.
   class Recorder
-    attr_reader :calls
+    attr_reader :calls, :envs
 
     def initialize(git)
       @git = git
       @calls = []
+      @envs = {}
       @answers = {}
       @hooks = {}
     end
@@ -68,21 +69,22 @@ class TestSetup < Minitest::Test
       @answers[command] = Setup::Result.new(output:, status:)
     end
 
-    def capture(*argv, chdir:)
-      return @git.capture(*argv, chdir:) if argv.first == "git"
+    def capture(*argv, chdir:, env: {})
+      return @git.capture(*argv, chdir:, env:) if argv.first == "git"
 
-      reply(argv)
+      reply(argv, env)
     end
 
-    def stream(*argv, chdir:)
-      return @git.stream(*argv, chdir:) if argv.first == "git"
+    def stream(*argv, chdir:, env: {})
+      return @git.stream(*argv, chdir:, env:) if argv.first == "git"
 
-      reply(argv).status
+      reply(argv, env).status
     end
 
-    private def reply(argv)
+    private def reply(argv, env)
       command = argv.join(" ")
       @calls << command
+      @envs[command] = env
       @hooks[command]&.call
       @answers.fetch(command) { Setup::Result.new(output: "", status: 0) }
     end
@@ -385,6 +387,49 @@ class TestSetup < Minitest::Test
       "mise x -- sh bin/windows-env bundle install",
       "mise x -- bundle exec rake rdoc",
     ], calls
+  end
+
+  # A person's cmd.exe or PowerShell has no sh, which bin/windows-env and
+  # bin/clang-headers need, so those two run with the sh of Git for
+  # Windows, which git's own folder leads to, ahead of the PATH.
+  private def git_for_windows
+    root = File.join(@dir, "Git")
+    FileUtils.mkdir_p([File.join(root, "cmd"), File.join(root, "usr/bin")])
+    FileUtils.touch([File.join(root, "cmd/git.exe"), File.join(root, "usr/bin/sh.exe")])
+    root
+  end
+
+  def test_on_windows_the_sh_scripts_run_with_the_sh_of_git_for_windows_ahead_of_the_path
+    as_windows
+    root = git_for_windows
+    path = "#{File.join(root, 'cmd')};C:\\Windows"
+
+    run_setup(WINDOWS.merge("PATH" => path), "--gate", host_os: "mingw-ucrt")
+    expected = { "PATH" => "#{File.expand_path(File.join(root, 'usr/bin')).tr('/', '\\')};#{path}" }
+
+    assert_equal expected, recorder.envs["mise x -- sh bin/clang-headers"]
+    assert_equal expected, recorder.envs["mise x -- sh bin/windows-env bundle check"]
+    assert_equal expected, recorder.envs["mise x -- sh bin/windows-env bundle install"]
+    assert_empty recorder.envs["mise x -- python -m pip show reuse"]
+  end
+
+  # In an MSYS2 bash, as a build machine's runs are, sh is on the PATH.
+  def test_where_sh_is_on_the_path_the_sh_scripts_get_the_environment_as_it_is
+    as_windows
+    root = git_for_windows
+    FileUtils.touch(File.join(root, "cmd/sh.exe"))
+
+    run_setup(WINDOWS.merge("PATH" => File.join(root, "cmd")), "--gate", host_os: "mingw-ucrt")
+
+    assert_empty recorder.envs["mise x -- sh bin/windows-env bundle install"]
+  end
+
+  def test_where_there_is_no_git_for_windows_the_sh_scripts_get_the_environment_as_it_is
+    as_windows
+
+    run_setup(WINDOWS.merge("PATH" => "C:\\Windows"), "--gate", host_os: "mingw-ucrt")
+
+    assert_empty recorder.envs["mise x -- sh bin/windows-env bundle install"]
   end
 
   def test_on_windows_a_ci_runner_installs_the_bundle_as_ci_does_through_windows_env

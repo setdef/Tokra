@@ -53,18 +53,19 @@ class Setup
       @env = env
     end
 
-    # Runs +argv+ in +chdir+ and returns its Result.
-    def capture(*argv, chdir:)
-      output, status = Open3.capture2e(@env, [argv.first, argv.first], *argv.drop(1), chdir:)
+    # Runs +argv+ in +chdir+, with +env+ added to the environment, and
+    # returns its Result.
+    def capture(*argv, chdir:, env: {})
+      output, status = Open3.capture2e(@env.merge(env), [argv.first, argv.first], *argv.drop(1), chdir:)
       Result.new(output:, status: status.exitstatus || 1)
     rescue SystemCallError => e
       Result.new(output: "#{argv.first}: #{e.message}\n", status: 127)
     end
 
-    # Runs +argv+ in +chdir+ with its output going where ours goes, and
-    # returns its exit status.
-    def stream(*argv, chdir:)
-      system(@env, [argv.first, argv.first], *argv.drop(1), chdir:)
+    # Runs +argv+ in +chdir+, with +env+ added to the environment and its
+    # output going where ours goes, and returns its exit status.
+    def stream(*argv, chdir:, env: {})
+      system(@env.merge(env), [argv.first, argv.first], *argv.drop(1), chdir:)
       Process.last_status.exitstatus || 1
     end
   end
@@ -193,19 +194,19 @@ class Setup
 
   # Runs +argv+ and returns what it printed, for a question to ask of the
   # system; nothing is printed of it.
-  private def probe(*argv)
-    @runner.capture(*argv, chdir: @root).output
+  private def probe(*argv, env: {})
+    @runner.capture(*argv, chdir: @root, env:).output
   end
 
-  private def probe_status(*argv)
-    @runner.capture(*argv, chdir: @root).status
+  private def probe_status(*argv, env: {})
+    @runner.capture(*argv, chdir: @root, env:).status
   end
 
   # Prints +argv+ and runs it, or fails with its status.
-  private def run(*argv)
+  private def run(*argv, env: {})
     @out.puts "+ #{display(argv)}"
     @out.flush
-    status = @runner.stream(*argv, chdir: @root)
+    status = @runner.stream(*argv, chdir: @root, env:)
     raise Failure.new("#{display(argv)} failed with status #{status}", status) unless status.zero?
   end
 
@@ -215,8 +216,28 @@ class Setup
     argv.map { |word| word.match?(/[\s"'$\\]/) ? word.shellescape : word }.join(" ")
   end
 
-  private def mise(*argv)
-    run("mise", "x", "--", *argv)
+  private def mise(*argv, env: {})
+    run("mise", "x", "--", *argv, env:)
+  end
+
+  # What bin/clang-headers and bin/windows-env, which are sh scripts, need
+  # on Windows: an sh and the tools beside it. A person's cmd.exe or
+  # PowerShell has none on its PATH, unlike the MSYS2 bash this once ran
+  # from, so where none is there, the sh of Git for Windows, which git
+  # needs and a person has installed, goes ahead of the PATH, found from
+  # the git on it. mise x puts its own tools ahead of both.
+  private def sh_env
+    return {} unless windows?
+
+    path = @env["PATH"].to_s.split(";")
+    return {} if path.any? { |dir| File.exist?(File.join(dir, "sh.exe")) }
+
+    git = path.find { |dir| File.exist?(File.join(dir, "git.exe")) }
+    return {} unless git
+
+    bin = [File.join(git, ".."), File.join(git, "..", "..")].map { |root| File.expand_path(File.join(root, "usr", "bin")) }
+      .find { |dir| File.exist?(File.join(dir, "sh.exe")) }
+    bin ? { "PATH" => [bin.tr("/", "\\"), *path].join(";") } : {}
   end
 
   # vendor/tauri, which rake sync:tauri reads Tauri's JavaScript from.
@@ -253,7 +274,7 @@ class Setup
     # wheel holds libclang alone, so clang's own headers come from LLVM's
     # clang source release of the same version (bin/clang-headers).
     install_python_package("libclang", "libclang==#{LIBCLANG_VERSION}", LIBCLANG_VERSION)
-    mise("sh", "bin/clang-headers") unless File.exist?(File.join(clang_headers_dir, "include", "stddef.h"))
+    mise("sh", "bin/clang-headers", env: sh_env) unless File.exist?(File.join(clang_headers_dir, "include", "stddef.h"))
   end
 
   # On Windows, mise's Ruby is RubyInstaller's, a MinGW build, which rb-sys
@@ -290,9 +311,9 @@ class Setup
   private def install_bundle
     configure_ci_bundle if ci?
     through = windows? ? ["sh", "bin/windows-env"] : ["bin/linux-env"]
-    return if probe_status("mise", "x", "--", *through, "bundle", "check").zero?
+    return if probe_status("mise", "x", "--", *through, "bundle", "check", env: sh_env).zero?
 
-    mise(*through, "bundle", "install")
+    mise(*through, "bundle", "install", env: sh_env)
   end
 
   private def configure_ci_bundle
