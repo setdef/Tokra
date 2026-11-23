@@ -202,10 +202,20 @@ module Rack # :nodoc:
           "rack.run_once" => false,
         }
 
-        # Forward only the Cookie header from WebView
-        # Other headers (Accept-Encoding, etc.) caused rendering issues in WKWebView
+        # A request with a body says how long it is and what it is, as
+        # Rack's SPEC names them. Without CONTENT_TYPE a multipart form's
+        # boundary is lost and no upload parses, and a JSON body is taken
+        # for a form.
+        env["CONTENT_LENGTH"] = body.bytesize.to_s unless body.empty?
+
+        # Of the webview's headers only Cookie and Content-Type are
+        # forwarded. Other headers (Accept-Encoding, etc.) caused rendering
+        # issues in WKWebView.
         event&.headers&.each do |(name, value)|
-          env["HTTP_COOKIE"] = value if name.downcase == "cookie"
+          case name.downcase
+          when "cookie" then env["HTTP_COOKIE"] = value
+          when "content-type" then env["CONTENT_TYPE"] = value
+          end
         end
 
         env["HTTP_COOKIE"] = cookies if cookies

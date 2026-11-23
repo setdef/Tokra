@@ -224,7 +224,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Injected `__TAURI_INTERNALS__` initialization scripts (vendored from Tauri
   via `rake sync:tauri`), guarded by a per-app invoke key
 - `Tokra.generate_invoke_key` returns a Z85-encoded random invoke key
-- `Builder#app(rack_app)` serves a Rack application over the `tokra://` protocol
+- `Builder#app(rack_app)` serves a Rack application over the `tokra://` protocol;
+  a request's body reaches the app with its `CONTENT_TYPE` and
+  `CONTENT_LENGTH`, so multipart forms and JSON bodies parse
 - `ipc://` IPC transport (Tauri's desktop-default invoke channel), served as a
   second custom protocol; `postMessage` is retained as the automatic fallback
 - Both IPC transports read invoke bodies as Tauri's serde_json does: a body it

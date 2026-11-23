@@ -506,6 +506,48 @@ class TestRackHandler < Minitest::Test
       "Lowercase 'cookie' header should be forwarded"
   end
 
+  # A body's type and length reach the app under Rack's own names, so a
+  # multipart form keeps its boundary and a JSON body is not taken for a
+  # form.
+  def test_call_forwards_the_content_type_of_a_request_with_a_body
+    received = nil
+    app = -> (env) {
+      received = env
+      [200, {}, ["OK"]]
+    }
+    handler = Rack::Handler::Tokra.new(app, @proxy)
+    body = "--edge\r\nContent-Disposition: form-data; name=\"title\"\r\n\r\nMilk\r\n--edge--\r\n"
+    event = MockHttpRequestEvent.new(
+      request_id: 1,
+      uri: "tokra://localhost/todos",
+      http_method: "POST",
+      body:,
+      headers: [["Content-Type", "multipart/form-data; boundary=edge"]]
+    )
+
+    handler.call(event)
+    require "rack/request"
+
+    assert_equal "multipart/form-data; boundary=edge", received["CONTENT_TYPE"]
+    assert_equal body.bytesize.to_s, received["CONTENT_LENGTH"]
+    assert_equal({ "title" => "Milk" }, Rack::Request.new(received).POST)
+  end
+
+  def test_call_counts_a_bodys_length_in_bytes_and_gives_none_for_an_empty_body
+    lengths = []
+    app = -> (env) {
+      lengths << env["CONTENT_LENGTH"]
+      [200, {}, ["OK"]]
+    }
+    handler = Rack::Handler::Tokra.new(app, @proxy)
+
+    handler.call(MockHttpRequestEvent.new(request_id: 1, uri: "tokra://localhost/", http_method: "POST", body: "caf\u00e9",
+      headers: [["content-type", "text/plain"]]))
+    handler.call(MockHttpRequestEvent.new(request_id: 2, uri: "tokra://localhost/", http_method: "GET", body: ""))
+
+    assert_equal ["5", nil], lengths
+  end
+
   def test_call_does_not_forward_non_cookie_headers
     env_keys_with_http = nil
     app = -> (env) {
