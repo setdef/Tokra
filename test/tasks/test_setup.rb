@@ -120,10 +120,37 @@ class TestSetup < Minitest::Test
     assert_equal [
       "mise install",
       "mise x -- python -m pip install --quiet #{REUSE}",
+      "mise x -- bundle --version",
       "mise x -- bundle config set --local path vendor/bundle",
       "mise x -- bundle config set --local frozen true",
       "mise x -- bin/linux-env bundle install",
     ], calls
+  end
+
+  # A runner's vendor/bundle can hold a gem's specification without its
+  # files, as an install cut short leaves it; when that gem is Bundler, no
+  # bundle command starts. The folder then goes, for the install to make
+  # again.
+  def test_for_a_ci_runner_it_removes_a_bundle_that_bundler_cannot_start_from
+    File.write(File.join(@bin, "mise"), "#{MISE}[ \"$*\" = \"x -- bundle --version\" ] && exit 1\nexit 0\n")
+    FileUtils.mkdir_p(File.join(@repo, "vendor/bundle/specifications"))
+
+    output, status = run_setup({ "CI" => "true" })
+
+    assert_predicate status, :success?, output
+    refute_path_exists File.join(@repo, "vendor/bundle")
+    assert_includes calls, "mise x -- bin/linux-env bundle install"
+  end
+
+  # A bundle Bundler starts from is the runner's from its last run, and
+  # stays.
+  def test_for_a_ci_runner_it_keeps_a_bundle_that_bundler_starts_from
+    FileUtils.mkdir_p(File.join(@repo, "vendor/bundle/specifications"))
+
+    output, status = run_setup({ "CI" => "true" })
+
+    assert_predicate status, :success?, output
+    assert_path_exists File.join(@repo, "vendor/bundle/specifications")
   end
 
   # .githooks/pre-push runs bin/setup --gate before every push. It installs
@@ -148,6 +175,7 @@ class TestSetup < Minitest::Test
     assert_equal [
       "mise install",
       "mise x -- python -m pip install --quiet #{REUSE}",
+      "mise x -- bundle --version",
       "mise x -- bundle config set --local path vendor/bundle",
       "mise x -- bundle config set --local frozen true",
       "mise x -- bin/linux-env bundle install",
@@ -222,6 +250,7 @@ class TestSetup < Minitest::Test
       "mise x -- python -m pip install --quiet #{REUSE}",
       "mise x -- python -m pip install --quiet #{LIBCLANG}",
       "mise x -- sh bin/clang-headers",
+      "mise x -- bundle --version",
       "mise x -- bundle config set --local path vendor/bundle",
       "mise x -- bundle config set --local frozen true",
       "mise x -- sh bin/windows-env bundle install",
