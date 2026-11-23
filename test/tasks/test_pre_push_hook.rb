@@ -139,9 +139,11 @@ class TestPrePushHook < Minitest::Test
     File.exist?(log) ? File.readlines(log, chomp: true) : []
   end
 
-  # The environment the gate's command was given.
+  # The environment the gate's command was given. A variable whose value
+  # spans lines, as an exported shell function's does, goes on over lines
+  # that name no variable; only a line that begins one is read.
   private def gate_env
-    File.readlines(File.join(@bin, "env"), chomp: true).to_h { |line| line.split("=", 2) }
+    File.readlines(File.join(@bin, "env"), chomp: true).grep(/\A[A-Za-z_][A-Za-z0-9_]*=/).to_h { |line| line.split("=", 2) }
   end
 
   # The calls a push that runs the gate makes: setup, which is bin/setup's
