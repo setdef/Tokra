@@ -10,6 +10,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-11-22
+
 ### Added
 
 - Runs on Ruby 4.1, beside 4.0: its preview on Linux and macOS, and on
@@ -655,4 +657,5 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   tasks, tests, tool configuration) or the empty `semantic-highlight`
   executable
 
-[Unreleased]: https://github.com/setdef/Tokra/compare/v0.0.1.pre.2...HEAD
+[Unreleased]: https://github.com/setdef/Tokra/compare/tokra/v0.0.2...HEAD
+[0.0.2]: https://github.com/setdef/Tokra/compare/v0.0.1.pre.2...tokra/v0.0.2

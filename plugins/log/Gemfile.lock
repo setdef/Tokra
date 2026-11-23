@@ -19,7 +19,7 @@ GIT
 PATH
   remote: ../..
   specs:
-    tokra (0.0.1.pre.2)
+    tokra (0.0.2)
       ferro-url (= 0.1.2)
       rb_sys (~> 0.9.129)
 
@@ -69,7 +69,7 @@ CHECKSUMS
   rake (13.3.1) sha256=8c9e89d09f66a26a01264e7e3480ec0607f0c497a861ef16063604b1b08eb19c
   rake-compiler-dock (1.12.0) sha256=f13205c2738f3d2053afcd03491a9e4541b22a59a0bfc53fc8bc883bd8188023
   rb_sys (0.9.130) sha256=7d486d99c1da02635515deaf9860fc5aea90bb4ab2589b2deec7fdc7d3548615
-  tokra (0.0.1.pre.2)
+  tokra (0.0.2)
   tokra-log (0.0.1.pre.1)
 
 BUNDLED WITH
