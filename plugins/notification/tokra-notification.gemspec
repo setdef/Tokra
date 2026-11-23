@@ -40,6 +40,6 @@ Gem::Specification.new do |spec|
   # with the Gemfile's tag for it, not whenever RubyGems has a newer one.
   spec.add_dependency "ferro-notify-rust", "= 0.1.0"
   spec.add_dependency "ferro-time", "= 0.1.0"
-  spec.add_dependency "ferro-url", "= 0.1.0"
+  spec.add_dependency "ferro-url", "= 0.1.1"
   spec.add_dependency "tokra", "~> 0.0"
 end

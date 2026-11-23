@@ -24,7 +24,7 @@ gem "ferro-notify-rust", git: "https://github.com/setdef/Ferro", tag: "ferro-not
   glob: "gems/notify-rust/*.gemspec"
 # Tokra reads its URLs with ferro-url (Plans 054 and 055), and
 # tokra-notification its attachment URLs (Plan 030).
-gem "ferro-url", git: "https://github.com/setdef/Ferro", tag: "ferro-url/v0.1.0", glob: "gems/url/*.gemspec"
+gem "ferro-url", git: "https://github.com/setdef/Ferro", tag: "ferro-url/v0.1.1", glob: "gems/url/*.gemspec"
 # tokra-notification reads a scheduled date with ferro-time (Plans 031 and 048).
 gem "ferro-time", git: "https://github.com/setdef/Ferro", tag: "ferro-time/v0.1.0", glob: "gems/time/*.gemspec"
 # tokra-global-shortcut builds on ferro-global-hotkey (Plan 025). Its glob

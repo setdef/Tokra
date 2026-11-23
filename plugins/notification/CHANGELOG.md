@@ -27,7 +27,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `withGlobalTauri` gets `window.__TAURI__.notification` from Tauri's own
   `api-iife.js`, which the gem ships; it is pure Ruby and
   depends on `ferro-notify-rust` 0.1.0 (notify-rust 4.18.2),
-  `ferro-url` 0.1.0 (url 2.5.8), and `ferro-time` 0.1.0 (time
+  `ferro-url` 0.1.1 (url 2.5.8), and `ferro-time` 0.1.0 (time
   0.3.55), which apps take from their git tags until they are on
   RubyGems.org
 

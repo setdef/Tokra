@@ -1,17 +1,17 @@
 GIT
   remote: https://github.com/setdef/Ferro
-  revision: 2d15b6bc9bcc94149bc1abe59a14fd70e5cb106b
-  tag: ferro-url/v0.1.0
+  revision: d9471f5d0538ca69dec2049b43d5b13724392e71
+  tag: ferro-url/v0.1.1
   glob: gems/url/*.gemspec
   specs:
-    ferro-url (0.1.0)
+    ferro-url (0.1.1)
       rb_sys (~> 0.9.129)
 
 PATH
   remote: ../..
   specs:
     tokra (0.0.1.pre.2)
-      ferro-url (= 0.1.0)
+      ferro-url (= 0.1.1)
       rb_sys (~> 0.9.129)
 
 GEM
@@ -416,7 +416,7 @@ CHECKSUMS
   erb (6.0.7) sha256=c5ca6dc25b0ef974a44dc8f59fe847577122483b1968a38dec305c60bf91ee92
   erubi (1.13.1) sha256=a082103b0885dbc5ecf1172fede897f9ebdb745a4b97a5e8dc63953db1ee4ad9
   et-orbi (1.4.2) sha256=bb555dae668419cb24caa2a293a170e58be6d4df1e017c51f5030bdc133cd20c
-  ferro-url (0.1.0)
+  ferro-url (0.1.1)
   ffi (1.17.4) sha256=bcd1642e06f0d16fc9e09ac6d49c3a7298b9789bcb58127302f934e437d60acf
   fugit (1.14.0) sha256=e311a9cc85a54bb67649df45060e721282a1e2c8ebad40e41874a3a7d576f37e
   globalid (1.4.0) sha256=037f12fbf1d9d7a014d501c2d5c77356fd4ddd96d7a7991d6700bba96706f427

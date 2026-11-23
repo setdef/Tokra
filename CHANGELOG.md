@@ -475,7 +475,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `Tokra::Config` is Tauri's whole config, `Tokra::Utils::Config::Config`
 - `Tokra::Utils::Config` (Tauri's config types) and its `Parse`,
   `Tokra::Codegen`, `Tokra::Pattern`, and `Tokra::Utils::Platform::Target`
-- Dependency: ferro-url 0.1.0 (url 2.5.8), for every URL Tauri types as
+- Dependency: ferro-url 0.1.1 (url 2.5.8), for every URL Tauri types as
   `url::Url`
 - The default window icon: `Tokra.generate_context` decodes `icons/icon.png`
   beside the config (or the first `.png` in `bundle.icon`; on Windows an
