@@ -68,10 +68,17 @@ across teeny versions, so a gem built on 4.1.x serves `>= 4.1, <
 its own (`include/ruby/internal/abi.h`), and Ruby refuses, on every
 system but Windows, an extension built for another (`dln.c`,
 `dln_load_and_init`, which reads the `ruby_abi_version` rb-sys
-exports). So a gem built on 4.1.0-preview1 requires exactly
-`4.1.0.preview1`, and one built on master exactly `4.1.0.dev`, which
-`Gem.ruby_version` cannot tell apart by ABI. On any other Ruby, Bundler
-skips the precompiled gem and compiles the source gem.
+exports). A gem built on a preview or on master still admits every
+prerelease of its release, `>= 4.1.0.a, < 4.1.0`, and not the release.
+Bundler writes a platform's gem into a lockfile only when the Ruby that
+locks satisfies the gem's requirement, and one release's gems are built
+on a preview on Linux and macOS and on master on Windows, so gems that
+each required their own Ruby could never share a lockfile: an app locked
+on a Mac would compile the source gem on Windows. The price is a gem
+offered to a prerelease it was not built for, which Ruby refuses to
+load off Windows and does not check there; the gems are rebuilt when
+the release ships. On a Ruby outside the requirement, Bundler skips the
+precompiled gem and compiles the source gem.
 
 `rake package:deliver` installs a precompiled gem into an empty
 `GEM_HOME` with no Rust on `PATH`, fails if anything compiles, and runs

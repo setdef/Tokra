@@ -70,20 +70,26 @@ class TestPlatformGem < Minitest::Test
     assert_equal "x64-mingw-ucrt", platform_gem(platform: "x64-mingw-ucrt", host_os: "mingw32").platform.to_s
   end
 
-  def test_a_gem_built_on_a_preview_serves_only_that_preview
+  # Bundler writes a platform's gem into a lockfile only when the Ruby
+  # that locks satisfies it, so the gems of one release, built on a
+  # preview on one system and on master on another, admit each other's
+  # Ruby.
+  def test_a_gem_built_on_a_preview_serves_every_prerelease_of_that_release
     requirement = platform_gem(ruby_version: "4.1.0.preview1").required_ruby_version
 
-    assert requirement.satisfied_by?(Gem::Version.new("4.1.0.preview1"))
-    %w[4.1.0.preview2 4.1.0.dev 4.1.0 4.0.9].each do |other|
+    %w[4.1.0.preview1 4.1.0.preview2 4.1.0.dev 4.1.0.rc1].each do |prerelease|
+      assert requirement.satisfied_by?(Gem::Version.new(prerelease)), "#{requirement} refuses #{prerelease}"
+    end
+    %w[4.1.0 4.1.1 4.0.9 4.2.0.dev 4.2.0.preview1].each do |other|
       refute requirement.satisfied_by?(Gem::Version.new(other)), "#{requirement} admits #{other}"
     end
   end
 
-  def test_a_gem_built_on_ruby_s_master_serves_only_master
+  def test_a_gem_built_on_ruby_s_master_serves_the_same_prereleases
     requirement = platform_gem(ruby_version: "4.1.0.dev").required_ruby_version
 
+    assert_equal platform_gem(ruby_version: "4.1.0.preview1").required_ruby_version, requirement
     assert requirement.satisfied_by?(Gem::Version.new("4.1.0.dev"))
-    refute requirement.satisfied_by?(Gem::Version.new("4.1.0.preview1"))
     refute requirement.satisfied_by?(Gem::Version.new("4.1.0"))
   end
 
@@ -114,7 +120,7 @@ class TestPlatformGem < Minitest::Test
     assert_includes spec.files, "lib/fixture/Loader.dll"
     assert_includes spec.files, "ext/fixture/extconf.rb"
     assert_equal ["logger"], spec.runtime_dependencies.map(&:name)
-    assert_equal Gem::Requirement.new(">= 3.0", "= 4.1.0.preview1"), spec.required_ruby_version
+    assert_equal Gem::Requirement.new(">= 3.0", ">= 4.1.0.a", "< 4.1.0"), spec.required_ruby_version
   end
 
   def test_a_gem_without_its_extension_does_not_build

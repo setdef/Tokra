@@ -72,19 +72,24 @@ class PlatformGem
     end
   end
 
-  # The gem's Ruby requirement: the source gem's, narrowed to the Ruby whose
-  # ABI the extension was built for.
+  # The gem's Ruby requirement: the source gem's, narrowed to the Rubies
+  # the extension can be offered to.
   #
   # A release's teeny versions keep its ABI, so a gem built on 4.1.2 serves
   # every 4.1, below the next minor's previews, as rake-compiler bounds its
   # native gems. A preview or a build of Ruby's master has an ABI version
-  # of its own (include/ruby/internal/abi.h), and Ruby refuses an extension
-  # built for another (dln.c, dln_load_and_init), so the gem is for exactly
-  # that Ruby: 4.1.0.preview1, or 4.1.0.dev. Bundler then skips it on any
-  # other Ruby and compiles the source gem instead.
+  # of its own (include/ruby/internal/abi.h), and off Windows Ruby refuses
+  # an extension built for another (dln.c, dln_load_and_init). Such a gem
+  # still admits every prerelease of its release, 4.1.0.dev and
+  # 4.1.0.preview1 alike, and not the release: Bundler writes a platform's
+  # gem into a lockfile only when the Ruby that locks satisfies the gem's
+  # requirement, so gems that each required their own prerelease could
+  # never share one lockfile, and an app locked on a Mac would compile on
+  # Windows. The price is a gem offered to a prerelease it was not built
+  # for, which Ruby refuses to load off Windows and does not check there.
   def required_ruby_version(source = source_spec.required_ruby_version)
     narrowed = if @ruby_version.prerelease?
-      ["= #{@ruby_version}"]
+      [">= #{@ruby_version.release}.a", "< #{@ruby_version.release}"]
     else
       major, minor = @ruby_version.segments
       [">= #{major}.#{minor}", "< #{major}.#{minor + 1}.dev"]
