@@ -7,14 +7,16 @@
 
 require "test_helper"
 require "open3"
+require "stringio"
 require "tmpdir"
 require "yaml"
+require_relative "../../tasks/setup"
 
 # Tests .githooks/pre-push (Plan 061): which pushes run the gate, which it
 # refuses, that it sets Tokra up first, and that it runs the gate as
 # ci.yml does, with mise's tools. Each test hands the real hook the lines
 # git would, in a real repository, or pushes through it with a real git
-# push, with stand-ins for bin/setup, mise, bundle, and xvfb-run that log
+# push, with stand-ins for tasks/setup.rb, mise, bundle, and xvfb-run that log
 # their arguments and their environment.
 class TestPrePushHook < Minitest::Test
   ROOT = File.expand_path("../..", __dir__)
@@ -47,14 +49,13 @@ class TestPrePushHook < Minitest::Test
     exec "$@"
   SH
 
-  # A bin/setup that logs its arguments into LOG, says something, and exits
-  # with SETUP_STATUS, or 0.
-  SETUP = <<~'SH'
-    #!/bin/sh
-    { printf setup; for a in "$@"; do printf ' %s' "$a"; done; printf '\n'; } >> "$LOG"
-    echo "setup's last words"
-    exit "${SETUP_STATUS:-0}"
-  SH
+  # A tasks/setup.rb that logs its arguments into LOG, says something, and
+  # exits with SETUP_STATUS, or 0.
+  SETUP = <<~RUBY
+    File.open(ENV.fetch("LOG"), "a") { |log| log.puts(["setup", *ARGV].join(" ")) }
+    puts "setup's last words"
+    exit Integer(ENV.fetch("SETUP_STATUS", "0"))
+  RUBY
 
   # The variables a git hook passes on, which would point the git commands
   # here at the repository whose hook runs these tests.
@@ -79,13 +80,14 @@ class TestPrePushHook < Minitest::Test
     Dir.mkdir(@repo)
     git("init", "--quiet", "--initial-branch", "trunk")
     FileUtils.mkdir_p(File.join(@repo, "bin"))
-    { "bin/linux-env" => LINUX_ENV, "bin/setup" => SETUP }.each do |path, script|
+    FileUtils.mkdir_p(File.join(@repo, "tasks"))
+    { "bin/linux-env" => LINUX_ENV, "tasks/setup.rb" => SETUP }.each do |path, script|
       File.write(File.join(@repo, path), script)
       File.chmod(0o755, File.join(@repo, path))
     end
-    # The hook writes what bin/setup prints under tmp/, which git ignores.
+    # The hook writes what tasks/setup.rb prints under tmp/, which git ignores.
     File.write(File.join(@repo, ".gitignore"), "/tmp/\n")
-    git("add", "bin/linux-env", "bin/setup", ".gitignore")
+    git("add", "bin/linux-env", "tasks/setup.rb", ".gitignore")
     @first = commit("one")
   end
 
@@ -133,11 +135,16 @@ class TestPrePushHook < Minitest::Test
     File.readlines(File.join(@bin, "env"), chomp: true).to_h { |line| line.split("=", 2) }
   end
 
-  # The calls a push that runs the gate makes: bin/setup, then the gate
-  # through mise, which runs the stand-in that logs it.
+  # The calls a push that runs the gate makes: setup, which is bin/setup's
+  # two lines with --gate, then the gate through mise, which runs the
+  # stand-in that logs it.
   private def gate
     command = LINUX ? "xvfb-run --auto-servernum dbus-run-session -- bundle exec rake" : "bundle exec rake"
-    ["setup --gate", "mise x -- #{'bin/linux-env ' if LINUX}#{command}", command]
+    [*setup_calls, "mise x -- #{'bin/linux-env ' if LINUX}#{command}", command]
+  end
+
+  private def setup_calls
+    ["mise trust -q mise.toml", "mise x -- ruby tasks/setup.rb --gate", "setup --gate"]
   end
 
   private def ci_step(name)
@@ -180,7 +187,7 @@ class TestPrePushHook < Minitest::Test
     output, status = push("refs/heads/trunk #{@first} refs/heads/trunk #{ZERO}")
 
     assert_predicate status, :success?, output
-    assert_equal "setup --gate", calls.first
+    assert_equal setup_calls, calls.first(3)
     assert_includes File.read(File.join(@repo, "tmp/pre-push-setup.log")), "setup's last words"
   end
 
@@ -190,9 +197,9 @@ class TestPrePushHook < Minitest::Test
     output, status = push("refs/heads/trunk #{@first} refs/heads/trunk #{ZERO}", extra: { "SETUP_STATUS" => "3" })
 
     assert_equal 3, status.exitstatus, output
-    assert_equal ["setup --gate"], calls
+    assert_equal setup_calls, calls
     assert_includes output, "setup's last words"
-    assert_includes output, "pre-push: bin/setup --gate failed with status 3; all it printed is in tmp/pre-push-setup.log."
+    assert_includes output, "pre-push: tasks/setup.rb --gate failed with status 3; all it printed is in tmp/pre-push-setup.log."
   end
 
   # Nothing activates mise where the hook runs from a fresh checkout, so
@@ -217,7 +224,7 @@ class TestPrePushHook < Minitest::Test
     output, status = push("refs/heads/trunk #{head} refs/heads/trunk #{@first}", extra: { "OS" => "Windows_NT" })
 
     assert_predicate status, :success?, output
-    assert_equal ["setup --gate", "mise x -- sh bin/windows-env bundle exec rake", "windows-env bundle exec rake"], calls
+    assert_equal [*setup_calls, "mise x -- sh bin/windows-env bundle exec rake", "windows-env bundle exec rake"], calls
     step = ci_env("Run the gate")
 
     assert_equal step.fetch("A")[/'Windows' && '(.*?)'/, 1], gate_env["A"]
@@ -343,5 +350,55 @@ class TestPrePushHook < Minitest::Test
 
     assert_predicate status, :success?
     assert_match(/\A100755 /, listed)
+  end
+
+  # tasks/setup.rb writes the stub every worktree's push runs, which hands
+  # off to the hook of the worktree that pushes.
+  private def write_stub
+    Setup.new(root: @repo, env: {}, runner: Setup::Shell.new(env: GIT_ALONE), out: StringIO.new, err: StringIO.new).install_pre_push_stub
+  end
+
+  def test_the_stub_setup_writes_runs_the_hook_of_whichever_worktree_pushes
+    hook = "#!/bin/sh\nprintf '%s\\n' \"$(pwd -P)\" \"$@\" > \"$(git rev-parse --show-toplevel)/ran\"\n"
+    FileUtils.mkdir_p(File.join(@repo, ".githooks"))
+    File.write(File.join(@repo, ".githooks/pre-push"), hook)
+    File.chmod(0o755, File.join(@repo, ".githooks/pre-push"))
+    git("add", ".githooks/pre-push")
+    git("commit", "--quiet", "--message", "the hook")
+    stub = write_stub
+    worktree = File.join(@dir, "worktree")
+    git("worktree", "add", "--quiet", worktree)
+
+    [@repo, worktree].each do |pushing|
+      output, status = Open3.capture2e(env, stub, "origin", "git@example.com:tokra.git", chdir: pushing)
+
+      assert_predicate status, :success?, output
+      assert_equal [File.realpath(pushing), "origin", "git@example.com:tokra.git"], File.readlines(File.join(pushing, "ran"), chomp: true)
+    end
+  end
+
+  def test_the_stub_passes_a_push_from_a_commit_that_has_no_hook
+    stub = write_stub
+    output, status = Open3.capture2e(env, stub, "origin", "git@example.com:tokra.git", chdir: @repo)
+
+    assert_predicate status, :success?, output
+    assert_empty calls
+  end
+
+  # The whole path, for real: setup's stub, the hook this repository ships,
+  # and a git push, which hands the hook its refs on standard input.
+  # Without them the hook sees nothing to gate and lets the push through.
+  def test_a_real_push_through_setups_stub_runs_the_shipped_hook_its_setup_and_the_gate
+    FileUtils.mkdir_p(File.join(@repo, ".githooks"))
+    FileUtils.cp(HOOK, File.join(@repo, ".githooks/pre-push"))
+    git("add", ".githooks/pre-push")
+    git("commit", "--quiet", "--message", "the shipped hook")
+    write_stub
+    remote = File.join(@dir, "remote.git")
+    git("init", "--quiet", "--bare", remote, chdir: @dir)
+    git("push", "--quiet", remote, "HEAD:refs/heads/trunk", hooks: File.join(@repo, ".git/hooks"))
+
+    assert_equal gate, calls
+    assert_equal git("rev-parse", "HEAD"), git("rev-parse", "refs/heads/trunk", chdir: remote)
   end
 end

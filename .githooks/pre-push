@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # Runs the gate, bundle exec rake, before a push that changes a branch, so
-# a commit that would turn CI red stops here. bin/setup writes a stub into
-# the clone's hooks folder that runs this file. git passes the remote's
+# a commit that would turn CI red stops here. tasks/setup.rb, which a
+# person runs as bin/setup, writes a stub into the clone's hooks folder
+# that runs this file. git passes the remote's
 # name and URL as arguments and one line for each ref on standard input.
 #
 # The gate tests the working tree, so the push is refused unless that is
@@ -56,16 +57,21 @@ if [ -n "$untracked" ]; then
   exit 1
 fi
 
-# bin/setup --gate installs the tools mise.toml pins and the bundle, and on
-# Linux the packages the machine lacks, and does nothing when they are
-# there. It leaves the git hooks and the RDoc to a person's bin/setup.
-# What it prints goes to a log, and its end to you if it fails.
+# tasks/setup.rb --gate installs the tools mise.toml pins and the bundle,
+# and on Linux the packages the machine lacks, and does nothing when they
+# are there. It leaves the git hooks and the RDoc to a person's bin/setup.
+# The hook runs bin/setup's two lines itself, not bin/setup: it already
+# stands in the checkout's root, and nothing then depends on a script's
+# mode bits, which a Windows checkout may not keep. What they print goes
+# to a log, and its end to you if they fail.
 log=tmp/pre-push-setup.log
 mkdir -p tmp || exit 1
-bin/setup --gate > "$log" 2>&1 || {
+{
+  mise trust -q mise.toml && mise x -- ruby tasks/setup.rb --gate
+} > "$log" 2>&1 || {
   status=$?
   tail -n 40 "$log" >&2
-  echo "pre-push: bin/setup --gate failed with status $status; all it printed is in $log." >&2
+  echo "pre-push: tasks/setup.rb --gate failed with status $status; all it printed is in $log." >&2
   exit "$status"
 }
 

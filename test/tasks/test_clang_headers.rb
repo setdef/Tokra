@@ -116,7 +116,7 @@ class TestClangHeaders < Minitest::Test
 
   def test_its_version_is_the_libclang_wheel_s
     assert_match(/^version=#{Regexp.escape(VERSION)}$/, File.read(SCRIPT))
-    assert_includes File.read(File.join(ROOT, "bin/setup")), %("libclang==#{VERSION}")
+    assert_includes File.read(File.join(ROOT, "tasks/setup.rb")), %(LIBCLANG_VERSION = "#{VERSION}")
   end
 
   def test_it_is_tracked_as_executable

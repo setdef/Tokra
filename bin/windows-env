@@ -45,7 +45,7 @@ if [ ! -f "$sysroot/include/stdio.h" ]; then
   exit 1
 fi
 if [ ! -f "$libclang/libclang.dll" ]; then
-  echo "windows-env: no libclang.dll in $libclang; run bin/setup.ps1." >&2
+  echo "windows-env: no libclang.dll in $libclang; run bin/setup." >&2
   exit 1
 fi
 clang=$(sed -n 's/^version=//p' "$here/clang-headers")

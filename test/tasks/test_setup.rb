@@ -6,34 +6,24 @@
 #++
 
 require "test_helper"
+require "fileutils"
 require "open3"
+require "stringio"
 require "tmpdir"
 require "yaml"
+require_relative "../../tasks/setup"
 
-# Tests bin/setup (Plan 061): what it installs for a person, for a CI
-# runner, and for the gate, and the pre-push stub it writes. Each test runs the real script
-# in a real repository, with a stand-in for mise that logs its arguments.
+# Tests tasks/setup.rb (Plans 061 and 073): what it installs for a person,
+# for a CI runner, and for the gate, and the pre-push stub it writes. It
+# runs in a real repository with a recorder in place of the command runner,
+# so the tests assert on the commands it would run and need no stand-in for
+# mise. That is what lets them run on every system, Windows included.
 class TestSetup < Minitest::Test
   ROOT = File.expand_path("../..", __dir__)
-  SETUP = File.join(ROOT, "bin/setup")
+  SETUP = File.join(ROOT, "tasks/setup.rb")
   REUSE = "reuse[charset-normalizer]==6.2.0"
   LIBCLANG = "libclang==18.1.1"
   MARKER = "# tokra pre-push stub, written by bin/setup"
-
-  # A mise that logs its arguments, one line a call, and runs nothing.
-  MISE = <<~'SH'
-    #!/bin/sh
-    { printf '%s' mise; for a in "$@"; do printf ' %s' "$a"; done; printf '\n'; } >> "$(dirname "$0")/log"
-  SH
-
-  # The hook this repository ships.
-  REAL_HOOK = File.join(ROOT, ".githooks/pre-push")
-
-  # A hook that records the folder it ran in and its arguments.
-  HOOK = <<~'SH'
-    #!/bin/sh
-    printf '%s\n' "$(pwd -P)" "$@" > "$(git rev-parse --show-toplevel)/ran"
-  SH
 
   # The variables a git hook passes on, which would point the git commands
   # here at the repository whose hook runs these tests.
@@ -53,57 +43,112 @@ class TestSetup < Minitest::Test
     "GIT_CONFIG_VALUE_1" => "false"
   ).freeze
 
-  def setup
-    skip "Ruby on Windows cannot run bin/setup or its stand-ins as commands; OS=Windows_NT tests its Windows branch elsewhere" if Gem.win_platform?
+  # A command runner that records every command but git's, and answers each
+  # as it is told, with success and no output where it is told nothing. Git
+  # runs for real, in the test's repository, which is where the stub and the
+  # submodule are.
+  class Recorder
+    attr_reader :calls
 
+    def initialize(git)
+      @git = git
+      @calls = []
+      @answers = {}
+      @hooks = {}
+    end
+
+    # Runs the block when +command+, as one string, is run, before it
+    # answers.
+    def on(command, &block)
+      @hooks[command] = block
+    end
+
+    # Makes +command+, as one string, print +output+ and end with +status+.
+    def answer(command, output: "", status: 0)
+      @answers[command] = Setup::Result.new(output:, status:)
+    end
+
+    def capture(*argv, chdir:)
+      return @git.capture(*argv, chdir:) if argv.first == "git"
+
+      reply(argv)
+    end
+
+    def stream(*argv, chdir:)
+      return @git.stream(*argv, chdir:) if argv.first == "git"
+
+      reply(argv).status
+    end
+
+    private def reply(argv)
+      command = argv.join(" ")
+      @calls << command
+      @hooks[command]&.call
+      @answers.fetch(command) { Setup::Result.new(output: "", status: 0) }
+    end
+  end
+
+  def setup
     @dir = File.realpath(Dir.mktmpdir("setup"))
-    @bin = File.join(@dir, "bin")
-    Dir.mkdir(@bin)
-    File.write(File.join(@bin, "mise"), MISE)
-    File.chmod(0o755, File.join(@bin, "mise"))
     @repo = File.join(@dir, "repo")
+    @cache = File.join(@dir, "cache")
     Dir.mkdir(@repo)
     git("init", "--quiet", "--initial-branch", "trunk")
-    FileUtils.mkdir_p(File.join(@repo, ".githooks"))
-    File.write(File.join(@repo, ".githooks/pre-push"), HOOK)
-    File.chmod(0o755, File.join(@repo, ".githooks/pre-push"))
-    git("add", ".githooks/pre-push")
-    git("commit", "--quiet", "--message", "the hook")
     @stub = File.join(@repo, ".git/hooks/pre-push")
+    @git_env = GIT_ALONE
+    @pip_missing = true
   end
 
   def teardown
     FileUtils.rm_rf(@dir) if @dir
   end
 
-  private def env(extra = {})
-    GIT_ALONE.merge("PATH" => "#{@bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}", "CI" => nil, "OS" => nil).merge(extra)
-  end
-
   private def git(*, chdir: @repo)
     settings = %w[user.name=tokra user.email=tokra@localhost commit.gpgSign=false].flat_map { |setting| ["-c", setting] }
-    printed, status = Open3.capture2e(env, "git", *settings, *, chdir:)
+    printed, status = Open3.capture2e(GIT_ALONE, "git", *settings, *, chdir:)
 
     assert_predicate status, :success?, printed
     printed.strip
   end
 
-  # Runs bin/setup in the repository, and returns what it printed and its
-  # status.
-  private def run_setup(extra = {}, *, chdir: @repo) = Open3.capture2e(env(extra), SETUP, *, chdir:)
+  # The stand-in for what a person's own mise would say about its tools.
+  private def recorder
+    @recorder ||= Recorder.new(Setup::Shell.new(env: @git_env)).tap do |recorded|
+      recorded.answer("mise ls --missing", output: "ruby  4.1.0-preview1  (missing)\n")
+    end
+  end
 
-  # What mise was called with, one line a call.
+  # Runs Setup in the repository, and returns its status. What it printed
+  # is in @out and @err.
+  private def run_setup(env = {}, *, host_os: "linux-gnu", root: @repo)
+    @out = StringIO.new
+    @err = StringIO.new
+    environment = { "HOME" => @dir, "XDG_CACHE_HOME" => @cache }.merge(env)
+    Setup.new(root:, env: environment, runner: recorder, out: @out, err: @err, host_os:).call(*)
+  end
+
+  # What the recorder was called with, one line a call.
   private def calls
-    log = File.join(@bin, "log")
-    File.exist?(log) ? File.readlines(log, chomp: true) : []
+    recorder.calls
+  end
+
+  # The commands Setup printed as it ran them, without their "+ ".
+  private def printed
+    @out.string.lines(chomp: true).filter_map { |line| line.delete_prefix("+ ") if line.start_with?("+ ") }
+  end
+
+  private def installed(name, version)
+    recorder.answer("mise x -- python -m pip show #{name}", output: "Name: #{name}\nVersion: #{version}\n")
   end
 
   def test_for_a_person_it_installs_the_tools_the_bundle_the_commit_hook_and_the_docs
-    output, status = run_setup
+    status = run_setup
 
-    assert_predicate status, :success?, output
+    assert_equal 0, status, @err.string
     assert_equal [
+      "mise ls --missing",
       "mise install",
+      "mise x -- python -m pip show reuse",
       "mise x -- python -m pip install --quiet #{REUSE}",
       "mise x -- bin/linux-env bundle install",
       "mise x -- pre-commit install",
@@ -114,11 +159,13 @@ class TestSetup < Minitest::Test
   # A runner keeps vendor/bundle between runs, commits nothing, and reads
   # no documentation.
   def test_for_a_ci_runner_it_installs_the_bundle_as_ci_does_and_skips_the_commit_hook_and_the_docs
-    output, status = run_setup({ "CI" => "true" })
+    status = run_setup({ "CI" => "true" })
 
-    assert_predicate status, :success?, output
+    assert_equal 0, status, @err.string
     assert_equal [
+      "mise ls --missing",
       "mise install",
+      "mise x -- python -m pip show reuse",
       "mise x -- python -m pip install --quiet #{REUSE}",
       "mise x -- bundle --version",
       "mise x -- bundle config set --local path vendor/bundle",
@@ -127,19 +174,28 @@ class TestSetup < Minitest::Test
     ], calls
   end
 
+  # CI is only the string "true", as bin/setup always read it.
+  def test_a_ci_that_is_not_true_is_a_person
+    run_setup({ "CI" => "false" })
+
+    assert_includes calls, "mise x -- pre-commit install"
+    refute_includes calls, "mise x -- bundle --version"
+  end
+
   # A runner's vendor/bundle can hold a gem's specification without its
   # files, as an install cut short leaves it; when that gem is Bundler, no
   # bundle command starts. The folder then goes, for the install to make
   # again.
   def test_for_a_ci_runner_it_removes_a_bundle_that_bundler_cannot_start_from
-    File.write(File.join(@bin, "mise"), "#{MISE}[ \"$*\" = \"x -- bundle --version\" ] && exit 1\nexit 0\n")
+    recorder.answer("mise x -- bundle --version", status: 1)
     FileUtils.mkdir_p(File.join(@repo, "vendor/bundle/specifications"))
 
-    output, status = run_setup({ "CI" => "true" })
+    status = run_setup({ "CI" => "true" })
 
-    assert_predicate status, :success?, output
+    assert_equal 0, status, @err.string
     refute_path_exists File.join(@repo, "vendor/bundle")
-    assert_includes calls, "mise x -- bin/linux-env bundle install"
+    assert_includes printed, "rm -rf vendor/bundle"
+    assert_equal "mise x -- bin/linux-env bundle install", calls.last
   end
 
   # A bundle Bundler starts from is the runner's from its last run, and
@@ -147,21 +203,43 @@ class TestSetup < Minitest::Test
   def test_for_a_ci_runner_it_keeps_a_bundle_that_bundler_starts_from
     FileUtils.mkdir_p(File.join(@repo, "vendor/bundle/specifications"))
 
-    output, status = run_setup({ "CI" => "true" })
+    status = run_setup({ "CI" => "true" })
 
-    assert_predicate status, :success?, output
+    assert_equal 0, status, @err.string
     assert_path_exists File.join(@repo, "vendor/bundle/specifications")
   end
 
-  # .githooks/pre-push runs bin/setup --gate before every push. It installs
-  # what the gate needs and nothing only a person's clone wants, so a push
-  # writes no hook and spends no time on the documentation.
-  def test_for_the_gate_it_installs_the_tools_and_the_bundle_and_leaves_the_hooks_and_the_docs
-    output, status = run_setup({}, "--gate")
+  # A runner with no bundle yet has nothing to remove, and says nothing.
+  def test_for_a_ci_runner_with_no_bundle_it_removes_nothing_and_says_so_to_no_one
+    recorder.answer("mise x -- bundle --version", status: 1)
 
-    assert_predicate status, :success?, output
+    run_setup({ "CI" => "true" })
+
+    refute_includes printed, "rm -rf vendor/bundle"
+  end
+
+  # The settings go in .bundle/config, where a runner's own from its last
+  # run holds them already.
+  def test_for_a_ci_runner_it_leaves_a_bundle_configured_as_ci_does_alone
+    FileUtils.mkdir_p(File.join(@repo, ".bundle"))
+    File.write(File.join(@repo, ".bundle/config"), %(---\nBUNDLE_FROZEN: "true"\nBUNDLE_PATH: "vendor/bundle"\n))
+
+    run_setup({ "CI" => "true" })
+
+    refute(calls.any? { |call| call.include?("bundle config") })
+  end
+
+  # .githooks/pre-push runs tasks/setup.rb --gate before every push. It
+  # installs what the gate needs and nothing only a person's clone wants,
+  # so a push writes no hook and spends no time on the documentation.
+  def test_for_the_gate_it_installs_the_tools_and_the_bundle_and_leaves_the_hooks_and_the_docs
+    status = run_setup({}, "--gate")
+
+    assert_equal 0, status, @err.string
     assert_equal [
+      "mise ls --missing",
       "mise install",
+      "mise x -- python -m pip show reuse",
       "mise x -- python -m pip install --quiet #{REUSE}",
       "mise x -- bin/linux-env bundle install",
     ], calls
@@ -169,11 +247,13 @@ class TestSetup < Minitest::Test
   end
 
   def test_for_the_gate_on_a_ci_runner_it_installs_the_bundle_as_ci_does
-    output, status = run_setup({ "CI" => "true" }, "--gate")
+    status = run_setup({ "CI" => "true" }, "--gate")
 
-    assert_predicate status, :success?, output
+    assert_equal 0, status, @err.string
     assert_equal [
+      "mise ls --missing",
       "mise install",
+      "mise x -- python -m pip show reuse",
       "mise x -- python -m pip install --quiet #{REUSE}",
       "mise x -- bundle --version",
       "mise x -- bundle config set --local path vendor/bundle",
@@ -184,54 +264,104 @@ class TestSetup < Minitest::Test
   end
 
   def test_an_argument_it_does_not_know_stops_it_before_it_installs_anything
-    output, status = run_setup({}, "--gtae")
+    status = run_setup({}, "--gtae")
 
-    assert_equal 2, status.exitstatus, output
-    assert_includes output.lines(chomp: true), "usage: bin/setup [--gate]"
+    assert_equal 2, status
+    assert_includes @err.string.lines(chomp: true), "usage: bin/setup [--gate]"
     assert_empty calls
+  end
+
+  # Nothing is missing on a machine that has been set up, and then what it
+  # runs is the bundle's install alone, which a changed Gemfile.lock makes
+  # work, and says so.
+  def test_where_nothing_is_missing_it_runs_and_prints_the_bundle_install_alone
+    recorder.answer("mise ls --missing")
+    installed("reuse", "6.2.0")
+
+    status = run_setup({}, "--gate")
+
+    assert_equal 0, status, @err.string
+    assert_equal ["mise ls --missing", "mise x -- python -m pip show reuse", "mise x -- bin/linux-env bundle install"], calls
+    assert_equal ["mise x -- bin/linux-env bundle install"], printed
+    assert_equal ["+ mise x -- bin/linux-env bundle install"], @out.string.lines(chomp: true)
+  end
+
+  # What it installs it prints, as the command, before it runs it.
+  def test_it_prints_each_command_that_changes_something_before_running_it
+    run_setup({}, "--gate")
+
+    assert_equal [
+      "mise install",
+      "mise x -- python -m pip install --quiet #{REUSE}",
+      "mise x -- bin/linux-env bundle install",
+    ], printed
+  end
+
+  # reuse at another version than CI's is installed again.
+  def test_the_reuse_tool_at_another_version_is_installed_again
+    installed("reuse", "6.1.0")
+
+    run_setup({}, "--gate")
+
+    assert_includes calls, "mise x -- python -m pip install --quiet #{REUSE}"
+  end
+
+  # A failure stops it there, with the command, its status, and whatever
+  # the command printed, which a command it streams has printed already.
+  def test_a_failing_command_stops_it_with_the_command_and_its_status
+    recorder.answer("mise install", status: 3)
+
+    status = run_setup
+
+    assert_equal 3, status
+    assert_equal ["mise ls --missing", "mise install"], calls
+    assert_includes @err.string, "setup: mise install failed with status 3"
   end
 
   # pre-commit refuses to install under core.hooksPath and would end the
   # script there, before the docs.
   def test_where_core_hooks_path_is_set_it_leaves_the_commit_hook_and_says_so
-    output, status = run_setup(
-      { "GIT_CONFIG_COUNT" => "2", "GIT_CONFIG_KEY_1" => "core.hooksPath", "GIT_CONFIG_VALUE_1" => File.join(@dir, "my-hooks") }
-    )
+    hooks = File.join(@dir, "my-hooks")
+    @git_env = GIT_ALONE.merge("GIT_CONFIG_KEY_1" => "core.hooksPath", "GIT_CONFIG_VALUE_1" => hooks)
 
-    assert_predicate status, :success?, output
+    status = run_setup
+
+    assert_equal 0, status, @err.string
     refute_includes calls, "mise x -- pre-commit install"
     assert_equal "mise x -- bundle exec rake rdoc", calls.last
-    said = output.lines(chomp: true)
+    said = @err.string.lines(chomp: true)
 
-    assert_includes said, "core.hooksPath is set, so git runs the hooks in #{File.join(@dir, 'my-hooks')}, not this clone's:"
+    assert_includes said, "core.hooksPath is set, so git runs the hooks in #{hooks}, not this clone's:"
     assert_includes said, "git push runs .githooks/pre-push only if the pre-push hook there runs #{@stub},"
     assert_includes said, "and pre-commit's hook is not installed."
   end
 
-  # Windows sets OS for every process, which MSYS2's bash passes on. A
-  # repository of Windows' gets the pins bin/setup reads.
+  # Windows sets OS for every process. A repository of Windows' gets the
+  # pins Setup reads.
   WINDOWS = { "OS" => "Windows_NT" }.freeze
 
   private def as_windows
-    File.write(File.join(@repo, "mise.toml"), %([tools]\nruby = "4.0.9"\nrust = "1.2.3"\n))
-    git("add", "mise.toml")
-    git("commit", "--quiet", "--message", "the pins")
+    File.write(File.join(@repo, "mise.toml"), %([tools]\r\nruby = "4.0.9"\r\nrust = "1.2.3"\r\n))
   end
 
   # On Windows, Rust's GNU host toolchain for RubyInstaller's MinGW Ruby,
   # with CI's components, and libclang and clang's own headers for
-  # bindgen; the bundle installs
-  # with what bin/windows-env sets, and there is no commit hook, since
-  # mise installs pre-commit there only through pipx.
+  # bindgen; the bundle installs with what bin/windows-env sets, and there
+  # is no commit hook, since mise installs pre-commit there only through
+  # pipx.
   def test_on_windows_it_adds_the_gnu_toolchain_libclang_and_clang_s_headers_and_installs_the_bundle_through_windows_env
     as_windows
-    output, status = run_setup(WINDOWS)
+    status = run_setup(WINDOWS, host_os: "mingw-ucrt")
 
-    assert_predicate status, :success?, output
+    assert_equal 0, status, @err.string
     assert_equal [
+      "mise ls --missing",
       "mise install",
+      "mise x -- rustup toolchain list",
       "mise x -- rustup toolchain install 1.2.3-x86_64-pc-windows-gnu --profile minimal --component clippy --component rustfmt",
+      "mise x -- python -m pip show reuse",
       "mise x -- python -m pip install --quiet #{REUSE}",
+      "mise x -- python -m pip show libclang",
       "mise x -- python -m pip install --quiet #{LIBCLANG}",
       "mise x -- sh bin/clang-headers",
       "mise x -- sh bin/windows-env bundle install",
@@ -241,13 +371,17 @@ class TestSetup < Minitest::Test
 
   def test_on_windows_a_ci_runner_installs_the_bundle_as_ci_does_through_windows_env
     as_windows
-    output, status = run_setup(WINDOWS.merge("CI" => "true"))
+    status = run_setup(WINDOWS.merge("CI" => "true"), host_os: "mingw-ucrt")
 
-    assert_predicate status, :success?, output
+    assert_equal 0, status, @err.string
     assert_equal [
+      "mise ls --missing",
       "mise install",
+      "mise x -- rustup toolchain list",
       "mise x -- rustup toolchain install 1.2.3-x86_64-pc-windows-gnu --profile minimal --component clippy --component rustfmt",
+      "mise x -- python -m pip show reuse",
       "mise x -- python -m pip install --quiet #{REUSE}",
+      "mise x -- python -m pip show libclang",
       "mise x -- python -m pip install --quiet #{LIBCLANG}",
       "mise x -- sh bin/clang-headers",
       "mise x -- bundle --version",
@@ -255,6 +389,38 @@ class TestSetup < Minitest::Test
       "mise x -- bundle config set --local frozen true",
       "mise x -- sh bin/windows-env bundle install",
     ], calls
+  end
+
+  # With the toolchain, its components, libclang, and the headers in
+  # place, a Windows setup runs the bundle's install and nothing else.
+  def test_on_windows_what_is_in_place_is_left_alone
+    as_windows
+    toolchain = "1.2.3-x86_64-pc-windows-gnu"
+    recorder.answer("mise ls --missing")
+    recorder.answer("mise x -- rustup toolchain list", output: "stable-x86_64-pc-windows-msvc (default)\n#{toolchain}\n")
+    components = %w[cargo clippy rustfmt rustc].map { |name| "#{name}-#{toolchain}\n" }.join
+    recorder.answer("mise x -- rustup component list --installed --toolchain #{toolchain}", output: components)
+    installed("reuse", "6.2.0")
+    installed("libclang", "18.1.1")
+    FileUtils.mkdir_p(File.join(@cache, "tokra/clang-18.1.1/include"))
+    FileUtils.touch(File.join(@cache, "tokra/clang-18.1.1/include/stddef.h"))
+
+    status = run_setup(WINDOWS, "--gate", host_os: "mingw-ucrt")
+
+    assert_equal 0, status, @err.string
+    assert_equal ["mise x -- sh bin/windows-env bundle install"], printed
+  end
+
+  # A toolchain installed without a component CI has is installed again.
+  def test_on_windows_a_toolchain_that_lacks_a_component_is_installed_again
+    as_windows
+    toolchain = "1.2.3-x86_64-pc-windows-gnu"
+    recorder.answer("mise x -- rustup toolchain list", output: "#{toolchain}\n")
+    recorder.answer("mise x -- rustup component list --installed --toolchain #{toolchain}", output: "cargo-#{toolchain}\nclippy-#{toolchain}\n")
+
+    run_setup(WINDOWS, "--gate", host_os: "mingw-ucrt")
+
+    assert_includes calls, "mise x -- rustup toolchain install #{toolchain} --profile minimal --component clippy --component rustfmt"
   end
 
   # ci.yml's toolchain step installs these components on every system.
@@ -265,7 +431,7 @@ class TestSetup < Minitest::Test
     components = step.fetch("with").fetch("components").split(/,\s*/)
 
     assert_equal %w[clippy rustfmt], components
-    assert_includes File.read(SETUP), components.map { |component| "--component #{component}" }.join(" ")
+    assert_equal components, Setup::COMPONENTS
   end
 
   def test_the_reuse_tool_is_ci_s
@@ -274,11 +440,12 @@ class TestSetup < Minitest::Test
       .find { |each| each["name"] == "Install the REUSE tool" }
 
     assert_includes step.fetch("run"), %("#{REUSE}")
-    assert_includes File.read(SETUP), %("#{REUSE}")
+    assert_equal REUSE, Setup::REUSE
   end
 
   # rake sync:tauri reads vendor/tauri, which a plain clone leaves empty.
   def test_it_checks_out_a_submodule_a_clone_left_empty
+    git("commit", "--quiet", "--allow-empty", "--message", "the first")
     library = File.join(@dir, "library")
     Dir.mkdir(library)
     git("init", "--quiet", "--initial-branch", "trunk", chdir: library)
@@ -290,121 +457,228 @@ class TestSetup < Minitest::Test
     git("submodule", "--quiet", "deinit", "--force", "vendor/library")
 
     refute_path_exists File.join(@repo, "vendor/library/inside")
-    output, status = run_setup
+    status = run_setup({}, "--gate")
 
-    assert_predicate status, :success?, output
+    assert_equal 0, status, @err.string
     assert_equal "the submodule's file", File.read(File.join(@repo, "vendor/library/inside"))
+    assert_includes printed, "git submodule update --init"
   end
 
-  def test_the_stub_it_writes_runs_the_hook_of_whichever_worktree_pushes
+  # A checkout with its submodules in place runs nothing for them.
+  def test_a_checkout_with_its_submodules_in_place_prints_nothing_for_them
+    run_setup({}, "--gate")
+
+    refute_includes printed, "git submodule update --init"
+  end
+
+  # What it writes is a stub that hands off to the hook of whichever
+  # worktree pushes (test_pre_push_hook.rb runs it).
+  def test_the_stub_it_writes_hands_off_to_the_hook_of_the_worktree_that_pushes
     run_setup
-    worktree = File.join(@dir, "worktree")
-    git("worktree", "add", "--quiet", worktree)
 
-    assert_predicate File.stat(@stub), :executable?
-    [@repo, worktree].each do |pushing|
-      output, status = Open3.capture2e(env, @stub, "origin", "git@example.com:tokra.git", chdir: pushing)
-
-      assert_predicate status, :success?, output
-      assert_equal [pushing, "origin", "git@example.com:tokra.git"], File.readlines(File.join(pushing, "ran"), chomp: true)
-    end
+    assert_equal <<~STUB, File.binread(@stub)
+      #!/bin/sh
+      #{MARKER}
+      hook="$(git rev-parse --show-toplevel)/.githooks/pre-push"
+      [ -x "$hook" ] || exit 0
+      exec "$hook" "$@"
+    STUB
+    assert_predicate File.stat(@stub), :executable? unless Gem.win_platform?
   end
 
   # Run from a worktree, it still writes the one stub every worktree's
   # push finds: git reads hooks from the clone's shared folder only.
   def test_run_from_a_worktree_it_writes_the_stub_into_the_clones_shared_hooks
+    git("commit", "--quiet", "--allow-empty", "--message", "the first")
     worktree = File.join(@dir, "worktree")
     git("worktree", "add", "--quiet", worktree)
-    output, status = run_setup(chdir: worktree)
+    status = run_setup(root: worktree)
 
-    assert_predicate status, :success?, output
-    assert_predicate File.stat(@stub), :executable?
+    assert_equal 0, status, @err.string
+    assert_path_exists @stub
     assert_empty Dir.glob(File.join(@repo, ".git/worktrees/*/hooks/*"))
-  end
-
-  # The whole path, for real: bin/setup's stub, the hook and bin/setup this
-  # repository ships, and a git push, which hands the hook its refs on
-  # standard input. Without them the hook sees nothing to gate and lets the
-  # push through. The stand-in mise runs nothing, so the gate is its last
-  # call.
-  def test_a_real_push_through_its_stub_runs_the_shipped_hook_its_setup_and_the_gate
-    File.write(File.join(@repo, ".githooks/pre-push"), File.read(REAL_HOOK))
-    FileUtils.mkdir_p(File.join(@repo, "bin"))
-    File.write(File.join(@repo, "bin/setup"), File.read(SETUP))
-    File.chmod(0o755, File.join(@repo, "bin/setup"))
-    git("add", "bin/setup")
-    git("commit", "--quiet", "--all", "--message", "the shipped hook")
-    remote = File.join(@dir, "remote.git")
-    git("init", "--quiet", "--bare", remote, chdir: @dir)
-    run_setup
-    before = calls.size
-    git("push", "--quiet", remote, "HEAD:refs/heads/trunk")
-
-    pushed = calls.drop(before)
-
-    assert_equal "mise install", pushed.first, pushed.inspect
-    refute_includes pushed, "mise x -- bundle exec rake rdoc"
-    assert_match(%r{\Amise x -- (bin/linux-env xvfb-run .* )?bundle exec rake\z}, pushed.last)
-    assert_equal git("rev-parse", "HEAD"), git("rev-parse", "refs/heads/trunk", chdir: remote)
-  end
-
-  def test_the_stub_passes_a_push_from_a_commit_that_has_no_hook
-    run_setup
-    File.delete(File.join(@repo, ".githooks/pre-push"))
-    output, status = Open3.capture2e(env, @stub, "origin", "git@example.com:tokra.git", chdir: @repo)
-
-    assert_predicate status, :success?, output
-    refute_path_exists File.join(@repo, "ran")
   end
 
   def test_running_it_again_leaves_the_same_stub
     run_setup
     first = File.read(@stub)
-    output, status = run_setup
+    status = run_setup
 
-    assert_predicate status, :success?, output
+    assert_equal 0, status, @err.string
     assert_equal first, File.read(@stub)
     assert_includes first.lines(chomp: true), MARKER
   end
 
-  # A later bin/setup may change the stub, and has to reach clones that
-  # hold an earlier one.
+  # A later setup may change the stub, and has to reach clones that hold
+  # an earlier one.
   def test_a_stub_of_its_own_from_an_earlier_version_is_replaced
     run_setup
     current = File.read(@stub)
     File.write(@stub, "#!/bin/sh\n#{MARKER}\nexit 0\n")
-    output, status = run_setup
+    status = run_setup
 
-    assert_predicate status, :success?, output
+    assert_equal 0, status, @err.string
     assert_equal current, File.read(@stub)
   end
 
   # A clone made from an empty template has no hooks folder.
   def test_a_clone_with_no_hooks_folder_gets_one
     FileUtils.rm_rf(File.dirname(@stub))
-    output, status = run_setup
+    status = run_setup
 
-    assert_predicate status, :success?, output
-    assert_predicate File.stat(@stub), :executable?
+    assert_equal 0, status, @err.string
+    assert_path_exists @stub
   end
 
   # Someone's own hook there, whatever it mentions, is theirs to keep.
   def test_a_hook_that_is_not_its_own_is_left_alone_and_said_so
     own = "#!/bin/sh\necho '#{MARKER}' # this line only quotes the marker\nexit 0\n"
+    FileUtils.mkdir_p(File.dirname(@stub))
     File.write(@stub, own)
-    output, status = run_setup
+    status = run_setup
 
-    assert_predicate status, :success?, output
+    assert_equal 0, status, @err.string
     assert_equal own, File.read(@stub)
-    assert_includes output, "#{@stub} exists and is not Tokra's; leaving it, so git push will not run .githooks/pre-push."
+    assert_includes @err.string, "#{@stub} exists and is not Tokra's; leaving it, so git push will not run .githooks/pre-push."
   end
 
-  # A runner that checks Tokra out runs bin/setup.ps1 before the hook on
-  # Windows only if git recorded it as executable, as it does bin/setup.
-  def test_both_setup_scripts_are_tracked_as_executable
-    listed, status = Open3.capture2(GIT_PLACE, "git", "ls-files", "--stage", "--", "bin/setup", "bin/setup.ps1", chdir: ROOT)
+  # Two setups at once in one cache break mise's download store, so the
+  # tools install under a lock on a file in the cache folder: while
+  # mise install runs, nobody else can take it.
+  def test_the_tools_install_under_a_lock_on_a_file_in_the_cache_folder
+    taken = nil
+    recorder.on("mise install") do
+      File.open(File.join(@cache, "tokra/setup.lock"), File::RDWR | File::CREAT) do |other|
+        taken = other.flock(File::LOCK_EX | File::LOCK_NB)
+      end
+    end
+
+    run_setup({}, "--gate")
+
+    assert_equal false, taken
+  end
+
+  # A setup that finds the lock held waits for it, and then installs.
+  def test_a_setup_waits_for_a_lock_another_setup_holds
+    lock = File.join(@cache, "tokra/setup.lock")
+    FileUtils.mkdir_p(File.dirname(lock))
+    held = File.open(lock, File::RDWR | File::CREAT)
+    held.flock(File::LOCK_EX)
+    worker = Thread.new { run_setup({}, "--gate") }
+    sleep 1
+
+    assert_empty calls
+    held.flock(File::LOCK_UN)
+
+    assert_equal 0, worker.value
+    assert_includes calls, "mise install"
+  ensure
+    held&.close
+  end
+
+  # Where XDG_CACHE_HOME is unset, the platform's own cache folder.
+  def test_the_lock_is_in_the_platforms_cache_folder_where_xdg_cache_home_is_unset
+    {
+      "linux-gnu" => [{ "HOME" => @dir }, File.join(@dir, ".cache")],
+      "darwin27" => [{ "HOME" => @dir }, File.join(@dir, "Library/Caches")],
+      "mingw-ucrt" => [{ "HOME" => @dir, "LOCALAPPDATA" => File.join(@dir, "Local"), "OS" => "Windows_NT" }, File.join(@dir, "Local")],
+    }.each do |host_os, (env, cache)|
+      @recorder = nil
+      @out = StringIO.new
+      as_windows
+      Setup.new(root: @repo, env:, runner: recorder, out: @out, err: StringIO.new, host_os:).call("--gate")
+
+      assert_path_exists File.join(cache, "tokra/setup.lock"), host_os
+    end
+  end
+
+  # What a person types is two lines, which bin/setup holds, with the
+  # folder it runs in and the arguments it was given.
+  def test_bin_setup_holds_the_two_line_command
+    lines = File.read(File.join(ROOT, "bin/setup")).lines(chomp: true).reject { |line| line.empty? || line.start_with?("#") }
+
+    assert_equal [
+      %(cd "$(dirname "$0")/.." || exit 1),
+      "mise trust -q mise.toml",
+      %(exec mise x -- ruby tasks/setup.rb "$@"),
+    ], lines
+  end
+
+  # cmd.exe runs bin/setup.cmd where a person types bin/setup.
+  def test_bin_setup_cmd_holds_the_same_two_lines_for_cmd
+    lines = File.read(File.join(ROOT, "bin/setup.cmd")).lines(chomp: true).reject { |line| line.empty? || line.downcase.start_with?("rem") }
+
+    assert_equal [
+      "@echo off",
+      %(cd /d "%~dp0.."),
+      "mise trust -q mise.toml",
+      "mise x -- ruby tasks/setup.rb %*",
+    ], lines
+  end
+
+  def test_there_is_no_powershell_twin
+    refute_path_exists File.join(ROOT, "bin/setup.ps1")
+  end
+
+  # The hook runs bin/setup as git's sh does, and a clone's checkout keeps
+  # the mode git recorded.
+  def test_bin_setup_is_tracked_as_executable
+    skip "Windows records no executable bit" if Gem.win_platform?
+
+    listed, status = Open3.capture2(GIT_PLACE, "git", "ls-files", "--stage", "--", "bin/setup", chdir: ROOT)
 
     assert_predicate status, :success?
-    assert_equal %w[100755 100755], listed.lines.map { |line| line.split.first }
+    assert_equal %w[100755], listed.lines.map { |line| line.split.first }
+  end
+
+  # Its version is clang-headers', which unpacks the headers of the
+  # libclang wheel's version.
+  def test_the_libclang_it_installs_is_the_version_clang_headers_unpacks
+    headers = File.read(File.join(ROOT, "bin/clang-headers"))
+
+    assert_match(/^version=#{Regexp.escape(Setup::LIBCLANG_VERSION)}$/, headers)
+    assert_equal LIBCLANG, "libclang==#{Setup::LIBCLANG_VERSION}"
+  end
+
+  # It runs before the bundle exists, so it loads what Ruby ships.
+  def test_it_requires_nothing_that_ruby_4_makes_a_bundled_gem
+    required = File.read(SETUP).scan(/^require "(\w+)"/).flatten
+
+    assert_empty required - %w[fileutils open3 shellwords], "setup.rb requires #{required.inspect}"
+  end
+
+  # The one place a shell could be asked for is a command string, so none
+  # of its commands is one.
+  def test_its_commands_are_never_given_to_a_shell
+    source = File.read(SETUP)
+
+    refute_match(/`|%x|\bexec\(|\bsystem\("|\bspawn\("|Kernel\.system\("/, source)
+  end
+
+  # The real runner, with a real command: Ruby itself, which every system
+  # has, in the array form.
+  def test_the_runner_captures_a_commands_output_and_status
+    shell = Setup::Shell.new(env: { "SETUP_TEST" => "seen" })
+    result = shell.capture(Gem.ruby, "-e", "print ENV.fetch('SETUP_TEST'); warn 'and this'; exit 4", chdir: @dir)
+
+    assert_equal 4, result.status
+    assert_includes result.output, "seen"
+    assert_includes result.output, "and this"
+    refute_predicate result, :success?
+  end
+
+  def test_the_runner_streams_a_command_in_the_folder_it_is_given
+    shell = Setup::Shell.new(env: {})
+    status = shell.stream(Gem.ruby, "-e", "File.write('here', Dir.pwd); exit 5", chdir: @dir)
+
+    assert_equal 5, status
+    assert_equal @dir, File.realpath(File.read(File.join(@dir, "here")))
+  end
+
+  def test_the_runner_says_127_of_a_command_that_is_not_there
+    shell = Setup::Shell.new(env: {})
+
+    assert_equal 127, shell.capture("tokra-no-such-command", chdir: @dir).status
+    assert_equal 127, shell.stream("tokra-no-such-command", chdir: @dir)
   end
 end

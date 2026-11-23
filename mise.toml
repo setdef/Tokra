@@ -38,9 +38,9 @@ ruby.compile = false
 # Tokra supports 4.0 too, and CI runs it on every system.
 ruby = { version = "4.1.0-preview1", os = ["linux", "macos"] }
 python = "3.12"
-# pre-commit runs a person's commit hook, which bin/setup installs on
+# pre-commit runs a person's commit hook, which tasks/setup.rb installs on
 # Linux and macOS; on Windows mise can install it only through pipx, and
-# bin/setup.ps1 installs no commit hook.
+# tasks/setup.rb installs no commit hook there.
 pre-commit = { version = "4.7.0", os = ["linux", "macos"] }
 rust = "1.99.1"
 
