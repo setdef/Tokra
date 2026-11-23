@@ -194,6 +194,7 @@ class Bump
     rewrite(@gem.version_file, VERSION, target.to_s, "VERSION")
     write_crate(target) if @gem.crate
     write_lock(@gem.path("Gemfile.lock"), from, target)
+    example_locks.each { |relative| write_lock(relative, from, target) }
     floor = floor_for(target)
     moved = @dependents.map do |dependent|
       write_lock(dependent.path("Gemfile.lock"), from, target)
@@ -261,8 +262,18 @@ class Bump
   private def files
     own = [@gem.version_file, @gem.changelog, "Gemfile.lock"]
     own += [File.join(@gem.crate, "Cargo.toml"), "Cargo.lock"] if @gem.crate
-    own.map { |relative| @gem.path(relative) } +
+    own.map { |relative| @gem.path(relative) } + example_locks +
       @dependents.flat_map { |dependent| [dependent.path("Gemfile.lock"), dependent.path(dependent.gemspec)] }
+  end
+
+  # The examples' tracked lockfiles that list the gem, relative to the
+  # repository. An example takes the gem by path from this checkout, so
+  # its lockfile names the gem's version, and a release that left it
+  # behind would tag an example whose bundle no longer matches.
+  private def example_locks
+    @example_locks ||= git("ls-files", "-z", "--", "examples/*/Gemfile.lock").split("\0").select do |relative|
+      File.read(File.join(@root, relative)).match?(/^ +#{Regexp.escape(@gem.name)} \(/)
+    end
   end
 
   private def path(relative)

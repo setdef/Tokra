@@ -155,6 +155,21 @@ class TestBump < Minitest::Test
     assert_empty status
   end
 
+  # An example takes tokra by path, so its lockfile names tokra's version.
+  def test_a_tokra_bump_moves_the_examples_lockfiles_that_list_it
+    write("examples/app/Gemfile.lock", "PATH\n  remote: ../..\n  specs:\n    tokra (0.0.1.pre.2)\n      rb_sys (~> 0.9.129)\n\n" \
+      "CHECKSUMS\n  rack (3.2.4)\n  tokra (0.0.1.pre.2)\n")
+    write("examples/other/Gemfile.lock", "GEM\n  specs:\n    rack (3.2.4)\n")
+    commit_all("examples")
+
+    bump { |current| current.next(:minor) }
+
+    assert_equal 2, read("examples/app/Gemfile.lock").scan(/^ +tokra \(0\.1\.0\)$/).size
+    assert_includes read("examples/app/Gemfile.lock"), "  rack (3.2.4)\n"
+    assert_equal "GEM\n  specs:\n    rack (3.2.4)\n", read("examples/other/Gemfile.lock")
+    assert_empty status
+  end
+
   def test_the_crate_takes_the_gems_version_whatever_it_held
     bump { GemVersion.parse("0.3.0") }
 
