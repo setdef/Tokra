@@ -384,6 +384,8 @@ ask questions under
 your operating system and its version, the output of `ruby -v` and
 `rustc -V`, the command you ran, and its full output.
 
+Report a security problem privately, as [SECURITY.md](SECURITY.md) says, never on the forum or in a GitHub issue.
+
 ## Contributing
 
 Start with [AGENTS.md](AGENTS.md). It holds the rules for people and
