@@ -163,10 +163,12 @@ its Ferro gems and says how the plugin differs from Tauri's.
 * {The examples}[https://github.com/setdef/Tokra/tree/trunk/examples] are
   a Roda app, a Rails app, and a static page.
 
-Report bugs and ask questions on the
-{setdef forum}[https://forum.setdef.com/tags/c/tokra/discussion] or as a
-{GitHub issue}[https://github.com/setdef/Tokra/issues]. To contribute,
-start with {AGENTS.md}[https://github.com/setdef/Tokra/blob/trunk/AGENTS.md].
+Ask questions and report problems on the
+{Tokra forum}[https://forum.setdef.com/c/tokra]. GitHub Issues are open to
+the project's collaborators only. To send a patch, post it on the forum, or
+email it with <tt>git send-email</tt> to
+<tt>replies+tokra@forum.setdef.com</tt>. To contribute, start with
+{AGENTS.md}[https://github.com/setdef/Tokra/blob/trunk/AGENTS.md].
 
 == License
 

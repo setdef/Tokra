@@ -376,15 +376,17 @@ Today you run a Tokra app with `bundle exec ruby`.
 
 ## Reporting problems
 
-Report a bug under
-[Bug Reports](https://forum.setdef.com/tags/c/tokra/bug) on the setdef
-forum or as a [GitHub issue](https://github.com/setdef/Tokra/issues), and
-ask questions under
-[Discussion](https://forum.setdef.com/tags/c/tokra/discussion). Include
-your operating system and its version, the output of `ruby -v` and
-`rustc -V`, the command you ran, and its full output.
+Ask questions and report problems on the
+[Tokra forum](https://forum.setdef.com/c/tokra). Include your operating
+system and its version, the output of `ruby -v` and `rustc -V`, the
+command you ran, and its full output. GitHub Issues are open to the
+project's collaborators only.
 
-Report a security problem privately, as [SECURITY.md](SECURITY.md) says, never on the forum or in a GitHub issue.
+Report a security problem privately, as [SECURITY.md](SECURITY.md) says, never on the forum.
+
+To send a patch, post it on the forum, or email it with `git send-email` to
+`replies+tokra@forum.setdef.com`. [git-send-email.io](https://git-send-email.io)
+shows how to set that up.
 
 ## Contributing
 
