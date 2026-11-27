@@ -5,8 +5,9 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
@@ -526,21 +527,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-- `Rack::Handler::Tokra.run` takes `context:` (or anchors at rackup's
-  `config.ru`) and opens the config's windows; `title:`, `width:`,
-  `height:`, and `DEFAULT_OPTIONS` are gone (breaking)
-- An app opens the windows its config's `app.windows` lists, and none if it
-  lists none, instead of always opening `main` (breaking)
-- An app needs a config file with an `identifier` (breaking)
-- `Native::EventLoop.new` takes the GTK application id, or `nil` (breaking)
-- On Linux and Windows a webview with no data directory keeps its data in
-  `<local data>/<identifier>`, as Tauri's does, rather than where wry puts
-  it by default; on Linux an incognito webview sharing a data directory
-  with an earlier webview, the default one included, gets none of the
-  app's protocols, as in Tauri (breaking)
-- An app needs an RGBA PNG at `icons/icon.png` beside its config, or one
-  `bundle.icon` names; without it `Tokra.generate_context` raises "failed to
-  open icon {path}: {e}", as a Tauri app fails to compile (breaking)
+- **Breaking:** `Rack::Handler::Tokra.run` takes `context:` (or anchors at rackup's
+ `config.ru`) and opens the config's windows; `title:`, `width:`,
+ `height:`, and `DEFAULT_OPTIONS` are gone
+- **Breaking:** An app opens the windows its config's `app.windows` lists, and none if it
+ lists none, instead of always opening `main`
+- **Breaking:** An app needs a config file with an `identifier`
+- **Breaking:** `Native::EventLoop.new` takes the GTK application id, or `nil`
+- **Breaking:** On Linux and Windows a webview with no data directory keeps its data in
+ `<local data>/<identifier>`, as Tauri's does, rather than where wry puts
+ it by default; on Linux an incognito webview sharing a data directory
+ with an earlier webview, the default one included, gets none of the
+ app's protocols, as in Tauri
+- **Breaking:** An app needs an RGBA PNG at `icons/icon.png` beside its config, or one
+ `bundle.icon` names; without it `Tokra.generate_context` raises "failed to
+ open icon {path}: {e}", as a Tauri app fails to compile
 - A window's default title is "Tokra App", as Tauri's is "Tauri App"
 - The default menu's About item, the Linux desktop file, and a dialog
   plugin message's title name the app by `package_info.name`, and the About
@@ -549,26 +550,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - As the app exits, the app's, each window's, and each webview's resources
   tables are cleared without calling `close`, and on Windows each window is
   hidden
-- `Rack::Handler::Tokra.run` now builds a `Tokra::Builder`, so Rack apps get
-  IPC responses and injected scripts; its `invoke_handler` receives an
-  `Ipc::Invoke` and must be Ractor-shareable (breaking)
+- **Breaking:** `Rack::Handler::Tokra.run` now builds a `Tokra::Builder`, so Rack apps get
+ IPC responses and injected scripts; its `invoke_handler` receives an
+ `Ipc::Invoke` and must be Ractor-shareable
 - `tokra` now requires `rb_sys ~> 0.9.129`
-- `Native::WebView.new_with_protocol` takes `(window, proxy, label,
-  initialization_scripts)` and builds the webview with `label` as wry's id;
-  a label holding NUL raises `ArgumentError` (breaking)
-- `Native::Window.new` takes `(event_loop, label)`, and every event the
-  loop delivers for the window carries `label`; a label holding NUL raises
-  `ArgumentError` (breaking)
-- `Native::IpcEvent` gains required `label` and `url` members; `label` is
-  its first positional member, before `message` (breaking)
-- `Native::HttpRequestEvent`, `Native::PageLoadEvent`, and
-  `Native::WindowCloseEvent` gain a required first `label` member, the
-  label of their webview or window (breaking)
-- `Native::HttpRequestEvent#body` is a binary (ASCII-8BIT) string holding the
-  exact request bytes, no longer UTF-8 (breaking)
-- `ipc://` and `postMessage` invokes from any origin other than the app's own
-  (`tokra://localhost`; `http://tokra.localhost` on Windows) are rejected with
-  `Command <name> not allowed by ACL` until capabilities exist (breaking)
+- **Breaking:** `Native::WebView.new_with_protocol` takes `(window, proxy, label,
+ initialization_scripts)` and builds the webview with `label` as wry's id;
+ a label holding NUL raises `ArgumentError`
+- **Breaking:** `Native::Window.new` takes `(event_loop, label)`, and every event the
+ loop delivers for the window carries `label`; a label holding NUL raises
+ `ArgumentError`
+- **Breaking:** `Native::IpcEvent` gains required `label` and `url` members; `label` is
+ its first positional member, before `message`
+- **Breaking:** `Native::HttpRequestEvent`, `Native::PageLoadEvent`, and
+ `Native::WindowCloseEvent` gain a required first `label` member, the
+ label of their webview or window
+- **Breaking:** `Native::HttpRequestEvent#body` is a binary (ASCII-8BIT) string holding the
+ exact request bytes, no longer UTF-8
+- **Breaking:** `ipc://` and `postMessage` invokes from any origin other than the app's own
+ (`tokra://localhost`; `http://tokra.localhost` on Windows) are rejected with
+ `Command <name> not allowed by ACL` until capabilities exist
 - An invoke handler that raises rejects the invoke with the exception message
   and logs it; the native event loop reports exceptions to stderr instead of
   discarding them, and `SystemExit` ends the loop with its status
@@ -579,32 +580,32 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `linux-body` feature)
 - `tokra` no longer strips its native extension's symbols, so a panic
   backtrace names its functions
-- `Native::EventLoop`, `Native::Window`, and `Native::WebView` raise
-  `ThreadError` when called from a thread other than the one that created
-  them (breaking)
+- **Breaking:** `Native::EventLoop`, `Native::Window`, and `Native::WebView` raise
+ `ThreadError` when called from a thread other than the one that created
+ them
 - `Native::Proxy#respond` and `#drop_response` called off the main thread
   answer through the event loop, and raise once the loop has closed
-- An exception that is not a `StandardError` (a `SignalException`,
-  `Interrupt`, `Thread#kill`), raised in an event callback or delivered to
-  the main thread while the loop runs, ends the loop and is raised again by
-  `Native::EventLoop#run`, instead of being reported and ignored (breaking)
+- **Breaking:** An exception that is not a `StandardError` (a `SignalException`,
+ `Interrupt`, `Thread#kill`), raised in an event callback or delivered to
+ the main thread while the loop runs, ends the loop and is raised again by
+ `Native::EventLoop#run`, instead of being reported and ignored
 - Events for Ruby are delivered once per turn of the event loop, after the
   platform's events, instead of one by one as they arrive
 - `tokra`'s native crate now depends on the `rb-sys` crate directly, for Ruby's
   thread-event hooks
-- Closing the window no longer ends the event loop by itself: the window
-  closes, and the app exits unless a handler prevents it (breaking for code
-  that drives `Native::EventLoop` directly, which now closes the window on
-  `WindowCloseEvent` and answers `true` to `WindowDestroyedEvent`)
-- A closed `Native::Window` ignores its setters and answers `nil` for its
-  title and id, and a closed `Native::WebView` ignores `eval` (breaking)
+- **Breaking:** Closing the window no longer ends the event loop by itself: the window
+ closes, and the app exits unless a handler prevents it (for code
+ that drives `Native::EventLoop` directly, which now closes the window on
+ `WindowCloseEvent` and answers `true` to `WindowDestroyedEvent`)
+- **Breaking:** A closed `Native::Window` ignores its setters and answers `nil` for its
+ title and id, and a closed `Native::WebView` ignores `eval`
 - Registering a URI scheme again replaces its handler whichever method
   registered either, so a later asynchronous `tokra` handler now wins over
   an earlier synchronous one; a registered `ipc` scheme replaces the invoke
   transport, as in Tauri
-- `Native::HttpRequestEvent` has a seventh member, `scheme`, the name the
-  request's protocol was registered under; `Native::WebView#open` takes
-  `uri_scheme_protocols`, the schemes to register (breaking)
+- **Breaking:** `Native::HttpRequestEvent` has a seventh member, `scheme`, the name the
+ request's protocol was registered under; `Native::WebView#open` takes
+ `uri_scheme_protocols`, the schemes to register
 
 ### Fixed
 
@@ -651,11 +652,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Removed
 
-- `Native::WebView.new(window, url, ipc_callback, proxy)`; build a webview
-  with `Native::WebView.new_with_protocol` (breaking)
+- **Breaking:** `Native::WebView.new(window, url, ipc_callback, proxy)`; build a webview
+ with `Native::WebView.new_with_protocol`
 - The `tokra` gem no longer ships development files (plans, transcripts,
   tasks, tests, tool configuration) or the empty `semantic-highlight`
   executable
 
 [Unreleased]: https://github.com/setdef/Tokra/compare/tokra/v0.0.2...HEAD
-[0.0.2]: https://github.com/setdef/Tokra/compare/v0.0.1.pre.2...tokra/v0.0.2
+[0.0.2]: https://github.com/setdef/Tokra/releases/tag/tokra/v0.0.2
